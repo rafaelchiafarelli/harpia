@@ -85,16 +85,17 @@ message <name>{
 }
 
 where:
-* <modifier> is prefix for that variable (repeteable, optional, etc )
+* <name> is the name of the message/enum and only one is possible per file.
+* <modifier> is prefix for that variable (repeteable, optional, etc ).
 * <var_type> is the time of the variable and could be a simple type such as "string", "int", "float", etc, or a complex type, such as the type defined by another message. <var_type> cannot have circular references.
-* <var_name> is the name of the variable and must created following the coding standart
+* <var_name> is the name of the variable and must created following the coding standart and cannot repeat
 * <index> is the position of the variable inside the structure. No two indexes can be equal and must begin with 1
 
 now, for this development
 
 <access_modifier>[...] message <name> {
     int id = 0;
-    <modifier>[...] <type/message_id> <var_name>[<regex>] = <index>;
+    <modifier>[...] <type/message_name> <var_name>[<regex>] = <index>;
 }<table_name>;
 
 where:
@@ -107,11 +108,11 @@ where:
         * every variable can serve as a filter for a query
         * every Foreing-Key can be used as filter for a query
 * <name> -- must be defined according with the standart coding of the company and must not be equal to any other message on this file, and no internal variable can be equal to this name.
-* int id = 0; -- is OBRIGATORY and always will occupy the first index. It is primary-key for the database when applicable, but always will exist.        
-
+* int id = 0; -- is OBRIGATORY and always will occupy the first index. It is primary-key for the database when applicable, but always will exist. Index 0 is NOT USABLE and an error should occur in compilation time. 
 * <modifier>[...] several modifiers can be concatenated to form the innerworking of a table or a variable
     * optional -- this variable is optional and do not need to be present
     * repeteable -- this variable is dinamically allocated
+       * if it is a database, a new table is created to contain this variable.
     * map -- this means that the variable is a map of a first and a second item.
         * serialization, in this case, will treat the map as a list of dict
             ex.: 
@@ -123,12 +124,13 @@ where:
 
     * repeteable[size] -- this variable is statically allocated by "size". Even if it is a database.
         * 'size' represent the absolute maximum this variable can allocate.
-
-    * pagination -- this means that there are functions related to the pagination of this variable by a amount that is passed via pararmeter
+        * a table is created with fixed size
+    * pagination -- this means that there are functions related to the pagination of this variable by an amount that is passed via pararmeter
     * pagination[size] - this means that the pagination if fixed in "size" items per page
     * required - this means that this variable is absolutely necessary. It is required in the database and all the functions to set data will have this as parameter.
+    * unique - this means that the content of this variable cannot repeat itself in the database.
 
-* <type/message_id> is the type of the variable or the Foreign-Key used to merge 2 messages.
+* <type/message_name> is the type of the variable or the Foreign-Key used to merge 2 messages.
     * as a type, it can be another message, regular simple type available in protobuf meta language
     * as a Foreing-Key, it must be the index of another message, since it always exist, it will always be present. 
 * <var_name> is the name of the variable and must created following the coding standart
@@ -136,7 +138,7 @@ where:
     message home {
         repeteable[10] char name["^[a-z0-9_\-]+$"]
     }
-    this will create a message, with a array of printable characters of max size 10.
+    this will create a message, with an array of printable characters of max size 10.
 
 * <index> is the index of the variable that will always begin with 1
 * <table_name> is the name of the table that will be created. 
@@ -151,7 +153,14 @@ Functions created
 * if a table_name is present, than the table must be created.
     * if it ends with a ";", then the table is private
     * if it ends without a ";", then the table is public
+    * if it is a table, repeatable variables are represented in the database in another private table
 * if a table_name is not present, that means that the table will not be created
+   * if it is not a table, repeateble variables are present in memory as arrays, vectors, or lists
+
+ Serialization
+ * Serializers provided are intrinscically safe. Never ever they will crash.
+ * Memory consumption is limited by the system. If memory is out, serializer returns an error of no memory and a standartized message.
+ * map variables are serialized as dicts 
 
 
 
