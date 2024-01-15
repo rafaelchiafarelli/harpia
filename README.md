@@ -139,7 +139,16 @@ now, for this development
  * Serializers provided are intrinscically safe. Never ever they will crash.
  * Memory consumption is limited by the system. If memory is out, serializer returns an error of no memory and a standartized message.
  * map variables are serialized as dicts 
+# Enablihng/Disabling features
+All features and code generation can be independently disabled. If a feature depends on another, it will be executed, but a warning message will appear. 
 
+
+# Tools
+* protobuf dRPC
+* cmake
+* make
+* python 3.10
+* bashs
 
 
 
