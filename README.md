@@ -150,6 +150,11 @@ All features and code generation can be independently disabled. If a feature dep
 * python 3.10
 * bashs
 
+# Configurations
+All configurations must be available at the protobuf file.
+Configurations related to specific language definitions must be available at the protobuf file.
+Should have language selection within the protobuf?
+
 
 
 
