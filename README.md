@@ -143,7 +143,12 @@ now, for this development
  * map variables are serialized as dicts 
 ### SOAP
 * SOAP is a xml protocol implemented over http
-* 
+
+### Documentation in code with examples
+All code is documented via doxygen.
+All interfaces (HTTP, SOAP, protoduf, gRPC, etc) and methods (c++, C#, java, etc) must have a usage example - Integration Test
+
+
 # Enablihng/Disabling features
 All features and code generation can be independently disabled. If a feature depends on another, it will be executed, but a warning message will appear. 
 
@@ -160,6 +165,10 @@ All configurations must be available at the protobuf file.
 Configurations related to specific language definitions must be available at the protobuf file.
 Should have language selection within the protobuf?
 
+# philosophy
+1. every bug create unit tests.
+2. all architecture must be available in code after processed via comments
+3. all documentation must be available in code after processed (doxigen)
 
 
 
