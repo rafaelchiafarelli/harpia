@@ -1,10 +1,11 @@
 
 
+
 # project name Harpia - Mithological creature responsible to deliver the news and other things.
-# objective:
+## objective:
 Create a generalized interface for processes and threds to share data among themselves and to a database.
 
-# goals:
+## goals:
 * a shared library must be created so that all other projects can use
 * this library must be integratable in all languages we support
 * all processes must be secure and safe (intrinsecaly secure means it will never fail)
@@ -14,7 +15,7 @@ Create a generalized interface for processes and threds to share data among them
 * data types, of diferent projects are agregated via foreing key. Representation at the database is independent of each other but might have impact in security
 * data types can have a representation in the database, even if it is agregated.
 * functions of database (CRUDL) are always available, but usage may be restricted or non existent. 
-# process
+## process
 creation of a specialized proto file. 
 This protofile will have special tags in it that will enable and configure each feature.
 User authentication must be implemented in the following fashion:
@@ -61,7 +62,7 @@ Data types are directly enabled to be shared via other protocols, such as HTTP:
 Databases are part of the environment.
 The environment requires at least one database for all the projects within this environment. The public database will always be available to every one. But the private will only be available by the creator of the library.
 *************************************************************************************************
-# proto definition
+## proto definition
 PROTO files are files that define varibles, have tags that describe how this variables will be accessed and names that will define how the variables will be stored.
 normal PROTO message:
 enum <name>{
@@ -71,7 +72,7 @@ enum <name>{
 message <name>{
 	<modifier> <var_type> <var_name> = <index>;
 }
-## where:
+### where:
 * <name> is the name of the message/enum and only one is possible per file.
 * <modifier> is prefix for that variable (repeteable, optional, etc ).
 * <var_type> is the time of the variable and could be a simple type such as "string", "int", "float", etc, or a complex type, such as the type defined by another message. <var_type> cannot have circular references.
@@ -82,7 +83,7 @@ now, for this development
 	int id = 0;
 	<modifier>[...] <type/message_name> <var_name>[<regex>] = <index>;
 }<table_name>;
-## where:
+### where:
 * <access_modifier>[...] are the modifiers available to access this information. It is possible to have multiple <access_modifier>
 	- stream - this modifier tells us that there will be a stream available for this information
 	- event[cached/not-cached] - events are OnChange events on the data_type. Cached messages always returns the last available data as soon as the connection starts. On the otherhand not-cached messages will only return if the changes happens after the connection.
@@ -128,17 +129,21 @@ now, for this development
 		* if it is ended without the ";", that means that this is a public message and every one with access to this library can produce the information. 
 			* This will result at a environment wher all the projects that includes this module will have the hability to publish information.
 	
-# Functions created
+## Functions created
+### CRUDL
 * if a table_name is present, than the table must be created.
 	* if it ends with a ";", then the table is private
 	* if it ends without a ";", then the table is public
 	* if it is a table, repeatable variables are represented in the database in another private table
 * if a table_name is not present, that means that the table will not be created
    * if it is not a table, repeateble variables are present in memory as arrays, vectors, or lists
- # Serialization
+### Serialization
  * Serializers provided are intrinscically safe. Never ever they will crash.
  * Memory consumption is limited by the system. If memory is out, serializer returns an error of no memory and a standartized message.
  * map variables are serialized as dicts 
+### SOAP
+* SOAP is a xml protocol implemented over http
+* 
 # Enablihng/Disabling features
 All features and code generation can be independently disabled. If a feature depends on another, it will be executed, but a warning message will appear. 
 
@@ -168,6 +173,4 @@ Should have language selection within the protobuf?
 
 
 
-#   h a r p i a 
- 
- 
+#
