@@ -3,7 +3,7 @@
 
 # project name Harpia - Mithological creature responsible to deliver the news and other things.
 ## objective:
-Create a generalized interface for processes and threds to share data among themselves and to a database.
+Create a generalized interface for processes and threads to share data among themselves, database and web.
 
 ## goals:
 * a shared library must be created so that all other projects can use
