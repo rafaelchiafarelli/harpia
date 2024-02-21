@@ -97,7 +97,7 @@ message <name>{
 * <var_name> is the name of the variable and must created following the coding standart and cannot repeat
 * <index> is the position of the variable inside the structure. No two indexes can be equal and must begin with 1
 now, for this development
-<access_modifier>[...] message <name> {
+><access_modifier>[...] message <name> {
 	int id = 0;
 	<modifier>[...] <type/message_name> <var_name>[<regex>] = <index>;
 }<table_name>;
@@ -118,7 +118,7 @@ now, for this development
 	* map -- this means that the variable is a map of a first and a second item.
 		* serialization, in this case, will treat the map as a list of dict
 			ex.: 
-			message {
+			> message {
 					map<string, int> street_number_of_house = 1;
 			}
 			the serialization will return:
@@ -135,7 +135,7 @@ now, for this development
 	* as a Foreing-Key, it must be the index of another message, since it always exist, it will always be present. 
 * <var_name> is the name of the variable and must created following the coding standart
 * [<regex>] -- this is a optional configuration that exist to allow the limits of this variable to be present when defining the variable. For example:
-	message home {
+	> message home {
 		repeteable[10] char name["^[a-z0-9_\-]+$"]
 	}
 	this will create a message, with an array of printable characters of max size 10.
