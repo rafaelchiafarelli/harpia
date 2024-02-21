@@ -14,7 +14,12 @@ Create a generalized interface for processes and threds to share data among them
 * data types, of the same project, can be always agregated, but this will impact at the querie level
 * data types, of diferent projects are agregated via foreing key. Representation at the database is independent of each other but might have impact in security
 * data types can have a representation in the database, even if it is agregated.
-* functions of database (CRUDL) are always available, but usage may be restricted or non existent. 
+* functions of database (CRUDL) are always available, but usage may be restricted or non existent.
+* functions of RestFull API must be available with other projects (CurL, COW, etc)
+* functions to read-once, read-all, read-until, should be implemented.
+* events and via callbacks connected to detached threads must be implemented
+	* create, change, update. Read will not generate new events
+ * database is implemented securelly - always
 ## process
 creation of a specialized proto file. 
 This protofile will have special tags in it that will enable and configure each feature.
