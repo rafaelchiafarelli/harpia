@@ -164,15 +164,29 @@ now, for this development
 
 ### Documentation in code with examples
 All code is documented via doxygen.
-All interfaces (HTTP, SOAP, protoduf, gRPC, etc) and methods (c++, C#, java, etc) must have a usage example - Integration Test
+All interfaces (HTTP, SOAP, protoduf, gRPC, etc) and methods (c++, C#, java, etc) must have a usage example that must be ran in an Integration Test
+All unit tests have to pass to form the code.
+Source code generated and library generated will be available to the user to integrate in the project or link in the project
+
+## Level of tests
+These tests are not the tests of the code generator, but of the code generated. 
+Every single branch of code must be tested. 
+Unit Tests are small and have to test functionalities of each variable and each set and get function. All of the access related tests must be implemented here. All thresholds, limits and access mode, must be implemented here.
+Functional Tests are medium tests created to check functionalities such as integration with database, serializations, callbacks, gRPC and streams.
+Integration Tests are bigger and must be able to test in a docker like environment (we must have a way to execute it "portable") - since we will need to use communication privileges. The idea is to have some sort of process that will use the data for some dummy, but time consuming purpose. 
+
+## Test of the code generator
+This tests are only ran if the code generator changes.
+all features must be tested. And one example must be created to reach every branch of the code, so, if one feature is a function that is accessed only once and data is destroyed, the test is the generation of that function and test of that function.
 
 
 # Enablihng/Disabling features
 All features and code generation can be independently disabled. If a feature depends on another, it will be executed, but a warning message will appear. 
 
 
+
 # Tools
-* protobuf dRPC
+* protobuf gRPC
 * cmake
 * make
 * python 3.10
