@@ -64,6 +64,7 @@ User authentication must be implemented in the following fashion:
 		* a read function that return the data as configured, it will return null, nill or something to that effect (configurable)
 			* can be blocking or non-blocking, but it is always timed (a configurable timeout feature is possible, but a timeout is passed via read function.)
 		* a stop functon that will kill the connection. If stop function was not called in a configurable amount of time, the connection is killed and "read" function must return IN-VALID
+  		* upon deletion of object, all the resources must be available back to the system. 
 	* dead connections or connection that are not kept alive will be reclaimed by the system.
 Data types are directly enabled to be shared via other protocols, such as HTTP:
 * RestFULL api will be generated with the names of the variables as URL´s.
