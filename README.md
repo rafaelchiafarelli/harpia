@@ -82,13 +82,13 @@ The environment requires at least one database for all the projects within this 
 ## proto definition
 PROTO files are files that define varibles, have tags that describe how this variables will be accessed and names that will define how the variables will be stored.
 normal PROTO message:
-enum <name>{
+"enum <name>{
 	<enum-name> = 0;
 	<enum-name> = 1;
 }
 message <name>{
 	<modifier> <var_type> <var_name> = <index>;
-}
+}"
 ### where:
 * <name> is the name of the message/enum and only one is possible per file.
 * <modifier> is prefix for that variable (repeteable, optional, etc ).
