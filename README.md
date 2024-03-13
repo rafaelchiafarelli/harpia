@@ -1,24 +1,29 @@
 
 
 
-# project name Harpia - Mithological creature responsible to deliver the news and other things.
+# project Harpia
+## Harpia is the Mithological creature responsible to deliver the news and other things.
 ## objective:
-Create a generalized interface for processes and threads to share data among themselves, database and web.
+Create a generalized interface for processes and threads to share data among themselves, database and web. 
 ## main goal
 Create a gRPC, ORM, RESTFull, SOAP, CRUDL, multi-project, multi-language, multi-thread library to exchange data.
 ## goals:
 * a shared library must be created so that all other projects can use
 * this library must be integratable in all languages we support
-* all processes must be secure and safe (intrinsecaly secure means it will never fail)
-* versioning is super important - and also versioning is a tool that is transperant for the developer. Old versions must be avialable always for the developers, but resources of other versions may not be interchangable.
-* data types, created by one project cannot be changed by another project, the data itself can change if, and only if, authorized by the project creator.
+* all processes must be secure and safe (intrinsecaly secure means it will never fail and safe means that the comunication is going to be secure (SSL))
+* versioning must be embedded in the process and in the library.
+* Versioning must be transperant for the developer. Old versions must be avialable always for the developers, but resources of other versions may not be interchangable.
+* Integration with versioning systems (git) every harpia project if forked from this project.
+* data types, created by one project cannot be changed by another project, but it can be inherited by this project classes.
+	* languages with function interfaces will have plenty of changes to allow templating.
 * data types, of the same project, can be always agregated, but this will impact at the querie level
 * data types, of diferent projects are agregated via foreing key. Representation at the database is independent of each other but might have impact in security
-* data types can have a representation in the database, even if it is agregated.
+* data types can have a separeted representation in the database, even if it is agregated.
+* data types that are unique in the database will be allowed.
 * functions of database (CRUDL) are always available, but usage may be restricted or non existent.
-* functions of RestFull API must be available with other projects (CurL, COW, etc)
+* functions of RestFull API must be available with other projects (CurL, COW, etc).
 * functions to read-once, read-all, read-until, should be implemented.
-* events and via callbacks connected to detached threads must be implemented
+* events and via callbacks connected to detached threads must be implemented.
 	* create, change, update. Read will not generate new events
  * database is implemented securelly - always
 ## process
