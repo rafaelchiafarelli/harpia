@@ -26,6 +26,14 @@ Create a gRPC, ORM, RESTFull, SOAP, CRUDL, multi-project, multi-language, multi-
 * events and via callbacks connected to detached threads must be implemented.
 	* create, change, update. Read will not generate new events
  * database is implemented securelly - always
+* all classes MUST HAVE A toString method. 
+	* toString must be overloaded 
+		- pretty print (json like)
+		- pretty print (xml like)
+		- pretty print (yaml like)
+* constants must be represented
+* initialization of variables must be allowed all constants must be initialized
+
 ## process
 # creation of a specialized proto file. 
 This protofile will have special tags in it that will enable and configure each feature.
@@ -94,27 +102,40 @@ normal PROTO message:
 }
 message <name>{
 	<modifier> <var_type> <var_name> = <index>;
+	<enum_type>:<value> <var_name> = <index>;
 }
 
 ### where:
 * <name> is the name of the message/enum and only one is possible per file.
-* <modifier> is prefix for that variable (repeteable, optional, etc ).
+* <modifier> is prefix for that variable (repeteable, optional, constant, etc ).
+	* * constant modifier must have a initializer value. If no value is defined after the variable type (with the colon ":"), no function to change this variable will be provided and this variable will only be set with constructor.
+	* * 
 * <var_type> is the time of the variable and could be a simple type such as "string", "int", "float", etc, or a complex type, such as the type defined by another message. <var_type> cannot have circular references.
 * <var_name> is the name of the variable and must created following the coding standart and cannot repeat
 * <index> is the position of the variable inside the structure. No two indexes can be equal and must begin with 1
+* <enum_type>:<value> is a variable created from the enum_type inicialized with <value>
+* basic values (int, char, string, enum) are inserted simplistic after the colon other types are inserted with brackets and ordered by comas in the same other they were created (all variables must be present including the optional ones). The random is key word that can be used instead of the value to generate a random variable.
 now, for this development
 ><access_modifier>[...] message <name> {
 	int id = 0;
-	<modifier>[...] <type/message_name> <var_name>[<regex>] = <index>;
+	<modifier>[...] <type/message_name> <var_name>[<regex>] = <index>; //comment
 }<table_name>;
 ### where:
-* <access_modifier>[...] are the modifiers available to access this information. It is possible to have multiple <access_modifier>
+* <access_modifier>[...] are the modifiers available to access this information. It is possible to have multiple <access_modifier>, but it is not possible to change the behavior of the <access_modifier>. To change the behavior of the modifier, it is necessary to create a new modifier, with a new name.
 	- stream - this modifier tells us that there will be a stream available for this information
+		stream[#] contains the amount of data that will be streammed or until it is available by the writer
+		streams cannot be cached (held in memory)
 	- event[cached/not-cached] - events are OnChange events on the data_type. Cached messages always returns the last available data as soon as the connection starts. On the otherhand not-cached messages will only return if the changes happens after the connection.
-	- pull - pullaeble messages are the ones that can be read from the database or as RPC immediatly.
+		events are not streammed. 
+	- pull - pullaeble messages are the ones that can be read from the database or as RPC immediatly from anyone, either public or private databases. This represents a relationship of one-to-many
 	There are several interfaces to pull a message:
 		* every variable can serve as a filter for a query
 		* every Foreing-Key can be used as filter for a query
+	* * multiple <access_modifier> does not means multiple features in one type of access, but it does mean multiple access created for this variable.
+	- push - pushable messages are those who can be pushed from everyone. So anyone inside the network can push data into this variable. This is a automatic many-to-one relationship.
+		
+	- pushpull - are variables that can be published by anyone and pulled by anyone (this is the standard behavior). This represents a many-to-many relationship.
+
 * <name> -- must be defined according with the standart coding of the company and must not be equal to any other message on this file, and no internal variable can be equal to this name.
 * int id = 0; -- is OBRIGATORY and always will occupy the first index. It is primary-key for the database when applicable, but always will exist. Index 0 is NOT USABLE and an error should occur in compilation time. 
 * <modifier>[...] several modifiers can be concatenated to form the innerworking of a table or a variable
@@ -151,7 +172,7 @@ now, for this development
 	* if a table_name is not present, that means the table is not created.
 		* if it is ended with a ";" that mens that this is a private message and only the owner can create/publish data.
 		* if it is ended without the ";", that means that this is a public message and every one with access to this library can produce the information. 
-			* This will result at a environment wher all the projects that includes this module will have the hability to publish information.
+			* This will result at a environment where all the projects that includes this module will have the hability to publish information.
 	
 ## Functions created
 ### CRUDL
