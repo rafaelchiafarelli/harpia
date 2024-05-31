@@ -1,7 +1,7 @@
-0. pre-process check
-    0.0. check for non-utf8 characters
-    0.0.1. open file and read all its contents
-    0.0.1. check each characters for non-utf8 characters (simple regex)
+# 0. pre-process check
+    ## 0.0. check for non-utf8 characters
+    ## 0.0.1. open file and read all its contents
+    ## 0.0.1. check each characters for non-utf8 characters (simple regex)
 1. tokenize harpia file
     1.0. tokenization is the transformation of every "word" into one token. Python does this very well transforming the original file into a dict
         1.0.1. tokenize(f.linereader)
