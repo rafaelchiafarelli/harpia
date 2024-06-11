@@ -2,21 +2,21 @@
     ## 0.0. check for non-utf8 characters
     ## 0.0.1. open file and read all its contents
     ## 0.0.1. check each characters for non-utf8 characters (simple regex)
-1. tokenize harpia file
-    1.0. tokenization is the transformation of every "word" into one token. Python does this very well transforming the original file into a dict
-        1.0.1. tokenize(f.linereader)
-    1.1. check for inconsistencies in indexes (indexes >=1)
-        1.1.1. get all the tokens that are inside messages, after the equal sign and vefore the ";" token.
-        1.1.2. non-numeric elements will generate an error.
-        1.1.3. if a number 0 or less then 0 is found, it will generate an error.
-    1.2. remove all comments
-        1.2.0. remove the tokens from the list
-        1.2.1. comments starting with double slash will comment the rest of the linereader
-        1.2.3. comments starting with slash asterix will finish when a asterix slash is found
-    1.3. separate each message into one separated tmp file
-        1.3.0. messages start after the "message" word until it reaches the closing brackets
-            1.3.0.1. messages without name are not allowed
-            1.3.0.2. messages without opening brackets are not allowed
+# 1. tokenize harpia file
+    ## 1.0. tokenization is the transformation of every "word" into one token. Python does this very well transforming the original file into a dict
+        ### 1.0.1. tokenize(f.linereader)
+    ## 1.1. check for inconsistencies in indexes (indexes >=1)
+        ### 1.1.1. get all the tokens that are inside messages, after the equal sign and vefore the ";" token.
+        ### 1.1.2. non-numeric elements will generate an error.
+        ### 1.1.3. if a number 0 or less then 0 is found, it will generate an error.
+    ## 1.2. remove all comments
+        ### 1.2.0. remove the tokens from the list
+        ### 1.2.1. comments starting with double slash will comment the rest of the linereader
+        ### 1.2.3. comments starting with slash asterix will finish when a asterix slash is found
+    ## 1.3. separate each message into one separated tmp file
+        ### 1.3.0. messages start after the "message" word until it reaches the closing brackets
+            #### 1.3.0.1. messages without name are not allowed
+            #### 1.3.0.2. messages without opening brackets are not allowed
             1.3.0.3. messages with sub-messages are not allowed
             1.3.0.4. if message names are "status", "version", "error", the hidden message names will be changed to h_<message_name>
             1.3.0.5. no two messages with equal names are allowed
