@@ -40,7 +40,7 @@
     1. 4. create an order of process (if one message uses elemtne from another )
     1. 5. check for foreing-key existance (variable name as a message type)
 
-2. generate flags for other processes 
+2. generate flags for other processes
     2. 1. flags for access-generators
         2. 1. 1. access-modifier
         2. 1. 2. table names and properties (public private)
@@ -56,7 +56,7 @@
         2. 3. 4. required
         2. 3. 5. unique
 
-3. check flags for inconsistencies
+4. check flags for inconsistencies
     3. 1. a repeateable flag without delimitation and no table name will be created as vector or list.
     3. 2. a option flag cannot exist with a required flag
     3. 3. a required flag can exist with a unique flag
@@ -65,18 +65,18 @@
     .
     .
 
-4. check access rights and create passwords
+5. check access rights and create passwords
     4. 1. encrypted passwords be created. They are related to the tokenization result (unchanged by comments)
     4. 2. encrypted passwords must be added to the flags of CRUDL
     4. 3.  encrypted passwords must be added to the SOAP access tool
 
-5. create the clean proto file
+6. create the clean proto file
     5. 1. add all messages into one or as many files as needed to conform with the version of protobuf we are using
 
-6. execute protobuf compiler
+7. execute protobuf compiler
     6. 1. this will generate all the access functions from the protobuf
 
-7. create the database accesses
+8. create the database accesses
     7. 1. with the data from the tokens and the data from protobuf (functions names, namespaces, etc)
     7. 2. create the validation function for versions
         7. 2. 1. create the "transformative" functions from one version to another. 
@@ -85,7 +85,7 @@
         7. 2. 4. create all the creation and deletion functions (drop database etc)
         7. 2. 5. create the final sql-schema file (with all the elements pertinent)
 
-8. create the json addapter
+9. create the json addapter
     8. 1. function to generate the json and json-checker
     8. 2. function to generate a message from a json
     8. 3. function to update the database from a json
@@ -93,27 +93,27 @@
     8. 5. function to export to json from database
     8. 6. function to import to database from json
 
-9. create the xml addapter
+10. create the xml addapter
     9. 1. function to generate the xml and the xsd
     9. 2. function to generate a message from a xml
     9. 3. function to update the database from a xml
     9. 4. function to update the json xml the database
     9. 5. function to export to xml from database
     9. 6. function to import to database from xml
-10. create the SOAP access
+11. create the SOAP access
     10. 1. create the xml access tool knonwn as SOAP
 
-11. create the HTML bindings
+12. create the HTML bindings
     11. 1. RESTFull API for json
     11. 2. RESTFull API for xml
     11. 3. RESTFull API for SOAP
 
-12. create the zmq/socket access functions
+13. create the zmq/socket access functions
     12. 1. create the push/pull functions
     12. 2. create the streamming functions
     12. 3. create the gRPC access functions 
 
-13. create the unit tests
+14. create the unit tests
     13. 1. test simple access
     13. 2. test database
     13. 3. test access rights
