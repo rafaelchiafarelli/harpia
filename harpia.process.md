@@ -78,7 +78,7 @@
 
 7. create the database accesses
     7. 1. with the data from the tokens and the data from protobuf (functions names, namespaces, etc)
-    7. 2. create the validation function for versions 
+    7. 2. create the validation function for versions
         7. 2. 1. create the "transformative" functions from one version to another. 
         7. 2. 2. create the read functions
         7. 2. 3. create the write functions
