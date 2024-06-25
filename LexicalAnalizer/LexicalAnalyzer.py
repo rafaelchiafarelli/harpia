@@ -1,7 +1,10 @@
 import re
+from logger.logger import logger
+
 
 
 class LexicalAnalyzer:
+    log = logger(outFile=None, moduleName="LexicalAnalizer" )    
     # Token row
     lin_num = 1
     tokens = []
@@ -10,22 +13,22 @@ class LexicalAnalyzer:
             ('IMPORT', r'import'),
             ('QUOTES', r'\"'),
             ('POINT',r'\.'),
-            ('ENUM', r'enum'),
-            ('STREAM',r'stream'),
-            ('PULL',r'pull'),
-            ('PUSH',r'push'),
-            ('EVENT',r'event'),
-            ('PUSHPULL',r'pushpull'),
-            ('MESSAGE',r'message'),
-            ("OPTIONAL", r'optional'),
+            ('ENUM', r'enum '),
+            ('STREAM',r'stream '),
+            ('PULL',r'pull '),
+            ('PUSH',r'push '),
+            ('EVENT',r'event '),
+            ('PUSHPULL',r'pushpull '),
+            ('MESSAGE',r'message '),
+            ("OPTIONAL", r'optional '),
             ('REPETEABLE',r'repeteable'),
             ('PAGINATION',r'pagination'),
-            ('REQUIRED',r'required'),
-            ('UNIQUE',r'unique'),
+            ('REQUIRED',r'required '),
+            ('UNIQUE',r'unique '),
             ('MAP', r'map'),            
-            ('INT', r'int'),            # int
-            ('FLOAT', r'float'),        # float
-            ('STRING', r'string'),        # string
+            ('INT', r'int '),            # int
+            ('FLOAT', r'float '),        # float
+            ('STRING', r'string '),        # string
             ('LBRACKET', r'\('),        # (
             ('RBRACKET', r'\)'),        # )
             ('LBRACE', r'\{'),          # {
@@ -78,7 +81,7 @@ class LexicalAnalyzer:
             if token_type == 'SKIP':
                 continue
             elif token_type == 'MISMATCH':
-                print("{} unexpected on line {}".format(token_lexeme, self.lin_num))
+                self.log.print("{} unexpected on line {}".format(token_lexeme, self.lin_num))
                 raise RuntimeError()
             else:
                 col = m.start() - lin_start
@@ -87,7 +90,6 @@ class LexicalAnalyzer:
                 lexeme.append(token_lexeme)
                 row.append(self.lin_num)
                 # To print information about a Token
-                print('Token = {0}, Lexeme = \'{1}\', Row = {2}, Column = {3}'.format(token_type, token_lexeme, self.lin_num, col))
                 self.tokens+=[(token_type, token_lexeme, self.lin_num, col)]
 
         return token, lexeme, row, column

@@ -15,7 +15,7 @@ class logger():
 
     def print(self,msg):
         caller = inspect.getframeinfo(inspect.stack()[1][0])
-        outMsg = "[" + self.moduleName + "]:" + caller.filename + " line:" + str(caller.lineno) + " - " + msg
+        outMsg = "[" + self.moduleName + "]:" + " line:" + str(caller.lineno) + " - " + msg
 
         if self.outFile is None:
             print(outMsg)

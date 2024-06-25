@@ -1,7 +1,7 @@
 
 
 from enum import Enum
-
+import inspect
 
 class Types(Enum):
     NOTHING_TO_REPORT = 1
@@ -18,6 +18,7 @@ class Types(Enum):
     RIGHT_BRACE_NOT_FOUND = 12
     MESSAGE_NOT_TERMINATED = 13
     MODIFIERS_BAD_POSITIONED = 14
+    VARTYPE_NOT_FOUND = 15
 
 class Classes(Enum):
     FOLDER_NOT_FOUND= 1
@@ -26,6 +27,7 @@ class Classes(Enum):
     FILE_HAS_ERROR= 4
     BRACES = 5
     MODIFIERS = 6
+    VARTYPES = 7
 
 class Error:
     errType = Types
@@ -35,10 +37,13 @@ class Error:
     CharacterNumber = 0
     
     def __init__(self, errCl, errTp, FileName = "", FileLine="", CharacterNumber=0) -> None:
+        caller = inspect.getframeinfo(inspect.stack()[1][0])
+        self.outMsg = "[" + caller.filename + "]:"  " line:" + str(caller.lineno)
+
         self.errType = errTp
         self.errClass = errCl
         self.FileNme = FileName
         self.FileLine = FileLine
         self.CharacterNumber = CharacterNumber
     def __str__(self) -> str:
-        return "ErrorType:" + self.errType.name + " ErrorClass:" + self.errClass.name + " at File:" + self.FileNme + ", line:" + str(self.FileLine) + " and Character:" + str(self.CharacterNumber)
+        return self.outMsg + " ErrorType:" + self.errType.name + " ErrorClass:" + self.errClass.name + " at File:" + self.FileNme + ", line:" + str(self.FileLine) + " and Character:" + str(self.CharacterNumber)
