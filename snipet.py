@@ -66,7 +66,7 @@
                         else:
                             if local_tokens[rBracePosition+2][0] == 'PCOMMA' and local_tokens[rBracePosition+2][0] == 'NEWLINE':
 
-                        elif local_tokens[rBracePosition+1][0] == '':: 
+                        elif local_tokens[rBracePosition+1][0] == '':
                             if local_tokens[rBracePosition+1][0] != 'PCOMMA' and local_tokens[rBracePosition+1][0] != 'NEWLINE':
                                 return Error(errCl=Classes.BRACES, 
                                             errTp=Types.MESSAGE_NOT_TERMINATED, 
@@ -85,7 +85,7 @@
 
                     if t[0] == 'COMMENT_END':
                         break
-                print("original:{} to remove:{}".format(len(original_tokens),len(original_tokens[i:i+j+1])))
+                
                 del original_tokens[i:i+j+1]
             else:
                 self.tokens+=token            
