@@ -22,7 +22,7 @@ if __name__ == '__main__':
             msgFactory = MessageCreator(filename="test.harpia",tokens=tokens)
             messages = msgFactory.CreateMessage()
             if messages != None:
-                print(messages)
+                log.print(messages.__str__())
                 exit(-1)
-            msgs = messages.get()
-            print(msgs)
+            msgs = msgFactory.get()
+            log.print(msgFactory.__str__())

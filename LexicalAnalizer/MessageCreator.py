@@ -3,8 +3,10 @@
 from message.Message import Message
 from Errors.Error import Error, Types, Classes
 import copy
+from logger.logger import logger
 
 class MessageCreator():
+    log = logger(outFile=None,moduleName="MessageCreator")
     messages = []
     tokens = []
     def __init__(self,filename, tokens) -> None:
@@ -16,9 +18,9 @@ class MessageCreator():
         startMessage = -1
         endOfBody = -1
         endOfMessage = -1
-        print(self.tokens)
+
         for i,token in enumerate(self.tokens):
-            print(token)
+
             if token[0] == "NEWLINE":
                 curNewLine = i
                 if endOfBody != -1:
@@ -30,9 +32,11 @@ class MessageCreator():
                 if len(self.tokens) == i: ##it is the last one
                     endOfMessage = endOfBody
             if startMessage < endOfBody and startMessage < endOfMessage and endOfBody <= endOfMessage:
-                """message ends here"""
+                self.log.print("starMessage:{} endOfBody:{} endOfMessage:{}".format(startMessage,endOfBody,endOfMessage))
                 m = Message(fileName=self.file,tok=self.tokens[startMessage:endOfMessage])
+
                 ret = m.Process()
+                self.log.print("message:{}".format(m.__str__()))                
                 if ret != None:
                     return ret
                 
@@ -45,3 +49,6 @@ class MessageCreator():
         return None
     def get(self):
         return self.messages
+    
+    def __str__(self) -> str:
+        return self.messages.__str__()
