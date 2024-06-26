@@ -25,7 +25,7 @@
         1. 3. 1. insert the hidden elements:
             1. 3. 1. 1. hidden elements are inserted in the token tree
                 1. 3. 1. 1. equal names for hidden variables and/or messages are not allowed
-                1. 3. 1. 1. change the name of the hidden element to h_###
+                1. 3. 1. 1. change the name of the hidden element to h_###, where ### is the number formed by the md5 of the file this message resides in.
             1. 3. 1. 1. message originator (unique number related to the sender)
                 1. 3. 1. 1. 0. only one method of message originator will be allowed per message.
                 1. 3. 1. 1. 1. if the publisher is unique (one-to-many or one-to-one), then this is a compilation problem and not a runtime problem 

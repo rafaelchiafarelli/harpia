@@ -8,8 +8,8 @@ class LexicalAnalyzer:
     # Token row
     lin_num = 1
     tokens = []
-    def tokenize(self, code):
-        rules = [
+    def __init__(self) -> None:
+        self.rules = [
             ('IMPORT', r'import'),
             ('QUOTES', r'\"'),
             ('POINT',r'\.'),
@@ -26,9 +26,9 @@ class LexicalAnalyzer:
             ('REQUIRED',r'required '),
             ('UNIQUE',r'unique '),
             ('MAP', r'map'),            
-            ('INT', r'int '),            # int
-            ('FLOAT', r'float '),        # float
-            ('STRING', r'string '),        # string
+            ('INT', r'int'),            # int
+            ('FLOAT', r'float'),        # float
+            ('STRING', r'string'),        # string
             ('LBRACKET', r'\('),        # (
             ('RBRACKET', r'\)'),        # )
             ('LBRACE', r'\{'),          # {
@@ -60,8 +60,10 @@ class LexicalAnalyzer:
             ('SKIP', r'[ \t]+'),                    # SPACE and TABS
             ('MISMATCH', r'.'),                     # ANOTHER CHARACTER
         ]
+    def tokenize(self, code):
+        
 
-        tokens_join = '|'.join('(?P<%s>%s)' % x for x in rules)
+        tokens_join = '|'.join('(?P<%s>%s)' % x for x in self.rules)
         lin_start = 0
 
         # Lists of output for the program
