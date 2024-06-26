@@ -3,7 +3,7 @@
 import string
 import os
 from Errors.Error import Error, Types, Classes
-
+import hashlib
 
 class switch(object):
     value = None
@@ -31,19 +31,20 @@ def isascii(s):
 
 def isFileInFolders(folders, file):
     for folder in folders:
-            if not os.path.exists(folder+"/"+file):
-                return False, Error(errCl = Classes.FILE_HAS_ERROR, 
-                            errTp = Types.NOTHING_TO_REPORT, 
-                            FileName = file, 
-                            FileLine = "",
-                            CharacterNumber = 0)
-            else:
-                file = folder+"/"+file
-            if not os.path.isfile(file):
-                return False, Error(errCl = Classes.FILE_IS_LINK, 
-                            errTp = Types.NOTHING_TO_REPORT, 
-                            FileName = file, 
-                            FileLine = "",
-                            CharacterNumber = 0)
-            else:
-                return True, file
+        if not os.path.exists(folder+"/"+file):
+            return False, Error(errCl = Classes.FILE_HAS_ERROR, 
+                        errTp = Types.NOTHING_TO_REPORT, 
+                        FileName = file, 
+                        FileLine = "",
+                        CharacterNumber = 0)
+        else:
+            file = folder+"/"+file
+        if not os.path.isfile(file):
+            return False, Error(errCl = Classes.FILE_IS_LINK, 
+                        errTp = Types.NOTHING_TO_REPORT, 
+                        FileName = file, 
+                        FileLine = "",
+                        CharacterNumber = 0)
+        else:
+            return True, file
+

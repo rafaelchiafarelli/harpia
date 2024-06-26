@@ -1,17 +1,21 @@
 import "another_file.harpia"
 
 message roger{
+    pagination[12] int vari = 7;
     int var = 1;
     optional int val=2;
-    required int vab=3;
-
+    required map<string,string> a=3;
+    required map<string,int> b=4;
+    required map<int,string> c=5;
 };
+
+
 /*
 THIS IS A COMMENT 
 
 */
-enum grow
-{
+
+enum grow{
     enumarator_a,
     enumarator_b, //insert of a comment inside 
     enumarator_c = 14,
@@ -23,13 +27,16 @@ enum grow
 // this is a comment and also, //this is a comment.
 // this is a [comment] with brakets
 // this is a comment with " quotes " and should not raise error
+
 stream pull push event message data{
     int i =1;
     optional int j = 2;
     roger val = 3;
+
 }
 
-stream pull push event message users{
+
+pull push event message users{
     string address=1;
     string name=2;
 }user_table
@@ -38,3 +45,7 @@ stream pull push event message top_users{
     string sponsor = 1;
     string name=2;
 }user_table;
+
+message another_message {
+    int msg = 2;
+}
