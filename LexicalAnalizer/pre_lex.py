@@ -4,6 +4,7 @@ from logger.logger import logger
 from Errors.Error import Error, Types, Classes
 from util.util import isascii, isFileInFolders
 import shutil
+import hashlib
 
 class pre_lex:
     def __init__(self, folders, file):
@@ -15,12 +16,13 @@ class pre_lex:
             self.folders.append(os.getcwd())
         else:
             self.folders = folders
-
+        self.md5hash = ""
         self.file = file
 
     def process(self):
         
         f,file = isFileInFolders(self.folders,self.file)
+        all_data = ""
         with open(file) as f:
             line = 0
             open_parentesis=0
@@ -31,13 +33,14 @@ class pre_lex:
             close_comment=0
             open_square=0
             close_square=0
+            
             while True:
 
                 raw_data = f.readline()
                 ##end of file
                 if not raw_data:
                     break
-
+                all_data += raw_data
                 ##remove non printable characters, such as "new line" and "space"
                 raw_data = raw_data.strip()
                 
@@ -101,6 +104,11 @@ class pre_lex:
                          FileName = self.file, 
                          FileLine = "",
                          CharacterNumber = 0)
+        
+        if all_data != "":
+            self.md5hash = hashlib.md5(all_data.encode())
         self.log.print("pre lexic complete")
         return None
-        
+    
+    def getHash(self):
+        return self.md5hash
