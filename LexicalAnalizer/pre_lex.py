@@ -16,7 +16,7 @@ class pre_lex:
             self.folders.append(os.getcwd())
         else:
             self.folders = folders
-        self.md5hash = ""
+        self.md5hash = None
         self.file = file
 
     def process(self):
@@ -106,7 +106,9 @@ class pre_lex:
                          CharacterNumber = 0)
         
         if all_data != "":
-            self.md5hash = hashlib.md5(all_data.encode())
+            
+            self.md5hash = hashlib.md5(all_data.encode()).hexdigest()
+
         self.log.print("pre lexic complete")
         return None
     
