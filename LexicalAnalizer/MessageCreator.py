@@ -44,13 +44,16 @@ class MessageCreator():
   
                 m = Message(fileName=self.file,
                             tok=self.tokens[startMessage:endOfMessage], 
-                            availableMessages = self.availableMessages)
+                            availableMessages = self.availableMessages,
+                            md5Hash = self.md5Hash)
                 ret = m.Process()              
                 if ret != None:
                     return ret
                 
                 self.messages.append(m)
+                self.log.print("adding name:{}".format(m.name))
                 self.availableMessages.append(m.name)
+                self.log.print("available:{}".format(self.availableMessages.__str__()))
                 curNewLine = 0
                 startMessage = None
                 endOfBody = None
@@ -75,17 +78,10 @@ class MessageCreator():
 
     def generateMessages(self, prefix, sulfix):
         for msg in self.messages:
-            ##generate all messages within the list
-            protoFile = self.genProtoMessage(message = msg)
-            restFile = self.genRESTFullMessage(message = msg)
-            crudFile = self.genCRUDLMessage(message = msg)
-
-    def genProtoMessage(self, message):
-        pass
-    def genRESTFullMessage(self, message):
-        pass
-    def genCRUDLMessage(self, message):
-        pass
+            pass
+            with open("file",'w') as tmpProto:
+                
+                tmpProto.write()
 
     def __str__(self) -> str:
         st = ""
