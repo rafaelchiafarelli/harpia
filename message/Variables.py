@@ -3,7 +3,7 @@ import copy
 from Errors.Error import Error, Types, Classes
 from logger.logger import logger
 import re
-
+import uuid
 class variable():
     index = -1
     name = ""
@@ -13,6 +13,7 @@ class variable():
     paginationSize = 0
     repeteableSize = 0
     modifiers = []
+    constant = None
     def __str__(self) -> str:
         st = "index: {}, name:{}, type: {}, regex:{}, modifiers:{}".format(self.index,self.name, self.type,self.regex,self.modifiers)
         return st
@@ -22,22 +23,29 @@ class Variables():
     RegexForInt = "^[0-9]*$"
     RegexForFloat = "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)"
     RegexForString = "\P{Cc}\P{Cn}\P{Cs}"
-    
+    md5Hash = None
     log = logger(outFile=None, moduleName="Variables" )
     variables = None
     file = None
     tokens = None
-    def __init__(self,filename, tok,composedVariables) -> None:
+    isOneToMany = None
+    def __init__(self,filename, tok,composedVariables,md5Hash,isOneToMany) -> None:
         self.tokens = copy.deepcopy(tok)
         self.file = filename
+        self.md5Hash = md5Hash
         self.composedVariables = composedVariables
         self.variables = []
-        self.tokens =[]
-        
+        ID = variable()
+        ID.index = 0
+        ID.name = 'ID_{}'.format(md5Hash)
+        ID.type = ('INT','int','0','0')
+        ID.regex = self.RegexForInt
+        self.variables.append(ID)
+        self.isOneToMany = isOneToMany
 
     def Process(self):
         curNewLine = 0
-        
+        curIndex = -1
         for j,token in enumerate(self.tokens):
             variableEnds = -1
             variableBegins = -1
@@ -130,13 +138,13 @@ class Variables():
                                  FileName=self.file,
                                  FileLine=token[2],
                                  CharacterNumber=token[3])
-                self.log.print("vartype: {} composedd:{}".format(var.type.__str__(),self.composedVariables.__str__()))
                 if var.type[1] not in self.composedVariables:
                     if regexEnd > 0 and regexStart > 0:
                         var.regex = self.getRegex(self.tokens[regexStart+1:regexEnd+1])
                     else:
                         var.regex = self.getRegexFromType(var)
                     if var.type != 'INT' and var.type != 'FLOAT' and var.type != 'STRING' and var.regex is None:
+                        self.log.print("error in var:{}".format(var.__str__()))
                         return Error(errCl=Classes.REGEX, 
                                 errTp=Types.REGEX_NOT_FOUND, 
                                 FileName=self.file,
@@ -145,19 +153,52 @@ class Variables():
                 else:
                     var.regex = var.type
 
-                self.log.print(var.__str__())
+
+                if var.index > curIndex:
+                    curIndex = var.index
                 self.variables.append(var)
+        if curIndex == -1:
+            curIndex = 1
+        self.AddHiddenVariables(lastIndex=curIndex)
 
         repeatedMsg = self.allUnique()
         if repeatedMsg is not None:
-            
+            self.log.print(repeatedMsg.__str__())
             return Error(errCl=Classes.VARTYPES, 
                 errTp=Types.MULTIPLE_INSTANCES_OF_INDEX, 
                 FileName=self.file,
-                FileLine=token[2],
-                CharacterNumber=token[3])
+                FileLine='0',
+                CharacterNumber='0')
         return None
     
+    def AddHiddenVariables(self, lastIndex):
+        lastIndex+=1
+        status = variable()
+        status.index = lastIndex
+        status.name = 'STATUS_{}'.format(str(self.md5Hash))
+        status.type = ('STRING','string ','0','0')
+        status.regex = self.RegexForString
+        self.variables.append(status)
+        lastIndex+=1
+        error = variable()
+        error.index = lastIndex
+        error.name = "ERROR_{}".format(str(self.md5Hash))
+        error.type = ('STRING','string ','0','0')
+        error.regex = self.RegexForString
+        self.variables.append(error)
+        if self.isOneToMany is not None and self.isOneToMany == True:
+            lastIndex+=1
+            originator = variable()
+            originator.index = lastIndex
+            originator.name = "ORIGINATOR"
+            originator.type = ('STRING','string','0','0')
+            originator.regex = self.RegexForString
+            originator.constant = {originator:str(self.md5Hash), uuid: str(uuid.uuid4())}
+            self.variables.append(originator)
+            
+        
+
+
     def getRegexFromType(self, var):
 
         if var.type[0] == 'INT':

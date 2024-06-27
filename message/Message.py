@@ -12,16 +12,17 @@ class Message():
     availableMessages = None
     table_name = None
     visibility = None
-    def __init__(self, fileName, tok, availableMessages) -> None:
+    md5Hash = None
+    def __init__(self, fileName, tok, availableMessages, md5Hash) -> None:
         self.tokens = copy.deepcopy(tok)
         self.file = fileName
         self.availableMessages = availableMessages
         self.variables = []
-        self.availableMessages = []
         self.access_modifiers = []
         self.log = logger(outFile=None, moduleName="Message")
         self.table_name = ""
         self.visibility = "PUBLIC"
+        self.md5Hash = md5Hash
 
 
     def Process(self):
@@ -30,7 +31,7 @@ class Message():
         msgReceived = False
         rBracePosition = None
         curNewLine = None
-        self.log.print("message tokens:{}".format(self.tokens.__str__()))
+        isOneToMany = None
         for j,token in enumerate(self.tokens):
             if token[0] == 'NEWLINE':
                 curNewLine = j
@@ -50,6 +51,11 @@ class Message():
                 if curNewLine is None:
                     curNewLine = j
                 self.access_modifiers = self.tokens[curNewLine+1:j]
+                ##check if is a pull msg
+                for access in self.access_modifiers:
+                    if access[0] == 'PULL':
+                        isOneToMany = True
+                        break
             
             if token[0] == "LBRACE":
                 startOfVariables=j
@@ -68,9 +74,12 @@ class Message():
                         FileLine=token[2],
                         CharacterNumber=token[3])  
                 endOfVariables = j
+                
                 v = Variables(filename=self.file,
                               tok=self.tokens[startOfVariables:endOfVariables], 
-                              composedVariables= self.availableMessages)
+                              composedVariables= self.availableMessages,
+                              md5Hash=self.md5Hash,
+                              isOneToMany=isOneToMany)
                 ret = v.Process()
                 if ret != None:
                     return ret
@@ -95,7 +104,7 @@ class Message():
         for v in self.variables:
 
             st += "{}, ".format(v.__str__())
-        st+="] table_name:{} visibility:{} ".format(self.table_name,self.visibility)
+        st+="] table_name:{} visibility:{} \n".format(self.table_name,self.visibility)
         return st
 
 
