@@ -163,7 +163,7 @@ now, for this development
 * <var_name> is the name of the variable and must created following the coding standart
 * [<regex>] -- this is a optional configuration that exist to allow the limits of this variable to be present when defining the variable. For example:
 	> message home {
-		repeteable[10] char name["^[a-z0-9_\-]+$"]
+		repeteable[10] char name["^[a-z0-9_\-]+$"] = 1;
 	}
 	this will create a message, with an array of printable characters of max size 10.
 * <index> is the index of the variable that will always begin with 1
