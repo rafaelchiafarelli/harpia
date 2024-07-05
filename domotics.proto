@@ -75,11 +75,11 @@ Universally Unique Identifier 128bit
 xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 */
 message UUID{
-    repeatable[8] segment1 = 1;
-    repeatable[4] segment1 = 2;
-    repeatable[4] segment1 = 3;
-    repeatable[4] segment1 = 4;
-    repeatable[12] segment1 = 5;
+    repeatable[8] char segment1["^[0-9a-fA-F]+$"] = 1;
+    repeatable[4] char segment1["^[0-9a-fA-F]+$"] = 2;
+    repeatable[4] char segment1["^[0-9a-fA-F]+$"] = 3;
+    repeatable[4] char segment1["^[0-9a-fA-F]+$"] = 4;
+    repeatable[12] char segment1["^[0-9a-fA-F]+$"] = 5;
 }
 
 /*
@@ -111,8 +111,58 @@ pushpull message PowerPort {
     constant boolean:false isDC = 10;
 }
 
+pushpull message 
+/*
+1 server
 
+4 poweroutlets 
+    * computer
+    * fridge
 
+1 controller
+    * garage door
+
+1 streamming service 
+    * cameras
+
+2 sensor
+    * vibration sensors
+    * semperature sensors
+
+2 tablets
+
+server
+    mqtt server
+    zmq server
+    dashboard server
+    application controllers server
+    data collection
+
+controller
+    esp32 + wifi 
+    radio communication with controller
+    relay
+    end-of-course sensor 
+    home sensor
+
+poweroutlets
+    esp32 + wifi
+    relay
+    currentSensor
+    powersource
+    voltage sensor
+    optocouple with zero-cross (MOC 31)
+    Voltage Indicator (110/*220)
+
+streamming service
+    data collection from sensors
+    data collection from users
+
+sensor
+    esp32 + wifi
+    sensor connects to wifi
+    find´s the server and reaches for 
+*/
 
 
 
