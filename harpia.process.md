@@ -20,13 +20,16 @@
             1. 3. 0. 3. messages with sub-messages are allowed
             1. 3. 0. 3. 1. sub-messages that are databases, have a mandatory UNIQUE foreyn_key (one-key per line in database). Sub-messages without database will only be accessed by messages containing it.
             1. 3. 0. 3. 2. sub-messages can be either public or private, but will have a table if the message containing it have a table. If name is not provided, but a table name is present at the containin message, then the sub-message will have a "hash" as a name
+            1. 3. 0. 3. 3. sub-messages CANNOT have modifiers (pull, push, event, etc)
+                        4. sub-messages can have variables as messages
             1. 3. 0. 4. if message names are "status", "version", "error", the hidden message names will be changed to h_<message_name>
             1. 3. 0. 5. no two messages with equal names are allowed
             1. 3. 0. 6. messages with variable containing itself is not allowed
             1. 3. 0. 7. messages containing messages of other files are allowed, but files must be included
             1. 3. 0. 8. messages containing messages of the same file are allowed, This sub-message will have a NON-UNIQUE forein_key.
             1. 3. 0. 8. 1. If message is contained by others, than it will have a NON-UNIQUE forein-key per inclusion in other messages
-            1. 3. 0. 9. sub-messages described inside a message can-not be included in other messages 
+            1. 3. 0. 9. sub-messages described inside a message can-not be included in other messages
+            1. 3. 0. 10. events of messages internal to other messages can have cascade effect events (change in an internal message can have effect on containing message if the message has the event modifier)
         1. 3. 1. insert the hidden elements:
             1. 3. 1. 1. hidden elements are inserted in the token tree
                 1. 3. 1. 1. equal names for hidden variables and/or messages are not allowed
