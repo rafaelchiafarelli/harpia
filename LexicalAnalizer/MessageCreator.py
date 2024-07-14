@@ -18,49 +18,70 @@ class MessageCreator():
         self.messages = []
         self.availableMessages = []
         
+        
 
-    def CreateMessage(self):
+    def CreateMessages(self, beginToken, isInternal = False):
         curNewLine = 0
         startMessage = None
         endOfBody = None
         endOfMessage = None
 
-        for i,token in enumerate(self.tokens):
+        i = beginToken
+        endPos = len(self.tokens)
+        while i < endPos:
 
-            if token[0] == "NEWLINE":
+            if self.tokens[i][0] == "NEWLINE":
                 curNewLine = i
                 if endOfBody is not None:
                     endOfMessage = curNewLine
 
-            if token[0] == 'LBRACE':
+            if self.tokens[i][0] == 'LBRACE':
                 startMessage = curNewLine
+
+            if (self.tokens[i][0] == 'ENUM' or self.tokens[i][0] == 'MESSAGE') and startMessage is not None:
+
+                endOfBody = None
+                endOfMessage = None  
+                i=i-1                 
+                if self.CreateMessages(beginToken=curNewLine, isInternal=True) is not None:
+                    return Error(errCl=Classes.MESSAGES, 
+                            errTp=Types.MULTIPLE_INSTANCES_OF_MESSAGES, 
+                            FileName=self.file,
+                            FileLine=curNewLine,
+                            CharacterNumber=curNewLine)
                 
-            if token[0] == 'RBRACE':
+
+            if self.tokens[i][0] == 'RBRACE':
                 endOfBody = i
                 if len(self.tokens) == i: ##it is the last one
                     endOfMessage = endOfBody
-            
+
             if startMessage is not None and endOfMessage is not None and endOfBody is not None:
-  
-                m = Message(fileName=self.file,
-                            tok=self.tokens[startMessage:endOfMessage], 
+                
+                m = Message(fileName=self.file, 
                             availableMessages = self.availableMessages,
                             md5Hash = self.md5Hash)
-                ret = m.Process()              
+                ret = m.Process(tokens=self.tokens[startMessage:endOfMessage])
                 if ret != None:
+                    self.log.print(ret.__str__())
                     return ret
-                
                 self.messages.append(m)
-                self.log.print("adding name:{}".format(m.name))
                 self.availableMessages.append(m.name)
-                self.log.print("available:{}".format(self.availableMessages.__str__()))
+                del self.tokens[startMessage:endOfMessage]
+                endPos = len(self.tokens)
+                i = i - (endOfMessage-startMessage)
                 curNewLine = 0
                 startMessage = None
                 endOfBody = None
                 endOfMessage = None
+                
+                if isInternal is True:
+                    return None
+            i = i+1
 
         repeatedMsg = self.allUnique()
         if repeatedMsg is not None:
+            self.log.print(repeatedMsg)
             return Error(errCl=Classes.MESSAGES, 
                 errTp=Types.MULTIPLE_INSTANCES_OF_MESSAGES, 
                 FileName=self.file,
@@ -76,18 +97,8 @@ class MessageCreator():
         else:
             return None
 
-    def generateMessages(self, prefix, sulfix):
-        for msg in self.messages:
-            pass
-            with open("file",'w') as tmpProto:
-                
-                tmpProto.write()
-
     def __str__(self) -> str:
         st = ""
         for msg in self.messages:
             st+=msg.__str__()+"\n"
         return st
-    def genMessage(self, message):
-        for item in message:
-            pass
