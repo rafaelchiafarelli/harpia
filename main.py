@@ -5,7 +5,7 @@ from logger.logger import logger
 from LexicalAnalizer.pre_lex import pre_lex
 from LexicalAnalizer.CommentRemover import CommentRemover
 from LexicalAnalizer.MessageCreator import MessageCreator,Message
-
+from protoFile.ProtoFileProcessor import ProtoFileProcessor
 if __name__ == '__main__':
     print("Path at terminal when executing this file")
     print(os.getcwd() + "\n")
@@ -40,9 +40,9 @@ if __name__ == '__main__':
             remover = CommentRemover()
             cleanTokens = remover.remover(tokens=analizer.getTokens())
             msgFactory = MessageCreator(filename="test.harpia",tokens=cleanTokens, md5Hash=preProcessor.getHash())
-            messages = msgFactory.CreateMessage()
+            messages = msgFactory.CreateMessages(beginToken=0)
             if messages != None:
                 log.print(messages.__str__())
                 exit(-1)
-            files = msgFactory.generateMessages(prefix="rafitos",sulfix="picasso")
+            #files = 
             log.print(msgFactory.__str__())
