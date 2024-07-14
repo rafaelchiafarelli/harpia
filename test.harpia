@@ -1,6 +1,6 @@
 import "another_file.harpia"
 
-message roger{
+message prince{
     pagination[12] int vari = 7;
     int var = 1;
     optional int val=2;
@@ -31,9 +31,9 @@ enum grow{
 stream pull push event message data{
     int i =1;
     optional int j = 2;
-    roger val = 3;
+    prince val = 3;
 
-}
+}table_data;
 
 
 pull push event message users{
@@ -44,8 +44,19 @@ pull push event message users{
 stream pull push event message top_users{
     string sponsor = 1;
     string name=2;
+    event message vip_users{
+        string name = 1;
+        string family = 2;
+    }table_vip_users;
 }user_table;
 
-message another_message {
-    int msg = 2;
+message another_sage{
+    int msg = 1;
+};
+
+enum baba{
+    caca,
+    dada,
+    lala
+
 }

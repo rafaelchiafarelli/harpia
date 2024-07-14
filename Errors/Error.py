@@ -29,6 +29,7 @@ class Types(Enum):
     REGEX_NOT_FOUND = 23
     VARIABLE_WITHOUT_INDEX = 24
     NO_NAME_IN_MESSAGE = 25
+    NO_MESSAGE_INITIALYSER = 26
 
 class Classes(Enum):
     FOLDER_NOT_FOUND= 1

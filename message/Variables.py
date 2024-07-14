@@ -29,12 +29,14 @@ class Variables():
     file = None
     tokens = None
     isOneToMany = None
+    dependencies = None
     def __init__(self,filename, tok,composedVariables,md5Hash,isOneToMany) -> None:
         self.tokens = copy.deepcopy(tok)
         self.file = filename
         self.md5Hash = md5Hash
         self.composedVariables = composedVariables
         self.variables = []
+        self.dependencies = []
         ID = variable()
         ID.index = 0
         ID.name = 'ID_{}'.format(md5Hash)
@@ -46,6 +48,7 @@ class Variables():
     def Process(self):
         curNewLine = 0
         curIndex = -1
+        
         for j,token in enumerate(self.tokens):
             variableEnds = -1
             variableBegins = -1
@@ -152,6 +155,9 @@ class Variables():
                                 CharacterNumber=token[3])
                 else:
                     var.regex = var.type
+                    if self.dependencies != None:
+                        if var.type not in self.dependencies:
+                            self.dependencies.append(var.type)
 
 
                 if var.index > curIndex:
@@ -210,7 +216,8 @@ class Variables():
         if var.type[0] == 'MAP':
             return self.RegexForMaps(var.typeMap)
         return None
-        
+
+    
     def RegexForMaps(self, varType):
         regexForType = []
         if len(varType) > 3 or len(varType) < 2:
