@@ -30,6 +30,12 @@ class Types(Enum):
     VARIABLE_WITHOUT_INDEX = 24
     NO_NAME_IN_MESSAGE = 25
     NO_MESSAGE_INITIALYSER = 26
+    TOO_LONG_DEFINITION_OF_ENUMERATOR = 27
+    ENUMNAME_NOT_VALID = 28
+    EXPECTING_A_INTEGER_CONST_VALUE = 29
+    NOT_VALID_ENUM = 29
+    MALFORMED_ENUM_TYPE = 30
+    ENUM_VALUE_MUST_START_THE_LINE = 31
 
 class Classes(Enum):
     FOLDER_NOT_FOUND= 1
@@ -39,8 +45,9 @@ class Classes(Enum):
     BRACES = 5
     MODIFIERS = 6
     VARTYPES = 7
-    MESSAGES = 8
-    REGEX = 9
+    ENUMTYPES = 8
+    MESSAGES = 9
+    REGEX = 10
 
 class Error:
     errType = Types

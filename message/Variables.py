@@ -22,7 +22,7 @@ class variable():
 class Variables():
     RegexForInt = "^[0-9]*$"
     RegexForFloat = "[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)"
-    RegexForString = "\P{Cc}\P{Cn}\P{Cs}"
+    RegexForString = r'(\\d+)\\n'
     md5Hash = None
     log = logger(outFile=None, moduleName="Variables" )
     variables = None
@@ -63,7 +63,7 @@ class Variables():
                 regexStart = 0
                 indexStart = 0
                 firstID = 0
-                
+                currVarName = []
                 for i,t in enumerate(self.tokens[variableBegins:variableEnds]):
                     if t[0] == 'REPETEABLE':
                         repeteable = self.getRepeteable(self.tokens[variableBegins+i:variableEnds])
@@ -127,6 +127,10 @@ class Variables():
                         regexEnd = i
                     if t[0] == 'ATTR':
                         indexStart = i
+                        var.name = currVarName[1]
+                    else:
+                        currVarName = t
+
                     if indexStart != 0 and t[0] == 'INTEGER_CONST':
                         var.index = int(t[1])
                 if var.index is None:
