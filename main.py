@@ -3,9 +3,10 @@ import os
 from LexicalAnalizer.LexicalAnalyzer import LexicalAnalyzer
 from logger.logger import logger
 from LexicalAnalizer.pre_lex import pre_lex
-from LexicalAnalizer.CommentRemover import CommentRemover
+from LexicalAnalizer.Remover import Remover
 from LexicalAnalizer.MessageCreator import MessageCreator,Message
 from protoFile.ProtoFileProcessor import ProtoFileProcessor
+from protoFile.FileCreator import FileCreator
 if __name__ == '__main__':
     print("Path at terminal when executing this file")
     print(os.getcwd() + "\n")
@@ -37,12 +38,20 @@ if __name__ == '__main__':
                     break
                 analizer.tokenize(line)
             
-            remover = CommentRemover()
-            cleanTokens = remover.remover(tokens=analizer.getTokens())
+            remover = Remover()
+            noCommentTokens = remover.CommentRemover(tokens=analizer.getTokens())
+            
+            cleanTokens = remover.ImportRemover(tokens=noCommentTokens)
+            imports = remover.files
+            print(imports)
             msgFactory = MessageCreator(filename="test.harpia",tokens=cleanTokens, md5Hash=preProcessor.getHash())
             messages = msgFactory.CreateMessages(beginToken=0)
+            
             if messages != None:
                 log.print(messages.__str__())
                 exit(-1)
-            #files = 
-            log.print(msgFactory.__str__())
+            for msg in msgFactory.messages:
+                fileCreator = FileCreator(message=msg,imports=imports )
+                fileCreator.Process()
+                fileCreator.save()
+            #log.print(msgFactory.__str__())

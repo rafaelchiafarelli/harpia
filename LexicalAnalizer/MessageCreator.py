@@ -17,8 +17,6 @@ class MessageCreator():
         self.tokens = copy.deepcopy(tokens)
         self.messages = []
         self.availableMessages = []
-        
-        
 
     def CreateMessages(self, beginToken, isInternal = False):
         curNewLine = 0
