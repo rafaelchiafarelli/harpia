@@ -1,4 +1,9 @@
-import "another_file.harpia"
+
+import "file1.harpia"
+
+import "file2.harpia"
+
+import "file3.harpia"
 
 message prince{
     pagination[12] int vari = 7;
@@ -12,17 +17,26 @@ message prince{
 
 /*
 THIS IS A COMMENT 
-
 */
 
+/*THIS IS ALSO A COMMENT*/
+//THIS IS ANOTHER TYPE OF COMMENT
 enum grow{
-    enumarator_a,
-    enumarator_b, //insert of a comment inside 
-    enumarator_c = 14,
-    enumarator_d,
-    enumarator_e = 2 //intentional repetition of number
-
+    enumarator_a;
+    enumarator_b; //insert of a comment inside 
+    enumarator_c = 14;
+    enumarator_d;
+    enumarator_e = 2; //intentional repetition of number
 }
+enum grower{
+    g_a;
+    g_b;
+    g_c;
+    g_d;
+    g_e;
+    g_f;
+    g_g;
+};
 // this is a comment
 // this is a comment and also, //this is a comment.
 // this is a [comment] with brakets
@@ -32,7 +46,7 @@ stream pull push event message data{
     int i =1;
     optional int j = 2;
     prince val = 3;
-
+    grower car = 4;
 }table_data;
 
 
@@ -55,8 +69,7 @@ message another_sage{
 };
 
 enum baba{
-    caca,
-    dada,
-    lala
-
+    caca;
+    dada;
+    lala;
 }
