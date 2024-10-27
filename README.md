@@ -65,8 +65,8 @@ User authentication must be implemented in the following fashion:
 	* the data is returned as soon as the procedure is finished via a response (data is returned to the caller)
 		* the function can be blocking or non-blocking
 			* blocking function can have a timeout or no timeout
-					* timeout can be programmable or configurable, but return code when the function times out is always configurable
-   					* configuration of the return code must allow for null, nil or equivalent.
+				* timeout can be programmable or configurable, but return code when the function times out is always configurable
+				* configuration of the return code must allow for null, nil or equivalent.
      		* non-blocking function will have a self generated callback that is not detached (???)
 * a callback 
 	* a callback is called as a detached thread with a try-catch. It is launched with the user function as a callback - errors are reported outside of the scope of the remote entity
