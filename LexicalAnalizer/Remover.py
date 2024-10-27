@@ -1,7 +1,7 @@
 
 ## comment remover will remove all comments from the generated lexic
 import copy
-from logger.logger import logger
+from Logger.logger import logger
 class Remover():
     tokens = []
     files = []

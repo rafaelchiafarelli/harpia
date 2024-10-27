@@ -1,13 +1,13 @@
 ## pre_lexical will read the selected file and make all the pre-lex operations
 import os
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import isascii, isFileInFolders
+from Util.util import isascii, isFileInFolders
 import shutil
 import hashlib
 
 class pre_lex:
-    def __init__(self, folders, file):
+    def __init__(self, folders, file,dest):
         self.log = logger(outFile=None, moduleName="pre-lexical")
         self.folders = []
         self.file = ""
@@ -18,10 +18,15 @@ class pre_lex:
             self.folders = folders
         self.md5hash = None
         self.file = file
-
+        self.destination = dest
+        if not os.path.exists(dest):
+            os.makedirs(dest)
     def process(self):
         
-        f,file = isFileInFolders(self.folders,self.file)
+        isFile,file = isFileInFolders(self.folders,self.file)
+        if isFile is not True:
+            #if it is not a File, so it is an error and we must return it
+            return file
         all_data = ""
         with open(file) as f:
             line = 0

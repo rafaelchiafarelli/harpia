@@ -1,7 +1,7 @@
 ## this class will read all tokens and create a list of variables for them
 import copy
 from Errors.Error import Error, Types, Classes
-from logger.logger import logger
+from Logger.logger import logger
 import re
 import uuid
 class variable():
@@ -12,10 +12,13 @@ class variable():
     typeMap = []
     paginationSize = 0
     repeteableSize = 0
-    modifiers = []
+    modifiers = None
     constant = None
+    def __init__(self) -> None:
+        self.modifiers = []
+
     def __str__(self) -> str:
-        st = "index: {}, name:{}, type: {}, regex:{}, modifiers:{}".format(self.index,self.name, self.type,self.regex,self.modifiers)
+        st = "index: {}, name:{}, type: {}, regex:{}, modifiers:{} pag_size:{}".format(self.index,self.name, self.type,self.regex,self.modifiers,self.paginationSize)
         return st
 
 
@@ -74,7 +77,7 @@ class Variables():
                                         FileLine=t[2],
                                         CharacterNumber=t[3])
                         
-                        var.modifiers.append(pagination)
+                        var.modifiers.append(repeteable)
                     if t[0] == 'OPTIONAL':
                         firstID = i
                         var.modifiers.append(t)
@@ -163,10 +166,11 @@ class Variables():
                         if var.type not in self.dependencies:
                             self.dependencies.append(var.type)
 
-
+                
                 if var.index > curIndex:
                     curIndex = var.index
                 self.variables.append(var)
+                del var
         if curIndex == -1:
             curIndex = 1
         self.AddHiddenVariables(lastIndex=curIndex)
@@ -196,15 +200,18 @@ class Variables():
         error.type = ('STRING','string ','0','0')
         error.regex = self.RegexForString
         self.variables.append(error)
-        if self.isOneToMany is not None and self.isOneToMany == True:
-            lastIndex+=1
-            originator = variable()
-            originator.index = lastIndex
+
+        lastIndex+=1
+        originator = variable()
+        originator.index = lastIndex
+        if self.isOneToMany is not None and self.isOneToMany == True:            
+            originator.name = "ORIGINATOR_{}".format(self.md5Hash)
+        else:
             originator.name = "ORIGINATOR"
-            originator.type = ('STRING','string','0','0')
-            originator.regex = self.RegexForString
-            originator.constant = {originator:str(self.md5Hash), uuid: str(uuid.uuid4())}
-            self.variables.append(originator)
+        originator.type = ('STRING','string','0','0')
+        originator.regex = self.RegexForString
+        originator.constant = {originator:str(self.md5Hash), uuid: str(uuid.uuid4())}
+        self.variables.append(originator)
             
         
 
