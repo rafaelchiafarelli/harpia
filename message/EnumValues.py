@@ -1,7 +1,7 @@
 ## this class will read all tokens and create a list of variables for them
 import copy
 from Errors.Error import Error, Types, Classes
-from logger.logger import logger
+from Logger.logger import logger
 import re
 import uuid
 
