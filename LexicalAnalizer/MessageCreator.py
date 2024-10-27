@@ -1,9 +1,9 @@
 ##this file will receive a clean (whitout comments) list of tokens and create separated messages
 
-from message.Message import Message
+from Message.Message import Message
 from Errors.Error import Error, Types, Classes
 import copy
-from logger.logger import logger
+from Logger.logger import logger
 
 class MessageCreator():
     log = logger(outFile=None,moduleName="MessageCreator")

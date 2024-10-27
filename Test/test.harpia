@@ -9,7 +9,7 @@ message prince{
     pagination[12] int vari = 7;
     int var = 1;
     optional int val=2;
-    required map<string,string> a=3;
+    required pagination[12] map<string,string> a=3;
     required map<string,int> b=4;
     required map<int,string> c=5;
 };
@@ -57,15 +57,17 @@ pull push event message users{
 
 stream pull push event message top_users{
     string sponsor = 1;
-    string name=2;
+    required string name=2;
     event message vip_users{
-        string name = 1;
+        optional string name = 1;
         string family = 2;
     }table_vip_users;
+    vip_users myUsers = 3;
 }user_table;
 
 message another_sage{
     int msg = 1;
+    vip_users usr = 2;
 };
 
 enum baba{

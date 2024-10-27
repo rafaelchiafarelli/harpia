@@ -1,17 +1,17 @@
 
 ##this is a container file that will have all caracteristics for the messages
 import copy
-from message.Variables import Variables
-from message.EnumValues import EnumValues
+from Message.Variables import Variables
+from Message.EnumValues import EnumValues
 from Errors.Error import Types, Classes, Error
-from logger.logger import logger
+from Logger.logger import logger
 class Message():
     log = None
     access_modifiers = None
     name = None
     variables = None
     availableMessages = None
-    table_name = None
+    tableName = None
     visibility = None
     md5Hash = None
     dependency = None
@@ -23,7 +23,7 @@ class Message():
         self.variables = []
         self.access_modifiers = []
         self.log = logger(outFile=None, moduleName="Message")
-        self.table_name = ""
+        self.tableName = ""
         self.visibility = "PUBLIC"
         self.md5Hash = md5Hash
 
@@ -60,7 +60,7 @@ class Message():
                 self.access_modifiers = tokens[curNewLine+1:j]
                 ##check if is a pull msg
                 for access in self.access_modifiers:
-                    if access[0] == 'PULL':
+                    if access[0] == 'PULL' or access[0] == 'EVENT' or access[0] =='STREAM':
                         isOneToMany = True
                         break
             
@@ -118,7 +118,7 @@ class Message():
                     self.visibility = "PRIVATE"
                 if token[0] == 'ID':
                     
-                    self.table_name = tokens[j-1][1]
+                    self.tableName = tokens[j][1]
 
         if self.name is None:
             
@@ -134,7 +134,7 @@ class Message():
         st = "access_modifiers:{} name:{} variables:[".format(self.access_modifiers,self.name)
         for v in self.variables:
             st += "{}, ".format(v.__str__())
-        st+="] table_name:{} visibility:{} \n".format(self.table_name,self.visibility)
+        st+="] tableName:{} visibility:{} \n".format(self.tableName,self.visibility)
         return st
 
 

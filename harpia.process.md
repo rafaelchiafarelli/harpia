@@ -40,7 +40,7 @@
                     1. 3. 1. 1. 1. 1. create the number via the hash of the project, and the hash of the generated file.
                     1. 3. 1. 1. 1. 2. the number is used when the sender will register itself into the zmq/socket application
                     1. 3. 1. 1. 1. 3. only one application is available with that unique number. 
-                1. 3. 1. 1. 0. if the publisher is many-to-many or manr-to-one, then sender unique number is given in runtime.
+                1. 3. 1. 1. 0. if the publisher is many-to-many or many-to-one, then sender unique number is given in runtime.
                     1. 3. 1. 1. 0. 1. unique number is created in time of setup of the sender function, either in zmq or in socket. This means this is a runtime problem, not a compilation problem.
                     1. 3. 1. 1. 0. 2. when the application furst opens the socket and or register itself as a publisher, it receives a unique number from the zmq/socket module
             
