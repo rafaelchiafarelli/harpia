@@ -1,14 +1,15 @@
 import re
 from Logger.logger import logger
+from Errors.Error import Error, Types, Classes
 
-
-
+## LexicalAnalyzer should only tokenize the files 
 class LexicalAnalyzer:
     log = logger(outFile=None, moduleName="LexicalAnalizer" )    
     # Token row
     lin_num = 1
     tokens = []
     def __init__(self) -> None:
+        self.name = "empty"
         self.rules = [
             ('IMPORT', r'import'),
             ('QUOTES', r'\"'),
@@ -60,6 +61,8 @@ class LexicalAnalyzer:
             ('SKIP', r'[ \t]+'),                    # SPACE and TABS
             ('MISMATCH', r'.'),                     # ANOTHER CHARACTER
         ]
+
+
     def tokenize(self, code):
         
 
@@ -84,7 +87,11 @@ class LexicalAnalyzer:
                 continue
             elif token_type == 'MISMATCH':
                 self.log.print("{} unexpected on line {}".format(token_lexeme, self.lin_num))
-                raise RuntimeError()
+                return Error(errCl = Classes.FILE_HAS_ERROR, 
+                         errTp = Types.LEXICAL_ANALYZER_ERROR, 
+                         FileName = self.file, 
+                         FileLine = "",
+                         CharacterNumber = 0)
             else:
                 col = m.start() - lin_start
                 column.append(col)
@@ -94,7 +101,18 @@ class LexicalAnalyzer:
                 # To print information about a Token
                 self.tokens+=[(token_type, token_lexeme, self.lin_num, col)]
 
-        return token, lexeme, row, column
+        return None
 
     def getTokens(self):
          return self.tokens
+
+    def process(self, fileName):
+        self.name = fileName
+        with open(fileName,"r") as inFile:
+            while True:
+                line = inFile.readline()
+                if not line:
+                    break
+                isError = self.tokenize(line)        
+                if isError is not None:
+                    return isError
