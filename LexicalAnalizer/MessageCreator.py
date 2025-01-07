@@ -83,8 +83,8 @@ class MessageCreator():
             return Error(errCl=Classes.MESSAGES, 
                 errTp=Types.MULTIPLE_INSTANCES_OF_MESSAGES, 
                 FileName=self.file,
-                FileLine=repeatedMsg[2],
-                CharacterNumber=repeatedMsg[3])
+                FileLine=repeatedMsg.__str__(),
+                CharacterNumber=repeatedMsg.__str__())
         
         return None
     

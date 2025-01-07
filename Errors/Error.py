@@ -36,6 +36,7 @@ class Types(Enum):
     NOT_VALID_ENUM = 29
     MALFORMED_ENUM_TYPE = 30
     ENUM_VALUE_MUST_START_THE_LINE = 31
+    LEXICAL_ANALYZER_ERROR = 32
 
 class Classes(Enum):
     FOLDER_NOT_FOUND= 1

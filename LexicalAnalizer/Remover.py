@@ -3,10 +3,12 @@
 import copy
 from Logger.logger import logger
 class Remover():
-    tokens = []
+    
     files = []
     def CommentRemover(self, tokens):
+        self.log = logger(outFile=None, moduleName="CommentRemover" )
         original_tokens = []
+        rettokens = []
         original_tokens = copy.deepcopy(tokens)
         for i,token in enumerate(original_tokens):
             if token[0] == 'COMMENT_LINE':
@@ -20,8 +22,8 @@ class Remover():
                         break
                 del original_tokens[i:i+j+1]
             else:
-                self.tokens.append(token)
-        return self.tokens
+                rettokens.append(token)
+        return rettokens
     
 
     def ImportRemover(self,tokens):
@@ -29,9 +31,9 @@ class Remover():
         original_tokens = copy.deepcopy(tokens)
         currImport = None
         endPos = len(original_tokens)
+        self.log.print("tokens size:{}".format(len(original_tokens)))
         i = 0
         while i < endPos:
-
             if original_tokens[i][0] == 'IMPORT':
                 currImport = i
             if original_tokens[i][0] == 'NEWLINE' and currImport is not None:
@@ -40,8 +42,8 @@ class Remover():
                 endPos = len(original_tokens)
                 i = i - (i+1-currImport)
                 currImport = None
+                self.log.print("file:{}".format(fileName))
                 self.files.append(fileName)
-                
             i = i+1
         return original_tokens
     

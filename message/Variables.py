@@ -177,7 +177,7 @@ class Variables():
 
         repeatedMsg = self.allUnique()
         if repeatedMsg is not None:
-            self.log.print(repeatedMsg.__str__())
+            self.log.print("repeated msg:{}".format(repeatedMsg.__str__()))
             return Error(errCl=Classes.VARTYPES, 
                 errTp=Types.MULTIPLE_INSTANCES_OF_INDEX, 
                 FileName=self.file,
@@ -327,7 +327,11 @@ class Variables():
 
     def allUnique(self):
         seen = set()
+        self.log.print("name:{}".format(self.file))
+        for var in self.variables:
+            self.log.print("var.name:{} var.id:{}".format(var.name,var.index))
         if any(var.index in seen or seen.add(var.index) for var in self.variables) == True:
+            self.log.print("not unique: {}".format(seen))
             return list(seen)[0]
         else:
             return None

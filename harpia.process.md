@@ -1,14 +1,21 @@
 0. pre-process check
     0. 0. check for non-utf8 characters
     0. 0. 1. open file and read all its contents
-    0. 0. 1. check each characters for non-utf8 characters (simple regex)
+    0. 0. 2. check each characters for non-utf8 characters (simple regex)
+    0. 0. 3. create destination folder
+    0. 0. 4. check for inconsistent terminators ( parentesis, comments, brackets, etc)
+    0. 0. 5. check for harpia imports in folder, proto imports are handled diferently
+    0. 0. 6. create md5hash for the file
+
 1. tokenize harpia file
-    1. 0. tokenization is the transformation of every "word" into one token. Python does this very well transforming the original file into a dict
-        1. 0. 1. tokenize(f.linereader)
+    1. 0. tokenization is the transformation of every "word" into one token. 
+        1. 0. 1. tokenize line-by-line
     1. 1. check for inconsistencies in indexes (indexes >=1)
-        1. 1. 1. get all the tokens that are inside messages, after the equal sign and vefore the ";" token.
+        1. 1. 1. get all the tokens that are inside messages, after the equal sign and before the ";" token.
         1. 1. 2. non-numeric elements will generate an error.
         1. 1. 3. if a number 0 or less then 0 is found, it will generate an error.
+        1. 1. 4. all hapia files included must be present in the include folders 
+        1. 1. 5. all import lines must end with semi-colomn (;)
     1. 2. remove all comments
         1. 2. 0. remove the tokens from the list
         1. 2. 1. comments starting with double slash will comment the rest of the linereader
