@@ -31,20 +31,20 @@ def isascii(s):
 
 def isFileInFolders(folders, file):
     for folder in folders:
-        if not os.path.exists(folder+"/"+file):
+        if not os.path.exists(folder):
             return False, Error(errCl = Classes.FILE_HAS_ERROR, 
-                        errTp = Types.NOTHING_TO_REPORT, 
+                        errTp = Types.IMPORT_INCOMPLETE_ERROR, 
                         FileName = file, 
                         FileLine = "",
                         CharacterNumber = 0)
         else:
-            file = folder+"/"+file
-        if not os.path.isfile(file):
-            return False, Error(errCl = Classes.FILE_IS_LINK, 
-                        errTp = Types.NOTHING_TO_REPORT, 
+            fullPath = "{}/{}".format(folder,file)
+        if os.path.isfile(fullPath):
+            return True, fullPath
+        
+    return False,Error(errCl = Classes.FILE_HAS_ERROR, 
+                        errTp = Types.IMPORT_INCOMPLETE_ERROR, 
                         FileName = file, 
                         FileLine = "",
                         CharacterNumber = 0)
-        else:
-            return True, file
 

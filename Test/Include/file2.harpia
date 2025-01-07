@@ -1,0 +1,8 @@
+message king{
+    
+    int babad = 1;
+    optional int sdfas=2;
+    required map<string,int> cvxbcv=4;
+    required map<int,string> zxcvbxcvn=5;
+    pagination[12] int vava = 6;
+};

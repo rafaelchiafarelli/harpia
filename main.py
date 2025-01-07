@@ -7,6 +7,7 @@ from LexicalAnalizer.Remover import Remover
 from LexicalAnalizer.MessageCreator import MessageCreator,Message
 from ProtoFile.ProtoFileProcessor import ProtoFileProcessor
 from ProtoFile.FileCreator import FileCreator
+from copy import deepcopy
 if __name__ == '__main__':
     log = logger(outFile=None, moduleName="main" )
     log.print("Path at terminal when executing this file")
@@ -27,33 +28,55 @@ if __name__ == '__main__':
 
     local_folder = os.path.dirname(full_path)
     testFile = "./Test/test.harpia"
-    preProcessor = pre_lex(folders=[local_folder], file=testFile,dest="./build")
-    preProcessorResult = preProcessor.process()
+    includeFolder = "./Test/Include"
+    #0. pre-process check
+    rootFile = pre_lex(folders=[local_folder], file=testFile,dest="./build", includeFolder = includeFolder)
+    preProcessorResult = rootFile.process()
 
     if preProcessorResult is None: ##no error detected
-        analizer = LexicalAnalyzer()
+        listOfIncludes = rootFile.getListOfHarpias()
+        log.print("{}".format(listOfIncludes))
+        fileCounter = 0    
+        lexicalAnalized = []
+        mainFileLex = LexicalAnalyzer()
+        mainFileAnalizedError = mainFileLex.process(testFile)
+        if mainFileAnalizedError is not None:
+            log.print("error in lexical analyzer for the main file")
+            exit(-1)
+        log.print("mainFileAnalized done")
+        lexicalAnalized.append(deepcopy(mainFileLex))
 
-        with open(local_folder+testFile,"r") as inFile:
-            while True:
-                line = inFile.readline()
-                if not line:
-                    break
-                analizer.tokenize(line)
-            
-            remover = Remover()
-            noCommentTokens = remover.CommentRemover(tokens=analizer.getTokens())
-            
+        for inc in listOfIncludes:
+            analizer = LexicalAnalyzer()
+            analizerError = analizer.process(inc)
+            if analizerError is not None:
+                log.print("error in lexical analyzer")
+                exit(-1)
+            lexicalAnalized.append(deepcopy(analizer))
+            log.print("appended the:{}".format(analizer.name))
+            del analizer
+        tokens = []
+        remover = Remover()
+        for lex in lexicalAnalized:
+            log.print("process the:{}".format(lex.name))
+            noCommentTokens = remover.CommentRemover(tokens=lex.getTokens())
             cleanTokens = remover.ImportRemover(tokens=noCommentTokens)
-            imports = remover.files
-            print(imports)
-            msgFactory = MessageCreator(filename="test.harpia",tokens=cleanTokens, md5Hash=preProcessor.getHash())
+            tokens = tokens + deepcopy(cleanTokens)
+        msgFactory = MessageCreator(filename=testFile,tokens=tokens, md5Hash=rootFile.getHash())
+        for tok in tokens:
+            
             messages = msgFactory.CreateMessages(beginToken=0)
             
             if messages != None:
                 log.print(messages.__str__())
                 exit(-1)
+            
             for msg in msgFactory.messages:
                 fileCreator = FileCreator(message=msg,imports=imports , dest="./build")
                 fileCreator.Process()
                 fileCreator.save()
+
+
             #log.print(msgFactory.__str__())
+    else:
+        log.print(preProcessorResult.__str__())

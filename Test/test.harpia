@@ -1,9 +1,9 @@
 
-import "file1.harpia"
+import "file1.harpia";
 
-import "file2.harpia"
+import "file2.harpia";
 
-import "file3.harpia"
+import "file3.harpia";
 
 message prince{
     pagination[12] int vari = 7;
