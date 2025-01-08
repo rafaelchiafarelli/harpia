@@ -36,7 +36,8 @@ enum grower{
     g_e;
     g_f;
     g_g;
-};
+}
+
 // this is a comment
 // this is a comment and also, //this is a comment.
 // this is a [comment] with brakets

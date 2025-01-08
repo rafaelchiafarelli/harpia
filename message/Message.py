@@ -36,39 +36,38 @@ class Message():
         curNewLine = None
         isOneToMany = None
         isEnum = False
+        lastToken = ""
         for j,token in enumerate(tokens):
             if token[0] == 'NEWLINE':
                 curNewLine = j
-
-            if self.name is None and token[0] == 'ID':  
-
-                self.name = token[1]
     
-            if msgReceived == False and token[0] == "MESSAGE" or  token[0] == "ENUM":
+            if token[0] == "MESSAGE" or  token[0] == "ENUM":
                 if token[0] == "ENUM":
                     isEnum = True
-                if msgReceived == False:
-                    msgReceived = True
-                else:
-                    return Error(errCl=Classes.MESSAGES, 
-                        errTp=Types.MESSAGES_INSIDE_MESSAGES_ARE_NOT_ALLOWED, 
-                        FileName=self.file,
-                        FileLine=token[2],
-                        CharacterNumber=token[3])
+
                 if curNewLine is None:
                     curNewLine = j
-                self.access_modifiers = tokens[curNewLine+1:j]
-                ##check if is a pull msg
-                for access in self.access_modifiers:
-                    if access[0] == 'PULL' or access[0] == 'EVENT' or access[0] =='STREAM':
-                        isOneToMany = True
-                        break
-            
+                if isEnum is False:
+                    self.access_modifiers = tokens[curNewLine+1:j]
+                    ##check if is a pull msg
+                    for access in self.access_modifiers:
+                        if access[0] == 'PULL' or access[0] == 'EVENT' or access[0] =='STREAM':
+                            isOneToMany = True
+                            break
+            if lastToken == "MESSAGE" or  lastToken == "ENUM":
+                if token[0] == "ID":
+                    self.name = token[1]
+                else:
+                    return Error(errCl=Classes.MESSAGES, 
+                        errTp=Types.NO_NAME_IN_MESSAGE, 
+                        FileName=self.file,
+                        FileLine=token[2],
+                        CharacterNumber=token[3]) 
+            lastToken = token[0]
+
             if token[0] == "LBRACE":
                 startOfVariables=j+1
-                
                 if self.name is None:
-
                     return Error(errCl=Classes.MESSAGES, 
                         errTp=Types.NO_NAME_IN_MESSAGE, 
                         FileName=self.file,
@@ -99,7 +98,8 @@ class Message():
                     rBracePosition = j
 
                 else:
-                    endOfVariables = j
+                    endOfVariables = j-1
+                    
                     v = EnumValues(filename=self.file,
                                 tok=tokens[startOfVariables:endOfVariables], 
                                 composedVariables= self.availableMessages,

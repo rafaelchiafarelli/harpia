@@ -47,7 +47,6 @@ class MessageCreator():
                             FileName=self.file,
                             FileLine=curNewLine,
                             CharacterNumber=curNewLine)
-                
 
             if self.tokens[i][0] == 'RBRACE':
                 endOfBody = i
@@ -72,7 +71,6 @@ class MessageCreator():
                 startMessage = None
                 endOfBody = None
                 endOfMessage = None
-                
                 if isInternal is True:
                     return None
             i = i+1
