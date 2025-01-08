@@ -102,7 +102,6 @@ class Variables():
 
                     if t[0] == 'MAP':
                         firstID = -1
-                        
                         mapTypes = self.getMap(self.tokens[variableBegins+i:variableEnds])
                         if mapTypes is None:
                             return Error(errCl=Classes.VARTYPES, 
@@ -148,13 +147,13 @@ class Variables():
                                  FileName=self.file,
                                  FileLine=token[2],
                                  CharacterNumber=token[3])
+                
                 if var.type[1] not in self.composedVariables:
                     if regexEnd > 0 and regexStart > 0:
                         var.regex = self.getRegex(self.tokens[regexStart+1:regexEnd+1])
                     else:
                         var.regex = self.getRegexFromType(var)
                     if var.type != 'INT' and var.type != 'FLOAT' and var.type != 'STRING' and var.regex is None:
-                        self.log.print("error in var:{}".format(var.__str__()))
                         return Error(errCl=Classes.REGEX, 
                                 errTp=Types.REGEX_NOT_FOUND, 
                                 FileName=self.file,
@@ -177,7 +176,7 @@ class Variables():
 
         repeatedMsg = self.allUnique()
         if repeatedMsg is not None:
-            self.log.print("repeated msg:{}".format(repeatedMsg.__str__()))
+
             return Error(errCl=Classes.VARTYPES, 
                 errTp=Types.MULTIPLE_INSTANCES_OF_INDEX, 
                 FileName=self.file,
@@ -323,15 +322,12 @@ class Variables():
         if mapStop - mapStart < 2 or mapStop - mapStart > 4:
             return None
         else:
+            
             return maptypes
 
     def allUnique(self):
         seen = set()
-        self.log.print("name:{}".format(self.file))
-        for var in self.variables:
-            self.log.print("var.name:{} var.id:{}".format(var.name,var.index))
         if any(var.index in seen or seen.add(var.index) for var in self.variables) == True:
-            self.log.print("not unique: {}".format(seen))
             return list(seen)[0]
         else:
             return None
