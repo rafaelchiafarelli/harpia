@@ -70,10 +70,9 @@ class LexicalAnalyzer:
         lin_start = 0
 
         # Lists of output for the program
-        token = []
-        lexeme = []
+
         row = []
-        column = []
+        
 
         # It analyzes the code to find the lexemes and their respective Tokens
         for m in re.finditer(tokens_join, code):
@@ -94,13 +93,9 @@ class LexicalAnalyzer:
                          CharacterNumber = 0)
             else:
                 col = m.start() - lin_start
-                column.append(col)
-                token.append(token_type)
-                lexeme.append(token_lexeme)
                 row.append(self.lin_num)
                 # To print information about a Token
                 self.tokens+=[(token_type, token_lexeme, self.lin_num, col)]
-
         return None
 
     def getTokens(self):
@@ -116,3 +111,49 @@ class LexicalAnalyzer:
                 isError = self.tokenize(line)        
                 if isError is not None:
                     return isError
+
+    def CommentRemover(self):
+        rettokens = []
+        for i,token in enumerate(self.tokens):
+            if token[0] == 'COMMENT_LINE':
+                for j,t in enumerate(self.tokens[i:]):
+                    if t[0] == 'NEWLINE':
+                        break
+                del self.tokens[i:i+j]
+            elif token[0] == 'COMMENT_START':
+                for j,t in enumerate(self.tokens[i:]):
+                    if t[0] == 'COMMENT_END':
+                        break
+                del self.tokens[i:i+j]
+            else:
+                rettokens.append(token)
+        return rettokens                
+
+    def ImportRemover(self):
+        currImport = None
+        endPos = len(self.tokens)
+        self.log.print("tokens size:{}".format(len(self.tokens)))
+        i = 0
+        while i < endPos:
+            if self.tokens[i][0] == 'IMPORT':
+                currImport = i
+            if self.tokens[i][0] == 'NEWLINE' and currImport is not None:
+                fileName = self.parseImport(self.tokens[currImport:i])
+                del self.tokens[currImport:i+1]
+                endPos = len(self.tokens)
+                i = i - (i+1-currImport)
+                currImport = None
+                self.log.print("file:{}".format(fileName))
+            i = i+1
+
+    
+    def parseImport(self, tokens):
+        
+        currQuotes = None
+        ret = ""
+        for i,token in enumerate(tokens):
+            if token[0] == "QUOTES" and currQuotes is None:
+                currQuotes = i
+            if token[0] != "QUOTES" and currQuotes is not None:
+                ret+=token[1]
+        return ret      

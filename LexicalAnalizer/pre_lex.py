@@ -45,12 +45,19 @@ class pre_lex:
             close_comment=0
             open_square=0
             close_square=0
-            
+            lastLine = ""
             while True:
                 raw_data = f.readline()
                 ##end of file
                 if not raw_data:
+                    if lastLine.endswith("\n") is not True:
+                        return Error(errCl=Classes.FILE_HAS_ERROR, 
+                                 errTp=Types.FILE_DOES_NOT_END_IN_NEW_LINE, 
+                                 FileName=self.file,
+                                 FileLine=line,
+                                 CharacterNumber=c)
                     break
+                lastLine = raw_data
                 all_data += raw_data
                 ##remove non printable characters, such as "new line" and "space"
                 raw_data = raw_data.strip()

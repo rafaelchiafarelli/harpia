@@ -3,7 +3,7 @@ import os
 from LexicalAnalizer.LexicalAnalyzer import LexicalAnalyzer
 from Logger.logger import logger
 from LexicalAnalizer.pre_lex import pre_lex
-from LexicalAnalizer.Remover import Remover
+
 from LexicalAnalizer.MessageCreator import MessageCreator,Message
 from ProtoFile.ProtoFileProcessor import ProtoFileProcessor
 from ProtoFile.FileCreator import FileCreator
@@ -30,53 +30,53 @@ if __name__ == '__main__':
     testFile = "./Test/test.harpia"
     includeFolder = "./Test/Include"
     #0. pre-process check
-    rootFile = pre_lex(folders=[local_folder], file=testFile,dest="./build", includeFolder = includeFolder)
+    rootFile = pre_lex(folders=[local_folder], file=testFile, dest="./build", includeFolder = includeFolder)
     preProcessorResult = rootFile.process()
 
-    if preProcessorResult is None: ##no error detected
-        listOfIncludes = rootFile.getListOfHarpias()
-        log.print("{}".format(listOfIncludes))
-        fileCounter = 0    
-        lexicalAnalized = []
-        mainFileLex = LexicalAnalyzer()
-        mainFileAnalizedError = mainFileLex.process(testFile)
-        if mainFileAnalizedError is not None:
-            log.print("error in lexical analyzer for the main file")
-            exit(-1)
-        log.print("mainFileAnalized done")
-        lexicalAnalized.append(deepcopy(mainFileLex))
-
-        for inc in listOfIncludes:
-            analizer = LexicalAnalyzer()
-            analizerError = analizer.process(inc)
-            if analizerError is not None:
-                log.print("error in lexical analyzer")
-                exit(-1)
-            lexicalAnalized.append(deepcopy(analizer))
-            log.print("appended the:{}".format(analizer.name))
-            del analizer
-        tokens = []
-        remover = Remover()
-        for lex in lexicalAnalized:
-            log.print("process the:{}".format(lex.name))
-            noCommentTokens = remover.CommentRemover(tokens=lex.getTokens())
-            cleanTokens = remover.ImportRemover(tokens=noCommentTokens)
-            tokens = tokens + deepcopy(cleanTokens)
-        msgFactory = MessageCreator(filename=testFile,tokens=tokens, md5Hash=rootFile.getHash())
-        for tok in tokens:
-            
-            messages = msgFactory.CreateMessages(beginToken=0)
-            
-            if messages != None:
-                log.print(messages.__str__())
-                exit(-1)
-            
-            for msg in msgFactory.messages:
-                fileCreator = FileCreator(message=msg,imports=imports , dest="./build")
-                fileCreator.Process()
-                fileCreator.save()
-
-
-            #log.print(msgFactory.__str__())
-    else:
+    if preProcessorResult is not None: ##no error detected
         log.print(preProcessorResult.__str__())
+        exit(-1)
+    listOfIncludes = rootFile.getListOfHarpias()
+    log.print("{}".format(listOfIncludes))
+    fileCounter = 0    
+    lexicalAnalized = []
+    mainFileLex = LexicalAnalyzer()
+    mainFileAnalizedError = mainFileLex.process(testFile)
+    if mainFileAnalizedError is not None:
+        log.print("error in lexical analyzer for the main file")
+        exit(-1)
+
+    mainFileLex.CommentRemover()
+    mainFileLex.ImportRemover
+
+    for inc in listOfIncludes:
+        incFilePreLex = pre_lex(folders=[local_folder], file=inc, dest="./build", includeFolder = includeFolder)
+        incFilePreProcessorResult = incFilePreLex.process()
+        if incFilePreProcessorResult is not None:
+            log.print(incFilePreProcessorResult.__str__())
+            exit(-1)
+        analizer = LexicalAnalyzer()
+        analizerError = analizer.process(inc)
+        if analizerError is not None:
+            log.print("error in lexical analyzer")
+            exit(-1)
+        analizer.CommentRemover()
+        analizer.ImportRemover()
+        
+    lexicalAnalized += (analizer.getTokens())
+
+    msgFactory = MessageCreator(filename=testFile,tokens=lexicalAnalized, md5Hash=rootFile.getHash())
+
+    messagesErrors = msgFactory.CreateMessages(beginToken=0)
+    if messagesErrors != None:
+        log.print(messagesErrors.__str__())
+        exit(-1)
+    imports = []
+    for msg in msgFactory.messages:
+
+        fileCreator = FileCreator(message=msg,imports=imports , dest="./build")
+        fileCreator.Process()
+        fileCreator.save()
+
+
+        #log.print(msgFactory.__str__())
