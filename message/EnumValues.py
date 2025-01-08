@@ -43,7 +43,6 @@ class EnumValues():
 
         repeatedMsg = self.allUnique()
         if repeatedMsg is not None:
-            self.log.print(repeatedMsg.__str__())
             return Error(errCl=Classes.ENUMTYPES, 
                 errTp=Types.MULTIPLE_INSTANCES_OF_INDEX, 
                 FileName=self.file,
