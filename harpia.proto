@@ -9,6 +9,7 @@ enum message error {
     NOT_AVAILABLE,
     INVALID_RESPONSE
 }
+
 enum message status{
     CACHED,
     PULL,
@@ -23,7 +24,7 @@ hidden message {
     int timestamp = +2;
     error er = +3;
     status st = +4;
-}
+}; //this message does not have a database
 
 message CEP{
      char region[0-9] = 1; //a simple char variable that is only one number from 0 to 9

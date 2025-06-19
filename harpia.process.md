@@ -13,12 +13,12 @@
     1. 1. check for inconsistencies in indexes (indexes >=1)
         1. 1. 1. get all the tokens that are inside messages, after the equal sign and before the ";" token.
         1. 1. 2. non-numeric elements will generate an error.
-        1. 1. 3. if a number 0 or less then 0 is found, it will generate an error.
+        1. 1. 3. if a number of indexes is 0 or less then 0, it will generate an error.
         1. 1. 4. all hapia files included must be present in the include folders 
         1. 1. 5. all import lines must end with semi-colomn (;)
     1. 2. remove all comments
         1. 2. 0. remove the tokens from the list
-        1. 2. 1. comments starting with double slash will comment the rest of the linereader
+        1. 2. 1. comments starting with double slash will comment the rest of the line
         1. 2. 3. comments starting with slash asterix will finish when a asterix slash is found
     1. 3. separate each message into one separated tmp file
         1. 3. 0. messages start after the "message" word until it reaches the closing brackets
