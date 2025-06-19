@@ -47,7 +47,7 @@ if __name__ == '__main__':
         exit(-1)
 
     mainFileLex.CommentRemover()
-    mainFileLex.ImportRemover
+    mainFileLex.ImportRemover()
 
     for inc in listOfIncludes:
         incFilePreLex = pre_lex(folders=[local_folder], file=inc, dest="./build", includeFolder = includeFolder)
