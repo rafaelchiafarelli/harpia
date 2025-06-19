@@ -11,11 +11,13 @@ class FileCreator():
         self.modifierName = "{}_{}_modifier.message".format(message.name,message.md5Hash)
         self.accessName = "{}_{}_access.variable".format(message.name,message.md5Hash)
         self.tableName = "{}_{}_table.sql".format(message.name,message.md5Hash)
+        self.tableAccess = "{}_{}_encrypted.pswd".format(message.name,message.md5Hash)
         self.imports = imports
         self.data = ""
         self.modifierData = []
         self.accessData = []
         self.dataBaseData = ""
+        self.dataBaseAccess = {}
         self.destination = dest
         self.log = logger(outFile=None, moduleName="FileCreator")
 
@@ -36,12 +38,18 @@ class FileCreator():
             self.dataBaseData+="\n"
             if self.message.visibility is not None:
                 self.dataBaseData+=self.message.visibility
+                
+                if self.message.visibility == "PRIVATE":
+                    self.dataBaseAccess["user"] = "{}".format(self.message.name)
+                    self.dataBaseAccess["pswrd"] = "{}".format(self.message.md5Hash)
+
+                    
             self.dataBaseData+="\n"
             if self.message.variables is not None:
                 for v in self.message.variables:
                     protoData+="{} {} = {};\n".format(v.type[1], v.name,v.index)
                     if len(v.modifiers) != 0:
-                        self.log.print("{} {}".format(v.name,v.modifiers))
+                        
                         self.accessData.append((v.name,v.modifiers))
 
         else:
@@ -64,11 +72,13 @@ class FileCreator():
             messageModifierPath = "{}/{}".format(self.destination,self.modifierName)
             accessModifierPath = "{}/{}".format(self.destination,self.accessName)
             dataBasePath = "{}/{}".format(self.destination,self.tableName)
+            dataBaseAccessPath = "{}/{}".format(self.destination,self.tableAccess)
         else:
             messagePath = "{}/{}".format(fileFolder,self.fileName)
             messageModifierPath = "{}/{}".format(fileFolder,self.modifierName)
             accessModifierPath = "{}/{}".format(fileFolder,self.accessName)
             dataBasePath = "{}/{}".format(fileFolder,self.tableName)
+            dataBaseAccessPath = "{}/{}".format(fileFolder,self.tableAccess)
         
         with open(messagePath, "w") as outFile:
             outFile.write(self.messageData)
@@ -86,5 +96,7 @@ class FileCreator():
             outFile.write(accessModifierData)
         with open(dataBasePath, 'w') as outFile:
             outFile.write(self.dataBaseData)        
-
-
+        if self.message.visibility is not None:
+            if self.message.visibility == "PRIVATE":
+                with open(dataBaseAccessPath, 'w') as outFile:
+                    outFile.write("{}".format(self.dataBaseAccess))
