@@ -57,6 +57,7 @@ class Message():
             if lastToken == "MESSAGE" or  lastToken == "ENUM":
                 if token[0] == "ID":
                     self.name = token[1]
+                    
                 else:
                     return Error(errCl=Classes.MESSAGES, 
                         errTp=Types.NO_NAME_IN_MESSAGE, 
