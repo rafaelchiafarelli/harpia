@@ -37,7 +37,7 @@
             1. 3. 0. 8. 1. If message is contained by others, than it will have a NON-UNIQUE forein-key per inclusion in other messages
             1. 3. 0. 9. sub-messages described inside a message can-not be included in other messages
             1. 3. 0. 10. events of messages internal to other messages can have cascade effect events (change in an internal message can have effect on containing message if the message has the event modifier)
-        1. 3. 1. insert the hidden elements:
+        1. 3. 1. insert the hidden elements (FileCreator):
             1. 3. 1. 1. hidden elements are inserted in the token tree
                 1. 3. 1. 1. equal names for hidden variables and/or messages are not allowed
                 1. 3. 1. 1. change the name of the hidden element to h_###, where ### is the number formed by the md5 of the file this message resides in.
@@ -55,14 +55,19 @@
     1. 4. create an order of process (if one message uses elements from another )
     1. 5. check for foreing-key existance (variable name as a message type)
 
-2. generate flags for other processes
+2. generate flags for other processes (FileCreator)
     2. 1. flags for access-generators
         2. 1. 1. access-modifier
         2. 1. 2. table names and properties (public private)
         2. 1. 3. 
     2. 2. flags for regex and indexes 
         2. 2. 1. flag for regex: each variable contais a regex
-        2. 2. 2. 
+        2. 2. 1. 1. if the regex is not present, the type must generate a regex 
+        2. 2. 1. 1. 1. for instance: int a = 2; will have a regex allowing a number of 32 bits with one bit per signal.
+        2. 2. 1. 1. 2. for undefined types, such as other messages, the regex is constructed as a simple string.
+        2. 2. 2. if the regex is present in the type, a regex checker must exist. 
+        2. 2. 2. 1. this is not going to be implemented now but the idea is we have a way to check if a regex is fit to the type we are dealing with.        
+        2. 2. 3. 
     2. 3. flags for access types in variables
         2. 3. 1. repeateable flags - will be used to check if can be repeateable
             2. 3. 1. 1. the repeateable can be a constant (memory bound) or no limit (dynamic memory bound)
@@ -71,7 +76,7 @@
         2. 3. 4. required
         2. 3. 5. unique
 
-4. check flags for inconsistencies
+4. check flags for inconsistencies 
     3. 1. a repeateable flag without delimitation and no table name will be created as vector or list.
     3. 2. a option flag cannot exist with a required flag
     3. 3. a required flag can exist with a unique flag
@@ -80,8 +85,9 @@
     .
     .
 
-5. check access rights and create passwords
+5. check access rights and create passwords (FileCreator)
     4. 1. encrypted passwords be created. They are related to the tokenization result (unchanged by comments)
+    4. 1. 1. e
     4. 2. encrypted passwords must be added to the flags of CRUDL
     4. 3.  encrypted passwords must be added to the SOAP access tool
 
