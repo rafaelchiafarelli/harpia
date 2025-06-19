@@ -1,4 +1,4 @@
-0. pre-process check
+0. pre-process check (pre_lex)
     0. 0. check for non-utf8 characters
     0. 0. 1. open file and read all its contents
     0. 0. 2. check each characters for non-utf8 characters (simple regex)
@@ -7,7 +7,7 @@
     0. 0. 5. check for harpia imports in folder, proto imports are handled diferently
     0. 0. 6. create md5hash for the file
 
-1. tokenize harpia file
+1. tokenize harpia file (LexicalAnalyzer)
     1. 0. tokenization is the transformation of every "word" into one token. 
         1. 0. 1. tokenize line-by-line
     1. 1. check for inconsistencies in indexes (indexes >=1)
@@ -16,11 +16,11 @@
         1. 1. 3. if a number of indexes is 0 or less then 0, it will generate an error.
         1. 1. 4. all hapia files included must be present in the include folders 
         1. 1. 5. all import lines must end with semi-colomn (;)
-    1. 2. remove all comments
+    1. 2. remove all comments -- token navigation
         1. 2. 0. remove the tokens from the list
         1. 2. 1. comments starting with double slash will comment the rest of the line
         1. 2. 3. comments starting with slash asterix will finish when a asterix slash is found
-    1. 3. separate each message into one separated tmp file
+    1. 3. separate each message into one separated tmp file (MessageCreator)
         1. 3. 0. messages start after the "message" word until it reaches the closing brackets
             1. 3. 0. 1. messages without name are not allowed
             1. 3. 0. 2. messages without opening brackets are not allowed
@@ -51,8 +51,8 @@
                     1. 3. 1. 1. 0. 1. unique number is created in time of setup of the sender function, either in zmq or in socket. This means this is a runtime problem, not a compilation problem.
                     1. 3. 1. 1. 0. 2. when the application furst opens the socket and or register itself as a publisher, it receives a unique number from the zmq/socket module
             
-        1. 3. 2. insert the 
-    1. 4. create an order of process (if one message uses elemtne from another )
+        1. 3. 2. insert the ???
+    1. 4. create an order of process (if one message uses elements from another )
     1. 5. check for foreing-key existance (variable name as a message type)
 
 2. generate flags for other processes
