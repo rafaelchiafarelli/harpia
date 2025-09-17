@@ -23,13 +23,13 @@ class FileCreator():
 
     def Process(self):
         #create the proto file
-        protoData = ""
+        protoData = "    syntax = \"proto3\";"
         for dep in self.imports:
             protoData+="import \"{}\"\n".format(dep)
         protoData+="\n"
         if self.message.dependency is not None:
             for dep in self.message.dependency:
-                protoData+="import \"{}_{}.proto\"\n".format(dep[1],self.message.md5Hash)
+                protoData+="import \"{}_{}.proto\";\n".format(dep[1],self.message.md5Hash)
 
         if self.message.isEnum == False:
             protoData+="message {} {{\n".format(self.message.name)
@@ -47,7 +47,14 @@ class FileCreator():
             self.dataBaseData+="\n"
             if self.message.variables is not None:
                 for v in self.message.variables:
-                    protoData+="{} {} = {};\n".format(v.type[1], v.name,v.index)
+                    varType = "err"
+                    if v.type[0] == "INT32":
+                        varType = 'int32'
+                    elif v.type[0] == "INT64":
+                        varType = "int64"
+                    else:
+                        varType = v.type[1]
+                    protoData+="{} {} = {};\n".format(varType, v.name,v.index)
                     if len(v.modifiers) != 0:
                         
                         self.accessData.append((v.name,v.modifiers))

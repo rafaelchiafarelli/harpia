@@ -27,7 +27,8 @@ class LexicalAnalyzer:
             ('REQUIRED',r'required '),
             ('UNIQUE',r'unique '),
             ('MAP', r'map'),            
-            ('INT', r'int'),            # int
+            ('INT32', r'int'),            # int32
+            ('INT64', r'int64'),            # int64
             ('FLOAT', r'float'),        # float
             ('STRING', r'string'),        # string
             ('LBRACKET', r'\('),        # (
@@ -157,3 +158,6 @@ class LexicalAnalyzer:
             if token[0] != "QUOTES" and currQuotes is not None:
                 ret+=token[1]
         return ret      
+    
+    def __str__(self):
+        return "{}".format(self.tokens)

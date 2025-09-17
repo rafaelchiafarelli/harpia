@@ -41,9 +41,9 @@ class Variables():
         self.variables = []
         self.dependencies = []
         ID = variable()
-        ID.index = 0
+        ID.index = 1
         ID.name = 'ID_{}'.format(md5Hash)
-        ID.type = ('INT','int','0','0')
+        ID.type = ('INT32','int','0','0')
         ID.regex = self.RegexForInt
         self.variables.append(ID)
         self.isOneToMany = isOneToMany
@@ -51,7 +51,7 @@ class Variables():
     def Process(self):
         curNewLine = 0
         curIndex = -1
-        
+        self.log.print(self.file)
         for j,token in enumerate(self.tokens):
             variableEnds = -1
             variableBegins = -1
@@ -64,10 +64,10 @@ class Variables():
                 var = variable()
                 regexEnd = 0
                 regexStart = 0
-                indexStart = 0
                 firstID = 0
                 currVarName = []
                 for i,t in enumerate(self.tokens[variableBegins:variableEnds]):
+                    self.log.print("{}".format(t))
                     if t[0] == 'REPETEABLE':
                         repeteable = self.getRepeteable(self.tokens[variableBegins+i:variableEnds])
                         if repeteable is None:
@@ -118,7 +118,7 @@ class Variables():
                         var.type = t  
                         regexStart = i
 
-                    if t[0] == 'INT' or t[0] == 'FLOAT' or t[0] == 'STRING':
+                    if t[0] == 'INT32' or t[0] == 'INT64' or t[0] == 'FLOAT' or t[0] == 'STRING':
                         firstID = -1
                         var.type = t  
                         regexStart = i
@@ -127,14 +127,13 @@ class Variables():
                         regexStart = i
                     if regexStart != 0 and t[0] == 'SQRIGHTBRACKET':
                         regexEnd = i
-                    if t[0] == 'ATTR':
-                        indexStart = i
-                        var.name = currVarName[1]
-                    else:
-                        currVarName = t
 
-                    if indexStart != 0 and t[0] == 'INTEGER_CONST':
-                        var.index = int(t[1])
+                    if t[0] == 'PCOMMA':
+                        var.name = currVarName[1]
+                        var.index = len(self.variables)+1
+                        self.log.print("var:{}".format(var.__str__()))
+                    currVarName = t
+                    
                 if var.index is None:
                     return Error(errCl=Classes.VARTYPES, 
                                  errTp=Types.VARIABLE_WITHOUT_INDEX, 
@@ -150,10 +149,13 @@ class Variables():
                 
                 if var.type[1] not in self.composedVariables:
                     if regexEnd > 0 and regexStart > 0:
+                        self.log.print("getRegex")
                         var.regex = self.getRegex(self.tokens[regexStart+1:regexEnd+1])
                     else:
+                        self.log.print("getRegexFromType")
                         var.regex = self.getRegexFromType(var)
-                    if var.type != 'INT' and var.type != 'FLOAT' and var.type != 'STRING' and var.regex is None:
+                    if var.type != 'INT' and var.type != 'INT64' and var.type != 'FLOAT' and var.type != 'STRING' and var.regex is None:
+                        self.log.print("{}".format(var.__str__()))
                         return Error(errCl=Classes.REGEX, 
                                 errTp=Types.REGEX_NOT_FOUND, 
                                 FileName=self.file,
@@ -165,14 +167,11 @@ class Variables():
                         if var.type not in self.dependencies:
                             self.dependencies.append(var.type)
 
-                
-                if var.index > curIndex:
-                    curIndex = var.index
+                self.log.print("adding one to curIndex:{}".format(curIndex))
                 self.variables.append(var)
                 del var
-        if curIndex == -1:
-            curIndex = 1
-        self.AddHiddenVariables(lastIndex=curIndex)
+
+        self.AddHiddenVariables(lastIndex=len(self.variables))
 
         repeatedMsg = self.allUnique()
         if repeatedMsg is not None:
@@ -216,9 +215,11 @@ class Variables():
 
 
     def getRegexFromType(self, var):
-
-        if var.type[0] == 'INT':
+        self.log.print("getRegexFromType:{}".format(var.type))
+        if var.type[0] == 'INT32':
             return self.RegexForInt
+        if var.type[0] == 'INT64':
+            return self.RegexForInt        
         if var.type[0] == 'FLOAT':
             return self.RegexForFloat
         if var.type[0] == 'STRING':
@@ -233,7 +234,9 @@ class Variables():
         if len(varType) > 3 or len(varType) < 2:
             return None
         for t in varType:
-            if t[0] == 'INT':
+            if t[0] == 'INT32':
+                regexForType.append(self.RegexForInt)
+            if t[0] == 'INT64':
                 regexForType.append(self.RegexForInt)
             if t[0] == 'FLOAT':
                 regexForType.append(self.RegexForFloat)
@@ -309,7 +312,9 @@ class Variables():
         mapStop = 0
         maptypes = []
         for i,t in enumerate(tokens):
-            if t[0] == 'INT':
+            if t[0] == 'INT32':
+                maptypes.append(t)
+            if t[0] == 'INT64':
                 maptypes.append(t)
             if t[0] == 'FLOAT':
                 maptypes.append(t)
@@ -327,7 +332,10 @@ class Variables():
 
     def allUnique(self):
         seen = set()
+        for variable in self.variables:
+            self.log.print("variable:{}".format(variable.__str__()))
         if any(var.index in seen or seen.add(var.index) for var in self.variables) == True:
+            self.log.print("allUnique returns:{}".format(list(seen)))
             return list(seen)[0]
         else:
             return None
