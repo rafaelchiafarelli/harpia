@@ -101,8 +101,8 @@ normal PROTO message:
 	<enum-name> = 1;
 }
 message <name>{
-	<modifier> <var_type> <var_name> = <index>;
-	<enum_type>:<value> <var_name> = <index>;
+	<modifier> <var_type> <var_name>;
+	<enum_type>:<value> <var_name>;
 }
 
 ### where:
@@ -112,13 +112,13 @@ message <name>{
 	* * 
 * <var_type> is the time of the variable and could be a simple type such as "string", "int", "float", etc, or a complex type, such as the type defined by another message. <var_type> cannot have circular references.
 * <var_name> is the name of the variable and must created following the coding standart and cannot repeat
-* <index> is the position of the variable inside the structure. No two indexes can be equal and must begin with 1
+* !!!! <index> is the position of the variable inside the structure. No two indexes can be equal and must begin with 1, this is generated automaticaly and it is not the same as enum numbers.!!!!
 * <enum_type>:<value> is a variable created from the enum_type inicialized with <value>
 * basic values (int, char, string, enum) are inserted simplistic after the colon other types are inserted with brackets and ordered by comas in the same other they were created (all variables must be present including the optional ones). The random is key word that can be used instead of the value to generate a random variable.
 now, for this development
 ><access_modifier>[...] message <name> {
-	int id = 0;
-	<modifier>[...] <type/message_name> <var_name>[<regex>] = <index>; //comment
+	int id;
+	<modifier>[...] <type/message_name> <var_name>[<regex>]; //comment
 }<table_name>;
 ### where:
 * <access_modifier>[...] are the modifiers available to access this information. It is possible to have multiple <access_modifier>, but it is not possible to change the behavior of the <access_modifier>. To change the behavior of the modifier, it is necessary to create a new modifier, with a new name.
@@ -137,7 +137,7 @@ now, for this development
 	- pushpull - are variables that can be published by anyone and pulled by anyone (this is the standard behavior). This represents a many-to-many relationship.
 
 * <name> -- must be defined according with the standart coding of the company and must not be equal to any other message on this file, and no internal variable can be equal to this name.
-* int id = 0; -- is OBRIGATORY and always will occupy the first index. It is primary-key for the database when applicable, but always will exist. Index 0 is NOT USABLE and an error should occur in compilation time. 
+* int id = 1; -- is OBRIGATORY and always will occupy the first index. It is primary-key for the database when applicable, but always will exist. Index 0 is NOT USABLE and an error should occur in compilation time. 
 * <modifier>[...] several modifiers can be concatenated to form the innerworking of a table or a variable
 	* optional -- this variable is optional and do not need to be present
 	* repeteable -- this variable is dinamically allocated
@@ -146,7 +146,7 @@ now, for this development
 		* serialization, in this case, will treat the map as a list of dict
 			ex.: 
 			> message {
-					map<string, int> street_number_of_house = 1;
+					map<string, int> street_number_of_house;
 			}
 			the serialization will return:
 			{street_number_of_house: [{string1,int1},{string2,int2},{string3,int3}...]}
@@ -163,10 +163,9 @@ now, for this development
 * <var_name> is the name of the variable and must created following the coding standart
 * [<regex>] -- this is a optional configuration that exist to allow the limits of this variable to be present when defining the variable. For example:
 	> message home {
-		repeteable[10] char name["^[a-z0-9_\-]+$"] = 1;
+		repeteable[10] char name["^[a-z0-9_\-]+$"];
 	}
 	this will create a message, with an array of printable characters of max size 10.
-* <index> is the index of the variable that will always begin with 1
 * <table_name> is the name of the table that will be created. 
 	* if ended with ";" then it is private. The database is public otherwise
 	* if a table_name is not present, that means the table is not created.

@@ -6,15 +6,13 @@ import "file2.harpia";
 import "file3.harpia";
 
 message prince{
-    pagination[12] int vari = 7;
-    int var = 1;
-    optional int val=2;
-    required pagination[12] map<string,string> a=3;
-    required map<string,int> b=4;
-    required map<int,string> c=5;
+    pagination[12] int vari;
+    int var;
+    optional int val;
+    required pagination[12] map<string,string> a;
+    required map<string,int> b;
+    required map<int,string> c;
 };
-
-
 /*
 THIS IS A COMMENT 
 */
@@ -44,31 +42,31 @@ enum grower{
 // this is a comment with " quotes " and should not raise error
 
 stream pull push event message data{
-    int i =1;
-    optional int j = 2;
-    prince val = 3;
-    grower car = 4;
+    int i;
+    optional int j;
+    prince val;
+    grower car;
 }table_data;
 
 
 pull push event message users{
-    string address=1;
-    string name=2;
+    string address;
+    string name;
 }user_table
 
 stream pull push event message top_users{
-    string sponsor = 1;
-    required string name=2;
-    event message vip_users{
-        optional string name = 1;
-        string family = 2;
+    string sponsor;
+    required string name;
+        event message vip_users{
+        optional string name;
+        string family;
     }table_vip_users;
-    vip_users myUsers = 3;
+    vip_users myUsers;
 }user_table;
 
 message another_sage{
-    int msg = 1;
-    vip_users usr = 2;
+    int msg;
+    vip_users usr;
 };
 
 enum baba{
