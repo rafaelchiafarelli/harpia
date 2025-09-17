@@ -1,9 +1,9 @@
 message queen{
     
-    int var = 1;
-    optional int val=2;
-    required pagination[12] map<string,string> a=3;
-    required map<string,int> b=4;
-    required map<int,string> c=5;
-    pagination[12] int vari = 6;
+    int var;
+    optional int val;
+    required pagination[12] map<string,string> a;
+    required map<string,int> b;
+    required map<int,string> c;
+    pagination[12] int vari;
 };
