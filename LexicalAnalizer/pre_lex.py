@@ -22,11 +22,32 @@ class pre_lex:
         
         self.md5hash = None
         
-        self.destination = dest
+        self.rootDestination = dest
+        if not os.path.exists(self.rootDestination):
+            os.makedirs(self.rootDestination)        
+        
+        self.messageDestination = "{}/proto".format(dest)
+        if not os.path.exists(self.messageDestination):
+            os.makedirs(self.messageDestination)        
+        
+        self.modifierDestination = "{}/modifier".format(dest)
+        if not os.path.exists(self.modifierDestination):
+            os.makedirs(self.modifierDestination)
+        
+        self.accessModifierDestination = "{}/access_modifier".format(dest)
+        if not os.path.exists(self.accessModifierDestination):
+            os.makedirs(self.accessModifierDestination)  
+        
+        self.databaseDestination = "{}/database".format(dest)        
+        if not os.path.exists(self.databaseDestination):
+            os.makedirs(self.databaseDestination)          
+        
+        self.accessDatabaseDestination = "{}/database_access".format(dest)
+        if not os.path.exists(self.accessDatabaseDestination):
+            os.makedirs(self.accessDatabaseDestination)        
+        
         self.listOfHarpiaImports = []
-        if not os.path.exists(dest):
-            os.makedirs(dest)
-
+        
     def process(self):
         
         isFile,file = isFileInFolders(self.includeFolder,self.file)

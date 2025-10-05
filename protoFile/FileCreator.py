@@ -75,17 +75,17 @@ class FileCreator():
 
     def save(self, fileFolder = None):
         if fileFolder == None:
-            messagePath = "{}/{}".format(self.destination,self.fileName)
-            messageModifierPath = "{}/{}".format(self.destination,self.modifierName)
-            accessModifierPath = "{}/{}".format(self.destination,self.accessName)
-            dataBasePath = "{}/{}".format(self.destination,self.tableName)
-            dataBaseAccessPath = "{}/{}".format(self.destination,self.tableAccess)
+            messagePath = "{}/proto/{}".format(self.destination,self.fileName)
+            messageModifierPath = "{}/modifier/{}".format(self.destination,self.modifierName)
+            accessModifierPath = "{}/access_modifier/{}".format(self.destination,self.accessName)
+            dataBasePath = "{}/database/{}".format(self.destination,self.tableName)
+            dataBaseAccessPath = "{}/database_access/{}".format(self.destination,self.tableAccess)
         else:
-            messagePath = "{}/{}".format(fileFolder,self.fileName)
-            messageModifierPath = "{}/{}".format(fileFolder,self.modifierName)
-            accessModifierPath = "{}/{}".format(fileFolder,self.accessName)
-            dataBasePath = "{}/{}".format(fileFolder,self.tableName)
-            dataBaseAccessPath = "{}/{}".format(fileFolder,self.tableAccess)
+            messagePath = "{}/proto/{}".format(fileFolder,self.fileName)
+            messageModifierPath = "{}/modifier/{}".format(fileFolder,self.modifierName)
+            accessModifierPath = "{}/access_modifier/{}".format(fileFolder,self.accessName)
+            dataBasePath = "{}/database/{}".format(fileFolder,self.tableName)
+            dataBaseAccessPath = "{}/database_access/{}".format(fileFolder,self.tableAccess)
         
         with open(messagePath, "w") as outFile:
             outFile.write(self.messageData)
