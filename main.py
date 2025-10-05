@@ -27,8 +27,8 @@ if __name__ == '__main__':
     log.print(os.path.dirname(full_path))
 
     local_folder = os.path.dirname(full_path)
-    testFile = "./Test/test.harpia"
-    includeFolder = "./Test/Include"
+    testFile = "./HarpiaTest/test.harpia"
+    includeFolder = "./HarpiaTest/Include"
     #0. pre-process check
     rootFile = pre_lex(folders=[local_folder], file=testFile, dest="./build", includeFolder = includeFolder)
     preProcessorResult = rootFile.process()

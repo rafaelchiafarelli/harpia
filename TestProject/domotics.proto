@@ -1,0 +1,276 @@
+
+
+
+/*
+This is a sample project that will be implemented in domotics
+domotics
+    * a set of devices, services and protocols to allow control of a home by the user
+    * should provide security
+    * should allow total control
+    * should be organic to the use
+
+devices (that we are to implement)
+    Sensor types:
+        * interruption sensor: will give one information when something happens with its input
+            --> a door opens and the sensor tells the system
+            --> a temperature reaches dangerous levels in the kitchen
+        * continuous sensor: will give information at a specific rate.
+            --> once every second we measure the wind speed, sunlight radiation and ground moisture
+            --> every day we take a picture of the yard to measure the grouth of grass
+            --> the pH of the swiming pool is measured every hour.
+        * on-demand sensor: will hold the information in its memory until it is requested by someone.
+            --> when the system is going to open the garage door, it take a picture to see if there is someone at the door
+            --> when the user wants, it can see how much trash there is in the trash can.
+            --> check if the dog has food and water now.
+    Sensors
+        - temperature sensors -- continuous
+        - pH of the swimming pool -- on-demand
+        - lock sensors -- interruption
+    Actuator Types:
+        - toggle actuators: it changes it´s status once it is activated and don´t automatically goes back to the situation it was before
+            --> clothing lifter: once the clothes are lifted from the ground, energy is no longer required and it stays up until someone activates it again.
+            --> garage doors: after the garage door is open, it requires another activation to close.
+        - action actuators: it works when they are activated and then stops once the energy stops. 
+            --> swimming pool water pump: it will turn on, when user wants and turn off afterwards.
+            --> door lock: it will unlock the door while it is energized. Once energy stops, it can be resseted to be locked.
+        - controlled action: it provides steps/position for the action
+            --> a hidraulic door openner: it will open the door and can stop at any position 
+    Actuators
+        - lock actuators
+        - window actuator
+        - garage door actuator
+        - lights actuators
+        - power sources
+            --> controlled power sources can open the circuit if they detect overtemperature or overcurrent.
+
+    Server types (or services types)
+        - real time services: are the services that continuously monitor some variable. Either to show it, or to control something with it
+            -->dashboard of the house: will show all the status of the sensors for the user. It should be, therefore, capable of storing information and retrieving information on the fly
+            -->streamming services: when any given video is played, it must have knoledge, in real time, of where that video is being played at the device of the user. 
+        - storage services
+            -->database for historical data: it will store some data from the user for some time, allowing the user to retrieve back this data.
+        - controllers services:
+            -->a controller gets information about the pH on the pool and delivers treatment
+            -->a controller gets the information about a door opening and light´s up the room
+    Human interface devices types:
+        - only input type:
+            -->keypads, card swipes, finger print reader, etc
+        - visualization/configurations devices
+            -->Pad, viewer, tablets apps, 
+*/
+
+enum message DeviceType {
+    Sensors,
+    Actuators,
+    PowerOutLets,
+    FullDevices,
+    AutomationProcess,
+    LoggingProcess,
+    ShowStatus,
+    InvalidDevice
+}
+
+/*
+Universally Unique Identifier 128bit 
+xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+*/
+message UUID{
+    repeatable[8] char segment1["^[0-9a-fA-F]+$"] = 1;
+    repeatable[4] char segment1["^[0-9a-fA-F]+$"] = 2;
+    repeatable[4] char segment1["^[0-9a-fA-F]+$"] = 3;
+    repeatable[4] char segment1["^[0-9a-fA-F]+$"] = 4;
+    repeatable[12] char segment1["^[0-9a-fA-F]+$"] = 5;
+}
+
+/*
+generic temperature sensor
+*/
+pull event[cached] stream message TemperatureSensor{
+    float tempaterature = 1;
+    constant DeviceType:Sensors type = 2;
+    int raw_data = 3;
+    optional float std_deviation=4;
+    optional float max_value = 5;
+    optional float min_value = 6;
+    string location = 1;
+} 
+
+/*
+generic power outlet (AC 110/220Volts)
+*/
+pushpull message PowerPort {
+    constant DeviceType:PowerOutLets type = 1;
+    float current = 2;
+    int frequency = 3;
+    int voltage = 4;
+    int:4040 comPort = 5;
+    string:"place_holder" name = 6;
+    constant UUID secret_name = 7; //this means that this variable will only be set during construction
+    optional string submane = 8;
+    constant boolean:true isAC = 9;
+    constant boolean:false isDC = 10;
+}
+
+pushpull message 
+/*
+1 server
+
+4 poweroutlets 
+    * computer
+    * fridge
+
+1 controller
+    * garage door
+
+1 streamming service 
+    * cameras
+
+2 sensor
+    * vibration sensors
+    * semperature sensors
+
+2 tablets
+
+server
+    mqtt server
+    zmq server
+    dashboard server
+    application controllers server
+    data collection
+
+controller
+    esp32 + wifi 
+    radio communication with controller
+    relay
+    end-of-course sensor 
+    home sensor
+
+poweroutlets
+    esp32 + wifi
+    relay
+    currentSensor
+    powersource
+    voltage sensor
+    optocouple with zero-cross (MOC 31)
+    Voltage Indicator (110/*220)
+
+streamming service
+    data collection from sensors
+    data collection from users
+
+sensor
+    esp32 + wifi
+    sensor connects to wifi
+    find´s the server and reaches for 
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//good example of stream
+stream[10] message lines{ // create a message called lines that will stream continuously or until its contents is ended with 10 items per page
+    string line[\w] = 1; //one string per register
+}lines_on_the_sand; //name of the database that contains this item and it is private
+
+//bad example
+stream message lines{ // create a message called lines that will stream continuously or until its contents is ended. This is bad because there is no pagination
+    repeatable pagination[10] string line[\w] = 1; //a array of strings that can only have characters and numbers and it is paginated by 10 items at a time. This is bad because this message will be stream 10 lines at a time and there is no limit per line.
+}lines_on_the_sand //name of the database that contains this item and it is public. This is bad because a stream message, if accessible to everyone can be over used and a Denial Of Service will occour
+
+//good example of composed stream
+message many_things_are_true {
+    lines information_from_god = 1; //this is not streamed in many_things_are_true, when a request for this comes along, it could be a long response or a automatic stream one.
+}things;
+
+//bad example of composed stream
+cache stream message many_things_are_true{
+    //this is really bad because a request will retreive all the data from the lines, repeated in all queries and will return in memory
+    repeatable lines information_from_god = 1;
+}; //it gets worst because there is no database to hold the information, so it will hold all in cache
+#cached messages access the information once and are kept in memory while the program is running. The cached value is updated only on update or insert from the system, there is no database pulling.
+#pull messages access the database immediatly - no event will be thrown - default behavior when there is no other modificator.
+#event messages receive the information from the database only on change (no pull is done) - INSERT, UPDATE or DELETE.
+#stream messages receive a controlled stream of data, if present or added. An ampty stream can be returned if there is no data available.
+
+stream event cached pull message user_data{
+    array name = 1;
+    int age = 2;
+    array address = 3;
+    optional CEP cep = 4;
+}user;
+
+#only pull functions will be created
+message d1{
+
+}table_name
+
+#only stream funcions will be created
+stream message posts{
+    array pagination text = 1;
+    array subject = 2;
+    array date = 3;
+    user_data.id owner = 4;
+}posts_data;
+
+message something{
+    boolean strike = 1;
+    int data = 2;
+}something_table;
+
+messa something_more{
+    something.id owner = 1;
+    posts.id another_owner = 2;
+}something_more_table;
+
+message likes_to_posts{
+    boolean like = 1;
+    user_data.id owner = 2;
+    pagination posts.id liked_to = 3;
+}likes_to_posts;
+
+message comments {
+    array comment = 1;
+    user_data.id owner = 2;
+    pagination posts.id comented_on = 3;
+}comments;
+
+message likes_to_comments {
+    boolean like = 1;
+    user_data.id owner = 2;
+    pagination comments.id liked_to = 3;
+}likes_to_comments;
+
+stream types are not required to be represented at the database.
+stream message temperature { 
+    int temperature [-30,150] = 1;
+    int error [0.0,0.5]= 2;
+    int frequency = 3;
+};
+
+#default messages are not requeired to have a representation on the database 
+message color { 
+    int R = 1;
+    int G = 2;
+    int B = 3;
+};
+
+#definition of the database (not the table) - will be defined in code, versionated and unique. o (compiled and unique to this release.)
+# as per definition there are always 2 databases, one public and one private
+@database:{
+    admin:<admin password>,
+    user:<user password>,
+    guest:<guest password>,
+}
+
+
+
