@@ -30,7 +30,7 @@ if __name__ == '__main__':
     testFile = "./HarpiaTest/test.harpia"
     includeFolder = "./HarpiaTest/Include"
     #0. pre-process check
-    rootFile = pre_lex(folders=[local_folder], file=testFile, dest="./build", includeFolder = includeFolder)
+    rootFile = pre_lex(folders=[local_folder], file=testFile, dest="./HarpiaTest/build", includeFolder = includeFolder)
     preProcessorResult = rootFile.process()
 
     if preProcessorResult is not None: ##no error detected
@@ -50,7 +50,7 @@ if __name__ == '__main__':
     mainFileLex.ImportRemover()
 
     for inc in listOfIncludes:
-        incFilePreLex = pre_lex(folders=[local_folder], file=inc, dest="./build", includeFolder = includeFolder)
+        incFilePreLex = pre_lex(folders=[local_folder], file=inc, dest="./HarpiaTest/build", includeFolder = includeFolder)
         incFilePreProcessorResult = incFilePreLex.process()
         if incFilePreProcessorResult is not None:
             log.print(incFilePreProcessorResult.__str__())
@@ -74,7 +74,7 @@ if __name__ == '__main__':
     imports = []
     for msg in msgFactory.messages:
 
-        fileCreator = FileCreator(message=msg,imports=imports , dest="./build")
+        fileCreator = FileCreator(message=msg,imports=imports , dest="./HarpiaTest/build")
         fileCreator.Process()
         fileCreator.save()
 

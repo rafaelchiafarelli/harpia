@@ -3,10 +3,11 @@
 
 # project Harpia
 ## Harpia is the Mithological creature responsible to deliver the news and other things.
+## Data Exchange and Service Gateway
+
 ## objective:
-Create a generalized interface for processes and threads to share data among themselves, database and web. 
-## main goal
-Create a gRPC, ORM, RESTFull, SOAP, CRUDL, multi-project, multi-language, multi-thread library to exchange data.
+Create a generalized interface for processes and threads to share data among themselves, database and web that has gRPC, ORM, RESTFull, SOAP, CRUDL, multi-project, multi-language and a  multi-thread library to exchange data.
+
 ## goals:
 * a shared library must be created so that all other projects can use
 * this library must be integratable in all languages we support
