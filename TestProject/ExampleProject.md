@@ -1,64 +1,35 @@
-## The example project will be a simple data logger with visualization
-# What is a Data Logger?
-Is something that is able to record data from somewhere into some place. And it does that following some rules, as in:
-* if the temperature is greater than 
-* do 
-What are going to log?
-* CPU temperature
-* CPU Usage
-* Memory usage
+# This is a test project that will test:
+## gRPC 
+- call a process in a different application and wait for it to complete
+- call a process in a different application and don´t wait for it to complete
+- call a process in a different application and receive a timeout
 
-Domotics project
+## ORM
+- create database and access functions
+- put some data into the database
+- change the database
 
-light-switches
-    simple lights (ON/OFF)
+## RESTFull 
+- create a set of meessages
+- make the acess functions for those messages in the HTTP protocol (GET, POST, PUT, DELETE, OPTIONS, PATCH)
 
-power-inlets
-    simple power supply (110/220)
+## SOAP
+- create a set of messages
+- make the SOAP to access these messages and the services within the messages
 
-action-devices 
-    electric gates (sensor-less action - ACT)
-    garage door (sensor action OPEN/CLOSE  isOpen/isClosed)
+## CRUDL
+- implement the CRUDL (Create, Read, Update, Delete, List) access (database and memory)
 
-full devices 
-    air-conditioning (sensor-full and operation )
+## multi-project
+- create two projects from 2 harpia files
+- make them exchange information between them (one is the server of its set of variables and the client of the other set of variables)
 
-sensors
-    sensor devices that return a value when asked
+## multi-language
+- make it in c++ and java
 
-automation processes
-    simple state-machine (turn-on device one, wait for something, turn-on device 2, wait for another something, select device 3, etc)
-    simple closed loop (while variable not something, keep ACT)
-
-loging processes
-    get information of all devices in the network
-
-show status
-    show status of devices, processes, sensors
+## multi-thread 
+- make a project that have mutliple speakers and multiple listeners
 
 
-a mesh structure of all devices connected through a network
-one or many servers
-operations
-# we will automate the watering of the plants.
 
-low level will consist of a esp32 with wi-fi and a few relays
 
-* R1 -> mains relay. This relay will turn on the 12V power-source and also feed the 127 valves
-* R2 -> will turn on the W1 valve (12V)
-* R3 -> will turn on the W2 valve (12V)
-* R4 -> will turn on the W3 valve (127V)
-* R5 -> will turn on the W4 valve (127V)
-
-relays are scheduled to be turned on by:
-    * days of the week
-    * hours of the day
-    * minutes of the hour
-    * seconds of the minute.
-    for example:
-    R2 will activate in all the days of the week, 
-
-R1 has a feed logic --> it must be on so the others can be on.
-    scheduling of the others will make this schedule as well.
-        if we schedukle
-R2 
