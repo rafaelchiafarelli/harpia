@@ -50,8 +50,6 @@ class Variables():
 
     def Process(self):
         curNewLine = 0
-        curIndex = -1
-        self.log.print(self.file)
         for j,token in enumerate(self.tokens):
             variableEnds = -1
             variableBegins = -1
@@ -67,7 +65,7 @@ class Variables():
                 firstID = 0
                 currVarName = []
                 for i,t in enumerate(self.tokens[variableBegins:variableEnds]):
-                    self.log.print("{}".format(t))
+
                     if t[0] == 'REPETEABLE':
                         repeteable = self.getRepeteable(self.tokens[variableBegins+i:variableEnds])
                         if repeteable is None:
@@ -131,7 +129,7 @@ class Variables():
                     if t[0] == 'PCOMMA':
                         var.name = currVarName[1]
                         var.index = len(self.variables)+1
-                        self.log.print("var:{}".format(var.__str__()))
+                        
                     currVarName = t
                     
                 if var.index is None:
@@ -149,13 +147,13 @@ class Variables():
                 
                 if var.type[1] not in self.composedVariables:
                     if regexEnd > 0 and regexStart > 0:
-                        self.log.print("getRegex")
+                        
                         var.regex = self.getRegex(self.tokens[regexStart+1:regexEnd+1])
                     else:
-                        self.log.print("getRegexFromType")
+                        
                         var.regex = self.getRegexFromType(var)
                     if var.type != 'INT' and var.type != 'INT64' and var.type != 'FLOAT' and var.type != 'STRING' and var.regex is None:
-                        self.log.print("{}".format(var.__str__()))
+                        
                         return Error(errCl=Classes.REGEX, 
                                 errTp=Types.REGEX_NOT_FOUND, 
                                 FileName=self.file,
@@ -166,8 +164,6 @@ class Variables():
                     if self.dependencies != None:
                         if var.type not in self.dependencies:
                             self.dependencies.append(var.type)
-
-                self.log.print("adding one to curIndex:{}".format(curIndex))
                 self.variables.append(var)
                 del var
 
@@ -332,10 +328,9 @@ class Variables():
 
     def allUnique(self):
         seen = set()
-        for variable in self.variables:
-            self.log.print("variable:{}".format(variable.__str__()))
+
         if any(var.index in seen or seen.add(var.index) for var in self.variables) == True:
-            self.log.print("allUnique returns:{}".format(list(seen)))
+
             return list(seen)[0]
         else:
             return None
