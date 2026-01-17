@@ -64,7 +64,7 @@ class FileCreator():
             protoData+="enum {} {{\n".format(self.message.name)
             if self.message.variables is not None: 
                 for v in self.message.variables:
-                    protoData+="{} = {},\n".format(v[0],v[1])
+                    protoData+="{} = {};\n".format(v[0],v[1])
 
         protoData+="}\n"
         self.messageData = "{}".format(protoData)
