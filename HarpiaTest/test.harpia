@@ -24,7 +24,7 @@ enum grow{
     enumarator_b; //insert of a comment inside 
     enumarator_c = 14;
     enumarator_d;
-    enumarator_e = 2; //intentional repetition of number
+    enumarator_e = 0; //one number MUST BE ZERO
 }
 enum grower{
     g_a;
