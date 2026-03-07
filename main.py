@@ -8,6 +8,7 @@ from LexicalAnalizer.MessageCreator import MessageCreator,Message
 from ProtoFile.ProtoFileProcessor import ProtoFileProcessor
 from ProtoFile.FileCreator import FileCreator
 from copy import deepcopy
+from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos
 if __name__ == '__main__':
     log = logger(outFile=None, moduleName="main" )
     log.print("Path at terminal when executing this file")
@@ -26,11 +27,13 @@ if __name__ == '__main__':
     log.print("This file directory only")
     log.print(os.path.dirname(full_path))
 
-    local_folder = os.path.dirname(full_path)
+    localFolder = os.path.dirname(full_path)
     testFile = "./HarpiaTest/test.harpia"
     includeFolder = "./HarpiaTest/Include"
+    testDestination = "./HarpiaTest/test_build"
+    
     #0. pre-process check
-    rootFile = pre_lex(folders=[local_folder], file=testFile, dest="./HarpiaTest/build", includeFolder = includeFolder)
+    rootFile = pre_lex(folders=[localFolder], file=testFile, dest=testDestination, includeFolder = includeFolder)
     preProcessorResult = rootFile.process()
 
     if preProcessorResult is not None: ##no error detected
@@ -50,7 +53,7 @@ if __name__ == '__main__':
     mainFileLex.ImportRemover()
 
     for inc in listOfIncludes:
-        incFilePreLex = pre_lex(folders=[local_folder], file=inc, dest="./HarpiaTest/build", includeFolder = includeFolder)
+        incFilePreLex = pre_lex(folders=[localFolder], file=inc, dest=testDestination, includeFolder = includeFolder)
         incFilePreProcessorResult = incFilePreLex.process()
         if incFilePreProcessorResult is not None:
             log.print(incFilePreProcessorResult.__str__())
@@ -72,11 +75,16 @@ if __name__ == '__main__':
         log.print(messagesErrors.__str__())
         exit(-1)
     imports = []
+    
     for msg in msgFactory.messages:
-
-        fileCreator = FileCreator(message=msg,imports=imports , dest="./HarpiaTest/build")
+        fileCreator = FileCreator(message=msg,imports=imports , dest=testDestination)
         fileCreator.Process()
         fileCreator.save()
-
-
         #log.print(msgFactory.__str__())
+    #copy what in the Assets folder to the build folder
+    copyBasicProtos(src="./Assets/proto/protofiles", dest=testDestination)
+    copyServerClientTemplates(src="./Assets", dest=testDestination)
+    copyCMakeFiles(src="./Assets", dest=testDestination)
+
+    
+    
