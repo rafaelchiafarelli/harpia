@@ -31,7 +31,6 @@ class Message():
     def Process(self, tokens):
         startOfVariables = 0
         endOfVariables = 0
-        msgReceived = False
         rBracePosition = None
         curNewLine = None
         isOneToMany = None

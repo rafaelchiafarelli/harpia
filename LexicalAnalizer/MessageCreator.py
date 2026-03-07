@@ -88,8 +88,8 @@ class MessageCreator():
     
     def allUnique(self):
         seen = set()
-        if any(msg.name in seen or seen.add(msg.name) for msg in self.messages) == True:
-            return list(seen)[0]
+        if any(msg.name + " - " +  msg.file in seen or seen.add(msg.name + " - " + msg.file) for msg in self.messages) == True:
+            return "{}".format(list(seen)[0])
         else:
             return None
 

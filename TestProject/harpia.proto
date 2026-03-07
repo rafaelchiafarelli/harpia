@@ -1,7 +1,0 @@
-
-// example file 
-
-message UserRequest{
-
-}; //this message does not have a database
-
