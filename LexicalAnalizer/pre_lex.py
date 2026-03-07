@@ -26,7 +26,7 @@ class pre_lex:
         if not os.path.exists(self.rootDestination):
             os.makedirs(self.rootDestination)        
         
-        self.messageDestination = "{}/proto".format(dest)
+        self.messageDestination = "{}/proto/protofiles".format(dest)
         if not os.path.exists(self.messageDestination):
             os.makedirs(self.messageDestination)        
         
