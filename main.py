@@ -72,17 +72,22 @@ if __name__ == '__main__':
         exit(-1)
     listOfIncludes = rootFile.getListOfHarpias()
     rootFileHash = rootFile.getHash()
-    del rootFile
     log.print("{}".format(listOfIncludes))
-    lexicalAnalized = []    
+    
+    analizer = LexicalAnalyzer()
+    analizerError = analizer.process(testFile)
+    if analizerError is not None:
+        log.print("error in lexical analyzer")
+        exit(-1)
+    analizer.CommentRemover()
+    analizer.ImportRemover()
+    lexicalAnalized = []
+    lexicalAnalized = analizer.getTokens()
+    
     #1. lexical analizer
-    lexicalAnalized = lexicalAnalizerProcessor(listOfIncludes, localFolder, testDestination, includeFolder)
+    lexicalAnalized += lexicalAnalizerProcessor(listOfIncludes, localFolder, testDestination, includeFolder)
     
     #2. create messages
-    log.print("amount of tokens: {}".format(lexicalAnalized.count(('ID', 'pope', 1, 8))))
-    for t in lexicalAnalized:
-        if t[0] == 'ID' and t[1] == 'pope':
-            log.print("found pope token: {}".format(t))
     msgFactory = MessageCreator(filename=testFile,tokens=lexicalAnalized, md5Hash=rootFileHash)
 
     messagesErrors = msgFactory.CreateMessages(beginToken=0)
