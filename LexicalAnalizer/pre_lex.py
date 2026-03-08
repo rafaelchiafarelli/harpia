@@ -116,6 +116,7 @@ class pre_lex:
                     isFileInFolder, err = isFileInFolders(self.includeFolder,impFile)
                     if isFileInFolder is False:
                         # there is an error, must return the error
+                        self.log.print("Error found in import statement: {}".format(err.__str__()))
                         return err
                     else:
                         # there is no error, so it is a file (absolute path of a file)
@@ -158,10 +159,11 @@ class pre_lex:
         if all_data != "":
             self.md5hash = hashlib.md5(all_data.encode()).hexdigest()
 
-        self.log.print("pre lexic for {} complete".format(self.file))
+        self.log.print("pre lexic for {} complete ".format(self.file))
         return None
     
     def getListOfHarpias(self):
+        self.log.print("list of harpia imports: {}".format(self.listOfHarpiaImports))
         return self.listOfHarpiaImports
     
     def getFile(self):
