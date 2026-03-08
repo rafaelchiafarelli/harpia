@@ -1,6 +1,4 @@
-import "file4.harpia";
-
-message queen{
+message queenBee{
     
     int var;
     optional int val;
@@ -8,5 +6,4 @@ message queen{
     required map<string,int> b;
     required map<int,string> c;
     pagination[12] int vari;
-    queenBee b;
 };

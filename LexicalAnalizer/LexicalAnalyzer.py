@@ -5,11 +5,11 @@ from Errors.Error import Error, Types, Classes
 ## LexicalAnalyzer should only tokenize the files 
 class LexicalAnalyzer:
     log = logger(outFile=None, moduleName="LexicalAnalizer" )    
-    # Token row
-    lin_num = 1
-    tokens = []
+    
     def __init__(self) -> None:
         self.name = "empty"
+        self.tokens = []
+        self.lin_num = 1    
         self.rules = [
             ('IMPORT', r'import'),
             ('QUOTES', r'\"'),

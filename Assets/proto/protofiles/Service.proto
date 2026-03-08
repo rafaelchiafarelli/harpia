@@ -24,8 +24,8 @@ message %USER_MESSAGE%_Stream {
     string name = 2;
 }
 service %USER_MESSAGE%_Service {
-    rpc heartBeat(%USER_MESSAGE%_HeartBeat) returns (%USER_MESSAGE%_HeartBeat) {}
-    rpc streamSrc(%USER_MESSAGE%_Stream ) returns (stream %USER_MESSAGE%_Message) {}
-    rpc pullByID(%USER_MESSAGE%_ID) returns (%USER_MESSAGE%_Message) {}
-    rpc push(%USER_MESSAGE%_Message) returns (errorCode) {}
+    rpc heartBeatFor_%USER_MESSAGE%(%USER_MESSAGE%_HeartBeat) returns (%USER_MESSAGE%_HeartBeat) {}
+    rpc streamFor_%USER_MESSAGE%(%USER_MESSAGE%_Stream ) returns (stream %USER_MESSAGE%_Message) {}
+    rpc pullByIDFor_%USER_MESSAGE%(%USER_MESSAGE%_ID) returns (%USER_MESSAGE%_Message) {}
+    rpc pushFor_%USER_MESSAGE%(%USER_MESSAGE%_Message) returns (errorCode) {}
 }
