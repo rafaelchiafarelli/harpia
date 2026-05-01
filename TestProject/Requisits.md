@@ -10,8 +10,8 @@
 - change the database
 
 ## RESTFull 
-- create a set of meessages
-- make the acess functions for those messages in the HTTP protocol (GET, POST, PUT, DELETE, OPTIONS, PATCH)
+- create a set of messages
+- make the access functions for those messages in the HTTP protocol (GET, POST, PUT, DELETE, OPTIONS, PATCH)
 
 ## SOAP
 - create a set of messages

@@ -23,6 +23,7 @@ class FileCreator():
         self.destination = dest
         self.messageData = ""
         self.gRPCData = ""
+        
         self.log = logger(outFile=None, moduleName="FileCreator")
 
     def Process(self):
@@ -38,9 +39,11 @@ class FileCreator():
         
         if self.message.isEnum == False:
             protoData+="message {} {{\n".format(self.message.name)
+
             if self.message.tableName is not None:
                 self.dataBaseData+=self.message.tableName
             self.dataBaseData+="\n"
+
             if self.message.visibility is not None:
                 self.dataBaseData+=self.message.visibility
 
@@ -63,7 +66,11 @@ class FileCreator():
                         self.accessData.append((v.name,v.modifiers))
 
 # now we create the access protos. 
-# one proto will have the variables and other protos will have the functions.
+# one proto will have the variables and other proto will have the functions.
+    # for the porpose of the harpia project, we can put all the interfaces into a single proto file, and enable each with some clevor preprocessor directives.
+    # it will work for c++. Other languages will have to be adapted.
+    # the template C++ will have the preprocessor directives to enable the different interfaces, that will be replaced by the FileCreator.
+    # the interfaces that we will have are:
     # gRPC -- proto name will be the name of the original message + "Service";
         # several functions that will receive the message, do something with it and return OK or ERROR according to spec
             # one function that receives the message and return the errorCode.

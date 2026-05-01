@@ -184,7 +184,7 @@ now, for this development
    * if it is not a table, repeateble variables are present in memory as arrays, vectors, or lists
 ### Serialization
  * Serializers provided are intrinscically safe. Never ever they will crash.
- * Memory consumption is limited by the system. If memory is out, serializer returns an error of no memory and a standartized message.
+ * Memory consumption is limited by the system. If memory is out, serializer returns an error of no memory and a standardized message.
  * map variables are serialized as dicts 
 ### SOAP
 * SOAP is a xml protocol implemented over http
@@ -220,9 +220,9 @@ All features and code generation can be independently disabled. If a feature dep
 * bashs
 
 # Configurations
-All configurations must be available at the protobuf file.
-Configurations related to specific language definitions must be available at the protobuf file.
-Should have language selection within the protobuf?
+All configurations must be available at the harpia file.
+Configurations related to specific language definitions must be available at the harpia file.
+Should have language selection within the harpia file??
 
 # philosophy
 1. every bug create unit tests.

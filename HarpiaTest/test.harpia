@@ -1,8 +1,10 @@
-message prince{
-    pagination[12] int vari;
-    int var;
-    optional int val;
-    required pagination[12] map<string,string> a;
-    required map<string,int> b;
-    required map<int,string> c;
-};
+
+stream pull push event message top_users{
+    string sponsor;
+    required string name;
+        event message vip_users{
+        optional string name;
+        string family;
+    }table_vip_users;
+    vip_users myUsers;
+}user_table;
