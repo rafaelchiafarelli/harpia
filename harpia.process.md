@@ -92,10 +92,15 @@
     4. 3.  encrypted passwords must be added to the SOAP access tool
 
 6. create the clean proto file
-    5. 1. add all messages into one or as many files as needed to conform with the version of protobuf we are using
+    6. 1. each message will be in a single proto file
+    6. 2. each message will have a secondary proto file that will contain the access functions
+    6. 3. all functions will have an implementation that is secure and clear of user interference.
+    6. 4. all messages from the original harpia file will be tested in one single main file.
 
 7. execute protobuf compiler
-    6. 1. this will generate all the access functions from the protobuf
+    7. 1. this will generate all the access functions from the protobuf
+    7. 2. each message will have 2 protos, one for the service and another for the data interface.
+    7. 3. the
 
 8. create the database accesses
     7. 1. with the data from the tokens and the data from protobuf (functions names, namespaces, etc)
