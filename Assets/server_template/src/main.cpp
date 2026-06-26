@@ -6,40 +6,20 @@
 
 #include <iostream>
 
-class AddressBookService final : public expcmake::AddressBook::Service {
-    public:
-        virtual ::grpc::Status GetAddress(::grpc::ServerContext* context, const ::expcmake::NameQuerry* request, ::expcmake::Address* response)
-        {
-            std::cout << "Server: GetAddress for \"" << request->name() << "\"." << std::endl;
+void RunServer() {
+    std::string server_address("0.0.0.0:50051");
+    VariableServiceImpl service;
 
-            response->set_name("Peter Peterson");
-            response->set_zip("12345");
-            response->set_country("Superland");
-            
-            return grpc::Status::OK;
-        }
-        virtual ::grpc::Status GetAddressByStreet(::grpc::ServerContext* context, const ::expcmake::StreetQuerry* request, ::expcmake::Address* response)
-        {
-            std::cout << "Server: GetAddressByStreet for \"" << request->street() << "\"." << std::endl;
-
-            response->set_name("Peter Peterson");
-            response->set_zip("12345");
-            response->set_country("Superlandasdasdad");
-            
-            return grpc::Status::OK;
-        }        
-};
-
-int main(int argc, char* argv[])
-{
-    grpc::ServerBuilder builder;
-    builder.AddListeningPort("0.0.0.0:50051", grpc::InsecureServerCredentials());
-
-    AddressBookService my_service;
-    builder.RegisterService(&my_service);
-
-    std::unique_ptr<grpc::Server> server(builder.BuildAndStart());
+    ServerBuilder builder;
+    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    builder.RegisterService(&service);
+    std::unique_ptr<Server> server(builder.BuildAndStart());
+    std::cout << "Servidor rodando em " << server_address << std::endl;
     server->Wait();
-    
+}
+
+int main() {
+    RunServer();
     return 0;
 }
+
