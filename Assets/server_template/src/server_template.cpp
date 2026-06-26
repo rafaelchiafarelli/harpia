@@ -15,20 +15,10 @@ using varsync::VariableRequest;
 using varsync::VariableQuery;
 using varsync::VariableResponse;
 
-
-void RunServer() {
-    std::string server_address("0.0.0.0:50051");
-    VariableServiceImpl service;
-
-    ServerBuilder builder;
-    builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-    builder.RegisterService(&service);
-    std::unique_ptr<Server> server(builder.BuildAndStart());
-    std::cout << "Servidor rodando em " << server_address << std::endl;
-    server->Wait();
-}
-
-int main() {
-    RunServer();
-    return 0;
-}
+/**
+* Implementation of the server side.
+* - push, pull and pushpull functions are implemented here.
+* - The server maintains an in-memory database (std::map) to store variable names and their corresponding values.
+* - The PushVariable function allows clients to push a variable name and value to.
+* 
+*/

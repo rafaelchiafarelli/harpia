@@ -21,11 +21,13 @@ class VariableServiceImpl final : public VariableService::Service {
     std::map<std::string, std::string> db;
 
     Status PushVariable(ServerContext* context, const VariableRequest* request, VariableResponse* reply) override {
-        db[request->name()] = request->value();
-        std::cout << "Push: " << request->name() << " = " << request->value() << std::endl;
-        reply->set_name(request->name());
-        reply->set_value(request->value());
-        reply->set_success(true);
+        try {
+            userFunctions::pushVariable(request->name(), request->value());
+        } catch (const std::exception& e) {
+            std::cerr << "Error pushing variable: " << e.what() << std::endl;
+            reply->set_success(false);
+            return Status::ERROR;
+        }
         return Status::OK;
     }
 
