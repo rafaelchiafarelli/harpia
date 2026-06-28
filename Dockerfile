@@ -4,7 +4,8 @@
 # lives in this image, so nothing has to be installed on the host:
 #   - Python 3.12 (Ubuntu 24.04 default) + pytest      : run the pipeline & golden tests
 #   - protobuf-compiler (protoc) + libprotobuf-dev     : Stage 7, .proto -> C++
-#   - protobuf-compiler-grpc + libgrpc++-dev           : gRPC stubs (later stages)
+#   - protobuf-compiler-grpc + libgrpc++-dev           : Stage 13 gRPC stubs
+#   - libzmq3-dev + cppzmq-dev                         : Stage 13 ZMQ transport
 #   - cmake, g++, make                                 : compile the generated C++
 #
 # The repository is mounted at /harpia at run time (see docker/run.sh), so edits
@@ -20,6 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libprotobuf-dev \
         protobuf-compiler-grpc \
         libgrpc++-dev \
+        libzmq3-dev \
+        cppzmq-dev \
         cmake \
         g++ \
         make \
