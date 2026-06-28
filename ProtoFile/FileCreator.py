@@ -25,6 +25,15 @@ class FileCreator():
         self.gRPCData = ""
         self.log = logger(outFile=None, moduleName="FileCreator")
 
+    # proto3 type name for a harpia type token. Primitives are normalized
+    # (the lexer keeps lexemes like 'int' or 'string ' that aren't valid proto
+    # types); anything else (a composed message/enum) uses its name.
+    _PROTO_PRIMITIVES = {"INT32": "int32", "INT64": "int64",
+                         "FLOAT": "float", "STRING": "string"}
+
+    def protoType(self, typeToken):
+        return self._PROTO_PRIMITIVES.get(typeToken[0], typeToken[1])
+
     def Process(self):
         #create the proto file
         
@@ -51,14 +60,18 @@ class FileCreator():
             self.dataBaseData+="\n"
             if self.message.variables is not None:
                 for v in self.message.variables:
-                    varType = "err"
-                    if v.type[0] == "INT32":
-                        varType = 'int32'
-                    elif v.type[0] == "INT64":
-                        varType = "int64"
+                    if v.typeMap:
+                        # map<K,V>: typeMap holds the key/value type tokens.
+                        # var.type alone is unreliable here -- the parser
+                        # overwrites it with the last primitive seen inside the
+                        # angle brackets, so emit from typeMap instead.
+                        keyType = self.protoType(v.typeMap[0])
+                        valType = self.protoType(v.typeMap[1])
+                        protoData+="map<{}, {}> {} = {};\n".format(
+                            keyType, valType, v.name, v.index)
                     else:
-                        varType = v.type[1]
-                    protoData+="{} {} = {};\n".format(varType, v.name,v.index)
+                        protoData+="{} {} = {};\n".format(
+                            self.protoType(v.type), v.name, v.index)
                     if len(v.modifiers) != 0:
                         self.accessData.append((v.name,v.modifiers))
 
