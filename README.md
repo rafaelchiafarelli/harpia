@@ -19,8 +19,8 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 | 0–6 | front-end: pre-process, tokenize, build messages, emit clean `.proto` | ✅ implemented |
 | 7 | run `protoc` → compilable C++ messages | ✅ implemented |
 | 8 | database / SQL (schema, CRUDL, version transforms) | ✅ CREATE TABLE schema + CRUDL DAO over vendored SQLite; FK/repeated + version-transform deferred |
-| 9 | JSON adapter (`to_json`/`from_json` + checker) | ✅ message↔JSON; DB fns (8.3–8.6) deferred to Stage 8 |
-| 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD; DB fns deferred to Stage 8 |
+| 9 | JSON adapter (`to_json`/`from_json` + checker) | ✅ message↔JSON + DB bulk export/import (NDJSON) |
+| 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD + DB bulk export/import |
 | 11 | SOAP | ⬜ not started |
 | 12 | HTML / REST bindings | ⬜ not started |
 | 13 | zmq/socket + gRPC access | ✅ gRPC stubs **and** ZMQ push/pull + pub/sub, with a compile-time sender "originator" id (process.md 1.3.1.1, one-to-* case) |
