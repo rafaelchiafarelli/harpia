@@ -7,6 +7,7 @@ committed snapshots in tests/golden/:
   - tokens.txt       the post-comment/import token stream
   - messages.txt     the constructed Message objects
   - proto/*.proto    every emitted proto (message + service)
+  - json/*.h         every emitted JSON adapter (Stage 9)
 
 To (re)generate the golden snapshots after an intentional change:
 
@@ -101,3 +102,21 @@ def test_proto_files(artifacts):
     assert produced == expected, "set of generated .proto files changed"
     for rel in produced:
         _check(os.path.join(produced_proto_dir, rel), os.path.join("proto", rel))
+
+
+def test_json_adapters(artifacts):
+    produced_json_dir = os.path.join(artifacts, "json")
+    produced = _relpaths(produced_json_dir)
+
+    if UPDATE:
+        golden_json_dir = os.path.join(GOLDEN_DIR, "json")
+        if os.path.exists(golden_json_dir):
+            shutil.rmtree(golden_json_dir)
+        for rel in produced:
+            _check(os.path.join(produced_json_dir, rel), os.path.join("json", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "json"))
+    assert produced == expected, "set of generated JSON adapters changed"
+    for rel in produced:
+        _check(os.path.join(produced_json_dir, rel), os.path.join("json", rel))

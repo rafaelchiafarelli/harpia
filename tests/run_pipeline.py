@@ -32,6 +32,7 @@ from LexicalAnalizer.LexicalAnalyzer import LexicalAnalyzer
 from LexicalAnalizer.pre_lex import pre_lex
 from LexicalAnalizer.MessageCreator import MessageCreator
 from ProtoFile.FileCreator import FileCreator
+from JsonAdapter.JsonAdapter import JsonAdapter
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos
 
 
@@ -95,10 +96,14 @@ def run(output_dir):
     copyServerClientTemplates(src="./Assets", dest=build_dir)
     copyCMakeFiles(src="./Assets", dest=build_dir)
 
+    # 9. JSON adapters (header-only C++ over the protobuf messages)
+    JsonAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+
     # --- capture artifacts -------------------------------------------------
     _dump_tokens(os.path.join(output_dir, "tokens.txt"), tokens)
     _dump_messages(os.path.join(output_dir, "messages.txt"), msg_factory.messages)
     _collect_protos(build_dir, os.path.join(output_dir, "proto"))
+    _collect_json(build_dir, os.path.join(output_dir, "json"))
 
 
 def _dump_tokens(path, tokens):
@@ -122,6 +127,18 @@ def _collect_protos(build_dir, dest):
     os.makedirs(dest, exist_ok=True)
     for name in sorted(os.listdir(src)):
         if name.endswith(".proto"):
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_json(build_dir, dest):
+    src = os.path.join(build_dir, "generated", "cpp", "json")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith(".h"):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
