@@ -87,9 +87,9 @@ class LexicalAnalyzer:
                 continue
             elif token_type == 'MISMATCH':
                 self.log.print("{} unexpected on line {}".format(token_lexeme, self.lin_num))
-                return Error(errCl = Classes.FILE_HAS_ERROR, 
-                         errTp = Types.LEXICAL_ANALYZER_ERROR, 
-                         FileName = self.file, 
+                return Error(errCl = Classes.FILE_HAS_ERROR,
+                         errTp = Types.LEXICAL_ANALYZER_ERROR,
+                         FileName = self.name,
                          FileLine = "",
                          CharacterNumber = 0)
             else:

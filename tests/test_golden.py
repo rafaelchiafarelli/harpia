@@ -9,6 +9,7 @@ committed snapshots in tests/golden/:
   - proto/*.proto    every emitted proto (message + service)
   - json/*.h         every emitted JSON adapter (Stage 9)
   - zmq/*.h          every emitted ZMQ transport (Stage 13 zmq)
+  - sidecars/        the SQL stub + access/modifier flag files per message
 
 To (re)generate the golden snapshots after an intentional change:
 
@@ -139,3 +140,21 @@ def test_zmq_adapters(artifacts):
     assert produced == expected, "set of generated ZMQ transports changed"
     for rel in produced:
         _check(os.path.join(produced_zmq_dir, rel), os.path.join("zmq", rel))
+
+
+def test_sidecars(artifacts):
+    produced_dir = os.path.join(artifacts, "sidecars")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "sidecars")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel), os.path.join("sidecars", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "sidecars"))
+    assert produced == expected, "set of generated sidecar files changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("sidecars", rel))
