@@ -110,6 +110,7 @@ def run(output_dir):
     _collect_protos(build_dir, os.path.join(output_dir, "proto"))
     _collect_json(build_dir, os.path.join(output_dir, "json"))
     _collect_zmq(build_dir, os.path.join(output_dir, "zmq"))
+    _collect_sidecars(build_dir, os.path.join(output_dir, "sidecars"))
 
 
 def _dump_tokens(path, tokens):
@@ -158,6 +159,25 @@ def _collect_zmq(build_dir, dest):
     for name in sorted(os.listdir(src)):
         if name.endswith(".h"):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+# the non-C++ sidecar artifacts each message produces (Stage 2/5 flags + the
+# Stage 8 SQL stub), grouped by their build subdirectory
+_SIDECAR_DIRS = ("database", "modifier", "access_modifier", "database_access")
+
+
+def _collect_sidecars(build_dir, dest):
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    for sub in _SIDECAR_DIRS:
+        src = os.path.join(build_dir, sub)
+        if not os.path.isdir(src):
+            continue
+        subdest = os.path.join(dest, sub)
+        os.makedirs(subdest, exist_ok=True)
+        for name in sorted(os.listdir(src)):
+            shutil.copy2(os.path.join(src, name), os.path.join(subdest, name))
 
 
 if __name__ == "__main__":
