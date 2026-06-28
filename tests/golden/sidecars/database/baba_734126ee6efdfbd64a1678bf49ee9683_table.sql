@@ -1,0 +1,1 @@
+-- baba: enum, no table

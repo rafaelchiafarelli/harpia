@@ -12,6 +12,7 @@ from ProtoFile.GrpcCompiler import GrpcCompiler
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
+from Database.SqlAdapter import SqlAdapter
 from copy import deepcopy
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 if __name__ == '__main__':
@@ -117,6 +118,11 @@ if __name__ == '__main__':
     xmlError = XmlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
     if xmlError is not None:
         log.print(xmlError.__str__())
+
+    #8. generate the SQL schema (supersedes the FileCreator stub)
+    sqlError = SqlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    if sqlError is not None:
+        log.print(sqlError.__str__())
 
     
     
