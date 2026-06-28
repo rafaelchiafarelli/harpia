@@ -8,6 +8,7 @@ committed snapshots in tests/golden/:
   - messages.txt     the constructed Message objects
   - proto/*.proto    every emitted proto (message + service)
   - json/*.h         every emitted JSON adapter (Stage 9)
+  - zmq/*.h          every emitted ZMQ transport (Stage 13 zmq)
 
 To (re)generate the golden snapshots after an intentional change:
 
@@ -120,3 +121,21 @@ def test_json_adapters(artifacts):
     assert produced == expected, "set of generated JSON adapters changed"
     for rel in produced:
         _check(os.path.join(produced_json_dir, rel), os.path.join("json", rel))
+
+
+def test_zmq_adapters(artifacts):
+    produced_zmq_dir = os.path.join(artifacts, "zmq")
+    produced = _relpaths(produced_zmq_dir)
+
+    if UPDATE:
+        golden_zmq_dir = os.path.join(GOLDEN_DIR, "zmq")
+        if os.path.exists(golden_zmq_dir):
+            shutil.rmtree(golden_zmq_dir)
+        for rel in produced:
+            _check(os.path.join(produced_zmq_dir, rel), os.path.join("zmq", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "zmq"))
+    assert produced == expected, "set of generated ZMQ transports changed"
+    for rel in produced:
+        _check(os.path.join(produced_zmq_dir, rel), os.path.join("zmq", rel))
