@@ -10,6 +10,7 @@ from ProtoFile.FileCreator import FileCreator
 from ProtoFile.ProtoCompiler import ProtoCompiler
 from ProtoFile.GrpcCompiler import GrpcCompiler
 from JsonAdapter.JsonAdapter import JsonAdapter
+from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from copy import deepcopy
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos
 if __name__ == '__main__':
@@ -105,6 +106,11 @@ if __name__ == '__main__':
     if grpcError is not None:
         #non-fatal: protoc / grpc_cpp_plugin may be absent on the host
         log.print(grpcError.__str__())
+
+    #13 (zmq). generate the ZMQ/socket transport for push/pull + event/stream messages
+    zmqError = ZmqAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    if zmqError is not None:
+        log.print(zmqError.__str__())
 
     
     
