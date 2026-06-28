@@ -1,3 +1,9 @@
+# harpia architecture (design intent)
+
+> This file is the design vision. For what is **actually implemented**, the
+> build/test commands, and the repository layout, see README.md ("Current
+> status"). Stages 7–13 are implemented today; the continuable-process /
+> sha256-registry machinery described below is largely aspirational.
 
 must be able to be altered afterwards, considering what can be diferentiated:
   more tokens (added functionality), more output types (HTML,react-js, etc)
