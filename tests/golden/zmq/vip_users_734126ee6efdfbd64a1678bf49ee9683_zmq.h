@@ -10,30 +10,43 @@
 namespace harpia {
 namespace zmq_transport {
 
-// pub/sub (streaming/event): vip_users_publisher publishes, vip_users_subscriber receives.
+// pub/sub (streaming/event): vip_users_publisher publishes (stamping origin), vip_users_subscriber receives.
 class vip_users_publisher {
 public:
     vip_users_publisher(::zmq::context_t& ctx, const std::string& endpoint)
-        : socket_(ctx, ::zmq::socket_type::pub) { socket_.bind(endpoint); }
+        : vip_users_publisher(ctx, endpoint, origin_id()) {}
+    // many-to-*: the zmq/socket module assigns the sender id at runtime
+    vip_users_publisher(::zmq::context_t& ctx, const std::string& endpoint,
+                  const std::string& origin)
+        : origin_(origin), socket_(ctx, ::zmq::socket_type::pub) {
+        socket_.bind(endpoint);
+    }
+    // compile-time unique sender number (one-to-*): hash(file)+message
+    static const std::string& origin_id() {
+        static const std::string id = "530958019060150148";
+        return id;
+    }
+    const std::string& origin() const { return origin_; }
     bool publish(const ::vip_users& msg) {
+        ::vip_users stamped = msg;
+        stamped.set_originator_734126ee6efdfbd64a1678bf49ee9683(origin_);
         std::string bytes;
-        if (!msg.SerializeToString(&bytes)) return false;
+        if (!stamped.SerializeToString(&bytes)) return false;
         ::zmq::message_t frame(bytes.size());
         std::memcpy(frame.data(), bytes.data(), bytes.size());
         return socket_.send(frame, ::zmq::send_flags::none).has_value();
     }
     ::zmq::socket_t& socket() { return socket_; }
 private:
+    std::string origin_;
     ::zmq::socket_t socket_;
 };
 
 class vip_users_subscriber {
 public:
     vip_users_subscriber(::zmq::context_t& ctx, const std::string& endpoint)
-        : socket_(ctx, ::zmq::socket_type::sub) {
-        socket_.connect(endpoint);
-        socket_.set(::zmq::sockopt::subscribe, "");
-    }
+        : socket_(ctx, ::zmq::socket_type::sub) { socket_.connect(endpoint);
+        socket_.set(::zmq::sockopt::subscribe, ""); }
     bool receive(::vip_users* msg) {
         ::zmq::message_t frame;
         if (!socket_.recv(frame, ::zmq::recv_flags::none).has_value()) return false;
