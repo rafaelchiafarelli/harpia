@@ -182,6 +182,16 @@ def readFromTemplate(templateName, messageName):
         data = data.replace("%USER_MESSAGE%", messageName)
         return data
 
+
+def loadTemplate(callerFile, name):
+    """Read a code-generator template from the 'templates' directory next to the
+    calling module. Templates use Python str.format placeholders ({name}, {cls},
+    ...); keep C++ braces escaped as {{ }} in the template files."""
+    path = os.path.join(os.path.dirname(os.path.abspath(callerFile)),
+                        "templates", name)
+    with open(path, "r") as f:
+        return f.read()
+
 def copyBasicProtos(src, dest):
     errorProto = os.path.join(src, "errorCode.proto")
     heartBeatProto = os.path.join(src, "heartBeat.proto")
