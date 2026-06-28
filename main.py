@@ -8,6 +8,7 @@ from LexicalAnalizer.MessageCreator import MessageCreator,Message
 from ProtoFile.ProtoFileProcessor import ProtoFileProcessor
 from ProtoFile.FileCreator import FileCreator
 from ProtoFile.ProtoCompiler import ProtoCompiler
+from JsonAdapter.JsonAdapter import JsonAdapter
 from copy import deepcopy
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos
 if __name__ == '__main__':
@@ -92,6 +93,11 @@ if __name__ == '__main__':
     if protoCompileError is not None:
         #non-fatal: protoc may be absent on the host, the earlier stages still ran
         log.print(protoCompileError.__str__())
+
+    #9. generate the JSON adapters (header-only C++ over the protobuf messages)
+    jsonAdapterError = JsonAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    if jsonAdapterError is not None:
+        log.print(jsonAdapterError.__str__())
 
     
     
