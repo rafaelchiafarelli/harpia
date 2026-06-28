@@ -7,6 +7,7 @@ from LexicalAnalizer.pre_lex import pre_lex
 from LexicalAnalizer.MessageCreator import MessageCreator,Message
 from ProtoFile.ProtoFileProcessor import ProtoFileProcessor
 from ProtoFile.FileCreator import FileCreator
+from ProtoFile.ProtoCompiler import ProtoCompiler
 from copy import deepcopy
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos
 if __name__ == '__main__':
@@ -85,6 +86,12 @@ if __name__ == '__main__':
     copyBasicProtos(src="./Assets/proto/protofiles", dest=testDestination)
     copyServerClientTemplates(src="./Assets", dest=testDestination)
     copyCMakeFiles(src="./Assets", dest=testDestination)
+
+    #7. compile the emitted .proto into C++ (requires protoc; provided by Docker)
+    protoCompileError = ProtoCompiler(dest=testDestination).Process()
+    if protoCompileError is not None:
+        #non-fatal: protoc may be absent on the host, the earlier stages still ran
+        log.print(protoCompileError.__str__())
 
     
     
