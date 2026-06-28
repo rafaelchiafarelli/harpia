@@ -15,14 +15,33 @@ in `tests/golden/`:
 The snapshots are keyed by the input's md5 hash (`734126ee...`), which is stable
 as long as `test.harpia` and its includes are unchanged.
 
-### Running
+## Stage 7 (protoc -> C++)
 
-The system Python has no pip; use a venv:
+`test_stage7.py` runs the front-end, then `ProtoCompiler` (Stage 7), and asserts
+protoc emits one `.pb.h`/`.pb.cc` per input proto **and** that every generated
+`.pb.cc` compiles with g++. It is skipped automatically when `protoc` is not on
+PATH, so it only really exercises inside the Docker toolchain.
+
+### Running (Docker -- recommended)
+
+The whole toolchain (Python, protoc, gRPC, CMake, g++, pytest) lives in the
+image; nothing is installed on the host. The helper runs as your UID so any
+generated files stay owned by you:
+
+```sh
+docker/run.sh pytest          # full suite incl. Stage 7
+docker/run.sh python3 main.py # full pipeline incl. C++ generation
+docker/run.sh                 # interactive shell
+```
+
+### Running (host, no protoc)
+
+The system Python has no pip; use a venv. Stage 7 will be skipped.
 
 ```sh
 python3 -m venv .venv
 .venv/bin/pip install pytest
-.venv/bin/python -m pytest tests/test_golden.py
+.venv/bin/python -m pytest
 ```
 
 ### Updating snapshots after an intentional change
