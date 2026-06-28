@@ -16,6 +16,7 @@ from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
 from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
+from Database.SoapAdapter import SoapAdapter
 from copy import deepcopy
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 if __name__ == '__main__':
@@ -141,6 +142,11 @@ if __name__ == '__main__':
     restError = RestAdapter(messages=msgFactory.messages, dest=testDestination).Process()
     if restError is not None:
         log.print(restError.__str__())
+
+    #11. generate the SOAP endpoints (XML over HTTP, get/set over CRUDL)
+    soapError = SoapAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    if soapError is not None:
+        log.print(soapError.__str__())
 
     
     
