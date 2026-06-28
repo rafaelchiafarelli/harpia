@@ -38,6 +38,9 @@ class Types(Enum):
     ENUM_VALUE_MUST_START_THE_LINE = 31
     LEXICAL_ANALYZER_ERROR = 32
     FILE_DOES_NOT_END_IN_NEW_LINE = 33
+    PROTOC_NOT_FOUND = 34
+    PROTOC_COMPILATION_ERROR = 35
+    NO_PROTO_FILES_TO_COMPILE = 36
 
 class Classes(Enum):
     FOLDER_NOT_FOUND= 1
@@ -50,6 +53,7 @@ class Classes(Enum):
     ENUMTYPES = 8
     MESSAGES = 9
     REGEX = 10
+    PROTO_COMPILATION = 11
 
 class Error:
     errType = Types
