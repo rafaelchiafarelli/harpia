@@ -13,10 +13,13 @@
 #ifndef HARPIA_XML_RUNTIME_H
 #define HARPIA_XML_RUNTIME_H
 
+#include <cstdlib>
 #include <string>
 
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/message.h>
+
+#include "tinyxml2.h"
 
 namespace harpia {
 namespace xml {
@@ -100,6 +103,67 @@ inline void write_message(const ::google::protobuf::Message& msg, std::string& o
     }
 }
 
+// ---- read (XML -> message) ------------------------------------------------
+
+inline long long to_ll(const char* t) { return t ? std::strtoll(t, nullptr, 10) : 0; }
+inline unsigned long long to_ull(const char* t) { return t ? std::strtoull(t, nullptr, 10) : 0; }
+inline double to_d(const char* t) { return t ? std::strtod(t, nullptr) : 0.0; }
+inline bool to_b(const char* t) { return t && (std::string(t) == "true" || std::string(t) == "1"); }
+
+inline void set_enum(::google::protobuf::Message* msg,
+                     const ::google::protobuf::Reflection* refl,
+                     const ::google::protobuf::FieldDescriptor* f,
+                     const char* text, bool repeated) {
+    if (!text) return;
+    const auto* ev = f->enum_type()->FindValueByName(text);
+    if (!ev) ev = f->enum_type()->FindValueByNumber(static_cast<int>(to_ll(text)));
+    if (!ev) return;
+    if (repeated) refl->AddEnum(msg, f, ev);
+    else refl->SetEnum(msg, f, ev);
+}
+
+inline bool read_message(const ::tinyxml2::XMLElement* node,
+                         ::google::protobuf::Message* msg) {
+    using FD = ::google::protobuf::FieldDescriptor;
+    const auto* d = msg->GetDescriptor();
+    const auto* refl = msg->GetReflection();
+    for (const auto* child = node->FirstChildElement(); child;
+         child = child->NextSiblingElement()) {
+        const auto* f = d->FindFieldByName(child->Name());
+        if (!f) continue;
+        const char* t = child->GetText();
+        const std::string s = t ? t : "";
+        if (f->is_repeated()) {
+            switch (f->cpp_type()) {
+                case FD::CPPTYPE_INT32:  refl->AddInt32(msg, f, static_cast<int32_t>(to_ll(t))); break;
+                case FD::CPPTYPE_INT64:  refl->AddInt64(msg, f, to_ll(t)); break;
+                case FD::CPPTYPE_UINT32: refl->AddUInt32(msg, f, static_cast<uint32_t>(to_ull(t))); break;
+                case FD::CPPTYPE_UINT64: refl->AddUInt64(msg, f, to_ull(t)); break;
+                case FD::CPPTYPE_DOUBLE: refl->AddDouble(msg, f, to_d(t)); break;
+                case FD::CPPTYPE_FLOAT:  refl->AddFloat(msg, f, static_cast<float>(to_d(t))); break;
+                case FD::CPPTYPE_BOOL:   refl->AddBool(msg, f, to_b(t)); break;
+                case FD::CPPTYPE_ENUM:   set_enum(msg, refl, f, t, true); break;
+                case FD::CPPTYPE_STRING: refl->AddString(msg, f, s); break;
+                case FD::CPPTYPE_MESSAGE: read_message(child, refl->AddMessage(msg, f)); break;
+            }
+        } else {
+            switch (f->cpp_type()) {
+                case FD::CPPTYPE_INT32:  refl->SetInt32(msg, f, static_cast<int32_t>(to_ll(t))); break;
+                case FD::CPPTYPE_INT64:  refl->SetInt64(msg, f, to_ll(t)); break;
+                case FD::CPPTYPE_UINT32: refl->SetUInt32(msg, f, static_cast<uint32_t>(to_ull(t))); break;
+                case FD::CPPTYPE_UINT64: refl->SetUInt64(msg, f, to_ull(t)); break;
+                case FD::CPPTYPE_DOUBLE: refl->SetDouble(msg, f, to_d(t)); break;
+                case FD::CPPTYPE_FLOAT:  refl->SetFloat(msg, f, static_cast<float>(to_d(t))); break;
+                case FD::CPPTYPE_BOOL:   refl->SetBool(msg, f, to_b(t)); break;
+                case FD::CPPTYPE_ENUM:   set_enum(msg, refl, f, t, false); break;
+                case FD::CPPTYPE_STRING: refl->SetString(msg, f, s); break;
+                case FD::CPPTYPE_MESSAGE: read_message(child, refl->MutableMessage(msg, f)); break;
+            }
+        }
+    }
+    return true;
+}
+
 }  // namespace detail
 
 // message -> XML. The root element is the message type name.
@@ -109,6 +173,15 @@ inline std::string to_xml(const ::google::protobuf::Message& msg) {
     detail::write_message(msg, out);
     out += "</" + root + ">";
     return out;
+}
+
+// XML -> message. Returns false if the document does not parse.
+inline bool from_xml(const std::string& xml, ::google::protobuf::Message* msg) {
+    ::tinyxml2::XMLDocument doc;
+    if (doc.Parse(xml.c_str()) != ::tinyxml2::XML_SUCCESS) return false;
+    const auto* root = doc.RootElement();
+    if (!root) return false;
+    return detail::read_message(root, msg);
 }
 
 }  // namespace xml

@@ -122,3 +122,40 @@ def test_to_xml_writes_fields(built):
     assert "<name>neo</name>" in run.stdout, run.stdout
     assert "<address>matrix</address>" in run.stdout, run.stdout
     assert run.stdout.startswith("<users>"), run.stdout
+
+
+def test_xml_roundtrip_runs(built):
+    """to_xml -> from_xml preserves the message (links vendored tinyxml2)."""
+    prog = os.path.join(built["tmp"], "xml_roundtrip.cc")
+    with open(prog, "w") as f:
+        f.write(
+            '#include "xml/users_{h}_xml.h"\n'
+            "int main() {{\n"
+            "    ::users a;\n"
+            '    a.set_name("neo");\n'
+            '    a.set_address("matrix");\n'
+            "    a.set_id_{h}(42);\n"
+            "    const std::string xml = harpia::xml::to_xml(a);\n"
+            "    ::users b;\n"
+            "    if (!harpia::xml::from_xml(xml, &b)) return 1;\n"
+            '    if (b.name() != "neo" || b.address() != "matrix") return 2;\n'
+            "    if (b.id_{h}() != 42) return 3;\n"
+            "    if (a.SerializeAsString() != b.SerializeAsString()) return 4;\n"
+            "    ::users c;\n"
+            '    if (harpia::xml::from_xml("not xml at all", &c)) return 5;\n'
+            "    return 0;\n"
+            "}}\n".format(h=HASH)
+        )
+    pb_cc = os.path.join(built["proto_dir"], "users_{}.pb.cc".format(HASH))
+    tinyxml = os.path.join(TINYXML2, "tinyxml2.cpp")
+    binary = os.path.join(built["tmp"], "xml_roundtrip")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", built["cpp_root"], "-I", TINYXML2,
+         *_pkgconfig("--cflags"), prog, pb_cc, tinyxml, "-o", binary,
+         *_pkgconfig("--libs")],
+        capture_output=True, text=True,
+    )
+    assert c.returncode == 0, "xml round-trip failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "round-trip failed at check #{}".format(
+        run.returncode)
