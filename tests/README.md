@@ -44,6 +44,7 @@ python3 -m venv .venv
 | `test_stage13_zmq.py` | Stage 13 ZMQ: transports compile and a PUSH/PULL round-trip runs over a real socket (incl. the stamped originator id) | protoc, g++, libzmq |
 | `test_stage10_xml.py` | Stage 10: XML adapters compile, `to_xml`/`from_xml` round-trip, XSD is well-formed | protoc, g++ (uses vendored tinyxml2) |
 | `test_stage8_db.py`   | Stage 8: generated SQL schema executes in SQLite; CRUDL DAO round-trip (insert→read→update→list→delete); DB↔JSON/XML bulk export/import round-trip | cc + g++ (vendored sqlite); CRUDL/IO parts also protoc |
+| `test_stage12_rest.py`| Stage 12: REST bindings serve real HTTP CRUD (POST→GET/:id→list→PUT→DELETE→404) against an httplib server backed by SQLite | protoc, cc, g++ (vendored sqlite + cpp-httplib) |
 | `test_demo.py`        | end-to-end: build the generated project with its own CMake and run client→server, asserting the message crosses | cmake, protoc, grpc_cpp_plugin, g++, libzmq |
 
 `run_pipeline.py` and `run_frontend.py` are standalone harnesses the tests drive
@@ -65,6 +66,7 @@ Snapshots live under `tests/golden/`, keyed by the input's md5 hash
 | `xml/`         | every XML adapter wrapper (Stage 10) |
 | `db/`          | every CRUDL DAO header (Stage 8) |
 | `dbio/`        | every DB↔JSON/XML import/export header (Stage 8) |
+| `rest/`        | every REST binding header (Stage 12) |
 | `sidecars/`    | per-message SQL schema + modifier/access/password flag files |
 
 ### Updating snapshots after an intentional change
