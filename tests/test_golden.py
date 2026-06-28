@@ -10,7 +10,8 @@ committed snapshots in tests/golden/:
   - json/*.h         every emitted JSON adapter (Stage 9)
   - zmq/*.h          every emitted ZMQ transport (Stage 13 zmq)
   - xml/*.h          every emitted XML adapter wrapper (Stage 10)
-  - sidecars/        the SQL stub + access/modifier flag files per message
+  - db/*.h           every emitted CRUDL DAO (Stage 8)
+  - sidecars/        the SQL schema + access/modifier flag files per message
 
 To (re)generate the golden snapshots after an intentional change:
 
@@ -159,6 +160,24 @@ def test_xml_adapters(artifacts):
     assert produced == expected, "set of generated XML adapters changed"
     for rel in produced:
         _check(os.path.join(produced_dir, rel), os.path.join("xml", rel))
+
+
+def test_crudl_daos(artifacts):
+    produced_dir = os.path.join(artifacts, "db")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "db")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel), os.path.join("db", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "db"))
+    assert produced == expected, "set of generated CRUDL DAOs changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("db", rel))
 
 
 def test_sidecars(artifacts):
