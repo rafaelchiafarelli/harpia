@@ -12,7 +12,7 @@ from ProtoFile.GrpcCompiler import GrpcCompiler
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from copy import deepcopy
-from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos
+from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 if __name__ == '__main__':
     log = logger(outFile=None, moduleName="main" )
     log.print("Path at terminal when executing this file")
@@ -87,7 +87,7 @@ if __name__ == '__main__':
         #log.print(msgFactory.__str__())
     #copy what in the Assets folder to the build folder
     copyBasicProtos(src="./Assets/proto/protofiles", dest=testDestination)
-    copyServerClientTemplates(src="./Assets", dest=testDestination)
+    copyServerClientTemplates(src="./Assets", dest=testDestination, demo=chooseDemo(msgFactory.messages))
     copyCMakeFiles(src="./Assets", dest=testDestination)
 
     #7. compile the emitted .proto into C++ (requires protoc; provided by Docker)
