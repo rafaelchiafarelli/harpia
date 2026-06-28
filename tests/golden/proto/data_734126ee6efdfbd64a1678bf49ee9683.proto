@@ -1,0 +1,13 @@
+syntax = "proto3";
+import "protofiles/prince_734126ee6efdfbd64a1678bf49ee9683.proto";
+import "protofiles/grower_734126ee6efdfbd64a1678bf49ee9683.proto";
+message data {
+int32 ID_734126ee6efdfbd64a1678bf49ee9683 = 1;
+int32 i = 2;
+int32 j = 3;
+prince val = 4;
+grower car = 5;
+string  STATUS_734126ee6efdfbd64a1678bf49ee9683 = 6;
+string  ERROR_734126ee6efdfbd64a1678bf49ee9683 = 7;
+string ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683 = 8;
+}

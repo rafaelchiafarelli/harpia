@@ -1,0 +1,6 @@
+syntax = "proto3";
+package frameworkProtos;
+message errorCode {
+    int32 code = 1;
+    string message = 2;
+}

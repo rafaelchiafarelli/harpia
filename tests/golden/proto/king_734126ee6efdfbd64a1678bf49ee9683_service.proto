@@ -1,0 +1,31 @@
+syntax = "proto3";
+package frameworkProtos;
+//standard protofile with error code and standard heartBeat messages
+import "protofiles/errorCode.proto";
+import "protofiles/heartBeat.proto";
+
+//user imports from harpia process
+import "protofiles/king_734126ee6efdfbd64a1678bf49ee9683.proto";
+
+message king_Message {
+    king msg = 1;
+}
+//message for the standard functions 
+message king_HeartBeat {
+    heartBeat hb = 1;
+}
+
+//message for the pullByID function
+message king_ID {
+    int32 id = 1;
+}
+message king_Stream {
+    int32 id = 1;
+    string name = 2;
+}
+service king_Service {
+    rpc heartBeat(king_HeartBeat) returns (king_HeartBeat) {}
+    rpc streamSrc(king_Stream ) returns (stream king_Message) {}
+    rpc pullByID(king_ID) returns (king_Message) {}
+    rpc push(king_Message) returns (errorCode) {}
+}
