@@ -1,0 +1,14 @@
+class {name}_{role} {{
+public:
+    {name}_{role}(::zmq::context_t& ctx, const std::string& endpoint)
+        : socket_(ctx, ::zmq::socket_type::{sock}) {{ {setup} }}
+    bool {verb}({cls}* msg) {{
+        ::zmq::message_t frame;
+        if (!socket_.recv(frame, ::zmq::recv_flags::none).has_value()) return false;
+        return msg->ParseFromArray(frame.data(), static_cast<int>(frame.size()));
+    }}
+    ::zmq::socket_t& socket() {{ return socket_; }}
+private:
+    ::zmq::socket_t socket_;
+}};
+
