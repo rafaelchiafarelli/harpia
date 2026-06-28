@@ -159,3 +159,33 @@ def test_xml_roundtrip_runs(built):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
     assert run.returncode == 0, "round-trip failed at check #{}".format(
         run.returncode)
+
+
+def test_xsd_is_wellformed(built):
+    """<name>_xsd() emits a well-formed XSD describing the message."""
+    prog = os.path.join(built["tmp"], "xml_xsd.cc")
+    with open(prog, "w") as f:
+        f.write(
+            '#include "xml/users_{h}_xml.h"\n'
+            "#include <iostream>\n"
+            "int main() {{\n"
+            "    const std::string s = harpia::xml::users_xsd();\n"
+            '    if (s.find("<xs:schema") == std::string::npos) return 1;\n'
+            '    if (s.find("<xs:complexType name=\\"users\\">") == std::string::npos) return 2;\n'
+            "    ::tinyxml2::XMLDocument doc;\n"
+            "    if (doc.Parse(s.c_str()) != ::tinyxml2::XML_SUCCESS) return 3;\n"
+            "    return 0;\n"
+            "}}\n".format(h=HASH)
+        )
+    pb_cc = os.path.join(built["proto_dir"], "users_{}.pb.cc".format(HASH))
+    tinyxml = os.path.join(TINYXML2, "tinyxml2.cpp")
+    binary = os.path.join(built["tmp"], "xml_xsd")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", built["cpp_root"], "-I", TINYXML2,
+         *_pkgconfig("--cflags"), prog, pb_cc, tinyxml, "-o", binary,
+         *_pkgconfig("--libs")],
+        capture_output=True, text=True,
+    )
+    assert c.returncode == 0, "xsd program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "xsd check failed at #{}".format(run.returncode)

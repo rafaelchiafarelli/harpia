@@ -2,10 +2,23 @@
 #ifndef {guard}
 #define {guard}
 
+#include <string>
+
 #include "xml/harpia_xml.h"
 #include "{pb_header}"
 
 // XML for {name} is provided by the generic reflection-based runtime:
 //   std::string xml = harpia::xml::to_xml(msg);   // {name} -> XML
+//   harpia::xml::from_xml(xml, &msg);             // XML -> {name}
+namespace harpia {{
+namespace xml {{
+
+// XSD schema for {name}
+inline std::string {name}_xsd() {{
+    return ::harpia::xml::xsd(::{name}::descriptor());
+}}
+
+}}  // namespace xml
+}}  // namespace harpia
 
 #endif  // {guard}

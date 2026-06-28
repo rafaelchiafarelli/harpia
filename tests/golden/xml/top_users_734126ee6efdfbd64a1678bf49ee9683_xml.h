@@ -2,10 +2,23 @@
 #ifndef HARPIA_XML_TOP_USERS_734126ee6efdfbd64a1678bf49ee9683
 #define HARPIA_XML_TOP_USERS_734126ee6efdfbd64a1678bf49ee9683
 
+#include <string>
+
 #include "xml/harpia_xml.h"
 #include "protofiles/top_users_734126ee6efdfbd64a1678bf49ee9683.pb.h"
 
 // XML for top_users is provided by the generic reflection-based runtime:
 //   std::string xml = harpia::xml::to_xml(msg);   // top_users -> XML
+//   harpia::xml::from_xml(xml, &msg);             // XML -> top_users
+namespace harpia {
+namespace xml {
+
+// XSD schema for top_users
+inline std::string top_users_xsd() {
+    return ::harpia::xml::xsd(::top_users::descriptor());
+}
+
+}  // namespace xml
+}  // namespace harpia
 
 #endif  // HARPIA_XML_TOP_USERS_734126ee6efdfbd64a1678bf49ee9683
