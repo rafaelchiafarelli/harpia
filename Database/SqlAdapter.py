@@ -20,19 +20,11 @@ import os
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
 from Util.util import loadTemplate
+from Database.model import analyze
 
 SQL_EXT = "_table.sql"
 
 _TABLE = loadTemplate(__file__, "table.sql.tmpl")
-
-# harpia scalar type -> SQLite storage type
-_SQL_TYPES = {
-    "INT32": "INTEGER",
-    "INT64": "INTEGER",
-    "BOOL": "INTEGER",
-    "FLOAT": "REAL",
-    "STRING": "TEXT",
-}
 
 
 class SqlAdapter:
@@ -62,44 +54,12 @@ class SqlAdapter:
         if not msg.tableName:
             return "-- {}: no table declared\n".format(msg.name)
 
-        columns = []
-        notes = []
-        for v in (msg.variables or []):
-            mods = {m[0] for m in (v.modifiers or [])}
-            if v.typeMap or "REPETEABLE" in mods:
-                notes.append("-- {}: repeated/map -> separate table (deferred)"
-                             .format(v.name))
-                continue
-            if v.type[0] == "ID":  # composed: message or enum reference
-                # store the referenced id; a real FK constraint is deferred.
-                # (note goes after the table -- an inline comment would swallow
-                # the column separator comma.)
-                columns.append("    \"{}\" INTEGER".format(v.name))
-                notes.append("-- {}: FK -> {} (deferred)".format(v.name, v.type[1]))
-                continue
-            sqlType = _SQL_TYPES.get(v.type[0])
-            if sqlType is None:
-                notes.append("-- {}: unsupported type {} (skipped)"
-                             .format(v.name, v.type[0]))
-                continue
-            columns.append("    \"{}\" {}".format(v.name, self._constraints(
-                v.name, sqlType, mods)))
-
+        columns, notes = analyze(msg)
+        column_lines = ['    "{}" {}'.format(c.name, c.sql_def()) for c in columns]
         return _TABLE.format(
             name=msg.name,
             table=msg.tableName,
             visibility=msg.visibility,
-            columns=",\n".join(columns),
+            columns=",\n".join(column_lines),
             notes=("\n".join(notes) + "\n") if notes else "",
         )
-
-    @staticmethod
-    def _constraints(name, sqlType, mods):
-        if name.startswith("ID_"):
-            return "{} PRIMARY KEY".format(sqlType)
-        parts = [sqlType]
-        if "REQUIRED" in mods:
-            parts.append("NOT NULL")
-        if "UNIQUE" in mods:
-            parts.append("UNIQUE")
-        return " ".join(parts)

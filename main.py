@@ -13,6 +13,7 @@ from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from Database.SqlAdapter import SqlAdapter
+from Database.CrudlAdapter import CrudlAdapter
 from copy import deepcopy
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 if __name__ == '__main__':
@@ -123,6 +124,11 @@ if __name__ == '__main__':
     sqlError = SqlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
     if sqlError is not None:
         log.print(sqlError.__str__())
+
+    #8 (crudl). generate the CRUDL data-access objects over SQLite
+    crudlError = CrudlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    if crudlError is not None:
+        log.print(crudlError.__str__())
 
     
     
