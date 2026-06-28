@@ -14,6 +14,7 @@ from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
+from Database.DbIoAdapter import DbIoAdapter
 from copy import deepcopy
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 if __name__ == '__main__':
@@ -129,6 +130,11 @@ if __name__ == '__main__':
     crudlError = CrudlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
     if crudlError is not None:
         log.print(crudlError.__str__())
+
+    #8 (dbio). generate DB <-> JSON/XML bulk import/export (composes CRUDL + adapters)
+    dbioError = DbIoAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    if dbioError is not None:
+        log.print(dbioError.__str__())
 
     
     

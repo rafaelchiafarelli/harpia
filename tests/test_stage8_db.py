@@ -20,6 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
 RUNNER = os.path.join(HERE, "run_pipeline.py")
 SQLITE = os.path.join(REPO_ROOT, "third_party", "sqlite")
+TINYXML2 = os.path.join(REPO_ROOT, "third_party", "tinyxml2")
 HASH = "734126ee6efdfbd64a1678bf49ee9683"
 
 pytestmark = pytest.mark.skipif(
@@ -130,4 +131,54 @@ def test_crudl_roundtrip(generated, sqlite_obj, tmp_path):
     assert c.returncode == 0, "CRUDL program failed to build:\n" + c.stderr
     run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
     assert run.returncode == 0, "CRUDL round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="DB import/export round-trip needs protoc + protobuf")
+def test_dbio_roundtrip(generated, sqlite_obj, tmp_path):
+    """Export the table to JSON and XML, import into fresh DBs, verify rows."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "dbio.cpp"
+    prog.write_text(
+        '#include "dbio/users_{h}_dbio.h"\n'
+        "#include <vector>\n"
+        "static ::sqlite3* fresh() {{\n"
+        "    ::sqlite3* db = nullptr; ::sqlite3_open(\":memory:\", &db); return db;\n"
+        "}}\n"
+        "int main() {{\n"
+        "    harpia::db::users_dao dao(fresh());\n"
+        "    if (!dao.create_table()) return 1;\n"
+        "    ::users a; a.set_id_{h}(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
+        "    ::users b; b.set_id_{h}(2); b.set_name(\"trinity\");\n"
+        "    if (!dao.create(a) || !dao.create(b)) return 2;\n"
+        "    // JSON export -> import into a fresh DB\n"
+        "    std::string js; if (!harpia::dbio::export_json(dao, &js)) return 3;\n"
+        "    harpia::db::users_dao jdao(fresh()); jdao.create_table();\n"
+        "    if (!harpia::dbio::import_json(jdao, js)) return 4;\n"
+        "    std::vector<::users> jr; jdao.list(&jr); if (jr.size() != 2) return 5;\n"
+        "    ::users jg; if (!jdao.read(1, &jg) || jg.name() != \"neo\") return 6;\n"
+        "    // XML export -> import into a fresh DB\n"
+        "    std::string xs; if (!harpia::dbio::export_xml(dao, &xs)) return 7;\n"
+        "    harpia::db::users_dao xdao(fresh()); xdao.create_table();\n"
+        "    if (!harpia::dbio::import_xml(xdao, xs)) return 8;\n"
+        "    std::vector<::users> xr; xdao.list(&xr); if (xr.size() != 2) return 9;\n"
+        "    ::users xg; if (!xdao.read(2, &xg) || xg.name() != \"trinity\") return 10;\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb_cc = os.path.join(cpp_root, "protofiles", "users_{}.pb.cc".format(HASH))
+    tinyxml = os.path.join(TINYXML2, "tinyxml2.cpp")
+    binary = str(tmp_path / "dbio")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE, "-I", TINYXML2,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, tinyxml, sqlite_obj,
+         "-o", binary, *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "DB import/export program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "DB import/export round-trip failed at check #{}".format(
         run.returncode)
