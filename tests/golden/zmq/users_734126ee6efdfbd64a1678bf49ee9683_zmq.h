@@ -10,20 +10,35 @@
 namespace harpia {
 namespace zmq_transport {
 
-// push/pull: users_sender pushes, users_receiver pulls.
+// push/pull: users_sender pushes (stamping origin), users_receiver pulls.
 class users_sender {
 public:
     users_sender(::zmq::context_t& ctx, const std::string& endpoint)
-        : socket_(ctx, ::zmq::socket_type::push) { socket_.connect(endpoint); }
+        : users_sender(ctx, endpoint, origin_id()) {}
+    // many-to-*: the zmq/socket module assigns the sender id at runtime
+    users_sender(::zmq::context_t& ctx, const std::string& endpoint,
+                  const std::string& origin)
+        : origin_(origin), socket_(ctx, ::zmq::socket_type::push) {
+        socket_.connect(endpoint);
+    }
+    // compile-time unique sender number (one-to-*): hash(file)+message
+    static const std::string& origin_id() {
+        static const std::string id = "670384928011528293";
+        return id;
+    }
+    const std::string& origin() const { return origin_; }
     bool send(const ::users& msg) {
+        ::users stamped = msg;
+        stamped.set_originator_734126ee6efdfbd64a1678bf49ee9683(origin_);
         std::string bytes;
-        if (!msg.SerializeToString(&bytes)) return false;
+        if (!stamped.SerializeToString(&bytes)) return false;
         ::zmq::message_t frame(bytes.size());
         std::memcpy(frame.data(), bytes.data(), bytes.size());
         return socket_.send(frame, ::zmq::send_flags::none).has_value();
     }
     ::zmq::socket_t& socket() { return socket_; }
 private:
+    std::string origin_;
     ::zmq::socket_t socket_;
 };
 
@@ -41,30 +56,43 @@ private:
     ::zmq::socket_t socket_;
 };
 
-// pub/sub (streaming/event): users_publisher publishes, users_subscriber receives.
+// pub/sub (streaming/event): users_publisher publishes (stamping origin), users_subscriber receives.
 class users_publisher {
 public:
     users_publisher(::zmq::context_t& ctx, const std::string& endpoint)
-        : socket_(ctx, ::zmq::socket_type::pub) { socket_.bind(endpoint); }
+        : users_publisher(ctx, endpoint, origin_id()) {}
+    // many-to-*: the zmq/socket module assigns the sender id at runtime
+    users_publisher(::zmq::context_t& ctx, const std::string& endpoint,
+                  const std::string& origin)
+        : origin_(origin), socket_(ctx, ::zmq::socket_type::pub) {
+        socket_.bind(endpoint);
+    }
+    // compile-time unique sender number (one-to-*): hash(file)+message
+    static const std::string& origin_id() {
+        static const std::string id = "670384928011528293";
+        return id;
+    }
+    const std::string& origin() const { return origin_; }
     bool publish(const ::users& msg) {
+        ::users stamped = msg;
+        stamped.set_originator_734126ee6efdfbd64a1678bf49ee9683(origin_);
         std::string bytes;
-        if (!msg.SerializeToString(&bytes)) return false;
+        if (!stamped.SerializeToString(&bytes)) return false;
         ::zmq::message_t frame(bytes.size());
         std::memcpy(frame.data(), bytes.data(), bytes.size());
         return socket_.send(frame, ::zmq::send_flags::none).has_value();
     }
     ::zmq::socket_t& socket() { return socket_; }
 private:
+    std::string origin_;
     ::zmq::socket_t socket_;
 };
 
 class users_subscriber {
 public:
     users_subscriber(::zmq::context_t& ctx, const std::string& endpoint)
-        : socket_(ctx, ::zmq::socket_type::sub) {
-        socket_.connect(endpoint);
-        socket_.set(::zmq::sockopt::subscribe, "");
-    }
+        : socket_(ctx, ::zmq::socket_type::sub) { socket_.connect(endpoint);
+        socket_.set(::zmq::sockopt::subscribe, ""); }
     bool receive(::users* msg) {
         ::zmq::message_t frame;
         if (!socket_.recv(frame, ::zmq::recv_flags::none).has_value()) return false;
