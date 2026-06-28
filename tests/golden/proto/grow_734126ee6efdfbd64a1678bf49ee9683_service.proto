@@ -1,0 +1,31 @@
+syntax = "proto3";
+package frameworkProtos;
+//standard protofile with error code and standard heartBeat messages
+import "protofiles/errorCode.proto";
+import "protofiles/heartBeat.proto";
+
+//user imports from harpia process
+import "protofiles/grow_734126ee6efdfbd64a1678bf49ee9683.proto";
+
+message grow_Message {
+    grow msg = 1;
+}
+//message for the standard functions 
+message grow_HeartBeat {
+    heartBeat hb = 1;
+}
+
+//message for the pullByID function
+message grow_ID {
+    int32 id = 1;
+}
+message grow_Stream {
+    int32 id = 1;
+    string name = 2;
+}
+service grow_Service {
+    rpc heartBeat(grow_HeartBeat) returns (grow_HeartBeat) {}
+    rpc streamSrc(grow_Stream ) returns (stream grow_Message) {}
+    rpc pullByID(grow_ID) returns (grow_Message) {}
+    rpc push(grow_Message) returns (errorCode) {}
+}
