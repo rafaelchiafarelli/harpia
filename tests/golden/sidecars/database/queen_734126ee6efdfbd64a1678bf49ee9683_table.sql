@@ -1,2 +1,1 @@
-
-PRIVATE
+-- queen: no table declared

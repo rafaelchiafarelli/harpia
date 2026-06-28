@@ -1,2 +1,1 @@
-
-PRIVATE
+-- prince: no table declared
