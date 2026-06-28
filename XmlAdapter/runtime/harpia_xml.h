@@ -185,6 +185,14 @@ inline bool from_xml(const std::string& xml, ::google::protobuf::Message* msg) {
     return detail::read_message(root, msg);
 }
 
+// read a message from an already-parsed XML element (for batch import, where a
+// parent document holds many message elements).
+inline bool from_xml_element(const ::tinyxml2::XMLElement* node,
+                             ::google::protobuf::Message* msg) {
+    if (!node) return false;
+    return detail::read_message(node, msg);
+}
+
 // ---- XSD schema -----------------------------------------------------------
 namespace detail {
 
