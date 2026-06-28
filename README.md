@@ -5,6 +5,69 @@
 ## Harpia is the Mithological creature responsible to deliver the news and other things.
 ## Data Exchange and Service Gateway
 
+> **Note:** most of this document is the design vision/spec. The sections below
+> ("Current status", "Build, test & run", "Repository layout") describe what is
+> actually implemented today. Everything past "## objective:" is the spec.
+
+## Current status
+
+Harpia turns a `.harpia` definition into compilable C++ transport/serialization
+code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
+
+| Stage | What | Status |
+|-------|------|--------|
+| 0–6 | front-end: pre-process, tokenize, build messages, emit clean `.proto` | ✅ implemented |
+| 7 | run `protoc` → compilable C++ messages | ✅ implemented |
+| 8 | database / SQL (schema, CRUDL, version transforms) | ⬜ not started (SQL output is a stub) |
+| 9 | JSON adapter (`to_json`/`from_json` + checker) | ✅ message↔JSON; DB fns (8.3–8.6) deferred to Stage 8 |
+| 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD; DB fns deferred to Stage 8 |
+| 11 | SOAP | ⬜ not started |
+| 12 | HTML / REST bindings | ⬜ not started |
+| 13 | zmq/socket + gRPC access | ✅ gRPC stubs **and** ZMQ push/pull + pub/sub, with a compile-time sender "originator" id (process.md 1.3.1.1, one-to-* case) |
+| 14 | generated-code unit tests | ⬜ not started |
+
+The generated project builds with its own CMake and ships a runnable
+client/server demo (ZMQ). See `tests/` for what is verified end to end.
+
+## Build, test & run
+
+The full toolchain (Python, `protoc`, gRPC, CMake, g++, ZMQ) lives in a Docker
+image so nothing is installed on the host. Third-party C++ libs are vendored
+in-tree under `third_party/` (e.g. tinyxml2), not installed from the system.
+
+```sh
+docker/run.sh pytest            # full test suite
+docker/run.sh python3 main.py   # run the generator → HarpiaTest/test_build/
+docker/run.sh                   # interactive shell in the toolchain
+```
+
+`docker/run.sh` builds the image (`Dockerfile`) on first use and runs as your
+UID so generated files are owned by you. To run the end-to-end demo by hand:
+
+```sh
+docker/run.sh bash -c '
+  python3 main.py && cd HarpiaTest/test_build &&
+  cmake -S . -B build && cmake --build build -j &&
+  ./build/server/server "tcp://*:5599" & sleep 1 &&
+  ./build/client/client "tcp://localhost:5599"'
+```
+
+Without Docker you can still run the Python-only tests in a venv (the
+compile/run tests skip themselves). See `tests/README.md`.
+
+## Repository layout
+
+| path | role |
+|------|------|
+| `main.py` | pipeline entry point |
+| `LexicalAnalizer/`, `Message/`, `Errors/`, `Logger/`, `Util/` | front-end (lex, parse, build messages) |
+| `ProtoFile/` | `.proto` emission (`FileCreator`), Stage 7 (`ProtoCompiler`), Stage 13 gRPC (`GrpcCompiler`) |
+| `JsonAdapter/`, `XmlAdapter/`, `ZmqAdapter/` | back-end generators; each has a `templates/` dir of generator templates (XmlAdapter also a `runtime/`) |
+| `Assets/` | project skeleton copied into output (CMake, proto templates, server/client demo) |
+| `third_party/` | vendored third-party source (tinyxml2) |
+| `tests/` | golden snapshots + per-stage compile/run tests (see `tests/README.md`) |
+| `HarpiaTest/` | the sample `test.harpia` and its includes |
+
 ## objective:
 Create a generalized interface for processes and threads to share data among themselves, database and web that has gRPC, ORM, RESTFull, SOAP, CRUDL, multi-project, multi-language and a  multi-thread library to exchange data.
 
