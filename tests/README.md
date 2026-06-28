@@ -45,6 +45,7 @@ python3 -m venv .venv
 | `test_stage10_xml.py` | Stage 10: XML adapters compile, `to_xml`/`from_xml` round-trip, XSD is well-formed | protoc, g++ (uses vendored tinyxml2) |
 | `test_stage8_db.py`   | Stage 8: generated SQL schema executes in SQLite; CRUDL DAO round-trip (insert→read→update→list→delete); DB↔JSON/XML bulk export/import round-trip | cc + g++ (vendored sqlite); CRUDL/IO parts also protoc |
 | `test_stage12_rest.py`| Stage 12: REST bindings serve real HTTP CRUD (POST→GET/:id→list→PUT→DELETE→404) against an httplib server backed by SQLite | protoc, cc, g++ (vendored sqlite + cpp-httplib) |
+| `test_stage11_soap.py`| Stage 11: SOAP endpoint serves real SOAP-over-HTTP (set→get→not-found Fault) | protoc, cc, g++ (vendored sqlite + cpp-httplib + tinyxml2) |
 | `test_demo.py`        | end-to-end: build the generated project with its own CMake and run client→server, asserting the message crosses | cmake, protoc, grpc_cpp_plugin, g++, libzmq |
 
 `run_pipeline.py` and `run_frontend.py` are standalone harnesses the tests drive
@@ -67,6 +68,7 @@ Snapshots live under `tests/golden/`, keyed by the input's md5 hash
 | `db/`          | every CRUDL DAO header (Stage 8) |
 | `dbio/`        | every DB↔JSON/XML import/export header (Stage 8) |
 | `rest/`        | every REST binding header (Stage 12) |
+| `soap/`        | every SOAP endpoint header (Stage 11) |
 | `sidecars/`    | per-message SQL schema + modifier/access/password flag files |
 
 ### Updating snapshots after an intentional change

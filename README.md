@@ -21,7 +21,7 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 | 8 | database / SQL (schema, CRUDL, version transforms) | ✅ CREATE TABLE schema + CRUDL DAO over vendored SQLite; FK/repeated + version-transform deferred |
 | 9 | JSON adapter (`to_json`/`from_json` + checker) | ✅ message↔JSON + DB bulk export/import (NDJSON) |
 | 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD + DB bulk export/import |
-| 11 | SOAP | ⬜ not started |
+| 11 | SOAP | ✅ SOAP get/set endpoint (XML over HTTP) over CRUDL (httplib + tinyxml2); WSDL deferred |
 | 12 | HTML / REST bindings | ✅ REST CRUD (GET/POST/PUT/DELETE) over CRUDL with JSON bodies (cpp-httplib); XML/SOAP content-negotiation deferred |
 | 13 | zmq/socket + gRPC access | ✅ gRPC stubs **and** ZMQ push/pull + pub/sub, with a compile-time sender "originator" id (process.md 1.3.1.1, one-to-* case) |
 | 14 | generated-code unit tests | ⬜ not started |
