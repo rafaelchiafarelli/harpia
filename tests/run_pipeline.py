@@ -34,7 +34,7 @@ from LexicalAnalizer.MessageCreator import MessageCreator
 from ProtoFile.FileCreator import FileCreator
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
-from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos
+from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 
 
 def run(output_dir):
@@ -94,7 +94,8 @@ def run(output_dir):
         fc.Process()
         fc.save()
     copyBasicProtos(src="./Assets/proto/protofiles", dest=build_dir)
-    copyServerClientTemplates(src="./Assets", dest=build_dir)
+    copyServerClientTemplates(src="./Assets", dest=build_dir,
+                              demo=chooseDemo(msg_factory.messages))
     copyCMakeFiles(src="./Assets", dest=build_dir)
 
     # 9. JSON adapters (header-only C++ over the protobuf messages)
