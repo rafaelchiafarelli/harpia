@@ -11,6 +11,7 @@ from ProtoFile.ProtoCompiler import ProtoCompiler
 from ProtoFile.GrpcCompiler import GrpcCompiler
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
+from XmlAdapter.XmlAdapter import XmlAdapter
 from copy import deepcopy
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 if __name__ == '__main__':
@@ -111,6 +112,11 @@ if __name__ == '__main__':
     zmqError = ZmqAdapter(messages=msgFactory.messages, dest=testDestination).Process()
     if zmqError is not None:
         log.print(zmqError.__str__())
+
+    #10. generate the XML adapters (reflection-based runtime + per-message wrappers)
+    xmlError = XmlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    if xmlError is not None:
+        log.print(xmlError.__str__())
 
     
     
