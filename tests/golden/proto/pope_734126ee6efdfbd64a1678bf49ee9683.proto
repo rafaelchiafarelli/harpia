@@ -3,11 +3,11 @@ message pope {
 int32 ID_734126ee6efdfbd64a1678bf49ee9683 = 1;
 int32 xcvbnxcfg = 2;
 int32 xdr = 3;
-string xcmcb = 4;
-int32 sdrz = 5;
-string ujk = 6;
+map<string, string> xcmcb = 4;
+map<string, int32> sdrz = 5;
+map<int32, string> ujk = 6;
 int32 vnfvbn = 7;
-string  STATUS_734126ee6efdfbd64a1678bf49ee9683 = 8;
-string  ERROR_734126ee6efdfbd64a1678bf49ee9683 = 9;
+string STATUS_734126ee6efdfbd64a1678bf49ee9683 = 8;
+string ERROR_734126ee6efdfbd64a1678bf49ee9683 = 9;
 string ORIGINATOR = 10;
 }

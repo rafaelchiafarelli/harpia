@@ -5,7 +5,7 @@ int32 ID_734126ee6efdfbd64a1678bf49ee9683 = 1;
 string sponsor = 2;
 string name = 3;
 vip_users myUsers = 4;
-string  STATUS_734126ee6efdfbd64a1678bf49ee9683 = 5;
-string  ERROR_734126ee6efdfbd64a1678bf49ee9683 = 6;
+string STATUS_734126ee6efdfbd64a1678bf49ee9683 = 5;
+string ERROR_734126ee6efdfbd64a1678bf49ee9683 = 6;
 string ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683 = 7;
 }
