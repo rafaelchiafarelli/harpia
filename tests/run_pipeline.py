@@ -39,6 +39,7 @@ from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
 from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
+from Database.SoapAdapter import SoapAdapter
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 
 
@@ -120,6 +121,9 @@ def run(output_dir):
     # 12. REST bindings (HTTP CRUD over CRUDL + JSON)
     RestAdapter(messages=msg_factory.messages, dest=build_dir).Process()
 
+    # 11. SOAP endpoints (XML over HTTP, get/set over CRUDL)
+    SoapAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+
     # --- capture artifacts -------------------------------------------------
     _dump_tokens(os.path.join(output_dir, "tokens.txt"), tokens)
     _dump_messages(os.path.join(output_dir, "messages.txt"), msg_factory.messages)
@@ -130,6 +134,7 @@ def run(output_dir):
     _collect_crudl(build_dir, os.path.join(output_dir, "db"))
     _collect_dbio(build_dir, os.path.join(output_dir, "dbio"))
     _collect_rest(build_dir, os.path.join(output_dir, "rest"))
+    _collect_soap(build_dir, os.path.join(output_dir, "soap"))
     _collect_sidecars(build_dir, os.path.join(output_dir, "sidecars"))
 
 
@@ -221,6 +226,18 @@ def _collect_dbio(build_dir, dest):
 
 def _collect_rest(build_dir, dest):
     src = os.path.join(build_dir, "generated", "cpp", "rest")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith(".h"):
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_soap(build_dir, dest):
+    src = os.path.join(build_dir, "generated", "cpp", "soap")
     if os.path.exists(dest):
         shutil.rmtree(dest)
     os.makedirs(dest, exist_ok=True)
