@@ -34,6 +34,7 @@ from LexicalAnalizer.MessageCreator import MessageCreator
 from ProtoFile.FileCreator import FileCreator
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
+from XmlAdapter.XmlAdapter import XmlAdapter
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 
 
@@ -104,12 +105,16 @@ def run(output_dir):
     # 13 (zmq). ZMQ/socket transport for push/pull + event/stream messages
     ZmqAdapter(messages=msg_factory.messages, dest=build_dir).Process()
 
+    # 10. XML adapters (reflection runtime + per-message wrappers)
+    XmlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+
     # --- capture artifacts -------------------------------------------------
     _dump_tokens(os.path.join(output_dir, "tokens.txt"), tokens)
     _dump_messages(os.path.join(output_dir, "messages.txt"), msg_factory.messages)
     _collect_protos(build_dir, os.path.join(output_dir, "proto"))
     _collect_json(build_dir, os.path.join(output_dir, "json"))
     _collect_zmq(build_dir, os.path.join(output_dir, "zmq"))
+    _collect_xml(build_dir, os.path.join(output_dir, "xml"))
     _collect_sidecars(build_dir, os.path.join(output_dir, "sidecars"))
 
 
@@ -158,6 +163,20 @@ def _collect_zmq(build_dir, dest):
         return
     for name in sorted(os.listdir(src)):
         if name.endswith(".h"):
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_xml(build_dir, dest):
+    # the per-message wrappers only; harpia_xml.h is the static runtime (lives in
+    # the repo under XmlAdapter/runtime, no need to re-snapshot the copy)
+    src = os.path.join(build_dir, "generated", "cpp", "xml")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith(".h") and name != "harpia_xml.h":
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
