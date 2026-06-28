@@ -1,2 +1,1 @@
-
-PRIVATE
+-- pope: no table declared

@@ -35,6 +35,7 @@ from ProtoFile.FileCreator import FileCreator
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
+from Database.SqlAdapter import SqlAdapter
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 
 
@@ -107,6 +108,9 @@ def run(output_dir):
 
     # 10. XML adapters (reflection runtime + per-message wrappers)
     XmlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+
+    # 8. SQL schema (supersedes the FileCreator stub)
+    SqlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
 
     # --- capture artifacts -------------------------------------------------
     _dump_tokens(os.path.join(output_dir, "tokens.txt"), tokens)
