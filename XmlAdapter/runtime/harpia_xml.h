@@ -15,6 +15,7 @@
 
 #include <cstdlib>
 #include <string>
+#include <vector>
 
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/message.h>
@@ -182,6 +183,70 @@ inline bool from_xml(const std::string& xml, ::google::protobuf::Message* msg) {
     const auto* root = doc.RootElement();
     if (!root) return false;
     return detail::read_message(root, msg);
+}
+
+// ---- XSD schema -----------------------------------------------------------
+namespace detail {
+
+inline const char* xsd_scalar(::google::protobuf::FieldDescriptor::CppType t) {
+    using FD = ::google::protobuf::FieldDescriptor;
+    switch (t) {
+        case FD::CPPTYPE_INT32:  return "xs:int";
+        case FD::CPPTYPE_INT64:  return "xs:long";
+        case FD::CPPTYPE_UINT32: return "xs:unsignedInt";
+        case FD::CPPTYPE_UINT64: return "xs:unsignedLong";
+        case FD::CPPTYPE_DOUBLE: return "xs:double";
+        case FD::CPPTYPE_FLOAT:  return "xs:float";
+        case FD::CPPTYPE_BOOL:   return "xs:boolean";
+        default:                 return "xs:string";  // enum + string
+    }
+}
+
+// reachable message types from root (depth-first, cycle-safe), root first
+inline void collect(const ::google::protobuf::Descriptor* d,
+                    std::vector<const ::google::protobuf::Descriptor*>& order) {
+    for (const auto* x : order)
+        if (x == d) return;
+    order.push_back(d);
+    for (int i = 0; i < d->field_count(); ++i) {
+        const auto* f = d->field(i);
+        if (f->cpp_type() == ::google::protobuf::FieldDescriptor::CPPTYPE_MESSAGE)
+            collect(f->message_type(), order);
+    }
+}
+
+inline void write_complex_type(const ::google::protobuf::Descriptor* d,
+                               std::string& out) {
+    out += "  <xs:complexType name=\"" + d->name() + "\">\n    <xs:sequence>\n";
+    for (int i = 0; i < d->field_count(); ++i) {
+        const auto* f = d->field(i);
+        const std::string type =
+            (f->cpp_type() == ::google::protobuf::FieldDescriptor::CPPTYPE_MESSAGE)
+                ? f->message_type()->name()
+                : std::string(xsd_scalar(f->cpp_type()));
+        out += "      <xs:element name=\"" + f->name() + "\" type=\"" + type +
+               "\" minOccurs=\"0\"";
+        if (f->is_repeated()) out += " maxOccurs=\"unbounded\"";
+        out += "/>\n";
+    }
+    out += "    </xs:sequence>\n  </xs:complexType>\n";
+}
+
+}  // namespace detail
+
+// XSD schema describing the message (and the nested message types it uses).
+inline std::string xsd(const ::google::protobuf::Descriptor* root) {
+    std::vector<const ::google::protobuf::Descriptor*> order;
+    detail::collect(root, order);
+    std::string out =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+        "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">\n";
+    out += "  <xs:element name=\"" + root->name() + "\" type=\"" +
+           root->name() + "\"/>\n";
+    for (const auto* d : order)
+        detail::write_complex_type(d, out);
+    out += "</xs:schema>\n";
+    return out;
 }
 
 }  // namespace xml

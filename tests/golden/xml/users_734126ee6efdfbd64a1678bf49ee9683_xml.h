@@ -2,10 +2,23 @@
 #ifndef HARPIA_XML_USERS_734126ee6efdfbd64a1678bf49ee9683
 #define HARPIA_XML_USERS_734126ee6efdfbd64a1678bf49ee9683
 
+#include <string>
+
 #include "xml/harpia_xml.h"
 #include "protofiles/users_734126ee6efdfbd64a1678bf49ee9683.pb.h"
 
 // XML for users is provided by the generic reflection-based runtime:
 //   std::string xml = harpia::xml::to_xml(msg);   // users -> XML
+//   harpia::xml::from_xml(xml, &msg);             // XML -> users
+namespace harpia {
+namespace xml {
+
+// XSD schema for users
+inline std::string users_xsd() {
+    return ::harpia::xml::xsd(::users::descriptor());
+}
+
+}  // namespace xml
+}  // namespace harpia
 
 #endif  // HARPIA_XML_USERS_734126ee6efdfbd64a1678bf49ee9683

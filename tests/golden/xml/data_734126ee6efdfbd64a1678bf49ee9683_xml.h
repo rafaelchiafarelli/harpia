@@ -2,10 +2,23 @@
 #ifndef HARPIA_XML_DATA_734126ee6efdfbd64a1678bf49ee9683
 #define HARPIA_XML_DATA_734126ee6efdfbd64a1678bf49ee9683
 
+#include <string>
+
 #include "xml/harpia_xml.h"
 #include "protofiles/data_734126ee6efdfbd64a1678bf49ee9683.pb.h"
 
 // XML for data is provided by the generic reflection-based runtime:
 //   std::string xml = harpia::xml::to_xml(msg);   // data -> XML
+//   harpia::xml::from_xml(xml, &msg);             // XML -> data
+namespace harpia {
+namespace xml {
+
+// XSD schema for data
+inline std::string data_xsd() {
+    return ::harpia::xml::xsd(::data::descriptor());
+}
+
+}  // namespace xml
+}  // namespace harpia
 
 #endif  // HARPIA_XML_DATA_734126ee6efdfbd64a1678bf49ee9683

@@ -2,10 +2,23 @@
 #ifndef HARPIA_XML_ANOTHER_SAGE_734126ee6efdfbd64a1678bf49ee9683
 #define HARPIA_XML_ANOTHER_SAGE_734126ee6efdfbd64a1678bf49ee9683
 
+#include <string>
+
 #include "xml/harpia_xml.h"
 #include "protofiles/another_sage_734126ee6efdfbd64a1678bf49ee9683.pb.h"
 
 // XML for another_sage is provided by the generic reflection-based runtime:
 //   std::string xml = harpia::xml::to_xml(msg);   // another_sage -> XML
+//   harpia::xml::from_xml(xml, &msg);             // XML -> another_sage
+namespace harpia {
+namespace xml {
+
+// XSD schema for another_sage
+inline std::string another_sage_xsd() {
+    return ::harpia::xml::xsd(::another_sage::descriptor());
+}
+
+}  // namespace xml
+}  // namespace harpia
 
 #endif  // HARPIA_XML_ANOTHER_SAGE_734126ee6efdfbd64a1678bf49ee9683
