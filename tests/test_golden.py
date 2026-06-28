@@ -12,6 +12,7 @@ committed snapshots in tests/golden/:
   - xml/*.h          every emitted XML adapter wrapper (Stage 10)
   - db/*.h           every emitted CRUDL DAO (Stage 8)
   - dbio/*.h         every emitted DB import/export header (Stage 8)
+  - rest/*.h         every emitted REST binding header (Stage 12)
   - sidecars/        the SQL schema + access/modifier flag files per message
 
 To (re)generate the golden snapshots after an intentional change:
@@ -197,6 +198,24 @@ def test_dbio_headers(artifacts):
     assert produced == expected, "set of generated DB import/export headers changed"
     for rel in produced:
         _check(os.path.join(produced_dir, rel), os.path.join("dbio", rel))
+
+
+def test_rest_bindings(artifacts):
+    produced_dir = os.path.join(artifacts, "rest")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "rest")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel), os.path.join("rest", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "rest"))
+    assert produced == expected, "set of generated REST bindings changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("rest", rel))
 
 
 def test_sidecars(artifacts):

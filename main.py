@@ -15,6 +15,7 @@ from XmlAdapter.XmlAdapter import XmlAdapter
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
 from Database.DbIoAdapter import DbIoAdapter
+from Database.RestAdapter import RestAdapter
 from copy import deepcopy
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 if __name__ == '__main__':
@@ -135,6 +136,11 @@ if __name__ == '__main__':
     dbioError = DbIoAdapter(messages=msgFactory.messages, dest=testDestination).Process()
     if dbioError is not None:
         log.print(dbioError.__str__())
+
+    #12. generate the REST bindings (HTTP CRUD over CRUDL + JSON)
+    restError = RestAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    if restError is not None:
+        log.print(restError.__str__())
 
     
     
