@@ -43,6 +43,7 @@ python3 -m venv .venv
 | `test_stage13.py`     | Stage 13 gRPC: every `*_service.grpc.pb.cc` compiles, and a Stub + Service skeleton link and run | protoc, grpc_cpp_plugin, g++ |
 | `test_stage13_zmq.py` | Stage 13 ZMQ: transports compile and a PUSH/PULL round-trip runs over a real socket (incl. the stamped originator id) | protoc, g++, libzmq |
 | `test_stage10_xml.py` | Stage 10: XML adapters compile, `to_xml`/`from_xml` round-trip, XSD is well-formed | protoc, g++ (uses vendored tinyxml2) |
+| `test_stage8_db.py`   | Stage 8: generated SQL schema executes in SQLite; CRUDL DAO round-trip (insert→read→update→list→delete); DB↔JSON/XML bulk export/import round-trip | cc + g++ (vendored sqlite); CRUDL/IO parts also protoc |
 | `test_demo.py`        | end-to-end: build the generated project with its own CMake and run client→server, asserting the message crosses | cmake, protoc, grpc_cpp_plugin, g++, libzmq |
 
 `run_pipeline.py` and `run_frontend.py` are standalone harnesses the tests drive
@@ -62,7 +63,9 @@ Snapshots live under `tests/golden/`, keyed by the input's md5 hash
 | `json/`        | every JSON adapter header (Stage 9) |
 | `zmq/`         | every ZMQ transport header (Stage 13) |
 | `xml/`         | every XML adapter wrapper (Stage 10) |
-| `sidecars/`    | per-message SQL stub + modifier/access/password flag files |
+| `db/`          | every CRUDL DAO header (Stage 8) |
+| `dbio/`        | every DB↔JSON/XML import/export header (Stage 8) |
+| `sidecars/`    | per-message SQL schema + modifier/access/password flag files |
 
 ### Updating snapshots after an intentional change
 
