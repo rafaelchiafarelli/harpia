@@ -8,6 +8,7 @@ from LexicalAnalizer.MessageCreator import MessageCreator,Message
 from ProtoFile.ProtoFileProcessor import ProtoFileProcessor
 from ProtoFile.FileCreator import FileCreator
 from ProtoFile.ProtoCompiler import ProtoCompiler
+from ProtoFile.GrpcCompiler import GrpcCompiler
 from JsonAdapter.JsonAdapter import JsonAdapter
 from copy import deepcopy
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos
@@ -98,6 +99,12 @@ if __name__ == '__main__':
     jsonAdapterError = JsonAdapter(messages=msgFactory.messages, dest=testDestination).Process()
     if jsonAdapterError is not None:
         log.print(jsonAdapterError.__str__())
+
+    #13. generate the gRPC client/server stubs from the *_service.proto files
+    grpcError = GrpcCompiler(dest=testDestination).Process()
+    if grpcError is not None:
+        #non-fatal: protoc / grpc_cpp_plugin may be absent on the host
+        log.print(grpcError.__str__())
 
     
     
