@@ -1,0 +1,2 @@
+table_vip_users
+PRIVATE
