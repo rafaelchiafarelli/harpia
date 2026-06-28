@@ -18,7 +18,7 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 |-------|------|--------|
 | 0–6 | front-end: pre-process, tokenize, build messages, emit clean `.proto` | ✅ implemented |
 | 7 | run `protoc` → compilable C++ messages | ✅ implemented |
-| 8 | database / SQL (schema, CRUDL, version transforms) | ⬜ not started (SQL output is a stub) |
+| 8 | database / SQL (schema, CRUDL, version transforms) | ✅ CREATE TABLE schema + CRUDL DAO over vendored SQLite; FK/repeated + version-transform deferred |
 | 9 | JSON adapter (`to_json`/`from_json` + checker) | ✅ message↔JSON; DB fns (8.3–8.6) deferred to Stage 8 |
 | 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD; DB fns deferred to Stage 8 |
 | 11 | SOAP | ⬜ not started |
@@ -62,9 +62,9 @@ compile/run tests skip themselves). See `tests/README.md`.
 | `main.py` | pipeline entry point |
 | `LexicalAnalizer/`, `Message/`, `Errors/`, `Logger/`, `Util/` | front-end (lex, parse, build messages) |
 | `ProtoFile/` | `.proto` emission (`FileCreator`), Stage 7 (`ProtoCompiler`), Stage 13 gRPC (`GrpcCompiler`) |
-| `JsonAdapter/`, `XmlAdapter/`, `ZmqAdapter/` | back-end generators; each has a `templates/` dir of generator templates (XmlAdapter also a `runtime/`) |
+| `JsonAdapter/`, `XmlAdapter/`, `ZmqAdapter/`, `Database/` | back-end generators; each has a `templates/` dir of generator templates (XmlAdapter also a `runtime/`, Database a shared `model.py`) |
 | `Assets/` | project skeleton copied into output (CMake, proto templates, server/client demo) |
-| `third_party/` | vendored third-party source (tinyxml2) |
+| `third_party/` | vendored third-party source (tinyxml2, SQLite) |
 | `tests/` | golden snapshots + per-stage compile/run tests (see `tests/README.md`) |
 | `HarpiaTest/` | the sample `test.harpia` and its includes |
 
