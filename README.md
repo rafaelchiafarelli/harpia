@@ -18,7 +18,7 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 |-------|------|--------|
 | 0–6 | front-end: pre-process, tokenize, build messages, emit clean `.proto` | ✅ implemented |
 | 7 | run `protoc` → compilable C++ messages | ✅ implemented |
-| 8 | database / SQL (schema, CRUDL, version transforms) | ✅ CREATE TABLE schema + CRUDL DAO over vendored SQLite; FK/repeated + version-transform deferred |
+| 8 | database / SQL (schema, CRUDL, version transforms) | ✅ CREATE TABLE schema + CRUDL DAO over vendored SQLite, incl. enum columns and singular FK to a table-bearing message (the child row is persisted/loaded via its own DAO); repeated/map, non-table composed embed, and version-transform deferred |
 | 9 | JSON adapter (`to_json`/`from_json` + checker) | ✅ message↔JSON + DB bulk export/import (NDJSON) |
 | 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD + DB bulk export/import |
 | 11 | SOAP | ✅ SOAP get/set endpoint (XML over HTTP) over CRUDL (httplib + tinyxml2), now gated by the Stage 5 access credential (SOAP Header `<credentials>`, 401 Fault on mismatch); WSDL deferred |

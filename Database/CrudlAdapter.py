@@ -54,6 +54,7 @@ class CrudlAdapter:
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "db")
         self.types = type_registry(messages)
+        self.byName = {m.name: m for m in messages}
         self.log = logger(outFile=None, moduleName="CrudlAdapter")
 
     def Process(self):
@@ -74,31 +75,94 @@ class CrudlAdapter:
     def _render(self, msg):
         columns, _ = analyze(msg, self.types)
         bindable = [c for c in columns if c.bindable]
+        fk_cols = [c for c in columns if c.fk_table]
         id_col = next((c for c in bindable if c.pk), None)
         non_id = [c for c in bindable if not c.pk]
 
-        create_bind = "\n".join(
-            _bind_line(c, i, "msg") for i, c in enumerate(bindable, start=1))
-        update_bind = "\n".join(
-            _bind_line(c, i, "msg") for i, c in enumerate(non_id, start=1))
-        extract = "\n".join(
-            _extract_line(c, i) for i, c in enumerate(bindable))
+        # INSERT/SELECT columns: scalar/enum first, then FK columns (child PK).
+        insert_all = bindable + fk_cols
+        update_all = non_id + fk_cols
 
-        cols_csv = ", ".join('\\"{}\\"'.format(c.name) for c in bindable)
+        create_bind = "\n".join(
+            [_bind_line(c, i, "msg") for i, c in enumerate(bindable, start=1)] +
+            [self._fk_bind(c, i)
+             for i, c in enumerate(fk_cols, start=len(bindable) + 1)])
+        update_bind = "\n".join(
+            [_bind_line(c, i, "msg") for i, c in enumerate(non_id, start=1)] +
+            [self._fk_bind(c, i)
+             for i, c in enumerate(fk_cols, start=len(non_id) + 1)])
+        extract = "\n".join(
+            [_extract_line(c, i) for i, c in enumerate(bindable)] +
+            [self._fk_extract(c, i)
+             for i, c in enumerate(fk_cols, start=len(bindable))])
+
         return _CRUDL.format(
             guard="HARPIA_CRUDL_{}_{}".format(msg.name.upper(), msg.md5Hash),
             pb_header="protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash),
+            fk_includes=self._fk_includes(fk_cols),
+            fk_precreate=self._fk_hooks(fk_cols, "create"),
+            fk_preupdate=self._fk_hooks(fk_cols, "update"),
             cls=msg.name,
             table=msg.tableName,
             create_table_sql=create_table_sql(msg, types=self.types).replace('"', '\\"'),
-            insert_cols=cols_csv,
-            insert_qs=", ".join("?" * len(bindable)),
-            select_cols=cols_csv,
+            insert_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
+            insert_qs=", ".join("?" * len(insert_all)),
+            select_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
             create_bind=create_bind,
             update_bind=update_bind,
-            update_set=", ".join('\\"{}\\" = ?'.format(c.name) for c in non_id),
-            id_bind_index=len(non_id) + 1,
+            update_set=", ".join('\\"{}\\" = ?'.format(c.name) for c in update_all),
+            id_bind_index=len(update_all) + 1,
             id_col=id_col.name if id_col else "rowid",
             id_accessor=id_col.accessor if id_col else "rowid",
             extract=extract,
         )
+
+    # -- composed FK (message whose target owns a table) -------------------
+    def _child(self, col):
+        m = self.byName[col.fk_target]
+        cols, _ = analyze(m, self.types)
+        pk = next((c for c in cols if c.bindable and c.pk), None)
+        return {
+            "dao": "::harpia::db::{}_dao".format(m.name),
+            "header": "db/{}_{}_crudl.h".format(m.name, m.md5Hash),
+            "pk": pk.accessor if pk else "rowid",
+        }
+
+    def _fk_bind(self, col, index):
+        ch = self._child(col)
+        return "        ::sqlite3_bind_int64(st, {i}, msg.{a}().{pk}());".format(
+            i=index, a=col.accessor, pk=ch["pk"])
+
+    def _fk_extract(self, col, index):
+        ch = self._child(col)
+        return ("        {{ const long long _fk{i} = "
+                "::sqlite3_column_int64(st, {i}); if (_fk{i}) {{ {dao} _c(db_); "
+                "_c.read(_fk{i}, msg->mutable_{a}()); }} }}".format(
+                    i=index, dao=ch["dao"], a=col.accessor))
+
+    def _fk_hooks(self, fk_cols, op):
+        if not fk_cols:
+            return ""
+        lines = []
+        for c in fk_cols:
+            dao = self._child(c)["dao"]
+            if op == "create":
+                lines.append(
+                    "        if (msg.has_{a}()) {{ {dao} _c(db_); "
+                    "if (!_c.create(msg.{a}())) return false; }}".format(
+                        a=c.accessor, dao=dao))
+            else:
+                lines.append(
+                    "        if (msg.has_{a}()) {{ {dao} _c(db_); "
+                    "_c.update(msg.{a}()); }}".format(a=c.accessor, dao=dao))
+        return "\n".join(lines) + "\n"
+
+    def _fk_includes(self, fk_cols):
+        if not fk_cols:
+            return ""
+        seen = []
+        for c in fk_cols:
+            h = self._child(c)["header"]
+            if h not in seen:
+                seen.append(h)
+        return "\n" + "\n".join('#include "{}"'.format(h) for h in seen)

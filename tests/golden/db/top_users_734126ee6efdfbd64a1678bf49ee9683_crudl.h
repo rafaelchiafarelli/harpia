@@ -8,12 +8,14 @@
 
 #include "sqlite3.h"
 #include "protofiles/top_users_734126ee6efdfbd64a1678bf49ee9683.pb.h"
+#include "db/vip_users_734126ee6efdfbd64a1678bf49ee9683_crudl.h"
 
 namespace harpia {
 namespace db {
 
 // Data-access object for top_users over the "user_table" table. Wraps a sqlite3* the
-// caller owns. Composed (FK) and repeated/map fields are not persisted yet.
+// caller owns. Scalar and enum fields plus singular FKs to table-bearing
+// messages are persisted; repeated/map and non-table composed fields are not.
 class top_users_dao {
 public:
     explicit top_users_dao(::sqlite3* db) : db_(db) {}
@@ -22,9 +24,10 @@ public:
     bool drop_table()   { return exec("DROP TABLE IF EXISTS \"user_table\";"); }
 
     bool create(const ::top_users& msg) {
+        if (msg.has_myusers()) { ::harpia::db::vip_users_dao _c(db_); if (!_c.create(msg.myusers())) return false; }
         ::sqlite3_stmt* st = nullptr;
         if (::sqlite3_prepare_v2(db_,
-                "INSERT INTO \"user_table\" (\"ID_734126ee6efdfbd64a1678bf49ee9683\", \"sponsor\", \"name\", \"STATUS_734126ee6efdfbd64a1678bf49ee9683\", \"ERROR_734126ee6efdfbd64a1678bf49ee9683\", \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\") VALUES (?, ?, ?, ?, ?, ?);",
+                "INSERT INTO \"user_table\" (\"ID_734126ee6efdfbd64a1678bf49ee9683\", \"sponsor\", \"name\", \"STATUS_734126ee6efdfbd64a1678bf49ee9683\", \"ERROR_734126ee6efdfbd64a1678bf49ee9683\", \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\", \"myUsers\") VALUES (?, ?, ?, ?, ?, ?, ?);",
                 -1, &st, nullptr) != SQLITE_OK) return false;
         ::sqlite3_bind_int(st, 1, msg.id_734126ee6efdfbd64a1678bf49ee9683());
         ::sqlite3_bind_text(st, 2, msg.sponsor().c_str(), -1, SQLITE_TRANSIENT);
@@ -32,6 +35,7 @@ public:
         ::sqlite3_bind_text(st, 4, msg.status_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
         ::sqlite3_bind_text(st, 5, msg.error_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
         ::sqlite3_bind_text(st, 6, msg.originator_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
+        ::sqlite3_bind_int64(st, 7, msg.myusers().id_734126ee6efdfbd64a1678bf49ee9683());
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
         return ok;
@@ -40,7 +44,7 @@ public:
     bool read(std::int64_t id, ::top_users* msg) {
         ::sqlite3_stmt* st = nullptr;
         if (::sqlite3_prepare_v2(db_,
-                "SELECT \"ID_734126ee6efdfbd64a1678bf49ee9683\", \"sponsor\", \"name\", \"STATUS_734126ee6efdfbd64a1678bf49ee9683\", \"ERROR_734126ee6efdfbd64a1678bf49ee9683\", \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\" FROM \"user_table\" WHERE \"ID_734126ee6efdfbd64a1678bf49ee9683\" = ?;",
+                "SELECT \"ID_734126ee6efdfbd64a1678bf49ee9683\", \"sponsor\", \"name\", \"STATUS_734126ee6efdfbd64a1678bf49ee9683\", \"ERROR_734126ee6efdfbd64a1678bf49ee9683\", \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\", \"myUsers\" FROM \"user_table\" WHERE \"ID_734126ee6efdfbd64a1678bf49ee9683\" = ?;",
                 -1, &st, nullptr) != SQLITE_OK) return false;
         ::sqlite3_bind_int64(st, 1, id);
         bool found = false;
@@ -50,16 +54,18 @@ public:
     }
 
     bool update(const ::top_users& msg) {
+        if (msg.has_myusers()) { ::harpia::db::vip_users_dao _c(db_); _c.update(msg.myusers()); }
         ::sqlite3_stmt* st = nullptr;
         if (::sqlite3_prepare_v2(db_,
-                "UPDATE \"user_table\" SET \"sponsor\" = ?, \"name\" = ?, \"STATUS_734126ee6efdfbd64a1678bf49ee9683\" = ?, \"ERROR_734126ee6efdfbd64a1678bf49ee9683\" = ?, \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\" = ? WHERE \"ID_734126ee6efdfbd64a1678bf49ee9683\" = ?;",
+                "UPDATE \"user_table\" SET \"sponsor\" = ?, \"name\" = ?, \"STATUS_734126ee6efdfbd64a1678bf49ee9683\" = ?, \"ERROR_734126ee6efdfbd64a1678bf49ee9683\" = ?, \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\" = ?, \"myUsers\" = ? WHERE \"ID_734126ee6efdfbd64a1678bf49ee9683\" = ?;",
                 -1, &st, nullptr) != SQLITE_OK) return false;
         ::sqlite3_bind_text(st, 1, msg.sponsor().c_str(), -1, SQLITE_TRANSIENT);
         ::sqlite3_bind_text(st, 2, msg.name().c_str(), -1, SQLITE_TRANSIENT);
         ::sqlite3_bind_text(st, 3, msg.status_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
         ::sqlite3_bind_text(st, 4, msg.error_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
         ::sqlite3_bind_text(st, 5, msg.originator_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_int64(st, 6, msg.id_734126ee6efdfbd64a1678bf49ee9683());
+        ::sqlite3_bind_int64(st, 6, msg.myusers().id_734126ee6efdfbd64a1678bf49ee9683());
+        ::sqlite3_bind_int64(st, 7, msg.id_734126ee6efdfbd64a1678bf49ee9683());
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
         return ok;
@@ -79,7 +85,7 @@ public:
     bool list(std::vector<::top_users>* out) {
         ::sqlite3_stmt* st = nullptr;
         if (::sqlite3_prepare_v2(db_,
-                "SELECT \"ID_734126ee6efdfbd64a1678bf49ee9683\", \"sponsor\", \"name\", \"STATUS_734126ee6efdfbd64a1678bf49ee9683\", \"ERROR_734126ee6efdfbd64a1678bf49ee9683\", \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\" FROM \"user_table\";",
+                "SELECT \"ID_734126ee6efdfbd64a1678bf49ee9683\", \"sponsor\", \"name\", \"STATUS_734126ee6efdfbd64a1678bf49ee9683\", \"ERROR_734126ee6efdfbd64a1678bf49ee9683\", \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\", \"myUsers\" FROM \"user_table\";",
                 -1, &st, nullptr) != SQLITE_OK) return false;
         while (::sqlite3_step(st) == SQLITE_ROW) {
             ::top_users msg;
@@ -101,6 +107,7 @@ private:
         { const unsigned char* p = ::sqlite3_column_text(st, 3); msg->set_status_734126ee6efdfbd64a1678bf49ee9683(p ? reinterpret_cast<const char*>(p) : ""); }
         { const unsigned char* p = ::sqlite3_column_text(st, 4); msg->set_error_734126ee6efdfbd64a1678bf49ee9683(p ? reinterpret_cast<const char*>(p) : ""); }
         { const unsigned char* p = ::sqlite3_column_text(st, 5); msg->set_originator_734126ee6efdfbd64a1678bf49ee9683(p ? reinterpret_cast<const char*>(p) : ""); }
+        { const long long _fk6 = ::sqlite3_column_int64(st, 6); if (_fk6) { ::harpia::db::vip_users_dao _c(db_); _c.read(_fk6, msg->mutable_myusers()); } }
     }
     ::sqlite3* db_;
 };

@@ -135,6 +135,54 @@ def test_crudl_roundtrip(generated, sqlite_obj, tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="FK round-trip needs protoc + protobuf")
+def test_fk_roundtrip(generated, sqlite_obj, tmp_path):
+    """A singular composed field whose target owns a table (top_users.myUsers ->
+    vip_users) persists via the child DAO and is reloaded on read."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    proto_dir = os.path.join(cpp_root, "protofiles")
+
+    prog = tmp_path / "fk.cpp"
+    prog.write_text(
+        '#include "db/top_users_{h}_crudl.h"\n'
+        "int main() {{\n"
+        "    ::sqlite3* db = nullptr;\n"
+        '    if (sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
+        "    harpia::db::top_users_dao pdao(db);\n"
+        "    harpia::db::vip_users_dao cdao(db);\n"
+        "    if (!pdao.create_table() || !cdao.create_table()) return 2;\n"
+        "    ::top_users t; t.set_id_{h}(1); t.set_name(\"boss\");\n"
+        "    auto* u = t.mutable_myusers(); u->set_id_{h}(7);\n"
+        "    u->set_name(\"vippy\"); u->set_family(\"fam\");\n"
+        "    if (!pdao.create(t)) return 3;\n"            # creates child + parent
+        "    ::top_users got;\n"
+        "    if (!pdao.read(1, &got)) return 4;\n"
+        "    if (!got.has_myusers()) return 5;\n"
+        "    if (got.myusers().id_{h}() != 7) return 6;\n"
+        "    if (got.myusers().name() != \"vippy\") return 7;\n"
+        "    if (got.myusers().family() != \"fam\") return 8;\n"
+        "    // the child row is independently present in its own table\n"
+        "    ::vip_users c; if (!cdao.read(7, &c) || c.family() != \"fam\") return 9;\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb = [os.path.join(proto_dir, "top_users_{}.pb.cc".format(HASH)),
+          os.path.join(proto_dir, "vip_users_{}.pb.cc".format(HASH))]
+    binary = str(tmp_path / "fk")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE,
+         *_pkgconfig("--cflags"), str(prog), *pb, sqlite_obj, "-o", binary,
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "FK program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "FK round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="DB import/export round-trip needs protoc + protobuf")
 def test_dbio_roundtrip(generated, sqlite_obj, tmp_path):
     """Export the table to JSON and XML, import into fresh DBs, verify rows."""

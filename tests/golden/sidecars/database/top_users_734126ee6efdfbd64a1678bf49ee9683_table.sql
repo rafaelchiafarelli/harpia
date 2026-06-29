@@ -9,4 +9,3 @@ CREATE TABLE IF NOT EXISTS "user_table" (
     "ERROR_734126ee6efdfbd64a1678bf49ee9683" TEXT,
     "ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683" TEXT
 );
--- myUsers: FK -> vip_users (deferred)

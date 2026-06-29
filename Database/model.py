@@ -88,6 +88,12 @@ def analyze(msg, types=None):
                 columns.append(Column(v.name, "INTEGER", bindable=True,
                                       kind="enum", enum_type=target))
                 continue
+            if kind == "table":
+                # composed field whose target owns a table: a persistable FK to
+                # the child's primary key (CrudlAdapter creates/loads the child).
+                columns.append(Column(v.name, "INTEGER", bindable=False,
+                                      fk_target=target, fk_table=True))
+                continue
             columns.append(Column(v.name, "INTEGER", bindable=False,
                                   fk_target=target))
             notes.append("-- {}: FK -> {} (deferred)".format(v.name, target))
