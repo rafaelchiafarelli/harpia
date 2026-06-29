@@ -11,6 +11,10 @@
 //                             is_valid_json accepts good JSON, rejects garbage
 //   14.6 xml parser         -- to_xml/from_xml round-trips the message and
 //                             from_xml rejects garbage
+//   14.7/14.10 REST API      -- the REST bindings serve real HTTP JSON CRUD
+//                             (POST/GET/list/PUT/DELETE/404) over a live server
+//   14.8/14.9 SOAP API       -- the SOAP endpoint serves real SOAP-over-HTTP
+//                             (set/get with the credential; wrong one -> 401)
 //
 // Each check returns a distinct non-zero code so a CTest failure points at the
 // exact assertion; main() returns 0 only when every check passes.
@@ -18,9 +22,11 @@
 #include "soap/{soap_header}"
 #include "json/{json_header}"
 #include "xml/{xml_header}"
+#include "rest/{rest_header}"
 
 #include <cstdint>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {{
@@ -50,6 +56,14 @@ int xml_parser() {{
 {xml_body}
 }}
 
+int rest_api() {{
+{rest_body}
+}}
+
+int soap_api() {{
+{soap_body}
+}}
+
 }}  // namespace
 
 int main() {{
@@ -59,5 +73,7 @@ int main() {{
     if (int rc = access_modifiers()) return rc;
     if (int rc = json_parser()) return rc;
     if (int rc = xml_parser()) return rc;
+    if (int rc = rest_api()) return rc;
+    if (int rc = soap_api()) return rc;
     return 0;
 }}
