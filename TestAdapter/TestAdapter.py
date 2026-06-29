@@ -97,12 +97,15 @@ class TestAdapter:
             soap_header="{}_{}_soap.h".format(msg.name, msg.md5Hash),
             json_header="{}_{}_json.h".format(msg.name, msg.md5Hash),
             xml_header="{}_{}_xml.h".format(msg.name, msg.md5Hash),
+            rest_header="{}_{}_rest.h".format(msg.name, msg.md5Hash),
             simple_body=self._simple_body(msg, bindable),
             db_body=self._db_body(msg, pk, non_pk),
             ar_body=self._access_rights_body(msg),
             am_body=self._access_modifiers_body(msg, pk, non_pk),
             json_body=self._json_body(msg, bindable),
             xml_body=self._xml_body(msg, bindable),
+            rest_body=self._rest_body(msg, pk, non_pk),
+            soap_body=self._soap_body(msg, pk, non_pk),
         )
 
     def _simple_body(self, msg, bindable):
@@ -277,6 +280,128 @@ class TestAdapter:
             "    ::{} c;".format(msg.name),
             '    if (::harpia::xml::from_xml("not xml at all", &c)) return 73;',
             "    return 0;",
+        ]
+        return "\n".join(L)
+
+    def _rest_body(self, msg, pk, non_pk):
+        # 14.7/14.10: the REST bindings serve real HTTP JSON CRUD over a live
+        # server on an ephemeral port (so parallel ctest runs don't collide).
+        cls = msg.name
+        if pk is None:
+            return ("    // no primary key: REST id routing deferred (Stage 14d)"
+                    "\n    return 0;")
+        probe = next((c for c in non_pk if c.kind == "text"), None)
+        L = [
+            "    ::sqlite3* db = nullptr;",
+            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 80;',
+            "    harpia::db::" + cls + "_dao dao(db);",
+            "    if (!dao.create_table()) return 81;",
+            "    ::httplib::Server svr;",
+            '    harpia::rest::register_' + cls + '(svr, db, "/api/v1");',
+            '    const int port = svr.bind_to_any_port("127.0.0.1");',
+            "    if (port <= 0) return 82;",
+            "    std::thread t([&]{ svr.listen_after_bind(); });",
+            "    svr.wait_until_ready();",
+            '    ::httplib::Client cli("127.0.0.1", port);',
+            "    int code = 0;",
+            "    do {",
+            "        ::" + cls + " a;",
+            "        a.set_" + pk.accessor + "(1);",
+        ]
+        L += ["        a.set_" + c.accessor + "(" + _value(c, "a") + ");"
+              for c in non_pk]
+        L += [
+            "        std::string body;",
+            "        if (!::harpia::json::to_json(a, &body)) { code = 83; break; }",
+            '        auto post = cli.Post("/api/v1/' + cls + '", body, "application/json");',
+            "        if (!post || post->status != 201) { code = 84; break; }",
+            '        auto got = cli.Get("/api/v1/' + cls + '/1");',
+            "        if (!got || got->status != 200) { code = 85; break; }",
+        ]
+        if probe is not None:
+            v = probe.accessor + "_a"
+            L.append('        if (got->body.find("' + v + '") == std::string::npos)'
+                     " { code = 86; break; }")
+        L += [
+            '        auto lst = cli.Get("/api/v1/' + cls + '");',
+            "        if (!lst || lst->status != 200) { code = 87; break; }",
+        ]
+        if probe is not None:
+            L += [
+                "        ::" + cls + " b = a;",
+                '        b.set_' + probe.accessor + '("' + probe.accessor + '_u");',
+                "        std::string bb;",
+                "        if (!::harpia::json::to_json(b, &bb)) { code = 88; break; }",
+                '        auto put = cli.Put("/api/v1/' + cls + '/1", bb, "application/json");',
+                "        if (!put || put->status != 204) { code = 89; break; }",
+                '        auto g2 = cli.Get("/api/v1/' + cls + '/1");',
+                '        if (!g2 || g2->body.find("' + probe.accessor + '_u") == '
+                "std::string::npos) { code = 90; break; }",
+            ]
+        L += [
+            '        auto del = cli.Delete("/api/v1/' + cls + '/1");',
+            "        if (!del || del->status != 204) { code = 91; break; }",
+            '        auto gone = cli.Get("/api/v1/' + cls + '/1");',
+            "        if (!gone || gone->status != 404) { code = 92; break; }",
+            "    } while (false);",
+            "    svr.stop(); t.join(); ::sqlite3_close(db);",
+            "    return code;",
+        ]
+        return "\n".join(L)
+
+    def _soap_body(self, msg, pk, non_pk):
+        # 14.8/14.9: the SOAP endpoint serves real SOAP-over-HTTP (XML), gated by
+        # the credential: a correct one round-trips set/get, a wrong one -> 401.
+        cls = msg.name
+        if pk is None:
+            return ("    // no primary key: SOAP id routing deferred (Stage 14d)"
+                    "\n    return 0;")
+        probe = next((c for c in non_pk if c.kind == "text"), None)
+        good = ('<soap:Header><credentials><user>' + cls + '</user><pswd>' +
+                msg.md5Hash + '</pswd></credentials></soap:Header>')
+        bad = ('<soap:Header><credentials><user>' + cls +
+               '</user><pswd>nope</pswd></credentials></soap:Header>')
+        L = [
+            "    ::sqlite3* db = nullptr;",
+            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 100;',
+            "    harpia::db::" + cls + "_dao dao(db);",
+            "    if (!dao.create_table()) return 101;",
+            "    ::httplib::Server svr;",
+            '    harpia::soap::register_' + cls + '_soap(svr, db, "/soap");',
+            '    const int port = svr.bind_to_any_port("127.0.0.1");',
+            "    if (port <= 0) return 102;",
+            "    std::thread t([&]{ svr.listen_after_bind(); });",
+            "    svr.wait_until_ready();",
+            '    ::httplib::Client cli("127.0.0.1", port);',
+            '    const std::string hdr = "' + good + '";',
+            '    const std::string badhdr = "' + bad + '";',
+            "    int code = 0;",
+            "    do {",
+            "        ::" + cls + " a;",
+            "        a.set_" + pk.accessor + "(1);",
+        ]
+        L += ["        a.set_" + c.accessor + "(" + _value(c, "a") + ");"
+              for c in non_pk]
+        L += [
+            "        const std::string mx = ::harpia::xml::to_xml(a);",
+            '        const std::string setEnv = "<soap:Envelope>" + hdr + "<soap:Body><set>" + mx + "</set></soap:Body></soap:Envelope>";',
+            '        auto s = cli.Post("/soap/' + cls + '", setEnv, "text/xml");',
+            '        if (!s || s->status != 200 || s->body.find("<ok>true</ok>") == std::string::npos) { code = 103; break; }',
+            '        const std::string badEnv = "<soap:Envelope>" + badhdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";',
+            '        auto na = cli.Post("/soap/' + cls + '", badEnv, "text/xml");',
+            "        if (!na || na->status != 401) { code = 104; break; }",
+            '        const std::string getEnv = "<soap:Envelope>" + hdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";',
+            '        auto g = cli.Post("/soap/' + cls + '", getEnv, "text/xml");',
+            '        if (!g || g->status != 200 || g->body.find("getResponse") == std::string::npos) { code = 105; break; }',
+        ]
+        if probe is not None:
+            v = probe.accessor + "_a"
+            L.append('        if (g->body.find("' + v + '") == std::string::npos)'
+                     " { code = 106; break; }")
+        L += [
+            "    } while (false);",
+            "    svr.stop(); t.join(); ::sqlite3_close(db);",
+            "    return code;",
         ]
         return "\n".join(L)
 
