@@ -7,11 +7,17 @@
 //                             and rejects a wrong/absent one
 //   14.4 access modifiers   -- schema constraints from the modifiers are enforced
 //                             (PRIMARY KEY uniqueness rejects a duplicate row)
+//   14.5 json parser        -- to_json/from_json round-trips the message and
+//                             is_valid_json accepts good JSON, rejects garbage
+//   14.6 xml parser         -- to_xml/from_xml round-trips the message and
+//                             from_xml rejects garbage
 //
 // Each check returns a distinct non-zero code so a CTest failure points at the
 // exact assertion; main() returns 0 only when every check passes.
 #include "db/{crudl_header}"
 #include "soap/{soap_header}"
+#include "json/{json_header}"
+#include "xml/{xml_header}"
 
 #include <cstdint>
 #include <string>
@@ -36,6 +42,14 @@ int access_modifiers() {{
 {am_body}
 }}
 
+int json_parser() {{
+{json_body}
+}}
+
+int xml_parser() {{
+{xml_body}
+}}
+
 }}  // namespace
 
 int main() {{
@@ -43,5 +57,7 @@ int main() {{
     if (int rc = database_roundtrip()) return rc;
     if (int rc = access_rights()) return rc;
     if (int rc = access_modifiers()) return rc;
+    if (int rc = json_parser()) return rc;
+    if (int rc = xml_parser()) return rc;
     return 0;
 }}
