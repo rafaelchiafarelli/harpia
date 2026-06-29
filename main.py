@@ -17,6 +17,7 @@ from Database.CrudlAdapter import CrudlAdapter
 from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
+from TestAdapter.TestAdapter import TestAdapter
 from copy import deepcopy
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 if __name__ == '__main__':
@@ -148,5 +149,10 @@ if __name__ == '__main__':
     if soapError is not None:
         log.print(soapError.__str__())
 
-    
+    #14. generate the unit tests for the generated code (opt-in CTest target)
+    testError = TestAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    if testError is not None:
+        log.print(testError.__str__())
+
+
     
