@@ -40,6 +40,7 @@ from Database.CrudlAdapter import CrudlAdapter
 from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
+from TestAdapter.TestAdapter import TestAdapter
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 
 
@@ -124,6 +125,9 @@ def run(output_dir):
     # 11. SOAP endpoints (XML over HTTP, get/set over CRUDL)
     SoapAdapter(messages=msg_factory.messages, dest=build_dir).Process()
 
+    # 14. generated unit tests (opt-in CTest target over CRUDL + messages)
+    TestAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+
     # --- capture artifacts -------------------------------------------------
     _dump_tokens(os.path.join(output_dir, "tokens.txt"), tokens)
     _dump_messages(os.path.join(output_dir, "messages.txt"), msg_factory.messages)
@@ -135,6 +139,7 @@ def run(output_dir):
     _collect_dbio(build_dir, os.path.join(output_dir, "dbio"))
     _collect_rest(build_dir, os.path.join(output_dir, "rest"))
     _collect_soap(build_dir, os.path.join(output_dir, "soap"))
+    _collect_gen_tests(build_dir, os.path.join(output_dir, "gen_tests"))
     _collect_sidecars(build_dir, os.path.join(output_dir, "sidecars"))
 
 
@@ -245,6 +250,19 @@ def _collect_soap(build_dir, dest):
         return
     for name in sorted(os.listdir(src)):
         if name.endswith(".h"):
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_gen_tests(build_dir, dest):
+    # the generated unit-test programs (Stage 14) plus their CTest CMakeLists
+    src = os.path.join(build_dir, "tests")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith(".cpp") or name == "CMakeLists.txt":
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
