@@ -24,7 +24,7 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 | 11 | SOAP | ✅ SOAP get/set endpoint (XML over HTTP) over CRUDL (httplib + tinyxml2), now gated by the Stage 5 access credential (SOAP Header `<credentials>`, 401 Fault on mismatch); WSDL deferred |
 | 12 | HTML / REST bindings | ✅ REST CRUD (GET/POST/PUT/DELETE) over CRUDL with JSON bodies (cpp-httplib); XML/SOAP content-negotiation deferred |
 | 13 | zmq/socket + gRPC access | ✅ gRPC stubs **and** ZMQ push/pull + pub/sub, with a compile-time sender "originator" id (process.md 1.3.1.1, one-to-* case) |
-| 14 | generated-code unit tests | 🟡 per-message C++ unit tests as an opt-in CTest target (`-DHARPIA_BUILD_TESTS=ON`): simple field access + CRUDL round-trip (14.1/14.2), SOAP access-rights credential gate (14.3) and access-modifier constraint enforcement (14.4, PRIMARY KEY uniqueness); JSON/XML/REST parser+API tests and app-level (all-good/crash/slower/non-parseable) tests deferred |
+| 14 | generated-code unit tests | 🟡 per-message C++ unit tests as an opt-in CTest target (`-DHARPIA_BUILD_TESTS=ON`): simple field access + CRUDL round-trip (14.1/14.2), SOAP access-rights credential gate (14.3), access-modifier constraint enforcement (14.4, PRIMARY KEY uniqueness), JSON parser round-trip + checker (14.5) and XML parser round-trip (14.6); REST/SOAP HTTP-API tests and app-level (all-good/crash/slower/non-parseable) tests deferred |
 
 The generated project builds with its own CMake and ships a runnable
 client/server demo (ZMQ). See `tests/` for what is verified end to end.
