@@ -45,3 +45,10 @@ target_include_directories(top_users_test PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/cpp-httplib)
 target_link_libraries(top_users_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
 add_test(NAME top_users_test COMMAND top_users_test)
+
+add_executable(app_test app_734126ee6efdfbd64a1678bf49ee9683_test.cpp)
+target_include_directories(app_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/generated/cpp
+    ${CMAKE_SOURCE_DIR}/third_party/cpp-httplib)
+target_link_libraries(app_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
+add_test(NAME app_test COMMAND app_test)

@@ -25,6 +25,7 @@ from Database.model import analyze
 TEST_EXT = "_test.cpp"
 
 _TEST = loadTemplate(__file__, "test.cpp.tmpl")
+_APP = loadTemplate(__file__, "app.cpp.tmpl")
 
 # vendored third-party the generated tests compile against
 _THIRD_PARTY = os.path.join(
@@ -68,20 +69,28 @@ class TestAdapter:
         tables = self._tables()
         os.makedirs(self.outDir, exist_ok=True)
 
-        written = 0
+        units = []  # (cmake target, source filename)
         for msg in tables:
             src = self._render(msg)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, TEST_EXT)
             with open(os.path.join(self.outDir, fileName), "w") as out:
                 out.write(src)
-            written += 1
+            units.append(("{}_test".format(msg.name), fileName))
 
         if tables:
             self._vendor_deps()
-        self._write_cmake(tables)
+            # one application-level test (14.11-14.14) over a representative
+            # message, exercising the whole stack and its failure modes.
+            rep = self._pick_rep(tables)
+            appFile = "app_{}{}".format(rep.md5Hash, TEST_EXT)
+            with open(os.path.join(self.outDir, appFile), "w") as out:
+                out.write(self._app_render(rep))
+            units.append(("app_test", appFile))
 
-        self.log.print("generated {} unit-test program(s) into {}".format(
-            written, self.outDir))
+        self._write_cmake(units)
+
+        self.log.print("generated {} test program(s) into {}".format(
+            len(units), self.outDir))
         return None
 
     # -- C++ test program ---------------------------------------------------
@@ -405,6 +414,204 @@ class TestAdapter:
         ]
         return "\n".join(L)
 
+    # -- application-level test (14.11-14.14) ------------------------------
+    def _pick_rep(self, tables):
+        # a representative message for the whole-stack app test: prefer one with
+        # a primary key and a text field and no composed (FK) field, so the
+        # cross-layer round-trip stays flat and deterministic.
+        def cols(m):
+            return analyze(m)[0]
+
+        def has_pk(m):
+            return any(c.bindable and c.pk for c in cols(m))
+
+        def has_text(m):
+            return any(c.bindable and c.kind == "text" and not c.pk for c in cols(m))
+
+        def has_fk(m):
+            return any(c.fk_target for c in cols(m))
+
+        for m in tables:
+            if has_pk(m) and has_text(m) and not has_fk(m):
+                return m
+        for m in tables:
+            if has_pk(m) and has_text(m):
+                return m
+        return tables[0]
+
+    def _app_render(self, msg):
+        columns, _ = analyze(msg)
+        bindable = [c for c in columns if c.bindable]
+        pk = next((c for c in bindable if c.pk), None)
+        non_pk = [c for c in bindable if not c.pk]
+        probe = next((c for c in non_pk if c.kind == "text"), None)
+        h = msg.md5Hash
+        return _APP.format(
+            cls=msg.name,
+            crudl_header="{}_{}_crudl.h".format(msg.name, h),
+            soap_header="{}_{}_soap.h".format(msg.name, h),
+            json_header="{}_{}_json.h".format(msg.name, h),
+            xml_header="{}_{}_xml.h".format(msg.name, h),
+            rest_header="{}_{}_rest.h".format(msg.name, h),
+            all_good=self._app_all_good(msg, pk, non_pk, probe),
+            crash=self._app_crash(msg, pk, probe),
+            slower=self._app_slower(),
+            non_parseable=self._app_non_parseable(msg),
+        )
+
+    def _credential(self, msg):
+        return ('<soap:Header><credentials><user>' + msg.name + '</user><pswd>' +
+                msg.md5Hash + '</pswd></credentials></soap:Header>')
+
+    def _app_all_good(self, msg, pk, non_pk, probe):
+        cls = msg.name
+        L = [
+            "int all_good() {",
+            "    ::sqlite3* db = nullptr;",
+            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 110;',
+            "    harpia::db::" + cls + "_dao dao(db);",
+            "    if (!dao.create_table()) return 111;",
+            "    ::httplib::Server svr;",
+            '    harpia::rest::register_' + cls + '(svr, db, "/api/v1");',
+            '    harpia::soap::register_' + cls + '_soap(svr, db, "/soap");',
+            '    const int port = svr.bind_to_any_port("127.0.0.1");',
+            "    if (port <= 0) return 112;",
+            "    std::thread t([&]{ svr.listen_after_bind(); });",
+            "    svr.wait_until_ready();",
+            '    ::httplib::Client cli("127.0.0.1", port);',
+            '    const std::string hdr = "' + self._credential(msg) + '";',
+            "    int code = 0;",
+            "    do {",
+            "        ::" + cls + " a;",
+            "        a.set_" + pk.accessor + "(1);",
+        ]
+        L += ["        a.set_" + c.accessor + "(" + _value(c, "a") + ");"
+              for c in non_pk]
+        L += [
+            "        std::string body;",
+            "        if (!::harpia::json::to_json(a, &body)) { code = 113; break; }",
+            '        auto post = cli.Post("/api/v1/' + cls + '", body, "application/json");',
+            "        if (!post || post->status != 201) { code = 114; break; }",
+            '        const std::string getEnv = "<soap:Envelope>" + hdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";',
+            '        auto g = cli.Post("/soap/' + cls + '", getEnv, "text/xml");',
+            '        if (!g || g->status != 200 || g->body.find("getResponse") == std::string::npos) { code = 115; break; }',
+        ]
+        if probe is not None:
+            L.append('        if (g->body.find("' + probe.accessor + '_a") == '
+                     "std::string::npos) { code = 116; break; }")
+        L += [
+            "        ::" + cls + " chk;",
+            "        if (!dao.read(1, &chk)) { code = 117; break; }",
+            "    } while (false);",
+            "    svr.stop(); t.join(); ::sqlite3_close(db);",
+            "    return code;",
+            "}",
+        ]
+        return "\n".join(L)
+
+    def _app_crash(self, msg, pk, probe):
+        cls = msg.name
+        L = [
+            "int crash() {",
+            "    // no create_table(): backend ops must fail cleanly, not crash",
+            "    ::sqlite3* db = nullptr;",
+            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 120;',
+            "    harpia::db::" + cls + "_dao dao(db);",
+            "    ::" + cls + " a;",
+            "    a.set_" + pk.accessor + "(1);",
+        ]
+        if probe is not None:
+            L.append('    a.set_' + probe.accessor + '("' + probe.accessor + '_a");')
+        L += [
+            "    if (dao.create(a)) return 121;",
+            "    ::" + cls + " got;",
+            "    if (dao.read(1, &got)) return 122;",
+            "    ::httplib::Server svr;",
+            '    harpia::rest::register_' + cls + '(svr, db, "/api/v1");',
+            '    const int port = svr.bind_to_any_port("127.0.0.1");',
+            "    if (port <= 0) return 123;",
+            "    std::thread t([&]{ svr.listen_after_bind(); });",
+            "    svr.wait_until_ready();",
+            '    ::httplib::Client cli("127.0.0.1", port);',
+            "    int code = 0;",
+            "    do {",
+            "        std::string body;",
+            "        if (!::harpia::json::to_json(a, &body)) { code = 124; break; }",
+            '        auto post = cli.Post("/api/v1/' + cls + '", body, "application/json");',
+            "        if (!post) { code = 125; break; }",
+            "        if (post->status != 500) { code = 126; break; }",
+            '        auto lst = cli.Get("/api/v1/' + cls + '");',
+            "        if (!lst || lst->status != 500) { code = 127; break; }",
+            "    } while (false);",
+            "    svr.stop(); t.join(); ::sqlite3_close(db);",
+            "    return code;",
+            "}",
+        ]
+        return "\n".join(L)
+
+    def _app_slower(self):
+        return "\n".join([
+            "int slower() {",
+            "    ::httplib::Server svr;",
+            "    // a deliberately slow handler models a slow application",
+            '    svr.Get("/slow", [](const ::httplib::Request&, ::httplib::Response& res) {',
+            "        std::this_thread::sleep_for(std::chrono::milliseconds(150));",
+            '        res.set_content("ok", "text/plain");',
+            "    });",
+            '    const int port = svr.bind_to_any_port("127.0.0.1");',
+            "    if (port <= 0) return 130;",
+            "    std::thread t([&]{ svr.listen_after_bind(); });",
+            "    svr.wait_until_ready();",
+            "    int code = 0;",
+            "    do {",
+            "        // a generous read timeout tolerates the slow response",
+            '        ::httplib::Client ok("127.0.0.1", port);',
+            "        ok.set_read_timeout(5, 0);",
+            '        auto good = ok.Get("/slow");',
+            "        if (!good || good->status != 200) { code = 131; break; }",
+            "        // a dead endpoint returns cleanly within a bounded timeout",
+            '        ::httplib::Client dead("127.0.0.1", 1);',
+            "        dead.set_connection_timeout(1, 0);",
+            '        auto r = dead.Get("/nope");',
+            "        if (r) { code = 132; break; }",
+            "    } while (false);",
+            "    svr.stop(); t.join();",
+            "    return code;",
+            "}",
+        ])
+
+    def _app_non_parseable(self, msg):
+        cls = msg.name
+        return "\n".join([
+            "int non_parseable() {",
+            "    ::" + cls + " m;",
+            '    if (::harpia::json::from_json("{ not valid json", &m)) return 140;',
+            '    if (::harpia::json::is_valid_json("definitely not json")) return 141;',
+            '    if (::harpia::xml::from_xml("<unclosed", &m)) return 142;',
+            "    ::sqlite3* db = nullptr;",
+            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 143;',
+            "    harpia::db::" + cls + "_dao dao(db);",
+            "    if (!dao.create_table()) return 144;",
+            "    ::httplib::Server svr;",
+            '    harpia::rest::register_' + cls + '(svr, db, "/api/v1");',
+            '    harpia::soap::register_' + cls + '_soap(svr, db, "/soap");',
+            '    const int port = svr.bind_to_any_port("127.0.0.1");',
+            "    if (port <= 0) return 145;",
+            "    std::thread t([&]{ svr.listen_after_bind(); });",
+            "    svr.wait_until_ready();",
+            '    ::httplib::Client cli("127.0.0.1", port);',
+            "    int code = 0;",
+            "    do {",
+            '        auto bj = cli.Post("/api/v1/' + cls + '", "{ not json", "application/json");',
+            "        if (!bj || bj->status != 400) { code = 146; break; }",
+            '        auto bx = cli.Post("/soap/' + cls + '", "<not soap", "text/xml");',
+            "        if (!bx || bx->status != 400) { code = 147; break; }",
+            "    } while (false);",
+            "    svr.stop(); t.join(); ::sqlite3_close(db);",
+            "    return code;",
+            "}",
+        ])
+
     # -- generated project plumbing ----------------------------------------
     def _vendor_deps(self):
         for sub, files in _VENDOR:
@@ -415,7 +622,7 @@ class TestAdapter:
                 if os.path.exists(src):
                     shutil.copy2(src, os.path.join(dst, name))
 
-    def _write_cmake(self, tables):
+    def _write_cmake(self, units):
         lines = [
             "# Generated by harpia Stage 14 (unit tests). Do not edit.",
             "#",
@@ -439,9 +646,7 @@ class TestAdapter:
             "    ${CMAKE_SOURCE_DIR}/third_party/tinyxml2)",
             "",
         ]
-        for msg in tables:
-            tgt = "{}_test".format(msg.name)
-            src = "{}_{}{}".format(msg.name, msg.md5Hash, TEST_EXT)
+        for tgt, src in units:
             lines += [
                 "add_executable({} {})".format(tgt, src),
                 "target_include_directories({} PRIVATE".format(tgt),
