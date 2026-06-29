@@ -12,22 +12,36 @@ target_include_directories(harpia_sqlite PUBLIC
     ${CMAKE_SOURCE_DIR}/third_party/sqlite)
 target_link_libraries(harpia_sqlite PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 
+# Vendored tinyxml2 for the SOAP credential (access-rights) tests.
+add_library(harpia_tinyxml2 STATIC
+    ${CMAKE_SOURCE_DIR}/third_party/tinyxml2/tinyxml2.cpp)
+target_include_directories(harpia_tinyxml2 PUBLIC
+    ${CMAKE_SOURCE_DIR}/third_party/tinyxml2)
+
 add_executable(data_test data_734126ee6efdfbd64a1678bf49ee9683_test.cpp)
-target_include_directories(data_test PRIVATE ${CMAKE_SOURCE_DIR}/generated/cpp)
-target_link_libraries(data_test PRIVATE protofiles harpia_sqlite)
+target_include_directories(data_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/generated/cpp
+    ${CMAKE_SOURCE_DIR}/third_party/cpp-httplib)
+target_link_libraries(data_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
 add_test(NAME data_test COMMAND data_test)
 
 add_executable(users_test users_734126ee6efdfbd64a1678bf49ee9683_test.cpp)
-target_include_directories(users_test PRIVATE ${CMAKE_SOURCE_DIR}/generated/cpp)
-target_link_libraries(users_test PRIVATE protofiles harpia_sqlite)
+target_include_directories(users_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/generated/cpp
+    ${CMAKE_SOURCE_DIR}/third_party/cpp-httplib)
+target_link_libraries(users_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
 add_test(NAME users_test COMMAND users_test)
 
 add_executable(vip_users_test vip_users_734126ee6efdfbd64a1678bf49ee9683_test.cpp)
-target_include_directories(vip_users_test PRIVATE ${CMAKE_SOURCE_DIR}/generated/cpp)
-target_link_libraries(vip_users_test PRIVATE protofiles harpia_sqlite)
+target_include_directories(vip_users_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/generated/cpp
+    ${CMAKE_SOURCE_DIR}/third_party/cpp-httplib)
+target_link_libraries(vip_users_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
 add_test(NAME vip_users_test COMMAND vip_users_test)
 
 add_executable(top_users_test top_users_734126ee6efdfbd64a1678bf49ee9683_test.cpp)
-target_include_directories(top_users_test PRIVATE ${CMAKE_SOURCE_DIR}/generated/cpp)
-target_link_libraries(top_users_test PRIVATE protofiles harpia_sqlite)
+target_include_directories(top_users_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/generated/cpp
+    ${CMAKE_SOURCE_DIR}/third_party/cpp-httplib)
+target_link_libraries(top_users_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
 add_test(NAME top_users_test COMMAND top_users_test)
