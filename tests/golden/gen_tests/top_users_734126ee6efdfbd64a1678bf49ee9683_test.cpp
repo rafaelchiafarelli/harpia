@@ -7,11 +7,17 @@
 //                             and rejects a wrong/absent one
 //   14.4 access modifiers   -- schema constraints from the modifiers are enforced
 //                             (PRIMARY KEY uniqueness rejects a duplicate row)
+//   14.5 json parser        -- to_json/from_json round-trips the message and
+//                             is_valid_json accepts good JSON, rejects garbage
+//   14.6 xml parser         -- to_xml/from_xml round-trips the message and
+//                             from_xml rejects garbage
 //
 // Each check returns a distinct non-zero code so a CTest failure points at the
 // exact assertion; main() returns 0 only when every check passes.
 #include "db/top_users_734126ee6efdfbd64a1678bf49ee9683_crudl.h"
 #include "soap/top_users_734126ee6efdfbd64a1678bf49ee9683_soap.h"
+#include "json/top_users_734126ee6efdfbd64a1678bf49ee9683_json.h"
+#include "xml/top_users_734126ee6efdfbd64a1678bf49ee9683_xml.h"
 
 #include <cstdint>
 #include <string>
@@ -122,6 +128,52 @@ int access_modifiers() {
     return 0;
 }
 
+int json_parser() {
+    ::top_users a;
+    a.set_id_734126ee6efdfbd64a1678bf49ee9683(1);
+    a.set_sponsor("sponsor_a");
+    a.set_name("name_a");
+    a.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_a");
+    a.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_a");
+    a.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_a");
+    std::string js;
+    if (!harpia::json::to_json(a, &js)) return 60;
+    ::top_users b;
+    if (!harpia::json::from_json(js, &b)) return 61;
+    if (b.id_734126ee6efdfbd64a1678bf49ee9683() != 1) return 62;
+    if (b.sponsor() != "sponsor_a") return 62;
+    if (b.name() != "name_a") return 62;
+    if (b.status_734126ee6efdfbd64a1678bf49ee9683() != "status_734126ee6efdfbd64a1678bf49ee9683_a") return 62;
+    if (b.error_734126ee6efdfbd64a1678bf49ee9683() != "error_734126ee6efdfbd64a1678bf49ee9683_a") return 62;
+    if (b.originator_734126ee6efdfbd64a1678bf49ee9683() != "originator_734126ee6efdfbd64a1678bf49ee9683_a") return 62;
+    if (!harpia::json::is_valid_json(js)) return 63;
+    if (harpia::json::is_valid_json("this is not json")) return 64;
+    return 0;
+}
+
+int xml_parser() {
+    ::top_users a;
+    a.set_id_734126ee6efdfbd64a1678bf49ee9683(1);
+    a.set_sponsor("sponsor_a");
+    a.set_name("name_a");
+    a.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_a");
+    a.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_a");
+    a.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_a");
+    const std::string xs = ::harpia::xml::to_xml(a);
+    if (xs.empty()) return 70;
+    ::top_users b;
+    if (!::harpia::xml::from_xml(xs, &b)) return 71;
+    if (b.id_734126ee6efdfbd64a1678bf49ee9683() != 1) return 72;
+    if (b.sponsor() != "sponsor_a") return 72;
+    if (b.name() != "name_a") return 72;
+    if (b.status_734126ee6efdfbd64a1678bf49ee9683() != "status_734126ee6efdfbd64a1678bf49ee9683_a") return 72;
+    if (b.error_734126ee6efdfbd64a1678bf49ee9683() != "error_734126ee6efdfbd64a1678bf49ee9683_a") return 72;
+    if (b.originator_734126ee6efdfbd64a1678bf49ee9683() != "originator_734126ee6efdfbd64a1678bf49ee9683_a") return 72;
+    ::top_users c;
+    if (::harpia::xml::from_xml("not xml at all", &c)) return 73;
+    return 0;
+}
+
 }  // namespace
 
 int main() {
@@ -129,5 +181,7 @@ int main() {
     if (int rc = database_roundtrip()) return rc;
     if (int rc = access_rights()) return rc;
     if (int rc = access_modifiers()) return rc;
+    if (int rc = json_parser()) return rc;
+    if (int rc = xml_parser()) return rc;
     return 0;
 }

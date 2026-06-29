@@ -95,10 +95,14 @@ class TestAdapter:
             cls=msg.name,
             crudl_header="{}_{}_crudl.h".format(msg.name, msg.md5Hash),
             soap_header="{}_{}_soap.h".format(msg.name, msg.md5Hash),
+            json_header="{}_{}_json.h".format(msg.name, msg.md5Hash),
+            xml_header="{}_{}_xml.h".format(msg.name, msg.md5Hash),
             simple_body=self._simple_body(msg, bindable),
             db_body=self._db_body(msg, pk, non_pk),
             ar_body=self._access_rights_body(msg),
             am_body=self._access_modifiers_body(msg, pk, non_pk),
+            json_body=self._json_body(msg, bindable),
+            xml_body=self._xml_body(msg, bindable),
         )
 
     def _simple_body(self, msg, bindable):
@@ -222,6 +226,56 @@ class TestAdapter:
         L += [
             "    if (dao.create(dup)) return 43;",
             "    ::sqlite3_close(db);",
+            "    return 0;",
+        ]
+        return "\n".join(L)
+
+    def _set_all(self, msg, bindable):
+        lines = ["    ::{} a;".format(msg.name)]
+        for c in bindable:
+            lines.append("    a.set_{}({});".format(c.accessor, _value(c, "a")))
+        return lines
+
+    def _survives(self, bindable, base_code):
+        # assert each scalar field set on `a` survived the round-trip into `b`.
+        # (Scalars only; composed/repeated round-trip is deferred -- the XML
+        # runtime emits unset nested messages, so SerializeAsString equality is
+        # not reliable for FK-bearing messages yet.)
+        return ["    if (b.{}() != {}) return {};".format(
+                c.accessor, _value(c, "a"), base_code) for c in bindable]
+
+    def _json_body(self, msg, bindable):
+        # 14.5: message -> JSON -> message preserves the fields, and the checker
+        # accepts good JSON but rejects garbage.
+        L = self._set_all(msg, bindable)
+        L += [
+            "    std::string js;",
+            "    if (!harpia::json::to_json(a, &js)) return 60;",
+            "    ::{} b;".format(msg.name),
+            "    if (!harpia::json::from_json(js, &b)) return 61;",
+        ]
+        L += self._survives(bindable, 62)
+        L += [
+            "    if (!harpia::json::is_valid_json(js)) return 63;",
+            '    if (harpia::json::is_valid_json("this is not json")) return 64;',
+            "    return 0;",
+        ]
+        return "\n".join(L)
+
+    def _xml_body(self, msg, bindable):
+        # 14.6: message -> XML -> message preserves the fields, and from_xml
+        # rejects non-XML input.
+        L = self._set_all(msg, bindable)
+        L += [
+            "    const std::string xs = ::harpia::xml::to_xml(a);",
+            "    if (xs.empty()) return 70;",
+            "    ::{} b;".format(msg.name),
+            "    if (!::harpia::xml::from_xml(xs, &b)) return 71;",
+        ]
+        L += self._survives(bindable, 72)
+        L += [
+            "    ::{} c;".format(msg.name),
+            '    if (::harpia::xml::from_xml("not xml at all", &c)) return 73;',
             "    return 0;",
         ]
         return "\n".join(L)
