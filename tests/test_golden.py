@@ -14,6 +14,7 @@ committed snapshots in tests/golden/:
   - dbio/*.h         every emitted DB import/export header (Stage 8)
   - rest/*.h         every emitted REST binding header (Stage 12)
   - soap/*.h         every emitted SOAP endpoint header (Stage 11)
+  - gen_tests/       every emitted unit-test program + CTest CMakeLists (Stage 14)
   - sidecars/        the SQL schema + access/modifier flag files per message
 
 To (re)generate the golden snapshots after an intentional change:
@@ -235,6 +236,24 @@ def test_soap_endpoints(artifacts):
     assert produced == expected, "set of generated SOAP endpoints changed"
     for rel in produced:
         _check(os.path.join(produced_dir, rel), os.path.join("soap", rel))
+
+
+def test_gen_tests(artifacts):
+    produced_dir = os.path.join(artifacts, "gen_tests")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "gen_tests")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel), os.path.join("gen_tests", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "gen_tests"))
+    assert produced == expected, "set of generated unit-test files changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("gen_tests", rel))
 
 
 def test_sidecars(artifacts):
