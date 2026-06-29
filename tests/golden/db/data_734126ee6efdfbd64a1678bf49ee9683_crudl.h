@@ -13,7 +13,8 @@ namespace harpia {
 namespace db {
 
 // Data-access object for data over the "table_data" table. Wraps a sqlite3* the
-// caller owns. Composed (FK) and repeated/map fields are not persisted yet.
+// caller owns. Scalar and enum fields plus singular FKs to table-bearing
+// messages are persisted; repeated/map and non-table composed fields are not.
 class data_dao {
 public:
     explicit data_dao(::sqlite3* db) : db_(db) {}
@@ -24,14 +25,15 @@ public:
     bool create(const ::data& msg) {
         ::sqlite3_stmt* st = nullptr;
         if (::sqlite3_prepare_v2(db_,
-                "INSERT INTO \"table_data\" (\"ID_734126ee6efdfbd64a1678bf49ee9683\", \"i\", \"j\", \"STATUS_734126ee6efdfbd64a1678bf49ee9683\", \"ERROR_734126ee6efdfbd64a1678bf49ee9683\", \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\") VALUES (?, ?, ?, ?, ?, ?);",
+                "INSERT INTO \"table_data\" (\"ID_734126ee6efdfbd64a1678bf49ee9683\", \"i\", \"j\", \"car\", \"STATUS_734126ee6efdfbd64a1678bf49ee9683\", \"ERROR_734126ee6efdfbd64a1678bf49ee9683\", \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\") VALUES (?, ?, ?, ?, ?, ?, ?);",
                 -1, &st, nullptr) != SQLITE_OK) return false;
         ::sqlite3_bind_int(st, 1, msg.id_734126ee6efdfbd64a1678bf49ee9683());
         ::sqlite3_bind_int(st, 2, msg.i());
         ::sqlite3_bind_int(st, 3, msg.j());
-        ::sqlite3_bind_text(st, 4, msg.status_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 5, msg.error_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 6, msg.originator_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
+        ::sqlite3_bind_int(st, 4, static_cast<int>(msg.car()));
+        ::sqlite3_bind_text(st, 5, msg.status_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
+        ::sqlite3_bind_text(st, 6, msg.error_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
+        ::sqlite3_bind_text(st, 7, msg.originator_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
         return ok;
@@ -40,7 +42,7 @@ public:
     bool read(std::int64_t id, ::data* msg) {
         ::sqlite3_stmt* st = nullptr;
         if (::sqlite3_prepare_v2(db_,
-                "SELECT \"ID_734126ee6efdfbd64a1678bf49ee9683\", \"i\", \"j\", \"STATUS_734126ee6efdfbd64a1678bf49ee9683\", \"ERROR_734126ee6efdfbd64a1678bf49ee9683\", \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\" FROM \"table_data\" WHERE \"ID_734126ee6efdfbd64a1678bf49ee9683\" = ?;",
+                "SELECT \"ID_734126ee6efdfbd64a1678bf49ee9683\", \"i\", \"j\", \"car\", \"STATUS_734126ee6efdfbd64a1678bf49ee9683\", \"ERROR_734126ee6efdfbd64a1678bf49ee9683\", \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\" FROM \"table_data\" WHERE \"ID_734126ee6efdfbd64a1678bf49ee9683\" = ?;",
                 -1, &st, nullptr) != SQLITE_OK) return false;
         ::sqlite3_bind_int64(st, 1, id);
         bool found = false;
@@ -52,14 +54,15 @@ public:
     bool update(const ::data& msg) {
         ::sqlite3_stmt* st = nullptr;
         if (::sqlite3_prepare_v2(db_,
-                "UPDATE \"table_data\" SET \"i\" = ?, \"j\" = ?, \"STATUS_734126ee6efdfbd64a1678bf49ee9683\" = ?, \"ERROR_734126ee6efdfbd64a1678bf49ee9683\" = ?, \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\" = ? WHERE \"ID_734126ee6efdfbd64a1678bf49ee9683\" = ?;",
+                "UPDATE \"table_data\" SET \"i\" = ?, \"j\" = ?, \"car\" = ?, \"STATUS_734126ee6efdfbd64a1678bf49ee9683\" = ?, \"ERROR_734126ee6efdfbd64a1678bf49ee9683\" = ?, \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\" = ? WHERE \"ID_734126ee6efdfbd64a1678bf49ee9683\" = ?;",
                 -1, &st, nullptr) != SQLITE_OK) return false;
         ::sqlite3_bind_int(st, 1, msg.i());
         ::sqlite3_bind_int(st, 2, msg.j());
-        ::sqlite3_bind_text(st, 3, msg.status_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 4, msg.error_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 5, msg.originator_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_int64(st, 6, msg.id_734126ee6efdfbd64a1678bf49ee9683());
+        ::sqlite3_bind_int(st, 3, static_cast<int>(msg.car()));
+        ::sqlite3_bind_text(st, 4, msg.status_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
+        ::sqlite3_bind_text(st, 5, msg.error_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
+        ::sqlite3_bind_text(st, 6, msg.originator_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
+        ::sqlite3_bind_int64(st, 7, msg.id_734126ee6efdfbd64a1678bf49ee9683());
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
         return ok;
@@ -79,7 +82,7 @@ public:
     bool list(std::vector<::data>* out) {
         ::sqlite3_stmt* st = nullptr;
         if (::sqlite3_prepare_v2(db_,
-                "SELECT \"ID_734126ee6efdfbd64a1678bf49ee9683\", \"i\", \"j\", \"STATUS_734126ee6efdfbd64a1678bf49ee9683\", \"ERROR_734126ee6efdfbd64a1678bf49ee9683\", \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\" FROM \"table_data\";",
+                "SELECT \"ID_734126ee6efdfbd64a1678bf49ee9683\", \"i\", \"j\", \"car\", \"STATUS_734126ee6efdfbd64a1678bf49ee9683\", \"ERROR_734126ee6efdfbd64a1678bf49ee9683\", \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\" FROM \"table_data\";",
                 -1, &st, nullptr) != SQLITE_OK) return false;
         while (::sqlite3_step(st) == SQLITE_ROW) {
             ::data msg;
@@ -98,9 +101,10 @@ private:
         msg->set_id_734126ee6efdfbd64a1678bf49ee9683(::sqlite3_column_int(st, 0));
         msg->set_i(::sqlite3_column_int(st, 1));
         msg->set_j(::sqlite3_column_int(st, 2));
-        { const unsigned char* p = ::sqlite3_column_text(st, 3); msg->set_status_734126ee6efdfbd64a1678bf49ee9683(p ? reinterpret_cast<const char*>(p) : ""); }
-        { const unsigned char* p = ::sqlite3_column_text(st, 4); msg->set_error_734126ee6efdfbd64a1678bf49ee9683(p ? reinterpret_cast<const char*>(p) : ""); }
-        { const unsigned char* p = ::sqlite3_column_text(st, 5); msg->set_originator_734126ee6efdfbd64a1678bf49ee9683(p ? reinterpret_cast<const char*>(p) : ""); }
+        msg->set_car(static_cast<::grower>(::sqlite3_column_int(st, 3)));
+        { const unsigned char* p = ::sqlite3_column_text(st, 4); msg->set_status_734126ee6efdfbd64a1678bf49ee9683(p ? reinterpret_cast<const char*>(p) : ""); }
+        { const unsigned char* p = ::sqlite3_column_text(st, 5); msg->set_error_734126ee6efdfbd64a1678bf49ee9683(p ? reinterpret_cast<const char*>(p) : ""); }
+        { const unsigned char* p = ::sqlite3_column_text(st, 6); msg->set_originator_734126ee6efdfbd64a1678bf49ee9683(p ? reinterpret_cast<const char*>(p) : ""); }
     }
     ::sqlite3* db_;
 };

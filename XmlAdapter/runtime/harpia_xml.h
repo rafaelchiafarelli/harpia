@@ -96,7 +96,13 @@ inline void write_message(const ::google::protobuf::Message& msg, std::string& o
                 out += "</" + tag + ">";
             }
         } else {
-            // proto3: singular fields are always emitted (defaults included)
+            // proto3 singular scalars are emitted with their defaults, but a
+            // singular *message* field is emitted only when actually present --
+            // otherwise an absent child round-trips back as an empty present
+            // child (which, e.g., would make a FK adapter persist a phantom row).
+            if (f->cpp_type() == ::google::protobuf::FieldDescriptor::CPPTYPE_MESSAGE
+                    && !refl->HasField(msg, f))
+                continue;
             out += "<" + tag + ">";
             write_singular(msg, refl, f, out);
             out += "</" + tag + ">";
