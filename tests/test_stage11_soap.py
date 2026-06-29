@@ -62,6 +62,11 @@ def built(tmp_path_factory):
 
 def test_soap_http_roundtrip(built):
     env = '<soap:Envelope xmlns:soap=\\"http://schemas.xmlsoap.org/soap/envelope/\\">'
+    # Stage 5 access right: the generated credential is user=<name>, pswd=<hash>.
+    hdr = ('<soap:Header><credentials><user>users</user><pswd>{h}</pswd>'
+           '</credentials></soap:Header>'.format(h=HASH))
+    badhdr = ('<soap:Header><credentials><user>users</user><pswd>wrong</pswd>'
+              '</credentials></soap:Header>')
     prog = os.path.join(built["tmp"], "soap.cpp")
     with open(prog, "w") as f:
         f.write(
@@ -80,15 +85,22 @@ def test_soap_http_roundtrip(built):
             "    auto run = [&]() -> int {{\n"
             "        ::users a; a.set_id_{h}(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
             "        const std::string mx = ::harpia::xml::to_xml(a);\n"
-            '        const std::string setBody = "{env}<soap:Body><set>" + mx + "</set></soap:Body></soap:Envelope>";\n'
+            "        // wrong credential: rejected with a Fault (401), no row created\n"
+            '        const std::string badBody = "{env}{badhdr}<soap:Body><set>" + mx + "</set></soap:Body></soap:Envelope>";\n'
+            '        auto bad = cli.Post("/soap/users", badBody, "text/xml");\n'
+            '        if (!bad || bad->status != 401 || bad->body.find("Fault") == std::string::npos) return 8;\n'
+            "        ::users probe;\n"
+            "        if (dao.read(1, &probe)) return 9;\n"
+            "        // correct credential: create + read back\n"
+            '        const std::string setBody = "{env}{hdr}<soap:Body><set>" + mx + "</set></soap:Body></soap:Envelope>";\n'
             '        auto s = cli.Post("/soap/users", setBody, "text/xml");\n'
             '        if (!s || s->status != 200 || s->body.find("<ok>true</ok>") == std::string::npos) return 3;\n'
-            '        const std::string getBody = "{env}<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";\n'
+            '        const std::string getBody = "{env}{hdr}<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";\n'
             '        auto g = cli.Post("/soap/users", getBody, "text/xml");\n'
             '        if (!g || g->status != 200) return 4;\n'
             '        if (g->body.find("getResponse") == std::string::npos) return 5;\n'
             '        if (g->body.find("neo") == std::string::npos) return 6;\n'
-            '        const std::string missBody = "{env}<soap:Body><get><id>999</id></get></soap:Body></soap:Envelope>";\n'
+            '        const std::string missBody = "{env}{hdr}<soap:Body><get><id>999</id></get></soap:Body></soap:Envelope>";\n'
             '        auto nf = cli.Post("/soap/users", missBody, "text/xml");\n'
             '        if (!nf || nf->body.find("Fault") == std::string::npos) return 7;\n'
             "        return 0;\n"
@@ -96,7 +108,7 @@ def test_soap_http_roundtrip(built):
             "    const int code = run();\n"
             "    svr.stop(); t.join();\n"
             "    return code;\n"
-            "}}\n".format(h=HASH, env=env))
+            "}}\n".format(h=HASH, env=env, hdr=hdr, badhdr=badhdr))
 
     pb_cc = os.path.join(built["cpp_root"], "protofiles",
                          "users_{}.pb.cc".format(HASH))
