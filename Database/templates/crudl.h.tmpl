@@ -7,13 +7,14 @@
 #include <vector>
 
 #include "sqlite3.h"
-#include "{pb_header}"
+#include "{pb_header}"{fk_includes}
 
 namespace harpia {{
 namespace db {{
 
 // Data-access object for {cls} over the "{table}" table. Wraps a sqlite3* the
-// caller owns. Composed (FK) and repeated/map fields are not persisted yet.
+// caller owns. Scalar and enum fields plus singular FKs to table-bearing
+// messages are persisted; repeated/map and non-table composed fields are not.
 class {cls}_dao {{
 public:
     explicit {cls}_dao(::sqlite3* db) : db_(db) {{}}
@@ -22,7 +23,7 @@ public:
     bool drop_table()   {{ return exec("DROP TABLE IF EXISTS \"{table}\";"); }}
 
     bool create(const ::{cls}& msg) {{
-        ::sqlite3_stmt* st = nullptr;
+{fk_precreate}        ::sqlite3_stmt* st = nullptr;
         if (::sqlite3_prepare_v2(db_,
                 "INSERT INTO \"{table}\" ({insert_cols}) VALUES ({insert_qs});",
                 -1, &st, nullptr) != SQLITE_OK) return false;
@@ -45,7 +46,7 @@ public:
     }}
 
     bool update(const ::{cls}& msg) {{
-        ::sqlite3_stmt* st = nullptr;
+{fk_preupdate}        ::sqlite3_stmt* st = nullptr;
         if (::sqlite3_prepare_v2(db_,
                 "UPDATE \"{table}\" SET {update_set} WHERE \"{id_col}\" = ?;",
                 -1, &st, nullptr) != SQLITE_OK) return false;

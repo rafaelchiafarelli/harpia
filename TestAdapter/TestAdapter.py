@@ -20,7 +20,7 @@ import shutil
 
 from Logger.logger import logger
 from Util.util import loadTemplate
-from Database.model import analyze
+from Database.model import analyze, type_registry
 
 TEST_EXT = "_test.cpp"
 
@@ -47,6 +47,9 @@ def _value(col, variant):
     or a bool. Row uniqueness is carried by the primary key, set separately."""
     if col.kind == "text":
         return '"{}_{}"'.format(col.accessor, variant)
+    if col.kind == "enum":
+        # value 1 is a valid enumerator for the test schema's enums
+        return "static_cast<::{}>(1)".format(col.enum_type)
     if col.kind == "double":
         return "2.5" if variant == "a" else "3.5"
     if col.kind == "int64":
@@ -59,6 +62,7 @@ class TestAdapter:
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "tests")
+        self.types = type_registry(messages)
         self.log = logger(outFile=None, moduleName="TestAdapter")
 
     def _tables(self):
@@ -95,7 +99,7 @@ class TestAdapter:
 
     # -- C++ test program ---------------------------------------------------
     def _render(self, msg):
-        columns, _ = analyze(msg)
+        columns, _ = analyze(msg, self.types)
         bindable = [c for c in columns if c.bindable]
         pk = next((c for c in bindable if c.pk), None)
         non_pk = [c for c in bindable if not c.pk]
@@ -420,7 +424,7 @@ class TestAdapter:
         # a primary key and a text field and no composed (FK) field, so the
         # cross-layer round-trip stays flat and deterministic.
         def cols(m):
-            return analyze(m)[0]
+            return analyze(m, self.types)[0]
 
         def has_pk(m):
             return any(c.bindable and c.pk for c in cols(m))
@@ -440,7 +444,7 @@ class TestAdapter:
         return tables[0]
 
     def _app_render(self, msg):
-        columns, _ = analyze(msg)
+        columns, _ = analyze(msg, self.types)
         bindable = [c for c in columns if c.bindable]
         pk = next((c for c in bindable if c.pk), None)
         non_pk = [c for c in bindable if not c.pk]

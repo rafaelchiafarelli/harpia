@@ -20,7 +20,7 @@ import os
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
 from Util.util import loadTemplate
-from Database.model import analyze
+from Database.model import analyze, type_registry
 
 SQL_EXT = "_table.sql"
 
@@ -32,6 +32,7 @@ class SqlAdapter:
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "database")
+        self.types = type_registry(messages)
         self.log = logger(outFile=None, moduleName="SqlAdapter")
 
     def Process(self):
@@ -54,7 +55,7 @@ class SqlAdapter:
         if not msg.tableName:
             return "-- {}: no table declared\n".format(msg.name)
 
-        columns, notes = analyze(msg)
+        columns, notes = analyze(msg, self.types)
         column_lines = ['    "{}" {}'.format(c.name, c.sql_def()) for c in columns]
         return _TABLE.format(
             name=msg.name,
