@@ -7,3 +7,11 @@ set(CMAKE_CXX_STANDARD 17)
 add_subdirectory(client)
 add_subdirectory(server)
 add_subdirectory(proto)
+
+# Generated unit tests (Stage 14). Opt-in so the default demo build is unchanged:
+#   cmake -S . -B build -DHARPIA_BUILD_TESTS=ON && cmake --build build && ctest
+option(HARPIA_BUILD_TESTS "Build the generated unit tests" OFF)
+if(HARPIA_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

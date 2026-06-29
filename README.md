@@ -24,7 +24,7 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 | 11 | SOAP | ✅ SOAP get/set endpoint (XML over HTTP) over CRUDL (httplib + tinyxml2); WSDL deferred |
 | 12 | HTML / REST bindings | ✅ REST CRUD (GET/POST/PUT/DELETE) over CRUDL with JSON bodies (cpp-httplib); XML/SOAP content-negotiation deferred |
 | 13 | zmq/socket + gRPC access | ✅ gRPC stubs **and** ZMQ push/pull + pub/sub, with a compile-time sender "originator" id (process.md 1.3.1.1, one-to-* case) |
-| 14 | generated-code unit tests | ⬜ not started |
+| 14 | generated-code unit tests | 🟡 per-message C++ unit tests (simple field access + CRUDL round-trip) as an opt-in CTest target (`-DHARPIA_BUILD_TESTS=ON`); access rights/modifiers, JSON/XML/REST/SOAP, and app-level (all-good/crash/slower/non-parseable) tests deferred |
 
 The generated project builds with its own CMake and ships a runnable
 client/server demo (ZMQ). See `tests/` for what is verified end to end.
