@@ -11,6 +11,10 @@
 //                             is_valid_json accepts good JSON, rejects garbage
 //   14.6 xml parser         -- to_xml/from_xml round-trips the message and
 //                             from_xml rejects garbage
+//   14.7/14.10 REST API      -- the REST bindings serve real HTTP JSON CRUD
+//                             (POST/GET/list/PUT/DELETE/404) over a live server
+//   14.8/14.9 SOAP API       -- the SOAP endpoint serves real SOAP-over-HTTP
+//                             (set/get with the credential; wrong one -> 401)
 //
 // Each check returns a distinct non-zero code so a CTest failure points at the
 // exact assertion; main() returns 0 only when every check passes.
@@ -18,9 +22,11 @@
 #include "soap/top_users_734126ee6efdfbd64a1678bf49ee9683_soap.h"
 #include "json/top_users_734126ee6efdfbd64a1678bf49ee9683_json.h"
 #include "xml/top_users_734126ee6efdfbd64a1678bf49ee9683_xml.h"
+#include "rest/top_users_734126ee6efdfbd64a1678bf49ee9683_rest.h"
 
 #include <cstdint>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -174,6 +180,92 @@ int xml_parser() {
     return 0;
 }
 
+int rest_api() {
+    ::sqlite3* db = nullptr;
+    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 80;
+    harpia::db::top_users_dao dao(db);
+    if (!dao.create_table()) return 81;
+    ::httplib::Server svr;
+    harpia::rest::register_top_users(svr, db, "/api/v1");
+    const int port = svr.bind_to_any_port("127.0.0.1");
+    if (port <= 0) return 82;
+    std::thread t([&]{ svr.listen_after_bind(); });
+    svr.wait_until_ready();
+    ::httplib::Client cli("127.0.0.1", port);
+    int code = 0;
+    do {
+        ::top_users a;
+        a.set_id_734126ee6efdfbd64a1678bf49ee9683(1);
+        a.set_sponsor("sponsor_a");
+        a.set_name("name_a");
+        a.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_a");
+        a.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_a");
+        a.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_a");
+        std::string body;
+        if (!::harpia::json::to_json(a, &body)) { code = 83; break; }
+        auto post = cli.Post("/api/v1/top_users", body, "application/json");
+        if (!post || post->status != 201) { code = 84; break; }
+        auto got = cli.Get("/api/v1/top_users/1");
+        if (!got || got->status != 200) { code = 85; break; }
+        if (got->body.find("sponsor_a") == std::string::npos) { code = 86; break; }
+        auto lst = cli.Get("/api/v1/top_users");
+        if (!lst || lst->status != 200) { code = 87; break; }
+        ::top_users b = a;
+        b.set_sponsor("sponsor_u");
+        std::string bb;
+        if (!::harpia::json::to_json(b, &bb)) { code = 88; break; }
+        auto put = cli.Put("/api/v1/top_users/1", bb, "application/json");
+        if (!put || put->status != 204) { code = 89; break; }
+        auto g2 = cli.Get("/api/v1/top_users/1");
+        if (!g2 || g2->body.find("sponsor_u") == std::string::npos) { code = 90; break; }
+        auto del = cli.Delete("/api/v1/top_users/1");
+        if (!del || del->status != 204) { code = 91; break; }
+        auto gone = cli.Get("/api/v1/top_users/1");
+        if (!gone || gone->status != 404) { code = 92; break; }
+    } while (false);
+    svr.stop(); t.join(); ::sqlite3_close(db);
+    return code;
+}
+
+int soap_api() {
+    ::sqlite3* db = nullptr;
+    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 100;
+    harpia::db::top_users_dao dao(db);
+    if (!dao.create_table()) return 101;
+    ::httplib::Server svr;
+    harpia::soap::register_top_users_soap(svr, db, "/soap");
+    const int port = svr.bind_to_any_port("127.0.0.1");
+    if (port <= 0) return 102;
+    std::thread t([&]{ svr.listen_after_bind(); });
+    svr.wait_until_ready();
+    ::httplib::Client cli("127.0.0.1", port);
+    const std::string hdr = "<soap:Header><credentials><user>top_users</user><pswd>734126ee6efdfbd64a1678bf49ee9683</pswd></credentials></soap:Header>";
+    const std::string badhdr = "<soap:Header><credentials><user>top_users</user><pswd>nope</pswd></credentials></soap:Header>";
+    int code = 0;
+    do {
+        ::top_users a;
+        a.set_id_734126ee6efdfbd64a1678bf49ee9683(1);
+        a.set_sponsor("sponsor_a");
+        a.set_name("name_a");
+        a.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_a");
+        a.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_a");
+        a.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_a");
+        const std::string mx = ::harpia::xml::to_xml(a);
+        const std::string setEnv = "<soap:Envelope>" + hdr + "<soap:Body><set>" + mx + "</set></soap:Body></soap:Envelope>";
+        auto s = cli.Post("/soap/top_users", setEnv, "text/xml");
+        if (!s || s->status != 200 || s->body.find("<ok>true</ok>") == std::string::npos) { code = 103; break; }
+        const std::string badEnv = "<soap:Envelope>" + badhdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";
+        auto na = cli.Post("/soap/top_users", badEnv, "text/xml");
+        if (!na || na->status != 401) { code = 104; break; }
+        const std::string getEnv = "<soap:Envelope>" + hdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";
+        auto g = cli.Post("/soap/top_users", getEnv, "text/xml");
+        if (!g || g->status != 200 || g->body.find("getResponse") == std::string::npos) { code = 105; break; }
+        if (g->body.find("sponsor_a") == std::string::npos) { code = 106; break; }
+    } while (false);
+    svr.stop(); t.join(); ::sqlite3_close(db);
+    return code;
+}
+
 }  // namespace
 
 int main() {
@@ -183,5 +275,7 @@ int main() {
     if (int rc = access_modifiers()) return rc;
     if (int rc = json_parser()) return rc;
     if (int rc = xml_parser()) return rc;
+    if (int rc = rest_api()) return rc;
+    if (int rc = soap_api()) return rc;
     return 0;
 }
