@@ -13,7 +13,7 @@ import os
 
 from Logger.logger import logger
 from Util.util import loadTemplate
-from Database.model import analyze, create_table_sql
+from Database.model import analyze, create_table_sql, type_registry
 
 CRUDL_EXT = "_crudl.h"
 
@@ -25,20 +25,27 @@ def _bind_line(col, index, src):
     if col.kind == "text":
         return ("        ::sqlite3_bind_text(st, {i}, {acc}.c_str(), -1, "
                 "SQLITE_TRANSIENT);".format(i=index, acc=acc))
+    if col.kind == "enum":
+        return ("        ::sqlite3_bind_int(st, {i}, static_cast<int>({acc}));"
+                .format(i=index, acc=acc))
     fn = {"int": "sqlite3_bind_int", "int64": "sqlite3_bind_int64",
           "double": "sqlite3_bind_double"}[col.kind]
     return "        ::{fn}(st, {i}, {acc});".format(fn=fn, i=index, acc=acc)
 
 
 def _extract_line(col, index):
-    acc = "set_{}".format(col.accessor)
     if col.kind == "text":
         return ("        {{ const unsigned char* p = ::sqlite3_column_text(st, {i});"
-                " msg->{acc}(p ? reinterpret_cast<const char*>(p) : \"\"); }}"
-                .format(i=index, acc=acc))
+                " msg->set_{acc}(p ? reinterpret_cast<const char*>(p) : \"\"); }}"
+                .format(i=index, acc=col.accessor))
+    if col.kind == "enum":
+        return ("        msg->set_{acc}(static_cast<::{et}>("
+                "::sqlite3_column_int(st, {i})));".format(
+                    acc=col.accessor, et=col.enum_type, i=index))
     fn = {"int": "sqlite3_column_int", "int64": "sqlite3_column_int64",
           "double": "sqlite3_column_double"}[col.kind]
-    return "        msg->{acc}(::{fn}(st, {i}));".format(acc=acc, fn=fn, i=index)
+    return "        msg->set_{acc}(::{fn}(st, {i}));".format(
+        acc=col.accessor, fn=fn, i=index)
 
 
 class CrudlAdapter:
@@ -46,6 +53,7 @@ class CrudlAdapter:
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "db")
+        self.types = type_registry(messages)
         self.log = logger(outFile=None, moduleName="CrudlAdapter")
 
     def Process(self):
@@ -64,7 +72,7 @@ class CrudlAdapter:
         return None
 
     def _render(self, msg):
-        columns, _ = analyze(msg)
+        columns, _ = analyze(msg, self.types)
         bindable = [c for c in columns if c.bindable]
         id_col = next((c for c in bindable if c.pk), None)
         non_id = [c for c in bindable if not c.pk]
@@ -82,7 +90,7 @@ class CrudlAdapter:
             pb_header="protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash),
             cls=msg.name,
             table=msg.tableName,
-            create_table_sql=create_table_sql(msg).replace('"', '\\"'),
+            create_table_sql=create_table_sql(msg, types=self.types).replace('"', '\\"'),
             insert_cols=cols_csv,
             insert_qs=", ".join("?" * len(bindable)),
             select_cols=cols_csv,

@@ -36,15 +36,17 @@ int simple_access() {
     m.set_id_734126ee6efdfbd64a1678bf49ee9683(1);
     m.set_i(1);
     m.set_j(1);
+    m.set_car(static_cast<::grower>(1));
     m.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_a");
     m.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_a");
     m.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_a");
     if (m.id_734126ee6efdfbd64a1678bf49ee9683() != 1) return 10;
     if (m.i() != 1) return 11;
     if (m.j() != 1) return 12;
-    if (m.status_734126ee6efdfbd64a1678bf49ee9683() != "status_734126ee6efdfbd64a1678bf49ee9683_a") return 13;
-    if (m.error_734126ee6efdfbd64a1678bf49ee9683() != "error_734126ee6efdfbd64a1678bf49ee9683_a") return 14;
-    if (m.originator_734126ee6efdfbd64a1678bf49ee9683() != "originator_734126ee6efdfbd64a1678bf49ee9683_a") return 15;
+    if (m.car() != static_cast<::grower>(1)) return 13;
+    if (m.status_734126ee6efdfbd64a1678bf49ee9683() != "status_734126ee6efdfbd64a1678bf49ee9683_a") return 14;
+    if (m.error_734126ee6efdfbd64a1678bf49ee9683() != "error_734126ee6efdfbd64a1678bf49ee9683_a") return 15;
+    if (m.originator_734126ee6efdfbd64a1678bf49ee9683() != "originator_734126ee6efdfbd64a1678bf49ee9683_a") return 16;
     return 0;
 }
 
@@ -59,6 +61,7 @@ int database_roundtrip() {
     a.set_id_734126ee6efdfbd64a1678bf49ee9683(1);
     a.set_i(1);
     a.set_j(1);
+    a.set_car(static_cast<::grower>(1));
     a.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_a");
     a.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_a");
     a.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_a");
@@ -67,6 +70,7 @@ int database_roundtrip() {
     if (!dao.read(1, &got)) return 23;
     if (got.i() != 1) return 24;
     if (got.j() != 1) return 24;
+    if (got.car() != static_cast<::grower>(1)) return 24;
     if (got.status_734126ee6efdfbd64a1678bf49ee9683() != "status_734126ee6efdfbd64a1678bf49ee9683_a") return 24;
     if (got.error_734126ee6efdfbd64a1678bf49ee9683() != "error_734126ee6efdfbd64a1678bf49ee9683_a") return 24;
     if (got.originator_734126ee6efdfbd64a1678bf49ee9683() != "originator_734126ee6efdfbd64a1678bf49ee9683_a") return 24;
@@ -84,6 +88,7 @@ int database_roundtrip() {
     b.set_id_734126ee6efdfbd64a1678bf49ee9683(2);
     b.set_i(1);
     b.set_j(1);
+    b.set_car(static_cast<::grower>(1));
     b.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_b");
     b.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_b");
     b.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_b");
@@ -117,6 +122,7 @@ int access_modifiers() {
     a.set_id_734126ee6efdfbd64a1678bf49ee9683(1);
     a.set_i(1);
     a.set_j(1);
+    a.set_car(static_cast<::grower>(1));
     a.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_a");
     a.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_a");
     a.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_a");
@@ -126,6 +132,7 @@ int access_modifiers() {
     dup.set_id_734126ee6efdfbd64a1678bf49ee9683(1);
     dup.set_i(1);
     dup.set_j(1);
+    dup.set_car(static_cast<::grower>(1));
     dup.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_b");
     dup.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_b");
     dup.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_b");
@@ -139,6 +146,7 @@ int json_parser() {
     a.set_id_734126ee6efdfbd64a1678bf49ee9683(1);
     a.set_i(1);
     a.set_j(1);
+    a.set_car(static_cast<::grower>(1));
     a.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_a");
     a.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_a");
     a.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_a");
@@ -149,6 +157,7 @@ int json_parser() {
     if (b.id_734126ee6efdfbd64a1678bf49ee9683() != 1) return 62;
     if (b.i() != 1) return 62;
     if (b.j() != 1) return 62;
+    if (b.car() != static_cast<::grower>(1)) return 62;
     if (b.status_734126ee6efdfbd64a1678bf49ee9683() != "status_734126ee6efdfbd64a1678bf49ee9683_a") return 62;
     if (b.error_734126ee6efdfbd64a1678bf49ee9683() != "error_734126ee6efdfbd64a1678bf49ee9683_a") return 62;
     if (b.originator_734126ee6efdfbd64a1678bf49ee9683() != "originator_734126ee6efdfbd64a1678bf49ee9683_a") return 62;
@@ -162,6 +171,7 @@ int xml_parser() {
     a.set_id_734126ee6efdfbd64a1678bf49ee9683(1);
     a.set_i(1);
     a.set_j(1);
+    a.set_car(static_cast<::grower>(1));
     a.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_a");
     a.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_a");
     a.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_a");
@@ -172,6 +182,7 @@ int xml_parser() {
     if (b.id_734126ee6efdfbd64a1678bf49ee9683() != 1) return 72;
     if (b.i() != 1) return 72;
     if (b.j() != 1) return 72;
+    if (b.car() != static_cast<::grower>(1)) return 72;
     if (b.status_734126ee6efdfbd64a1678bf49ee9683() != "status_734126ee6efdfbd64a1678bf49ee9683_a") return 72;
     if (b.error_734126ee6efdfbd64a1678bf49ee9683() != "error_734126ee6efdfbd64a1678bf49ee9683_a") return 72;
     if (b.originator_734126ee6efdfbd64a1678bf49ee9683() != "originator_734126ee6efdfbd64a1678bf49ee9683_a") return 72;
@@ -198,6 +209,7 @@ int rest_api() {
         a.set_id_734126ee6efdfbd64a1678bf49ee9683(1);
         a.set_i(1);
         a.set_j(1);
+        a.set_car(static_cast<::grower>(1));
         a.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_a");
         a.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_a");
         a.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_a");
@@ -247,6 +259,7 @@ int soap_api() {
         a.set_id_734126ee6efdfbd64a1678bf49ee9683(1);
         a.set_i(1);
         a.set_j(1);
+        a.set_car(static_cast<::grower>(1));
         a.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_a");
         a.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_a");
         a.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_a");

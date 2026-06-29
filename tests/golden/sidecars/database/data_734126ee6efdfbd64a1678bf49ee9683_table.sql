@@ -11,4 +11,3 @@ CREATE TABLE IF NOT EXISTS "table_data" (
     "ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683" TEXT
 );
 -- val: FK -> prince (deferred)
--- car: FK -> grower (deferred)
