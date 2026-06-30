@@ -65,6 +65,9 @@ int database_roundtrip() {
     a.set_status_734126ee6efdfbd64a1678bf49ee9683("status_734126ee6efdfbd64a1678bf49ee9683_a");
     a.set_error_734126ee6efdfbd64a1678bf49ee9683("error_734126ee6efdfbd64a1678bf49ee9683_a");
     a.set_originator_734126ee6efdfbd64a1678bf49ee9683("originator_734126ee6efdfbd64a1678bf49ee9683_a");
+    a.mutable_val()->set_vari(1);
+    a.mutable_val()->set_var(1);
+    a.mutable_val()->set_val(1);
     if (!dao.create(a)) return 22;
     ::data got;
     if (!dao.read(1, &got)) return 23;
@@ -74,6 +77,9 @@ int database_roundtrip() {
     if (got.status_734126ee6efdfbd64a1678bf49ee9683() != "status_734126ee6efdfbd64a1678bf49ee9683_a") return 24;
     if (got.error_734126ee6efdfbd64a1678bf49ee9683() != "error_734126ee6efdfbd64a1678bf49ee9683_a") return 24;
     if (got.originator_734126ee6efdfbd64a1678bf49ee9683() != "originator_734126ee6efdfbd64a1678bf49ee9683_a") return 24;
+    if (got.val().vari() != 1) return 32;
+    if (got.val().var() != 1) return 32;
+    if (got.val().val() != 1) return 32;
 
     // update an existing row
     ::data upd = a;
