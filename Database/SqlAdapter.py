@@ -7,8 +7,11 @@ CREATE TABLE derived from the message:
   - the hidden id field (ID_<hash>) becomes INTEGER PRIMARY KEY
   - `required` -> NOT NULL, `unique` -> UNIQUE
 
+Composed (message-typed) fields: an enum becomes an INTEGER column, a singular
+FK to a table-bearing message becomes an INTEGER child-PK column, and a non-table
+message is flattened (its scalar/enum sub-fields become prefixed columns).
+
 Deferred (noted as SQL comments in the output, implemented in later steps):
-  - composed (message-typed) fields -> foreign keys
   - repeated / map fields -> separate child tables
   - version-transform functions (process.md 7.2.1)
 

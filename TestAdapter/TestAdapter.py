@@ -101,6 +101,7 @@ class TestAdapter:
     def _render(self, msg):
         columns, _ = analyze(msg, self.types)
         bindable = [c for c in columns if c.bindable]
+        embed_cols = [c for c in columns if c.embed]
         pk = next((c for c in bindable if c.pk), None)
         non_pk = [c for c in bindable if not c.pk]
 
@@ -112,7 +113,7 @@ class TestAdapter:
             xml_header="{}_{}_xml.h".format(msg.name, msg.md5Hash),
             rest_header="{}_{}_rest.h".format(msg.name, msg.md5Hash),
             simple_body=self._simple_body(msg, bindable),
-            db_body=self._db_body(msg, pk, non_pk),
+            db_body=self._db_body(msg, pk, non_pk, embed_cols),
             ar_body=self._access_rights_body(msg),
             am_body=self._access_modifiers_body(msg, pk, non_pk),
             json_body=self._json_body(msg, bindable),
@@ -130,7 +131,7 @@ class TestAdapter:
                 c.accessor, _value(c, "a"), 10 + i))
         return "\n".join(lines)
 
-    def _db_body(self, msg, pk, non_pk):
+    def _db_body(self, msg, pk, non_pk, embed_cols=()):
         cls = msg.name
         if pk is None:
             return ("    // no primary key column: CRUDL round-trip deferred "
@@ -149,6 +150,9 @@ class TestAdapter:
         ]
         L += ["    a.set_{}({});".format(c.accessor, _value(c, "a"))
               for c in non_pk]
+        # flattened sub-fields of a non-table composed field round-trip too
+        L += ["    a.mutable_{}()->set_{}({});".format(
+              c.embed, c.child_accessor, _value(c, "a")) for c in embed_cols]
         L += [
             "    if (!dao.create(a)) return 22;",
             "    ::{} got;".format(cls),
@@ -156,6 +160,8 @@ class TestAdapter:
         ]
         L += ["    if (got.{}() != {}) return 24;".format(c.accessor,
               _value(c, "a")) for c in non_pk]
+        L += ["    if (got.{}().{}() != {}) return 32;".format(
+              c.embed, c.child_accessor, _value(c, "a")) for c in embed_cols]
 
         if text_field is not None:
             L += [
@@ -421,8 +427,8 @@ class TestAdapter:
     # -- application-level test (14.11-14.14) ------------------------------
     def _pick_rep(self, tables):
         # a representative message for the whole-stack app test: prefer one with
-        # a primary key and a text field and no composed (FK) field, so the
-        # cross-layer round-trip stays flat and deterministic.
+        # a primary key and a text field and no composed field (FK or flattened
+        # embed), so the cross-layer round-trip stays flat and deterministic.
         def cols(m):
             return analyze(m, self.types)[0]
 
@@ -432,11 +438,11 @@ class TestAdapter:
         def has_text(m):
             return any(c.bindable and c.kind == "text" and not c.pk for c in cols(m))
 
-        def has_fk(m):
-            return any(c.fk_target for c in cols(m))
+        def has_composed(m):
+            return any(c.fk_target or c.embed for c in cols(m))
 
         for m in tables:
-            if has_pk(m) and has_text(m) and not has_fk(m):
+            if has_pk(m) and has_text(m) and not has_composed(m):
                 return m
         for m in tables:
             if has_pk(m) and has_text(m):

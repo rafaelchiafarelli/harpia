@@ -13,8 +13,9 @@ namespace harpia {
 namespace db {
 
 // Data-access object for users over the "user_table" table. Wraps a sqlite3* the
-// caller owns. Scalar and enum fields plus singular FKs to table-bearing
-// messages are persisted; repeated/map and non-table composed fields are not.
+// caller owns. Scalar/enum fields, singular FKs to table-bearing messages, and
+// the flattened sub-fields of a non-table composed field are persisted;
+// repeated/map fields are not.
 class users_dao {
 public:
     explicit users_dao(::sqlite3* db) : db_(db) {}

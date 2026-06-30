@@ -4,10 +4,14 @@ CREATE TABLE IF NOT EXISTS "table_data" (
     "ID_734126ee6efdfbd64a1678bf49ee9683" INTEGER PRIMARY KEY,
     "i" INTEGER,
     "j" INTEGER,
-    "val" INTEGER,
+    "val_vari" INTEGER,
+    "val_var" INTEGER,
+    "val_val" INTEGER,
     "car" INTEGER,
     "STATUS_734126ee6efdfbd64a1678bf49ee9683" TEXT,
     "ERROR_734126ee6efdfbd64a1678bf49ee9683" TEXT,
     "ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683" TEXT
 );
--- val: FK -> prince (deferred)
+-- val.a: repeated/map in embedded prince (deferred)
+-- val.b: repeated/map in embedded prince (deferred)
+-- val.c: repeated/map in embedded prince (deferred)
