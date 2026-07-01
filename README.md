@@ -22,7 +22,7 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 | 9 | JSON adapter (`to_json`/`from_json` + checker) | ✅ message↔JSON + DB bulk export/import (NDJSON) |
 | 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD + DB bulk export/import |
 | 11 | SOAP | ✅ SOAP get/set endpoint (XML over HTTP) over CRUDL (httplib + tinyxml2), now gated by the Stage 5 access credential (SOAP Header `<credentials>`, 401 Fault on mismatch); WSDL deferred |
-| 12 | HTML / REST bindings | ✅ REST CRUD (GET/POST/PUT/DELETE) over CRUDL with JSON bodies (cpp-httplib); XML/SOAP content-negotiation deferred |
+| 12 | HTML / REST bindings | ✅ REST CRUD (GET/POST/PUT/DELETE) over CRUDL with JSON bodies (cpp-httplib), now gated by the Stage 5 access credential (`X-User`/`X-Pswd` headers, 401 on mismatch); XML/SOAP content-negotiation deferred |
 | 13 | zmq/socket + gRPC access | ✅ gRPC stubs **and** ZMQ push/pull + pub/sub, with a compile-time sender "originator" id (process.md 1.3.1.1, one-to-* case) |
 | 14 | generated-code unit tests | ✅ per-message C++ unit tests + one app-level test as an opt-in CTest target (`-DHARPIA_BUILD_TESTS=ON`): simple field access + CRUDL round-trip (14.1/14.2), SOAP access-rights credential gate (14.3), access-modifier constraint enforcement (14.4), JSON (14.5) + XML (14.6) parser round-trips, live REST JSON-CRUD (14.7/14.10) and SOAP-over-HTTP (14.8/14.9) HTTP APIs, and an application-level all-good/crash/slower/non-parseable suite (14.11–14.14). REST XML content-negotiation still deferred (Stage 12) |
 

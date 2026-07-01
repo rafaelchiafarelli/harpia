@@ -192,8 +192,14 @@ int rest_api() {
     std::thread t([&]{ svr.listen_after_bind(); });
     svr.wait_until_ready();
     ::httplib::Client cli("127.0.0.1", port);
+    const ::httplib::Headers cred = {{"X-User", "top_users"}, {"X-Pswd", "6cea4c29647b10eb99b42c762ac09f75"}};
     int code = 0;
     do {
+        // every route requires the generated credential (X-User/X-Pswd)
+        auto noc = cli.Get("/api/v1/top_users");
+        if (!noc || noc->status != 401) { code = 93; break; }
+        auto bad = cli.Get("/api/v1/top_users", ::httplib::Headers{{"X-User", "top_users"}, {"X-Pswd", "nope"}});
+        if (!bad || bad->status != 401) { code = 94; break; }
         ::top_users a;
         a.set_id_6cea4c29647b10eb99b42c762ac09f75(1);
         a.set_sponsor("sponsor_a");
@@ -203,24 +209,24 @@ int rest_api() {
         a.set_originator_6cea4c29647b10eb99b42c762ac09f75("originator_6cea4c29647b10eb99b42c762ac09f75_a");
         std::string body;
         if (!::harpia::json::to_json(a, &body)) { code = 83; break; }
-        auto post = cli.Post("/api/v1/top_users", body, "application/json");
+        auto post = cli.Post("/api/v1/top_users", cred, body, "application/json");
         if (!post || post->status != 201) { code = 84; break; }
-        auto got = cli.Get("/api/v1/top_users/1");
+        auto got = cli.Get("/api/v1/top_users/1", cred);
         if (!got || got->status != 200) { code = 85; break; }
         if (got->body.find("sponsor_a") == std::string::npos) { code = 86; break; }
-        auto lst = cli.Get("/api/v1/top_users");
+        auto lst = cli.Get("/api/v1/top_users", cred);
         if (!lst || lst->status != 200) { code = 87; break; }
         ::top_users b = a;
         b.set_sponsor("sponsor_u");
         std::string bb;
         if (!::harpia::json::to_json(b, &bb)) { code = 88; break; }
-        auto put = cli.Put("/api/v1/top_users/1", bb, "application/json");
+        auto put = cli.Put("/api/v1/top_users/1", cred, bb, "application/json");
         if (!put || put->status != 204) { code = 89; break; }
-        auto g2 = cli.Get("/api/v1/top_users/1");
+        auto g2 = cli.Get("/api/v1/top_users/1", cred);
         if (!g2 || g2->body.find("sponsor_u") == std::string::npos) { code = 90; break; }
-        auto del = cli.Delete("/api/v1/top_users/1");
+        auto del = cli.Delete("/api/v1/top_users/1", cred);
         if (!del || del->status != 204) { code = 91; break; }
-        auto gone = cli.Get("/api/v1/top_users/1");
+        auto gone = cli.Get("/api/v1/top_users/1", cred);
         if (!gone || gone->status != 404) { code = 92; break; }
     } while (false);
     svr.stop(); t.join(); ::sqlite3_close(db);

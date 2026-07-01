@@ -347,6 +347,10 @@ class TestAdapter:
             return ("    // no primary key: REST id routing deferred (Stage 14d)"
                     "\n    return 0;")
         probe = next((c for c in non_pk if c.kind == "text"), None)
+        cred = ('const ::httplib::Headers cred = {{"X-User", "' + cls +
+                '"}, {"X-Pswd", "' + msg.md5Hash + '"}};')
+        wrong = ('::httplib::Headers{{"X-User", "' + cls +
+                 '"}, {"X-Pswd", "nope"}}')
         L = [
             "    ::sqlite3* db = nullptr;",
             '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 80;',
@@ -359,8 +363,14 @@ class TestAdapter:
             "    std::thread t([&]{ svr.listen_after_bind(); });",
             "    svr.wait_until_ready();",
             '    ::httplib::Client cli("127.0.0.1", port);',
+            "    " + cred,
             "    int code = 0;",
             "    do {",
+            "        // every route requires the generated credential (X-User/X-Pswd)",
+            '        auto noc = cli.Get("/api/v1/' + cls + '");',
+            "        if (!noc || noc->status != 401) { code = 93; break; }",
+            '        auto bad = cli.Get("/api/v1/' + cls + '", ' + wrong + ");",
+            "        if (!bad || bad->status != 401) { code = 94; break; }",
             "        ::" + cls + " a;",
             "        a.set_" + pk.accessor + "(1);",
         ]
@@ -369,9 +379,9 @@ class TestAdapter:
         L += [
             "        std::string body;",
             "        if (!::harpia::json::to_json(a, &body)) { code = 83; break; }",
-            '        auto post = cli.Post("/api/v1/' + cls + '", body, "application/json");',
+            '        auto post = cli.Post("/api/v1/' + cls + '", cred, body, "application/json");',
             "        if (!post || post->status != 201) { code = 84; break; }",
-            '        auto got = cli.Get("/api/v1/' + cls + '/1");',
+            '        auto got = cli.Get("/api/v1/' + cls + '/1", cred);',
             "        if (!got || got->status != 200) { code = 85; break; }",
         ]
         if probe is not None:
@@ -379,7 +389,7 @@ class TestAdapter:
             L.append('        if (got->body.find("' + v + '") == std::string::npos)'
                      " { code = 86; break; }")
         L += [
-            '        auto lst = cli.Get("/api/v1/' + cls + '");',
+            '        auto lst = cli.Get("/api/v1/' + cls + '", cred);',
             "        if (!lst || lst->status != 200) { code = 87; break; }",
         ]
         if probe is not None:
@@ -388,16 +398,16 @@ class TestAdapter:
                 '        b.set_' + probe.accessor + '("' + probe.accessor + '_u");',
                 "        std::string bb;",
                 "        if (!::harpia::json::to_json(b, &bb)) { code = 88; break; }",
-                '        auto put = cli.Put("/api/v1/' + cls + '/1", bb, "application/json");',
+                '        auto put = cli.Put("/api/v1/' + cls + '/1", cred, bb, "application/json");',
                 "        if (!put || put->status != 204) { code = 89; break; }",
-                '        auto g2 = cli.Get("/api/v1/' + cls + '/1");',
+                '        auto g2 = cli.Get("/api/v1/' + cls + '/1", cred);',
                 '        if (!g2 || g2->body.find("' + probe.accessor + '_u") == '
                 "std::string::npos) { code = 90; break; }",
             ]
         L += [
-            '        auto del = cli.Delete("/api/v1/' + cls + '/1");',
+            '        auto del = cli.Delete("/api/v1/' + cls + '/1", cred);',
             "        if (!del || del->status != 204) { code = 91; break; }",
-            '        auto gone = cli.Get("/api/v1/' + cls + '/1");',
+            '        auto gone = cli.Get("/api/v1/' + cls + '/1", cred);',
             "        if (!gone || gone->status != 404) { code = 92; break; }",
             "    } while (false);",
             "    svr.stop(); t.join(); ::sqlite3_close(db);",
@@ -510,6 +520,11 @@ class TestAdapter:
         return ('<soap:Header><credentials><user>' + msg.name + '</user><pswd>' +
                 msg.md5Hash + '</pswd></credentials></soap:Header>')
 
+    def _rest_headers_decl(self, msg):
+        # C++ declaration of the REST access credential (X-User/X-Pswd) as `rc`.
+        return ('const ::httplib::Headers rc = {{"X-User", "' + msg.name +
+                '"}, {"X-Pswd", "' + msg.md5Hash + '"}};')
+
     def _app_all_good(self, msg, pk, non_pk, probe):
         cls = msg.name
         L = [
@@ -527,6 +542,7 @@ class TestAdapter:
             "    svr.wait_until_ready();",
             '    ::httplib::Client cli("127.0.0.1", port);',
             '    const std::string hdr = "' + self._credential(msg) + '";',
+            "    " + self._rest_headers_decl(msg),
             "    int code = 0;",
             "    do {",
             "        ::" + cls + " a;",
@@ -537,7 +553,7 @@ class TestAdapter:
         L += [
             "        std::string body;",
             "        if (!::harpia::json::to_json(a, &body)) { code = 113; break; }",
-            '        auto post = cli.Post("/api/v1/' + cls + '", body, "application/json");',
+            '        auto post = cli.Post("/api/v1/' + cls + '", rc, body, "application/json");',
             "        if (!post || post->status != 201) { code = 114; break; }",
             '        const std::string getEnv = "<soap:Envelope>" + hdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";',
             '        auto g = cli.Post("/soap/' + cls + '", getEnv, "text/xml");',
@@ -580,14 +596,15 @@ class TestAdapter:
             "    std::thread t([&]{ svr.listen_after_bind(); });",
             "    svr.wait_until_ready();",
             '    ::httplib::Client cli("127.0.0.1", port);',
+            "    " + self._rest_headers_decl(msg),
             "    int code = 0;",
             "    do {",
             "        std::string body;",
             "        if (!::harpia::json::to_json(a, &body)) { code = 124; break; }",
-            '        auto post = cli.Post("/api/v1/' + cls + '", body, "application/json");',
+            '        auto post = cli.Post("/api/v1/' + cls + '", rc, body, "application/json");',
             "        if (!post) { code = 125; break; }",
             "        if (post->status != 500) { code = 126; break; }",
-            '        auto lst = cli.Get("/api/v1/' + cls + '");',
+            '        auto lst = cli.Get("/api/v1/' + cls + '", rc);',
             "        if (!lst || lst->status != 500) { code = 127; break; }",
             "    } while (false);",
             "    svr.stop(); t.join(); ::sqlite3_close(db);",
@@ -647,9 +664,10 @@ class TestAdapter:
             "    std::thread t([&]{ svr.listen_after_bind(); });",
             "    svr.wait_until_ready();",
             '    ::httplib::Client cli("127.0.0.1", port);',
+            "    " + self._rest_headers_decl(msg),
             "    int code = 0;",
             "    do {",
-            '        auto bj = cli.Post("/api/v1/' + cls + '", "{ not json", "application/json");',
+            '        auto bj = cli.Post("/api/v1/' + cls + '", rc, "{ not json", "application/json");',
             "        if (!bj || bj->status != 400) { code = 146; break; }",
             '        auto bx = cli.Post("/soap/' + cls + '", "<not soap", "text/xml");',
             "        if (!bx || bx->status != 400) { code = 147; break; }",

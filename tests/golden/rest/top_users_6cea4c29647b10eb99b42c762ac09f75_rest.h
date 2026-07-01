@@ -16,15 +16,27 @@
 //   POST   <base>/top_users        create   (JSON body)
 //   PUT    <base>/top_users/:id    update   (JSON body)
 //   DELETE <base>/top_users/:id    delete
+//
+// Every route enforces the generated access credential (Stage 5 access rights):
+// the request must carry X-User: top_users and X-Pswd: 6cea4c29647b10eb99b42c762ac09f75, or it is rejected
+// with HTTP 401 before the operation runs.
 namespace harpia {
 namespace rest {
+
+// True iff the request carries the correct credential for top_users. Exposed so it
+// can be unit-tested directly.
+inline bool authorized_top_users(const ::httplib::Request& req) {
+    return req.get_header_value("X-User") == "top_users" &&
+           req.get_header_value("X-Pswd") == "6cea4c29647b10eb99b42c762ac09f75";
+}
 
 inline void register_top_users(::httplib::Server& svr, ::sqlite3* db,
                             const std::string& base) {
     const std::string col = base + "/top_users";
     const std::string item = col + R"(/(\d+))";
 
-    svr.Get(col, [db](const ::httplib::Request&, ::httplib::Response& res) {
+    svr.Get(col, [db](const ::httplib::Request& req, ::httplib::Response& res) {
+        if (!authorized_top_users(req)) { res.status = 401; return; }
         ::harpia::db::top_users_dao dao(db);
         std::vector<::top_users> rows;
         if (!dao.list(&rows)) { res.status = 500; return; }
@@ -40,6 +52,7 @@ inline void register_top_users(::httplib::Server& svr, ::sqlite3* db,
     });
 
     svr.Get(item, [db](const ::httplib::Request& req, ::httplib::Response& res) {
+        if (!authorized_top_users(req)) { res.status = 401; return; }
         ::harpia::db::top_users_dao dao(db);
         ::top_users msg;
         if (!dao.read(std::stoll(req.matches[1]), &msg)) { res.status = 404; return; }
@@ -49,6 +62,7 @@ inline void register_top_users(::httplib::Server& svr, ::sqlite3* db,
     });
 
     svr.Post(col, [db](const ::httplib::Request& req, ::httplib::Response& res) {
+        if (!authorized_top_users(req)) { res.status = 401; return; }
         ::harpia::db::top_users_dao dao(db);
         ::top_users msg;
         if (!::harpia::json::from_json(req.body, &msg)) { res.status = 400; return; }
@@ -57,6 +71,7 @@ inline void register_top_users(::httplib::Server& svr, ::sqlite3* db,
     });
 
     svr.Put(item, [db](const ::httplib::Request& req, ::httplib::Response& res) {
+        if (!authorized_top_users(req)) { res.status = 401; return; }
         ::harpia::db::top_users_dao dao(db);
         ::top_users msg;
         if (!::harpia::json::from_json(req.body, &msg)) { res.status = 400; return; }
@@ -65,6 +80,7 @@ inline void register_top_users(::httplib::Server& svr, ::sqlite3* db,
     });
 
     svr.Delete(item, [db](const ::httplib::Request& req, ::httplib::Response& res) {
+        if (!authorized_top_users(req)) { res.status = 401; return; }
         ::harpia::db::top_users_dao dao(db);
         if (!dao.remove(std::stoll(req.matches[1]))) { res.status = 500; return; }
         res.status = 204;
