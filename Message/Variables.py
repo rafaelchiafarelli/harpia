@@ -67,15 +67,19 @@ class Variables():
                 for i,t in enumerate(self.tokens[variableBegins:variableEnds]):
 
                     if t[0] == 'REPETEABLE':
+                        firstID = i
                         repeteable = self.getRepeteable(self.tokens[variableBegins+i:variableEnds])
                         if repeteable is None:
-                            return Error(errCl=Classes.VARTYPES, 
-                                        errTp=Types.MALFORMED_REPETEABLE, 
+                            return Error(errCl=Classes.VARTYPES,
+                                        errTp=Types.MALFORMED_REPETEABLE,
                                         FileName=self.file,
                                         FileLine=t[2],
                                         CharacterNumber=t[3])
-                        
-                        var.modifiers.append(repeteable)
+                        # append the REPETEABLE token (like the other modifiers) so
+                        # {m[0] for m in modifiers} can detect it; keep the bound
+                        # separately as a memory hint.
+                        var.modifiers.append(t)
+                        var.repeteableSize = repeteable
                     if t[0] == 'OPTIONAL':
                         firstID = i
                         var.modifiers.append(t)

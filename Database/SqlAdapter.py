@@ -12,10 +12,11 @@ FK to a table-bearing message becomes an INTEGER child-PK column, and a non-tabl
 message is flattened (its scalar/enum sub-fields become prefixed columns).
 
 A map<K,V> field (direct or reached through a flattened embed) becomes a child
-table "<table>__<path>" keyed by the parent's PK (owner, key, value).
+table "<table>__<path>" keyed by the parent's PK (owner, key, value). A repeated
+scalar field becomes a child table (owner, ordinal, value).
 
 Deferred (noted as SQL comments in the output, implemented in later steps):
-  - repeated fields -> separate child tables
+  - repeated composed (message-typed) fields -> child tables
   - version-transform functions (process.md 7.2.1)
 
 Messages with no table declared, and enums, get a one-line note instead of a
@@ -26,7 +27,7 @@ import os
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
 from Util.util import loadTemplate
-from Database.model import analyze, type_registry, map_fields
+from Database.model import analyze, type_registry, map_fields, repeated_fields
 
 SQL_EXT = "_table.sql"
 
@@ -73,9 +74,11 @@ class SqlAdapter:
         return main + self._child_tables(msg, columns)
 
     def _child_tables(self, msg, columns):
-        """One child table per map<K,V> field, keyed by the parent's PK."""
+        """A child table per map<K,V> field (owner, key, value) and per repeated
+        scalar field (owner, ordinal, value), keyed by the parent's PK."""
         maps = map_fields(msg, self.types)
-        if not maps:
+        reps = repeated_fields(msg, self.types)
+        if not maps and not reps:
             return ""
         pk = next((c for c in columns if c.pk), None)
         owner_sql = pk.sql_type if pk else "INTEGER"
@@ -91,4 +94,14 @@ class SqlAdapter:
                 ');'.format(field=mf.field, child=mf.child_table,
                             table=msg.tableName, owner=owner_sql,
                             key=mf.key_sql, val=mf.val_sql))
+        for rf in reps:
+            blocks.append(
+                '-- repeated {field} -> child table "{child}" (owner -> "{table}")\n'
+                'CREATE TABLE IF NOT EXISTS "{child}" (\n'
+                '    "owner" {owner},\n'
+                '    "ordinal" INTEGER,\n'
+                '    "value" {val},\n'
+                '    PRIMARY KEY ("owner", "ordinal")\n'
+                ');'.format(field=rf.field, child=rf.child_table,
+                            table=msg.tableName, owner=owner_sql, val=rf.val_sql))
         return "\n".join(blocks) + "\n"

@@ -19,7 +19,7 @@ REPO_ROOT = os.path.dirname(HERE)
 RUNNER = os.path.join(HERE, "run_pipeline.py")
 SQLITE = os.path.join(REPO_ROOT, "third_party", "sqlite")
 HTTPLIB = os.path.join(REPO_ROOT, "third_party", "cpp-httplib")
-HASH = "734126ee6efdfbd64a1678bf49ee9683"
+HASH = "6cea4c29647b10eb99b42c762ac09f75"
 
 pytestmark = pytest.mark.skipif(
     any(shutil.which(t) is None for t in ("protoc", "g++", "cc", "pkg-config")),

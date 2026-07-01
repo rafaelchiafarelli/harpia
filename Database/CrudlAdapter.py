@@ -6,16 +6,17 @@ remove/list plus create_table/drop_table. Columns come from the shared
 Database.model so the SQL matches the generated schema.
 
 Scalar/enum fields, singular FKs to table-bearing messages, the flattened
-scalar/enum sub-fields of a non-table composed field, and map<K,V> fields (each
-persisted in a child table keyed by the parent's primary key) are handled;
-repeated fields are not bound yet. The runtime needs sqlite3 on the include/link
+scalar/enum sub-fields of a non-table composed field, map<K,V> fields, and
+repeated scalar fields (the last two each persisted in a child table keyed by the
+parent's primary key) are handled. The runtime needs sqlite3 on the include/link
 path (vendored under third_party/sqlite).
 """
 import os
 
 from Logger.logger import logger
 from Util.util import loadTemplate
-from Database.model import analyze, create_table_sql, type_registry, map_fields
+from Database.model import (analyze, create_table_sql, type_registry,
+                            map_fields, repeated_fields)
 
 CRUDL_EXT = "_crudl.h"
 
@@ -124,6 +125,7 @@ class CrudlAdapter:
              for i, c in enumerate(fk_cols, start=len(scalar))])
 
         maps = map_fields(msg, self.types)
+        reps = repeated_fields(msg, self.types)
 
         return _CRUDL.format(
             guard="HARPIA_CRUDL_{}_{}".format(msg.name.upper(), msg.md5Hash),
@@ -144,12 +146,15 @@ class CrudlAdapter:
             id_col=id_col.name if id_col else "rowid",
             id_accessor=id_col.accessor if id_col else "rowid",
             extract=extract,
-            map_create_tables=self._map_create_tables(maps, columns),
-            map_drop_tables=self._map_drop_tables(maps),
-            map_create=self._map_write(maps, id_col, "create"),
-            map_update=self._map_write(maps, id_col, "update"),
-            map_read=self._map_read(maps, id_col),
-            map_remove=self._map_remove(maps),
+            map_create_tables=(self._map_create_tables(maps, columns)
+                               + self._rep_create_tables(reps, columns)),
+            map_drop_tables=self._child_drop_tables(maps + reps),
+            map_create=(self._map_write(maps, id_col, "create")
+                        + self._rep_write(reps, id_col, "create")),
+            map_update=(self._map_write(maps, id_col, "update")
+                        + self._rep_write(reps, id_col, "update")),
+            map_read=self._map_read(maps, id_col) + self._rep_read(reps, id_col),
+            map_remove=self._child_remove(maps + reps),
         )
 
     # -- composed FK (message whose target owns a table) -------------------
@@ -217,11 +222,11 @@ class CrudlAdapter:
             parts.append(' && exec("{}")'.format(sql))
         return "".join(parts)
 
-    def _map_drop_tables(self, maps):
-        # drop children before the parent table
+    def _child_drop_tables(self, children):
+        # drop child tables (maps + repeated) before the parent table
         return "".join(
-            'exec("DROP TABLE IF EXISTS \\"{}\\";") && '.format(mf.child_table)
-            for mf in maps)
+            'exec("DROP TABLE IF EXISTS \\"{}\\";") && '.format(ch.child_table)
+            for ch in children)
 
     def _map_write(self, maps, id_col, op):
         """create/update body: (clear then) re-insert each map's entries."""
@@ -288,20 +293,103 @@ class CrudlAdapter:
             blocks.append("\n".join(L))
         return "\n".join(blocks) + "\n"
 
-    def _map_remove(self, maps):
-        if not maps:
+    def _child_remove(self, children):
+        if not children:
             return ""
         blocks = []
-        for mf in maps:
+        for ch in children:
             L = [
                 "        {",
                 "            ::sqlite3_stmt* ds = nullptr;",
                 '            if (::sqlite3_prepare_v2(db_, "DELETE FROM \\"'
-                + mf.child_table + '\\" WHERE \\"owner\\" = ?;", -1, &ds, '
+                + ch.child_table + '\\" WHERE \\"owner\\" = ?;", -1, &ds, '
                 "nullptr) == SQLITE_OK) {",
                 "                ::sqlite3_bind_int64(ds, 1, id);",
                 "                ::sqlite3_step(ds);",
                 "                ::sqlite3_finalize(ds);",
+                "            }",
+                "        }",
+            ]
+            blocks.append("\n".join(L))
+        return "\n".join(blocks) + "\n"
+
+    # -- repeated scalar child tables (owner, ordinal, value) ---------------
+    def _rep_create_tables(self, reps, columns):
+        if not reps:
+            return ""
+        pk = next((c for c in columns if c.pk), None)
+        owner_sql = pk.sql_type if pk else "INTEGER"
+        parts = []
+        for rf in reps:
+            sql = ('CREATE TABLE IF NOT EXISTS \\"{child}\\" (\\"owner\\" {o}, '
+                   '\\"ordinal\\" INTEGER, \\"value\\" {v}, '
+                   'PRIMARY KEY(\\"owner\\", \\"ordinal\\"));').format(
+                       child=rf.child_table, o=owner_sql, v=rf.val_sql)
+            parts.append(' && exec("{}")'.format(sql))
+        return "".join(parts)
+
+    def _rep_write(self, reps, id_col, op):
+        """create/update body: (clear then) re-insert each repeated field's values
+        with a running ordinal that preserves order."""
+        if not reps:
+            return ""
+        owner_kind = id_col.kind if id_col else "int64"
+        owner = "msg.{}()".format(id_col.accessor) if id_col else "0"
+        blocks = []
+        for rf in reps:
+            L = []
+            if op == "update":
+                L += [
+                    "        {",
+                    "            ::sqlite3_stmt* ds = nullptr;",
+                    '            if (::sqlite3_prepare_v2(db_, "DELETE FROM \\"'
+                    + rf.child_table + '\\" WHERE \\"owner\\" = ?;", -1, &ds, '
+                    "nullptr) == SQLITE_OK) {",
+                    "                " + _bind_scalar("ds", owner_kind, 1, owner),
+                    "                ::sqlite3_step(ds);",
+                    "                ::sqlite3_finalize(ds);",
+                    "            }",
+                    "        }",
+                ]
+            L += [
+                "        {",
+                "            long long _ord = 0;",
+                "            for (const auto& rv : " + rf.entries("msg") + ") {",
+                "                ::sqlite3_stmt* cs = nullptr;",
+                '                if (::sqlite3_prepare_v2(db_, "INSERT INTO \\"'
+                + rf.child_table + '\\" (\\"owner\\", \\"ordinal\\", \\"value\\") '
+                'VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;',
+                "                " + _bind_scalar("cs", owner_kind, 1, owner),
+                "                ::sqlite3_bind_int64(cs, 2, _ord++);",
+                "                " + _bind_scalar("cs", rf.val_kind, 3, "rv"),
+                "                const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;",
+                "                ::sqlite3_finalize(cs);",
+                "                if (!mok) return false;",
+                "            }",
+                "        }",
+            ]
+            blocks.append("\n".join(L))
+        return "\n".join(blocks) + "\n"
+
+    def _rep_read(self, reps, id_col):
+        if not reps:
+            return ""
+        owner_kind = id_col.kind if id_col else "int64"
+        owner = "msg->{}()".format(id_col.accessor) if id_col else "0"
+        blocks = []
+        for rf in reps:
+            L = [
+                "        {",
+                "            ::sqlite3_stmt* cs = nullptr;",
+                '            if (::sqlite3_prepare_v2(db_, "SELECT \\"value\\" '
+                'FROM \\"' + rf.child_table + '\\" WHERE \\"owner\\" = ? '
+                'ORDER BY \\"ordinal\\";", -1, &cs, nullptr) == SQLITE_OK) {',
+                "                " + _bind_scalar("cs", owner_kind, 1, owner),
+                "                while (::sqlite3_step(cs) == SQLITE_ROW) {",
+                "                    " + _col_decl(rf.val_kind, 0, "_v"),
+                "                    msg->add_" + rf.field + "(_v);",
+                "                }",
+                "                ::sqlite3_finalize(cs);",
                 "            }",
                 "        }",
             ]

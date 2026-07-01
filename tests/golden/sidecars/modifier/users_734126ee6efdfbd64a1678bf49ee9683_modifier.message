@@ -1,3 +1,0 @@
-('PULL', 'pull ', 55, 0)
-('PUSH', 'push ', 55, 5)
-('EVENT', 'event ', 55, 10)

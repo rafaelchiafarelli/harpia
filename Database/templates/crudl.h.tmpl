@@ -14,8 +14,8 @@ namespace db {{
 
 // Data-access object for {cls} over the "{table}" table. Wraps a sqlite3* the
 // caller owns. Scalar/enum fields, singular FKs to table-bearing messages, the
-// flattened sub-fields of a non-table composed field, and map<K,V> fields (as
-// child tables keyed by the primary key) are persisted; repeated fields are not.
+// flattened sub-fields of a non-table composed field, and map<K,V> + repeated
+// scalar fields (as child tables keyed by the primary key) are persisted.
 class {cls}_dao {{
 public:
     explicit {cls}_dao(::sqlite3* db) : db_(db) {{}}
