@@ -47,6 +47,13 @@ CASES = {
         "message m {\nmap<> a;\n};\n", "MSG MALFORMED_MAP"),
     "no_name": (
         "message {\nint a;\n};\n", "MSG NO_NAME_IN_MESSAGE"),
+    # repeateable: bounded ("[N]") and unbounded both parse; empty "[]" is malformed
+    "repeatable_bounded": (
+        "message m {\nrepeteable[10] int a;\n};\n", "OK"),
+    "repeatable_unbounded": (
+        "message m {\nrepeteable int a;\n};\n", "OK"),
+    "repeatable_empty_bound": (
+        "message m {\nrepeteable[] int a;\n};\n", "MSG MALFORMED_REPETEABLE"),
 }
 
 
