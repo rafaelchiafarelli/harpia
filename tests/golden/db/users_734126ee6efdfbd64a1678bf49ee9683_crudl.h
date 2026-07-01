@@ -13,9 +13,9 @@ namespace harpia {
 namespace db {
 
 // Data-access object for users over the "user_table" table. Wraps a sqlite3* the
-// caller owns. Scalar/enum fields, singular FKs to table-bearing messages, and
-// the flattened sub-fields of a non-table composed field are persisted;
-// repeated/map fields are not.
+// caller owns. Scalar/enum fields, singular FKs to table-bearing messages, the
+// flattened sub-fields of a non-table composed field, and map<K,V> fields (as
+// child tables keyed by the primary key) are persisted; repeated fields are not.
 class users_dao {
 public:
     explicit users_dao(::sqlite3* db) : db_(db) {}
@@ -36,7 +36,8 @@ public:
         ::sqlite3_bind_text(st, 6, msg.originator_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
-        return ok;
+        if (!ok) return false;
+        return true;
     }
 
     bool read(std::int64_t id, ::users* msg) {
@@ -64,7 +65,8 @@ public:
         ::sqlite3_bind_int64(st, 6, msg.id_734126ee6efdfbd64a1678bf49ee9683());
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
-        return ok;
+        if (!ok) return false;
+        return true;
     }
 
     bool remove(std::int64_t id) {
@@ -75,7 +77,8 @@ public:
         ::sqlite3_bind_int64(st, 1, id);
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
-        return ok;
+        if (!ok) return false;
+        return true;
     }
 
     bool list(std::vector<::users>* out) {

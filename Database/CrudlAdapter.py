@@ -5,16 +5,17 @@ For each message that declares a table, emit a header-only data-access object
 remove/list plus create_table/drop_table. Columns come from the shared
 Database.model so the SQL matches the generated schema.
 
-Scalar/enum fields, singular FKs to table-bearing messages, and the flattened
-scalar/enum sub-fields of a non-table composed field are persisted; repeated/map
-fields are not bound yet. The runtime needs sqlite3 on the include/link path
-(vendored under third_party/sqlite).
+Scalar/enum fields, singular FKs to table-bearing messages, the flattened
+scalar/enum sub-fields of a non-table composed field, and map<K,V> fields (each
+persisted in a child table keyed by the parent's primary key) are handled;
+repeated fields are not bound yet. The runtime needs sqlite3 on the include/link
+path (vendored under third_party/sqlite).
 """
 import os
 
 from Logger.logger import logger
 from Util.util import loadTemplate
-from Database.model import analyze, create_table_sql, type_registry
+from Database.model import analyze, create_table_sql, type_registry, map_fields
 
 CRUDL_EXT = "_crudl.h"
 
@@ -47,6 +48,28 @@ def _extract_line(col, index):
           "double": "sqlite3_column_double"}[col.kind]
     val = "::{fn}(st, {i})".format(fn=fn, i=index)
     return "        {};".format(col.set_stmt(val))
+
+
+# -- scalar bind/read snippets for map child tables (stmt var passed in) -------
+def _bind_scalar(stmt, kind, index, expr):
+    if kind == "text":
+        return ("::sqlite3_bind_text({s}, {i}, {e}.c_str(), -1, SQLITE_TRANSIENT);"
+                .format(s=stmt, i=index, e=expr))
+    fn = {"int": "sqlite3_bind_int", "int64": "sqlite3_bind_int64",
+          "double": "sqlite3_bind_double"}[kind]
+    return "::{fn}({s}, {i}, {e});".format(fn=fn, s=stmt, i=index, e=expr)
+
+
+def _col_decl(kind, index, var):
+    """Declare local ``var`` reading column ``index`` from stmt ``cs``."""
+    if kind == "text":
+        return ("const unsigned char* {v}p = ::sqlite3_column_text(cs, {i}); "
+                "const std::string {v} = {v}p ? reinterpret_cast<const char*>({v}p)"
+                " : \"\";".format(v=var, i=index))
+    ctype = {"int": "int", "int64": "long long", "double": "double"}[kind]
+    fn = {"int": "sqlite3_column_int", "int64": "sqlite3_column_int64",
+          "double": "sqlite3_column_double"}[kind]
+    return "const {c} {v} = ::{fn}(cs, {i});".format(c=ctype, v=var, fn=fn, i=index)
 
 
 class CrudlAdapter:
@@ -100,6 +123,8 @@ class CrudlAdapter:
             [self._fk_extract(c, i)
              for i, c in enumerate(fk_cols, start=len(scalar))])
 
+        maps = map_fields(msg, self.types)
+
         return _CRUDL.format(
             guard="HARPIA_CRUDL_{}_{}".format(msg.name.upper(), msg.md5Hash),
             pb_header="protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash),
@@ -119,6 +144,12 @@ class CrudlAdapter:
             id_col=id_col.name if id_col else "rowid",
             id_accessor=id_col.accessor if id_col else "rowid",
             extract=extract,
+            map_create_tables=self._map_create_tables(maps, columns),
+            map_drop_tables=self._map_drop_tables(maps),
+            map_create=self._map_write(maps, id_col, "create"),
+            map_update=self._map_write(maps, id_col, "update"),
+            map_read=self._map_read(maps, id_col),
+            map_remove=self._map_remove(maps),
         )
 
     # -- composed FK (message whose target owns a table) -------------------
@@ -170,3 +201,109 @@ class CrudlAdapter:
             if h not in seen:
                 seen.append(h)
         return "\n" + "\n".join('#include "{}"'.format(h) for h in seen)
+
+    # -- map<K,V> child tables (keyed by the parent's primary key) ----------
+    def _map_create_tables(self, maps, columns):
+        if not maps:
+            return ""
+        pk = next((c for c in columns if c.pk), None)
+        owner_sql = pk.sql_type if pk else "INTEGER"
+        parts = []
+        for mf in maps:
+            sql = ('CREATE TABLE IF NOT EXISTS \\"{child}\\" (\\"owner\\" {o}, '
+                   '\\"key\\" {k}, \\"value\\" {v}, '
+                   'PRIMARY KEY(\\"owner\\", \\"key\\"));').format(
+                       child=mf.child_table, o=owner_sql, k=mf.key_sql, v=mf.val_sql)
+            parts.append(' && exec("{}")'.format(sql))
+        return "".join(parts)
+
+    def _map_drop_tables(self, maps):
+        # drop children before the parent table
+        return "".join(
+            'exec("DROP TABLE IF EXISTS \\"{}\\";") && '.format(mf.child_table)
+            for mf in maps)
+
+    def _map_write(self, maps, id_col, op):
+        """create/update body: (clear then) re-insert each map's entries."""
+        if not maps:
+            return ""
+        owner_kind = id_col.kind if id_col else "int64"
+        owner = "msg.{}()".format(id_col.accessor) if id_col else "0"
+        blocks = []
+        for mf in maps:
+            L = []
+            if op == "update":
+                L += [
+                    "        {",
+                    "            ::sqlite3_stmt* ds = nullptr;",
+                    '            if (::sqlite3_prepare_v2(db_, "DELETE FROM \\"'
+                    + mf.child_table + '\\" WHERE \\"owner\\" = ?;", -1, &ds, '
+                    "nullptr) == SQLITE_OK) {",
+                    "                " + _bind_scalar("ds", owner_kind, 1, owner),
+                    "                ::sqlite3_step(ds);",
+                    "                ::sqlite3_finalize(ds);",
+                    "            }",
+                    "        }",
+                ]
+            L += [
+                "        for (const auto& kv : " + mf.entries("msg") + ") {",
+                "            ::sqlite3_stmt* cs = nullptr;",
+                '            if (::sqlite3_prepare_v2(db_, "INSERT INTO \\"'
+                + mf.child_table + '\\" (\\"owner\\", \\"key\\", \\"value\\") '
+                'VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;',
+                "            " + _bind_scalar("cs", owner_kind, 1, owner),
+                "            " + _bind_scalar("cs", mf.key_kind, 2, "kv.first"),
+                "            " + _bind_scalar("cs", mf.val_kind, 3, "kv.second"),
+                "            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;",
+                "            ::sqlite3_finalize(cs);",
+                "            if (!mok) return false;",
+                "        }",
+            ]
+            blocks.append("\n".join(L))
+        return "\n".join(blocks) + "\n"
+
+    def _map_read(self, maps, id_col):
+        if not maps:
+            return ""
+        owner_kind = id_col.kind if id_col else "int64"
+        owner = "msg->{}()".format(id_col.accessor) if id_col else "0"
+        blocks = []
+        for mf in maps:
+            L = [
+                "        {",
+                "            ::sqlite3_stmt* cs = nullptr;",
+                '            if (::sqlite3_prepare_v2(db_, "SELECT \\"key\\", '
+                '\\"value\\" FROM \\"' + mf.child_table + '\\" WHERE \\"owner\\" '
+                '= ?;", -1, &cs, nullptr) == SQLITE_OK) {',
+                "                " + _bind_scalar("cs", owner_kind, 1, owner),
+                "                while (::sqlite3_step(cs) == SQLITE_ROW) {",
+                "                    " + _col_decl(mf.key_kind, 0, "_k"),
+                "                    " + _col_decl(mf.val_kind, 1, "_v"),
+                "                    (*" + mf.mutable() + ")[_k] = _v;",
+                "                }",
+                "                ::sqlite3_finalize(cs);",
+                "            }",
+                "        }",
+            ]
+            blocks.append("\n".join(L))
+        return "\n".join(blocks) + "\n"
+
+    def _map_remove(self, maps):
+        if not maps:
+            return ""
+        blocks = []
+        for mf in maps:
+            L = [
+                "        {",
+                "            ::sqlite3_stmt* ds = nullptr;",
+                '            if (::sqlite3_prepare_v2(db_, "DELETE FROM \\"'
+                + mf.child_table + '\\" WHERE \\"owner\\" = ?;", -1, &ds, '
+                "nullptr) == SQLITE_OK) {",
+                "                ::sqlite3_bind_int64(ds, 1, id);",
+                "                ::sqlite3_step(ds);",
+                "                ::sqlite3_finalize(ds);",
+                "            }",
+                "        }",
+            ]
+            blocks.append("\n".join(L))
+        return "\n".join(blocks) + "\n"

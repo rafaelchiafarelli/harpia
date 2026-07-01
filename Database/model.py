@@ -64,6 +64,43 @@ class Column:
         return " ".join(parts)
 
 
+class MapField:
+    """A map<K,V> field persisted as a child table keyed by the parent's PK.
+
+    Direct map:       child table "<table>__<field>".
+    Embed-nested map: child table "<table>__<embed>_<field>" -- the map lives on a
+                      flattened non-table composed field, reached via msg.<embed>()
+                      (mirrors how _flatten() flattens that message's scalars).
+    """
+    def __init__(self, child_table, field, key_sql, key_kind, val_sql, val_kind,
+                 embed=None) -> None:
+        self.child_table = child_table
+        self.field = field          # protobuf accessor of the map field
+        self.key_sql = key_sql
+        self.key_kind = key_kind    # int | int64 | double | text
+        self.val_sql = val_sql
+        self.val_kind = val_kind
+        self.embed = embed          # parent field accessor if embed-nested
+
+    def entries(self, src):
+        """Const map expression on message ``src`` (for iteration)."""
+        if self.embed:
+            return "{}.{}().{}()".format(src, self.embed, self.field)
+        return "{}.{}()".format(src, self.field)
+
+    def mutable(self):
+        """Mutable map pointer expression on ``msg`` (for population)."""
+        if self.embed:
+            return "msg->mutable_{}()->mutable_{}()".format(self.embed, self.field)
+        return "msg->mutable_{}()".format(self.field)
+
+    def mutable_on(self, inst):
+        """Mutable map pointer on a local value ``inst`` (dot access)."""
+        if self.embed:
+            return "{}.mutable_{}()->mutable_{}()".format(inst, self.embed, self.field)
+        return "{}.mutable_{}()".format(inst, self.field)
+
+
 # field names the front-end injects into every message; meaningless when a
 # message is embedded inside another, so flattening skips them.
 _HIDDEN_PREFIXES = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
@@ -111,8 +148,12 @@ def _flatten(parent, child_msg, types):
             continue
         col_name = "{}_{}".format(parent, v.name)
         mods = {m[0] for m in (v.modifiers or [])}
-        if v.typeMap or "REPETEABLE" in mods:
-            notes.append("-- {}.{}: repeated/map in embedded {} (deferred)"
+        if v.typeMap:
+            notes.append("-- {}.{}: map in embedded {} -> child table"
+                         .format(parent, v.name, child_msg.name))
+            continue
+        if "REPETEABLE" in mods:
+            notes.append("-- {}.{}: repeated in embedded {} (deferred)"
                          .format(parent, v.name, child_msg.name))
             continue
         if v.type[0] == "ID":  # nested composed field inside the embedded message
@@ -153,8 +194,12 @@ def analyze(msg, types=None):
     notes = []
     for v in (msg.variables or []):
         mods = {m[0] for m in (v.modifiers or [])}
-        if v.typeMap or "REPETEABLE" in mods:
-            notes.append("-- {}: repeated/map -> separate table (deferred)"
+        if v.typeMap:
+            notes.append("-- {}: map -> child table (see map_fields)"
+                         .format(v.name))
+            continue
+        if "REPETEABLE" in mods:
+            notes.append("-- {}: repeated -> separate table (deferred)"
                          .format(v.name))
             continue
         if v.type[0] == "ID":  # composed: message or enum reference
@@ -192,6 +237,46 @@ def analyze(msg, types=None):
                               unique="UNIQUE" in mods,
                               bindable=True, kind=kind))
     return columns, notes
+
+
+def _map_field(table, v, embed=None):
+    # map key/value types live in v.typeMap (positionally [key, value]); v.type is
+    # unreliable for maps (the parser overwrites it with the value type).
+    key = _SCALARS.get(v.typeMap[0][0]) if len(v.typeMap or []) > 0 else None
+    val = _SCALARS.get(v.typeMap[1][0]) if len(v.typeMap or []) > 1 else None
+    if not key or not val:
+        return None
+    path = "{}_{}".format(embed, v.name) if embed else v.name
+    return MapField("{}__{}".format(table, path), v.name.lower(),
+                    key[0], key[1], val[0], val[1], embed=embed)
+
+
+def map_fields(msg, types=None):
+    """Map<K,V> fields of a table-bearing message, each -> a child table keyed by
+    the parent's PK. Includes maps reached through a flattened non-table composed
+    field (embed-nested), mirroring _flatten()'s column flattening. Repeated
+    fields are handled separately."""
+    types = types or {}
+    table = getattr(msg, "tableName", None)
+    if not table:
+        return []
+    out = []
+    for v in (msg.variables or []):
+        if v.typeMap:
+            mf = _map_field(table, v)
+            if mf is not None:
+                out.append(mf)
+            continue
+        if v.type[0] == "ID":  # composed: may embed a table-less message with maps
+            kind, target_msg = _lookup(types, v.type[1])
+            if kind == "message" and target_msg is not None:
+                for cv in (target_msg.variables or []):
+                    if _is_hidden(cv.name) or not cv.typeMap:
+                        continue
+                    mf = _map_field(table, cv, embed=v.name.lower())
+                    if mf is not None:
+                        out.append(mf)
+    return out
 
 
 def create_table_sql(msg, if_not_exists=True, types=None):
