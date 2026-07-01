@@ -21,7 +21,7 @@ REPO_ROOT = os.path.dirname(HERE)
 RUNNER = os.path.join(HERE, "run_pipeline.py")
 SQLITE = os.path.join(REPO_ROOT, "third_party", "sqlite")
 TINYXML2 = os.path.join(REPO_ROOT, "third_party", "tinyxml2")
-HASH = "734126ee6efdfbd64a1678bf49ee9683"
+HASH = "6cea4c29647b10eb99b42c762ac09f75"
 
 pytestmark = pytest.mark.skipif(
     shutil.which("g++") is None or shutil.which("cc") is None,

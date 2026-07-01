@@ -70,8 +70,11 @@ class FileCreator():
                         protoData+="map<{}, {}> {} = {};\n".format(
                             keyType, valType, v.name, v.index)
                     else:
-                        protoData+="{} {} = {};\n".format(
-                            self.protoType(v.type), v.name, v.index)
+                        prefix = ("repeated " if any(
+                            m[0] == 'REPETEABLE' for m in (v.modifiers or []))
+                            else "")
+                        protoData+="{}{} {} = {};\n".format(
+                            prefix, self.protoType(v.type), v.name, v.index)
                     if len(v.modifiers) != 0:
                         self.accessData.append((v.name,v.modifiers))
 

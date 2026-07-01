@@ -49,6 +49,7 @@ stream pull push event message data{
     optional int j;
     prince val;
     grower car;
+    repeteable int tags;
 }table_data;
 
 

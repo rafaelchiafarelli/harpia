@@ -24,7 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
 RUNNER = os.path.join(HERE, "run_pipeline.py")
 
-HASH = "734126ee6efdfbd64a1678bf49ee9683"
+HASH = "6cea4c29647b10eb99b42c762ac09f75"
 
 
 def _have_grpcpp():

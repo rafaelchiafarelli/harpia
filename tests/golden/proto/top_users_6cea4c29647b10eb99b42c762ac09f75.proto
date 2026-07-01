@@ -1,0 +1,11 @@
+syntax = "proto3";
+import "protofiles/vip_users_6cea4c29647b10eb99b42c762ac09f75.proto";
+message top_users {
+int32 ID_6cea4c29647b10eb99b42c762ac09f75 = 1;
+string sponsor = 2;
+string name = 3;
+vip_users myUsers = 4;
+string STATUS_6cea4c29647b10eb99b42c762ac09f75 = 5;
+string ERROR_6cea4c29647b10eb99b42c762ac09f75 = 6;
+string ORIGINATOR_6cea4c29647b10eb99b42c762ac09f75 = 7;
+}

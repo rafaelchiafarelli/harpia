@@ -101,6 +101,24 @@ class MapField:
         return "{}.mutable_{}()".format(inst, self.field)
 
 
+class RepeatedField:
+    """A repeated scalar field persisted as a child table "<table>__<field>" keyed
+    by the parent's PK, with an ordinal column preserving insertion order."""
+    def __init__(self, child_table, field, val_sql, val_kind) -> None:
+        self.child_table = child_table
+        self.field = field          # protobuf accessor of the repeated field
+        self.val_sql = val_sql
+        self.val_kind = val_kind
+
+    def entries(self, src):
+        """Const repeated-field expression on message ``src`` (for iteration)."""
+        return "{}.{}()".format(src, self.field)
+
+    def add_on(self, inst, value):
+        """Append ``value`` on a local value ``inst`` (dot access, for tests)."""
+        return "{}.add_{}({})".format(inst, self.field, value)
+
+
 # field names the front-end injects into every message; meaningless when a
 # message is embedded inside another, so flattening skips them.
 _HIDDEN_PREFIXES = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
@@ -199,8 +217,12 @@ def analyze(msg, types=None):
                          .format(v.name))
             continue
         if "REPETEABLE" in mods:
-            notes.append("-- {}: repeated -> separate table (deferred)"
-                         .format(v.name))
+            if _SCALARS.get(v.type[0]) is not None:
+                notes.append("-- {}: repeated -> child table (see repeated_fields)"
+                             .format(v.name))
+            else:
+                notes.append("-- {}: repeated composed -> child table (deferred)"
+                             .format(v.name))
             continue
         if v.type[0] == "ID":  # composed: message or enum reference
             target = v.type[1]
@@ -276,6 +298,29 @@ def map_fields(msg, types=None):
                     mf = _map_field(table, cv, embed=v.name.lower())
                     if mf is not None:
                         out.append(mf)
+    return out
+
+
+def repeated_fields(msg, types=None):
+    """Repeated scalar fields of a table-bearing message, each -> a child table
+    keyed by the parent's PK with an ordinal. Repeated composed fields are
+    deferred (noted by analyze)."""
+    types = types or {}
+    table = getattr(msg, "tableName", None)
+    if not table:
+        return []
+    out = []
+    for v in (msg.variables or []):
+        if v.typeMap:
+            continue
+        mods = {m[0] for m in (v.modifiers or [])}
+        if "REPETEABLE" not in mods:
+            continue
+        scalar = _SCALARS.get(v.type[0])
+        if scalar is None:
+            continue  # repeated composed -> deferred
+        out.append(RepeatedField("{}__{}".format(table, v.name), v.name.lower(),
+                                 scalar[0], scalar[1]))
     return out
 
 

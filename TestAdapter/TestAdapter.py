@@ -20,7 +20,7 @@ import shutil
 
 from Logger.logger import logger
 from Util.util import loadTemplate
-from Database.model import analyze, type_registry, map_fields
+from Database.model import analyze, type_registry, map_fields, repeated_fields
 
 TEST_EXT = "_test.cpp"
 
@@ -128,7 +128,8 @@ class TestAdapter:
             rest_header="{}_{}_rest.h".format(msg.name, msg.md5Hash),
             simple_body=self._simple_body(msg, bindable),
             db_body=self._db_body(msg, pk, non_pk, embed_cols,
-                                  map_fields(msg, self.types)),
+                                  map_fields(msg, self.types),
+                                  repeated_fields(msg, self.types)),
             ar_body=self._access_rights_body(msg),
             am_body=self._access_modifiers_body(msg, pk, non_pk),
             json_body=self._json_body(msg, bindable),
@@ -146,7 +147,7 @@ class TestAdapter:
                 c.accessor, _value(c, "a"), 10 + i))
         return "\n".join(lines)
 
-    def _db_body(self, msg, pk, non_pk, embed_cols=(), maps=()):
+    def _db_body(self, msg, pk, non_pk, embed_cols=(), maps=(), reps=()):
         cls = msg.name
         if pk is None:
             return ("    // no primary key column: CRUDL round-trip deferred "
@@ -174,6 +175,10 @@ class TestAdapter:
                 L.append("    (*{m})[{k}] = {v};".format(
                     m=mf.mutable_on("a"), k=_map_key(mf.key_kind, i),
                     v=_map_val(mf.val_kind, i)))
+        # repeated scalar fields round-trip through their child tables (ordered)
+        for rf in reps:
+            for i in (1, 2):
+                L.append("    {};".format(rf.add_on("a", _map_val(rf.val_kind, i))))
         L += [
             "    if (!dao.create(a)) return 22;",
             "    ::{} got;".format(cls),
@@ -189,6 +194,11 @@ class TestAdapter:
                 L.append("    if ({e}.count({k}) != 1 || {e}.at({k}) != {v}) "
                          "return 33;".format(e=entries, k=_map_key(mf.key_kind, i),
                                              v=_map_val(mf.val_kind, i)))
+        for rf in reps:
+            L.append("    if (got.{f}_size() != 2) return 34;".format(f=rf.field))
+            for i in (1, 2):
+                L.append("    if (got.{f}({idx}) != {v}) return 34;".format(
+                    f=rf.field, idx=i - 1, v=_map_val(rf.val_kind, i)))
 
         if text_field is not None:
             L += [
