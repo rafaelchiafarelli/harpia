@@ -13,15 +13,15 @@ namespace harpia {
 namespace db {
 
 // Data-access object for data over the "table_data" table. Wraps a sqlite3* the
-// caller owns. Scalar/enum fields, singular FKs to table-bearing messages, and
-// the flattened sub-fields of a non-table composed field are persisted;
-// repeated/map fields are not.
+// caller owns. Scalar/enum fields, singular FKs to table-bearing messages, the
+// flattened sub-fields of a non-table composed field, and map<K,V> fields (as
+// child tables keyed by the primary key) are persisted; repeated fields are not.
 class data_dao {
 public:
     explicit data_dao(::sqlite3* db) : db_(db) {}
 
-    bool create_table() { return exec("CREATE TABLE IF NOT EXISTS \"table_data\" (\"ID_734126ee6efdfbd64a1678bf49ee9683\" INTEGER PRIMARY KEY, \"i\" INTEGER, \"j\" INTEGER, \"val_vari\" INTEGER, \"val_var\" INTEGER, \"val_val\" INTEGER, \"car\" INTEGER, \"STATUS_734126ee6efdfbd64a1678bf49ee9683\" TEXT, \"ERROR_734126ee6efdfbd64a1678bf49ee9683\" TEXT, \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\" TEXT);"); }
-    bool drop_table()   { return exec("DROP TABLE IF EXISTS \"table_data\";"); }
+    bool create_table() { return exec("CREATE TABLE IF NOT EXISTS \"table_data\" (\"ID_734126ee6efdfbd64a1678bf49ee9683\" INTEGER PRIMARY KEY, \"i\" INTEGER, \"j\" INTEGER, \"val_vari\" INTEGER, \"val_var\" INTEGER, \"val_val\" INTEGER, \"car\" INTEGER, \"STATUS_734126ee6efdfbd64a1678bf49ee9683\" TEXT, \"ERROR_734126ee6efdfbd64a1678bf49ee9683\" TEXT, \"ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683\" TEXT);") && exec("CREATE TABLE IF NOT EXISTS \"table_data__val_a\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));") && exec("CREATE TABLE IF NOT EXISTS \"table_data__val_b\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"key\"));") && exec("CREATE TABLE IF NOT EXISTS \"table_data__val_c\" (\"owner\" INTEGER, \"key\" INTEGER, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));"); }
+    bool drop_table()   { return exec("DROP TABLE IF EXISTS \"table_data__val_a\";") && exec("DROP TABLE IF EXISTS \"table_data__val_b\";") && exec("DROP TABLE IF EXISTS \"table_data__val_c\";") && exec("DROP TABLE IF EXISTS \"table_data\";"); }
 
     bool create(const ::data& msg) {
         ::sqlite3_stmt* st = nullptr;
@@ -40,7 +40,38 @@ public:
         ::sqlite3_bind_text(st, 10, msg.originator_734126ee6efdfbd64a1678bf49ee9683().c_str(), -1, SQLITE_TRANSIENT);
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
-        return ok;
+        if (!ok) return false;
+        for (const auto& kv : msg.val().a()) {
+            ::sqlite3_stmt* cs = nullptr;
+            if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_a\" (\"owner\", \"key\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
+            ::sqlite3_bind_int(cs, 1, msg.id_734126ee6efdfbd64a1678bf49ee9683());
+            ::sqlite3_bind_text(cs, 2, kv.first.c_str(), -1, SQLITE_TRANSIENT);
+            ::sqlite3_bind_text(cs, 3, kv.second.c_str(), -1, SQLITE_TRANSIENT);
+            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
+            ::sqlite3_finalize(cs);
+            if (!mok) return false;
+        }
+        for (const auto& kv : msg.val().b()) {
+            ::sqlite3_stmt* cs = nullptr;
+            if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_b\" (\"owner\", \"key\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
+            ::sqlite3_bind_int(cs, 1, msg.id_734126ee6efdfbd64a1678bf49ee9683());
+            ::sqlite3_bind_text(cs, 2, kv.first.c_str(), -1, SQLITE_TRANSIENT);
+            ::sqlite3_bind_int(cs, 3, kv.second);
+            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
+            ::sqlite3_finalize(cs);
+            if (!mok) return false;
+        }
+        for (const auto& kv : msg.val().c()) {
+            ::sqlite3_stmt* cs = nullptr;
+            if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_c\" (\"owner\", \"key\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
+            ::sqlite3_bind_int(cs, 1, msg.id_734126ee6efdfbd64a1678bf49ee9683());
+            ::sqlite3_bind_int(cs, 2, kv.first);
+            ::sqlite3_bind_text(cs, 3, kv.second.c_str(), -1, SQLITE_TRANSIENT);
+            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
+            ::sqlite3_finalize(cs);
+            if (!mok) return false;
+        }
+        return true;
     }
 
     bool read(std::int64_t id, ::data* msg) {
@@ -72,7 +103,62 @@ public:
         ::sqlite3_bind_int64(st, 10, msg.id_734126ee6efdfbd64a1678bf49ee9683());
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
-        return ok;
+        if (!ok) return false;
+        {
+            ::sqlite3_stmt* ds = nullptr;
+            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_a\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
+                ::sqlite3_bind_int(ds, 1, msg.id_734126ee6efdfbd64a1678bf49ee9683());
+                ::sqlite3_step(ds);
+                ::sqlite3_finalize(ds);
+            }
+        }
+        for (const auto& kv : msg.val().a()) {
+            ::sqlite3_stmt* cs = nullptr;
+            if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_a\" (\"owner\", \"key\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
+            ::sqlite3_bind_int(cs, 1, msg.id_734126ee6efdfbd64a1678bf49ee9683());
+            ::sqlite3_bind_text(cs, 2, kv.first.c_str(), -1, SQLITE_TRANSIENT);
+            ::sqlite3_bind_text(cs, 3, kv.second.c_str(), -1, SQLITE_TRANSIENT);
+            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
+            ::sqlite3_finalize(cs);
+            if (!mok) return false;
+        }
+        {
+            ::sqlite3_stmt* ds = nullptr;
+            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_b\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
+                ::sqlite3_bind_int(ds, 1, msg.id_734126ee6efdfbd64a1678bf49ee9683());
+                ::sqlite3_step(ds);
+                ::sqlite3_finalize(ds);
+            }
+        }
+        for (const auto& kv : msg.val().b()) {
+            ::sqlite3_stmt* cs = nullptr;
+            if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_b\" (\"owner\", \"key\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
+            ::sqlite3_bind_int(cs, 1, msg.id_734126ee6efdfbd64a1678bf49ee9683());
+            ::sqlite3_bind_text(cs, 2, kv.first.c_str(), -1, SQLITE_TRANSIENT);
+            ::sqlite3_bind_int(cs, 3, kv.second);
+            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
+            ::sqlite3_finalize(cs);
+            if (!mok) return false;
+        }
+        {
+            ::sqlite3_stmt* ds = nullptr;
+            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_c\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
+                ::sqlite3_bind_int(ds, 1, msg.id_734126ee6efdfbd64a1678bf49ee9683());
+                ::sqlite3_step(ds);
+                ::sqlite3_finalize(ds);
+            }
+        }
+        for (const auto& kv : msg.val().c()) {
+            ::sqlite3_stmt* cs = nullptr;
+            if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_c\" (\"owner\", \"key\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
+            ::sqlite3_bind_int(cs, 1, msg.id_734126ee6efdfbd64a1678bf49ee9683());
+            ::sqlite3_bind_int(cs, 2, kv.first);
+            ::sqlite3_bind_text(cs, 3, kv.second.c_str(), -1, SQLITE_TRANSIENT);
+            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
+            ::sqlite3_finalize(cs);
+            if (!mok) return false;
+        }
+        return true;
     }
 
     bool remove(std::int64_t id) {
@@ -83,7 +169,32 @@ public:
         ::sqlite3_bind_int64(st, 1, id);
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
-        return ok;
+        if (!ok) return false;
+        {
+            ::sqlite3_stmt* ds = nullptr;
+            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_a\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
+                ::sqlite3_bind_int64(ds, 1, id);
+                ::sqlite3_step(ds);
+                ::sqlite3_finalize(ds);
+            }
+        }
+        {
+            ::sqlite3_stmt* ds = nullptr;
+            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_b\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
+                ::sqlite3_bind_int64(ds, 1, id);
+                ::sqlite3_step(ds);
+                ::sqlite3_finalize(ds);
+            }
+        }
+        {
+            ::sqlite3_stmt* ds = nullptr;
+            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_c\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
+                ::sqlite3_bind_int64(ds, 1, id);
+                ::sqlite3_step(ds);
+                ::sqlite3_finalize(ds);
+            }
+        }
+        return true;
     }
 
     bool list(std::vector<::data>* out) {
@@ -115,6 +226,42 @@ private:
         { const unsigned char* p = ::sqlite3_column_text(st, 7); msg->set_status_734126ee6efdfbd64a1678bf49ee9683(p ? reinterpret_cast<const char*>(p) : ""); }
         { const unsigned char* p = ::sqlite3_column_text(st, 8); msg->set_error_734126ee6efdfbd64a1678bf49ee9683(p ? reinterpret_cast<const char*>(p) : ""); }
         { const unsigned char* p = ::sqlite3_column_text(st, 9); msg->set_originator_734126ee6efdfbd64a1678bf49ee9683(p ? reinterpret_cast<const char*>(p) : ""); }
+        {
+            ::sqlite3_stmt* cs = nullptr;
+            if (::sqlite3_prepare_v2(db_, "SELECT \"key\", \"value\" FROM \"table_data__val_a\" WHERE \"owner\" = ?;", -1, &cs, nullptr) == SQLITE_OK) {
+                ::sqlite3_bind_int(cs, 1, msg->id_734126ee6efdfbd64a1678bf49ee9683());
+                while (::sqlite3_step(cs) == SQLITE_ROW) {
+                    const unsigned char* _kp = ::sqlite3_column_text(cs, 0); const std::string _k = _kp ? reinterpret_cast<const char*>(_kp) : "";
+                    const unsigned char* _vp = ::sqlite3_column_text(cs, 1); const std::string _v = _vp ? reinterpret_cast<const char*>(_vp) : "";
+                    (*msg->mutable_val()->mutable_a())[_k] = _v;
+                }
+                ::sqlite3_finalize(cs);
+            }
+        }
+        {
+            ::sqlite3_stmt* cs = nullptr;
+            if (::sqlite3_prepare_v2(db_, "SELECT \"key\", \"value\" FROM \"table_data__val_b\" WHERE \"owner\" = ?;", -1, &cs, nullptr) == SQLITE_OK) {
+                ::sqlite3_bind_int(cs, 1, msg->id_734126ee6efdfbd64a1678bf49ee9683());
+                while (::sqlite3_step(cs) == SQLITE_ROW) {
+                    const unsigned char* _kp = ::sqlite3_column_text(cs, 0); const std::string _k = _kp ? reinterpret_cast<const char*>(_kp) : "";
+                    const int _v = ::sqlite3_column_int(cs, 1);
+                    (*msg->mutable_val()->mutable_b())[_k] = _v;
+                }
+                ::sqlite3_finalize(cs);
+            }
+        }
+        {
+            ::sqlite3_stmt* cs = nullptr;
+            if (::sqlite3_prepare_v2(db_, "SELECT \"key\", \"value\" FROM \"table_data__val_c\" WHERE \"owner\" = ?;", -1, &cs, nullptr) == SQLITE_OK) {
+                ::sqlite3_bind_int(cs, 1, msg->id_734126ee6efdfbd64a1678bf49ee9683());
+                while (::sqlite3_step(cs) == SQLITE_ROW) {
+                    const int _k = ::sqlite3_column_int(cs, 0);
+                    const unsigned char* _vp = ::sqlite3_column_text(cs, 1); const std::string _v = _vp ? reinterpret_cast<const char*>(_vp) : "";
+                    (*msg->mutable_val()->mutable_c())[_k] = _v;
+                }
+                ::sqlite3_finalize(cs);
+            }
+        }
     }
     ::sqlite3* db_;
 };

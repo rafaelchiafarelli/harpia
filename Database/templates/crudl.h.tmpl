@@ -13,15 +13,15 @@ namespace harpia {{
 namespace db {{
 
 // Data-access object for {cls} over the "{table}" table. Wraps a sqlite3* the
-// caller owns. Scalar/enum fields, singular FKs to table-bearing messages, and
-// the flattened sub-fields of a non-table composed field are persisted;
-// repeated/map fields are not.
+// caller owns. Scalar/enum fields, singular FKs to table-bearing messages, the
+// flattened sub-fields of a non-table composed field, and map<K,V> fields (as
+// child tables keyed by the primary key) are persisted; repeated fields are not.
 class {cls}_dao {{
 public:
     explicit {cls}_dao(::sqlite3* db) : db_(db) {{}}
 
-    bool create_table() {{ return exec("{create_table_sql}"); }}
-    bool drop_table()   {{ return exec("DROP TABLE IF EXISTS \"{table}\";"); }}
+    bool create_table() {{ return exec("{create_table_sql}"){map_create_tables}; }}
+    bool drop_table()   {{ return {map_drop_tables}exec("DROP TABLE IF EXISTS \"{table}\";"); }}
 
     bool create(const ::{cls}& msg) {{
 {fk_precreate}        ::sqlite3_stmt* st = nullptr;
@@ -31,7 +31,8 @@ public:
 {create_bind}
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
-        return ok;
+        if (!ok) return false;
+{map_create}        return true;
     }}
 
     bool read(std::int64_t id, ::{cls}* msg) {{
@@ -55,7 +56,8 @@ public:
         ::sqlite3_bind_int64(st, {id_bind_index}, msg.{id_accessor}());
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
-        return ok;
+        if (!ok) return false;
+{map_update}        return true;
     }}
 
     bool remove(std::int64_t id) {{
@@ -66,7 +68,8 @@ public:
         ::sqlite3_bind_int64(st, 1, id);
         const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
         ::sqlite3_finalize(st);
-        return ok;
+        if (!ok) return false;
+{map_remove}        return true;
     }}
 
     bool list(std::vector<::{cls}>* out) {{
@@ -89,7 +92,7 @@ private:
     }}
     void extract(::sqlite3_stmt* st, ::{cls}* msg) {{
 {extract}
-    }}
+{map_read}    }}
     ::sqlite3* db_;
 }};
 

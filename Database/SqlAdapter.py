@@ -11,8 +11,11 @@ Composed (message-typed) fields: an enum becomes an INTEGER column, a singular
 FK to a table-bearing message becomes an INTEGER child-PK column, and a non-table
 message is flattened (its scalar/enum sub-fields become prefixed columns).
 
+A map<K,V> field (direct or reached through a flattened embed) becomes a child
+table "<table>__<path>" keyed by the parent's PK (owner, key, value).
+
 Deferred (noted as SQL comments in the output, implemented in later steps):
-  - repeated / map fields -> separate child tables
+  - repeated fields -> separate child tables
   - version-transform functions (process.md 7.2.1)
 
 Messages with no table declared, and enums, get a one-line note instead of a
@@ -23,7 +26,7 @@ import os
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
 from Util.util import loadTemplate
-from Database.model import analyze, type_registry
+from Database.model import analyze, type_registry, map_fields
 
 SQL_EXT = "_table.sql"
 
@@ -60,10 +63,32 @@ class SqlAdapter:
 
         columns, notes = analyze(msg, self.types)
         column_lines = ['    "{}" {}'.format(c.name, c.sql_def()) for c in columns]
-        return _TABLE.format(
+        main = _TABLE.format(
             name=msg.name,
             table=msg.tableName,
             visibility=msg.visibility,
             columns=",\n".join(column_lines),
             notes=("\n".join(notes) + "\n") if notes else "",
         )
+        return main + self._child_tables(msg, columns)
+
+    def _child_tables(self, msg, columns):
+        """One child table per map<K,V> field, keyed by the parent's PK."""
+        maps = map_fields(msg, self.types)
+        if not maps:
+            return ""
+        pk = next((c for c in columns if c.pk), None)
+        owner_sql = pk.sql_type if pk else "INTEGER"
+        blocks = [""]
+        for mf in maps:
+            blocks.append(
+                '-- map {field} -> child table "{child}" (owner -> "{table}")\n'
+                'CREATE TABLE IF NOT EXISTS "{child}" (\n'
+                '    "owner" {owner},\n'
+                '    "key" {key},\n'
+                '    "value" {val},\n'
+                '    PRIMARY KEY ("owner", "key")\n'
+                ');'.format(field=mf.field, child=mf.child_table,
+                            table=msg.tableName, owner=owner_sql,
+                            key=mf.key_sql, val=mf.val_sql))
+        return "\n".join(blocks) + "\n"

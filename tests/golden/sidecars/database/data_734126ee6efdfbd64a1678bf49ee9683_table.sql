@@ -12,6 +12,28 @@ CREATE TABLE IF NOT EXISTS "table_data" (
     "ERROR_734126ee6efdfbd64a1678bf49ee9683" TEXT,
     "ORIGINATOR_734126ee6efdfbd64a1678bf49ee9683" TEXT
 );
--- val.a: repeated/map in embedded prince (deferred)
--- val.b: repeated/map in embedded prince (deferred)
--- val.c: repeated/map in embedded prince (deferred)
+-- val.a: map in embedded prince -> child table
+-- val.b: map in embedded prince -> child table
+-- val.c: map in embedded prince -> child table
+
+-- map a -> child table "table_data__val_a" (owner -> "table_data")
+CREATE TABLE IF NOT EXISTS "table_data__val_a" (
+    "owner" INTEGER,
+    "key" TEXT,
+    "value" TEXT,
+    PRIMARY KEY ("owner", "key")
+);
+-- map b -> child table "table_data__val_b" (owner -> "table_data")
+CREATE TABLE IF NOT EXISTS "table_data__val_b" (
+    "owner" INTEGER,
+    "key" TEXT,
+    "value" INTEGER,
+    PRIMARY KEY ("owner", "key")
+);
+-- map c -> child table "table_data__val_c" (owner -> "table_data")
+CREATE TABLE IF NOT EXISTS "table_data__val_c" (
+    "owner" INTEGER,
+    "key" INTEGER,
+    "value" TEXT,
+    PRIMARY KEY ("owner", "key")
+);

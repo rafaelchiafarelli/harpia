@@ -68,6 +68,12 @@ int database_roundtrip() {
     a.mutable_val()->set_vari(1);
     a.mutable_val()->set_var(1);
     a.mutable_val()->set_val(1);
+    (*a.mutable_val()->mutable_a())["k1"] = "v1";
+    (*a.mutable_val()->mutable_a())["k2"] = "v2";
+    (*a.mutable_val()->mutable_b())["k1"] = 10;
+    (*a.mutable_val()->mutable_b())["k2"] = 20;
+    (*a.mutable_val()->mutable_c())[1] = "v1";
+    (*a.mutable_val()->mutable_c())[2] = "v2";
     if (!dao.create(a)) return 22;
     ::data got;
     if (!dao.read(1, &got)) return 23;
@@ -80,6 +86,12 @@ int database_roundtrip() {
     if (got.val().vari() != 1) return 32;
     if (got.val().var() != 1) return 32;
     if (got.val().val() != 1) return 32;
+    if (got.val().a().count("k1") != 1 || got.val().a().at("k1") != "v1") return 33;
+    if (got.val().a().count("k2") != 1 || got.val().a().at("k2") != "v2") return 33;
+    if (got.val().b().count("k1") != 1 || got.val().b().at("k1") != 10) return 33;
+    if (got.val().b().count("k2") != 1 || got.val().b().at("k2") != 20) return 33;
+    if (got.val().c().count(1) != 1 || got.val().c().at(1) != "v1") return 33;
+    if (got.val().c().count(2) != 1 || got.val().c().at(2) != "v2") return 33;
 
     // update an existing row
     ::data upd = a;

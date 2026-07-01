@@ -20,7 +20,7 @@ import shutil
 
 from Logger.logger import logger
 from Util.util import loadTemplate
-from Database.model import analyze, type_registry
+from Database.model import analyze, type_registry, map_fields
 
 TEST_EXT = "_test.cpp"
 
@@ -55,6 +55,20 @@ def _value(col, variant):
     if col.kind == "int64":
         return "7" if variant == "a" else "8"
     return "1"
+
+
+def _map_key(kind, i):
+    """A distinct C++ key literal for map round-trip entry ``i`` (1-based)."""
+    return '"k{}"'.format(i) if kind == "text" else str(i)
+
+
+def _map_val(kind, i):
+    """A distinct C++ value literal for map round-trip entry ``i``."""
+    if kind == "text":
+        return '"v{}"'.format(i)
+    if kind == "double":
+        return "{}.5".format(i)
+    return str(i * 10)
 
 
 class TestAdapter:
@@ -113,7 +127,8 @@ class TestAdapter:
             xml_header="{}_{}_xml.h".format(msg.name, msg.md5Hash),
             rest_header="{}_{}_rest.h".format(msg.name, msg.md5Hash),
             simple_body=self._simple_body(msg, bindable),
-            db_body=self._db_body(msg, pk, non_pk, embed_cols),
+            db_body=self._db_body(msg, pk, non_pk, embed_cols,
+                                  map_fields(msg, self.types)),
             ar_body=self._access_rights_body(msg),
             am_body=self._access_modifiers_body(msg, pk, non_pk),
             json_body=self._json_body(msg, bindable),
@@ -131,7 +146,7 @@ class TestAdapter:
                 c.accessor, _value(c, "a"), 10 + i))
         return "\n".join(lines)
 
-    def _db_body(self, msg, pk, non_pk, embed_cols=()):
+    def _db_body(self, msg, pk, non_pk, embed_cols=(), maps=()):
         cls = msg.name
         if pk is None:
             return ("    // no primary key column: CRUDL round-trip deferred "
@@ -153,6 +168,12 @@ class TestAdapter:
         # flattened sub-fields of a non-table composed field round-trip too
         L += ["    a.mutable_{}()->set_{}({});".format(
               c.embed, c.child_accessor, _value(c, "a")) for c in embed_cols]
+        # map<K,V> fields round-trip through their child tables (two entries each)
+        for mf in maps:
+            for i in (1, 2):
+                L.append("    (*{m})[{k}] = {v};".format(
+                    m=mf.mutable_on("a"), k=_map_key(mf.key_kind, i),
+                    v=_map_val(mf.val_kind, i)))
         L += [
             "    if (!dao.create(a)) return 22;",
             "    ::{} got;".format(cls),
@@ -162,6 +183,12 @@ class TestAdapter:
               _value(c, "a")) for c in non_pk]
         L += ["    if (got.{}().{}() != {}) return 32;".format(
               c.embed, c.child_accessor, _value(c, "a")) for c in embed_cols]
+        for mf in maps:
+            for i in (1, 2):
+                entries = mf.entries("got")
+                L.append("    if ({e}.count({k}) != 1 || {e}.at({k}) != {v}) "
+                         "return 33;".format(e=entries, k=_map_key(mf.key_kind, i),
+                                             v=_map_val(mf.val_kind, i)))
 
         if text_field is not None:
             L += [
