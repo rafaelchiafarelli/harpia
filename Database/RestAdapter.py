@@ -8,6 +8,10 @@ bodies (spec stage 12 / 11.1, REST for JSON):
   POST <base>/<name>      create    PUT    <base>/<name>/:id   update
                                     DELETE <base>/<name>/:id   delete
 
+Every route enforces the generated access credential (Stage 5 access rights): the
+request must carry X-User: <name> and X-Pswd: <hash> headers, or it is rejected
+with HTTP 401 (mirrors the SOAP endpoint, which gates on <credentials>).
+
 XML content-negotiation and the SOAP/REST-for-XML variants are deferred.
 """
 import os

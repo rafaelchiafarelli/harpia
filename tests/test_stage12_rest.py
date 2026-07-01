@@ -75,6 +75,11 @@ def test_rest_http_crud(built):
             '    std::thread t([&]{{ svr.listen("127.0.0.1", 18099); }});\n'
             "    svr.wait_until_ready();\n"
             '    ::httplib::Client cli("127.0.0.1", 18099);\n'
+            "    // every route requires the generated credential (X-User/X-Pswd)\n"
+            '    ::httplib::Client anon("127.0.0.1", 18099);\n'
+            '    auto na = anon.Get("/api/v1/users");\n'
+            "    if (!na || na->status != 401) {{ svr.stop(); t.join(); return 10; }}\n"
+            '    cli.set_default_headers({{{{"X-User", "users"}}, {{"X-Pswd", "{h}"}}}});\n'
             "    auto run = [&]() -> int {{\n"
             "        ::users a; a.set_id_{h}(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
             "        std::string body; ::harpia::json::to_json(a, &body);\n"

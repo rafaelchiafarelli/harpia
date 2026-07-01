@@ -39,6 +39,7 @@ int all_good() {
     svr.wait_until_ready();
     ::httplib::Client cli("127.0.0.1", port);
     const std::string hdr = "<soap:Header><credentials><user>users</user><pswd>6cea4c29647b10eb99b42c762ac09f75</pswd></credentials></soap:Header>";
+    const ::httplib::Headers rc = {{"X-User", "users"}, {"X-Pswd", "6cea4c29647b10eb99b42c762ac09f75"}};
     int code = 0;
     do {
         ::users a;
@@ -50,7 +51,7 @@ int all_good() {
         a.set_originator_6cea4c29647b10eb99b42c762ac09f75("originator_6cea4c29647b10eb99b42c762ac09f75_a");
         std::string body;
         if (!::harpia::json::to_json(a, &body)) { code = 113; break; }
-        auto post = cli.Post("/api/v1/users", body, "application/json");
+        auto post = cli.Post("/api/v1/users", rc, body, "application/json");
         if (!post || post->status != 201) { code = 114; break; }
         const std::string getEnv = "<soap:Envelope>" + hdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";
         auto g = cli.Post("/soap/users", getEnv, "text/xml");
@@ -81,14 +82,15 @@ int crash() {
     std::thread t([&]{ svr.listen_after_bind(); });
     svr.wait_until_ready();
     ::httplib::Client cli("127.0.0.1", port);
+    const ::httplib::Headers rc = {{"X-User", "users"}, {"X-Pswd", "6cea4c29647b10eb99b42c762ac09f75"}};
     int code = 0;
     do {
         std::string body;
         if (!::harpia::json::to_json(a, &body)) { code = 124; break; }
-        auto post = cli.Post("/api/v1/users", body, "application/json");
+        auto post = cli.Post("/api/v1/users", rc, body, "application/json");
         if (!post) { code = 125; break; }
         if (post->status != 500) { code = 126; break; }
-        auto lst = cli.Get("/api/v1/users");
+        auto lst = cli.Get("/api/v1/users", rc);
         if (!lst || lst->status != 500) { code = 127; break; }
     } while (false);
     svr.stop(); t.join(); ::sqlite3_close(db);
@@ -140,9 +142,10 @@ int non_parseable() {
     std::thread t([&]{ svr.listen_after_bind(); });
     svr.wait_until_ready();
     ::httplib::Client cli("127.0.0.1", port);
+    const ::httplib::Headers rc = {{"X-User", "users"}, {"X-Pswd", "6cea4c29647b10eb99b42c762ac09f75"}};
     int code = 0;
     do {
-        auto bj = cli.Post("/api/v1/users", "{ not json", "application/json");
+        auto bj = cli.Post("/api/v1/users", rc, "{ not json", "application/json");
         if (!bj || bj->status != 400) { code = 146; break; }
         auto bx = cli.Post("/soap/users", "<not soap", "text/xml");
         if (!bx || bx->status != 400) { code = 147; break; }
