@@ -40,6 +40,7 @@ from Database.CrudlAdapter import CrudlAdapter
 from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
+from Database.WsdlAdapter import WsdlAdapter
 from TestAdapter.TestAdapter import TestAdapter
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 
@@ -125,6 +126,9 @@ def run(output_dir):
     # 11. SOAP endpoints (XML over HTTP, get/set over CRUDL)
     SoapAdapter(messages=msg_factory.messages, dest=build_dir).Process()
 
+    # 11 (WSDL). WSDL descriptor for the SOAP service
+    WsdlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+
     # 14. generated unit tests (opt-in CTest target over CRUDL + messages)
     TestAdapter(messages=msg_factory.messages, dest=build_dir).Process()
 
@@ -139,6 +143,7 @@ def run(output_dir):
     _collect_dbio(build_dir, os.path.join(output_dir, "dbio"))
     _collect_rest(build_dir, os.path.join(output_dir, "rest"))
     _collect_soap(build_dir, os.path.join(output_dir, "soap"))
+    _collect_wsdl(build_dir, os.path.join(output_dir, "wsdl"))
     _collect_gen_tests(build_dir, os.path.join(output_dir, "gen_tests"))
     _collect_sidecars(build_dir, os.path.join(output_dir, "sidecars"))
 
@@ -250,6 +255,18 @@ def _collect_soap(build_dir, dest):
         return
     for name in sorted(os.listdir(src)):
         if name.endswith(".h"):
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_wsdl(build_dir, dest):
+    src = os.path.join(build_dir, "wsdl")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith(".wsdl"):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
