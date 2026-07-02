@@ -238,6 +238,24 @@ def test_soap_endpoints(artifacts):
         _check(os.path.join(produced_dir, rel), os.path.join("soap", rel))
 
 
+def test_grpc_service_impls(artifacts):
+    produced_dir = os.path.join(artifacts, "grpc")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "grpc")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel), os.path.join("grpc", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "grpc"))
+    assert produced == expected, "set of generated gRPC service impls changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("grpc", rel))
+
+
 def test_wsdl(artifacts):
     produced_dir = os.path.join(artifacts, "wsdl")
     produced = _relpaths(produced_dir)

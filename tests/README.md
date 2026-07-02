@@ -40,7 +40,7 @@ python3 -m venv .venv
 | `test_frontend.py`    | front-end error paths (bad import, unbalanced braces, malformed `map<>`, nameless message, lexer mismatch, …) return the right `Error` type | python only |
 | `test_stage7.py`      | Stage 7: `protoc` emits one `.pb.{h,cc}` per proto and every `.pb.cc` compiles | protoc, g++ |
 | `test_stage9.py`      | Stage 9: JSON adapters compile and a real JSON round-trip runs | protoc, g++ |
-| `test_stage13.py`     | Stage 13 gRPC: every `*_service.grpc.pb.cc` compiles, and a Stub + Service skeleton link and run | protoc, grpc_cpp_plugin, g++ |
+| `test_stage13.py`     | Stage 13 gRPC: every `*_service.grpc.pb.cc` compiles, a Stub + Service skeleton link and run, and the CRUDL-backed service impl (`users`) creates via push and reads back via pullByID (missing id → NOT_FOUND) | protoc, grpc_cpp_plugin, g++ (+ cc for vendored sqlite) |
 | `test_stage13_zmq.py` | Stage 13 ZMQ: transports compile and a PUSH/PULL round-trip runs over a real socket (incl. the stamped originator id) | protoc, g++, libzmq |
 | `test_stage10_xml.py` | Stage 10: XML adapters compile, `to_xml`/`from_xml` round-trip, XSD is well-formed | protoc, g++ (uses vendored tinyxml2) |
 | `test_stage8_db.py`   | Stage 8: generated SQL schema executes in SQLite; CRUDL DAO round-trip (insert→read→update→list→delete); singular FK round-trip (top_users.myUsers→vip_users persisted/loaded via the child DAO); map<K,V> child-table round-trip (data.val.a/b/c); repeated scalar child-table round-trip (data.tags); DB↔JSON/XML bulk export/import round-trip | cc + g++ (vendored sqlite); CRUDL/IO parts also protoc |
