@@ -36,7 +36,7 @@ python3 -m venv .venv
 
 | file | what it checks | needs |
 |------|----------------|-------|
-| `test_golden.py`      | tokens, messages, generated `proto/`, `json/`, `zmq/`, `xml/` wrappers and the `sidecars/` (sql/modifier/access/pswd) match `tests/golden/` | python only |
+| `test_golden.py`      | tokens, messages, generated `proto/`, `json/`, `zmq/`, `xml/` wrappers, `db/`, `rest/`, `soap/`, `wsdl/`, `gen_tests/` and the `sidecars/` (sql/modifier/access/pswd) match `tests/golden/` | python only |
 | `test_frontend.py`    | front-end error paths (bad import, unbalanced braces, malformed `map<>`, nameless message, lexer mismatch, …) return the right `Error` type | python only |
 | `test_stage7.py`      | Stage 7: `protoc` emits one `.pb.{h,cc}` per proto and every `.pb.cc` compiles | protoc, g++ |
 | `test_stage9.py`      | Stage 9: JSON adapters compile and a real JSON round-trip runs | protoc, g++ |
