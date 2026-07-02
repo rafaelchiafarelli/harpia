@@ -41,6 +41,7 @@ from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
 from Database.WsdlAdapter import WsdlAdapter
+from Database.GrpcServiceAdapter import GrpcServiceAdapter
 from TestAdapter.TestAdapter import TestAdapter
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 
@@ -112,6 +113,9 @@ def run(output_dir):
     # 13 (zmq). ZMQ/socket transport for push/pull + event/stream messages
     ZmqAdapter(messages=msg_factory.messages, dest=build_dir).Process()
 
+    # 13 (grpc impl). concrete gRPC service wired to CRUDL (per table message)
+    GrpcServiceAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+
     # 10. XML adapters (reflection runtime + per-message wrappers)
     XmlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
 
@@ -138,6 +142,7 @@ def run(output_dir):
     _collect_protos(build_dir, os.path.join(output_dir, "proto"))
     _collect_json(build_dir, os.path.join(output_dir, "json"))
     _collect_zmq(build_dir, os.path.join(output_dir, "zmq"))
+    _collect_grpc(build_dir, os.path.join(output_dir, "grpc"))
     _collect_xml(build_dir, os.path.join(output_dir, "xml"))
     _collect_crudl(build_dir, os.path.join(output_dir, "db"))
     _collect_dbio(build_dir, os.path.join(output_dir, "dbio"))
@@ -248,6 +253,18 @@ def _collect_rest(build_dir, dest):
 
 def _collect_soap(build_dir, dest):
     src = os.path.join(build_dir, "generated", "cpp", "soap")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith(".h"):
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_grpc(build_dir, dest):
+    src = os.path.join(build_dir, "generated", "cpp", "grpc")
     if os.path.exists(dest):
         shutil.rmtree(dest)
     os.makedirs(dest, exist_ok=True)

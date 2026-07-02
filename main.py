@@ -18,6 +18,7 @@ from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
 from Database.WsdlAdapter import WsdlAdapter
+from Database.GrpcServiceAdapter import GrpcServiceAdapter
 from TestAdapter.TestAdapter import TestAdapter
 from copy import deepcopy
 from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
@@ -119,6 +120,11 @@ if __name__ == '__main__':
     zmqError = ZmqAdapter(messages=msgFactory.messages, dest=testDestination).Process()
     if zmqError is not None:
         log.print(zmqError.__str__())
+
+    #13 (grpc impl). wire the generated gRPC service to CRUDL (per table message)
+    grpcSvcError = GrpcServiceAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    if grpcSvcError is not None:
+        log.print(grpcSvcError.__str__())
 
     #10. generate the XML adapters (reflection-based runtime + per-message wrappers)
     xmlError = XmlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
