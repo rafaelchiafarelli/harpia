@@ -227,6 +227,7 @@ int rest_api() {
     svr.wait_until_ready();
     ::httplib::Client cli("127.0.0.1", port);
     const ::httplib::Headers cred = {{"X-User", "data"}, {"X-Pswd", "6cea4c29647b10eb99b42c762ac09f75"}};
+    const ::httplib::Headers credx = {{"X-User", "data"}, {"X-Pswd", "6cea4c29647b10eb99b42c762ac09f75"}, {"Accept", "application/xml"}};
     int code = 0;
     do {
         // every route requires the generated credential (X-User/X-Pswd)
@@ -251,6 +252,18 @@ int rest_api() {
         if (got->body.find("status_6cea4c29647b10eb99b42c762ac09f75_a") == std::string::npos) { code = 86; break; }
         auto lst = cli.Get("/api/v1/data", cred);
         if (!lst || lst->status != 200) { code = 87; break; }
+        // content negotiation: XML response, and an XML request body
+        auto gx = cli.Get("/api/v1/data/1", credx);
+        if (!gx || gx->status != 200 || gx->body.find("<") == std::string::npos) { code = 95; break; }
+        if (gx->body.find("status_6cea4c29647b10eb99b42c762ac09f75_a") == std::string::npos) { code = 96; break; }
+        ::data ax = a;
+        ax.set_id_6cea4c29647b10eb99b42c762ac09f75(2);
+        const std::string axml = ::harpia::xml::to_xml(ax);
+        auto xpost = cli.Post("/api/v1/data", cred, axml, "application/xml");
+        if (!xpost || xpost->status != 201) { code = 97; break; }
+        auto gx2 = cli.Get("/api/v1/data/2", credx);
+        if (!gx2 || gx2->status != 200) { code = 98; break; }
+        if (gx2->body.find("status_6cea4c29647b10eb99b42c762ac09f75_a") == std::string::npos) { code = 99; break; }
         ::data b = a;
         b.set_status_6cea4c29647b10eb99b42c762ac09f75("status_6cea4c29647b10eb99b42c762ac09f75_u");
         std::string bb;
