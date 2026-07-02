@@ -11,8 +11,10 @@
 
 // Minimal SOAP-over-HTTP access for vip_users, backed by the CRUDL DAO. Register on
 // an httplib::Server with a base path; POST a SOAP envelope to <base>/vip_users:
-//   <soap:Body><get><id>N</id></get></soap:Body>      -> the vip_users as XML
-//   <soap:Body><set><vip_users>...</vip_users></set></soap:Body> -> create
+//   <soap:Body><get><id>N</id></get></soap:Body>          -> the vip_users as XML
+//   <soap:Body><set><vip_users>...</vip_users></set></soap:Body>       -> create
+//   <soap:Body><update><vip_users>...</vip_users></update></soap:Body> -> update
+//   <soap:Body><delete><id>N</id></delete></soap:Body>    -> delete
 //
 // Every request must carry the generated access credential in the SOAP Header
 // (Stage 5 access rights), or it is rejected with a SOAP Fault (HTTP 401):
@@ -121,6 +123,24 @@ inline void register_vip_users_soap(::httplib::Server& svr, ::sqlite3* db,
             res.set_content(envelope_vip_users(
                 std::string("<setResponse><ok>") + (ok ? "true" : "false") +
                 "</ok></setResponse>"), "text/xml");
+        } else if (name == "update") {
+            const auto* m = op->FirstChildElement();          // the vip_users element
+            ::vip_users msg;
+            if (!m || !::harpia::xml::from_xml_element(m, &msg)) {
+                res.status = 400; return;
+            }
+            const bool ok = dao.update(msg);
+            res.set_content(envelope_vip_users(
+                std::string("<updateResponse><ok>") + (ok ? "true" : "false") +
+                "</ok></updateResponse>"), "text/xml");
+        } else if (name == "delete") {
+            const auto* idEl = op->FirstChildElement("id");
+            const long long id =
+                (idEl && idEl->GetText()) ? ::atoll(idEl->GetText()) : 0;
+            const bool ok = dao.remove(id);
+            res.set_content(envelope_vip_users(
+                std::string("<deleteResponse><ok>") + (ok ? "true" : "false") +
+                "</ok></deleteResponse>"), "text/xml");
         } else {
             res.set_content(envelope_vip_users(
                 "<soap:Fault><faultstring>unknown operation</faultstring></soap:Fault>"),
