@@ -349,6 +349,9 @@ class TestAdapter:
         probe = next((c for c in non_pk if c.kind == "text"), None)
         cred = ('const ::httplib::Headers cred = {{"X-User", "' + cls +
                 '"}, {"X-Pswd", "' + msg.md5Hash + '"}};')
+        credx = ('const ::httplib::Headers credx = {{"X-User", "' + cls +
+                 '"}, {"X-Pswd", "' + msg.md5Hash +
+                 '"}, {"Accept", "application/xml"}};')
         wrong = ('::httplib::Headers{{"X-User", "' + cls +
                  '"}, {"X-Pswd", "nope"}}')
         L = [
@@ -364,6 +367,7 @@ class TestAdapter:
             "    svr.wait_until_ready();",
             '    ::httplib::Client cli("127.0.0.1", port);',
             "    " + cred,
+            "    " + credx,
             "    int code = 0;",
             "    do {",
             "        // every route requires the generated credential (X-User/X-Pswd)",
@@ -391,7 +395,26 @@ class TestAdapter:
         L += [
             '        auto lst = cli.Get("/api/v1/' + cls + '", cred);',
             "        if (!lst || lst->status != 200) { code = 87; break; }",
+            "        // content negotiation: XML response, and an XML request body",
+            '        auto gx = cli.Get("/api/v1/' + cls + '/1", credx);',
+            '        if (!gx || gx->status != 200 || gx->body.find("<") == '
+            "std::string::npos) { code = 95; break; }",
         ]
+        if probe is not None:
+            L.append('        if (gx->body.find("' + probe.accessor + '_a") == '
+                     "std::string::npos) { code = 96; break; }")
+        L += [
+            "        ::" + cls + " ax = a;",
+            "        ax.set_" + pk.accessor + "(2);",
+            "        const std::string axml = ::harpia::xml::to_xml(ax);",
+            '        auto xpost = cli.Post("/api/v1/' + cls + '", cred, axml, "application/xml");',
+            "        if (!xpost || xpost->status != 201) { code = 97; break; }",
+            '        auto gx2 = cli.Get("/api/v1/' + cls + '/2", credx);',
+            "        if (!gx2 || gx2->status != 200) { code = 98; break; }",
+        ]
+        if probe is not None:
+            L.append('        if (gx2->body.find("' + probe.accessor + '_a") == '
+                     "std::string::npos) { code = 99; break; }")
         if probe is not None:
             L += [
                 "        ::" + cls + " b = a;",

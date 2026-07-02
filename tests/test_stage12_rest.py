@@ -4,8 +4,9 @@ Builds a program that registers the generated routes on a cpp-httplib server
 backed by an in-memory SQLite, then drives them with an HTTP client:
 POST -> GET/:id -> GET (list) -> PUT -> DELETE -> GET/:id (404).
 
-Needs protoc + g++ + cc + pkg-config (compiles the vendored sqlite; httplib and
-the JSON adapter are header-only). Skipped otherwise; runs in the Docker image.
+Needs protoc + g++ + cc + pkg-config (compiles the vendored sqlite + tinyxml2;
+httplib and the JSON/XML adapters are header-only). Content negotiation pulls in
+the XML runtime (tinyxml2). Skipped otherwise; runs in the Docker image.
 """
 import os
 import shutil
@@ -19,6 +20,7 @@ REPO_ROOT = os.path.dirname(HERE)
 RUNNER = os.path.join(HERE, "run_pipeline.py")
 SQLITE = os.path.join(REPO_ROOT, "third_party", "sqlite")
 HTTPLIB = os.path.join(REPO_ROOT, "third_party", "cpp-httplib")
+TINYXML2 = os.path.join(REPO_ROOT, "third_party", "tinyxml2")
 HASH = "6cea4c29647b10eb99b42c762ac09f75"
 
 pytestmark = pytest.mark.skipif(
@@ -109,10 +111,11 @@ def test_rest_http_crud(built):
     pb_cc = os.path.join(built["cpp_root"], "protofiles",
                          "users_{}.pb.cc".format(HASH))
     binary = os.path.join(built["tmp"], "rest_app")
+    tinyxml = os.path.join(TINYXML2, "tinyxml2.cpp")
     c = subprocess.run(
         ["g++", "-std=c++17", "-I", built["cpp_root"], "-I", SQLITE,
-         "-I", HTTPLIB, *_pkgconfig("--cflags"), prog, pb_cc,
-         built["sqlite_obj"], "-o", binary,
+         "-I", HTTPLIB, "-I", TINYXML2, *_pkgconfig("--cflags"), prog, pb_cc,
+         tinyxml, built["sqlite_obj"], "-o", binary,
          *_pkgconfig("--libs"), "-lpthread", "-ldl"],
         capture_output=True, text=True, timeout=180)
     assert c.returncode == 0, "REST program failed to build:\n" + c.stderr

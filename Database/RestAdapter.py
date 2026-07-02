@@ -1,18 +1,20 @@
 """Stage 12 -- RESTful HTTP bindings.
 
 For each table-bearing message, emit a header (<name>_<hash>_rest.h) that
-registers CRUD routes on a cpp-httplib server, backed by the CRUDL DAO with JSON
-bodies (spec stage 12 / 11.1, REST for JSON):
+registers CRUD routes on a cpp-httplib server, backed by the CRUDL DAO (spec
+stage 12 / 11.1):
 
   GET  <base>/<name>      list      GET    <base>/<name>/:id   read
   POST <base>/<name>      create    PUT    <base>/<name>/:id   update
                                     DELETE <base>/<name>/:id   delete
 
+Content negotiation (spec stage 12): a request body is parsed as XML when its
+Content-Type contains "xml" (else JSON), and a response is serialized as XML when
+the Accept header asks for "xml" (else JSON), reusing the JSON and XML adapters.
+
 Every route enforces the generated access credential (Stage 5 access rights): the
 request must carry X-User: <name> and X-Pswd: <hash> headers, or it is rejected
 with HTTP 401 (mirrors the SOAP endpoint, which gates on <credentials>).
-
-XML content-negotiation and the SOAP/REST-for-XML variants are deferred.
 """
 import os
 

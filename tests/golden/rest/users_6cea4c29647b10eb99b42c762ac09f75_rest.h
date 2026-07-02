@@ -8,14 +8,19 @@
 #include "httplib.h"
 #include "db/users_6cea4c29647b10eb99b42c762ac09f75_crudl.h"
 #include "json/users_6cea4c29647b10eb99b42c762ac09f75_json.h"
+#include "xml/users_6cea4c29647b10eb99b42c762ac09f75_xml.h"
 
-// RESTful CRUD for users, backed by the CRUDL DAO with JSON bodies. Register on
-// an httplib::Server with a base path (e.g. "/project/v1"); routes are then:
+// RESTful CRUD for users, backed by the CRUDL DAO. Register on an
+// httplib::Server with a base path (e.g. "/project/v1"); routes are then:
 //   GET    <base>/users        list
 //   GET    <base>/users/:id    read
-//   POST   <base>/users        create   (JSON body)
-//   PUT    <base>/users/:id    update   (JSON body)
+//   POST   <base>/users        create   (JSON or XML body)
+//   PUT    <base>/users/:id    update   (JSON or XML body)
 //   DELETE <base>/users/:id    delete
+//
+// Content negotiation: a request body is parsed as XML when its Content-Type
+// contains "xml" (else JSON); a response is serialized as XML when the Accept
+// header asks for "xml" (else JSON).
 //
 // Every route enforces the generated access credential (Stage 5 access rights):
 // the request must carry X-User: users and X-Pswd: 6cea4c29647b10eb99b42c762ac09f75, or it is rejected
@@ -30,6 +35,27 @@ inline bool authorized_users(const ::httplib::Request& req) {
            req.get_header_value("X-Pswd") == "6cea4c29647b10eb99b42c762ac09f75";
 }
 
+// content negotiation: XML when asked for, JSON otherwise
+inline bool wants_xml_users(const ::httplib::Request& req) {
+    return req.get_header_value("Accept").find("xml") != std::string::npos;
+}
+inline bool body_xml_users(const ::httplib::Request& req) {
+    return req.get_header_value("Content-Type").find("xml") != std::string::npos;
+}
+inline bool parse_users(const ::httplib::Request& req, ::users* msg) {
+    return body_xml_users(req) ? ::harpia::xml::from_xml(req.body, msg)
+                                : ::harpia::json::from_json(req.body, msg);
+}
+inline void serialize_users(const ::httplib::Request& req,
+                             const ::users& msg, ::httplib::Response& res) {
+    if (wants_xml_users(req)) {
+        res.set_content(::harpia::xml::to_xml(msg), "application/xml");
+    } else {
+        std::string j; ::harpia::json::to_json(msg, &j);
+        res.set_content(j, "application/json");
+    }
+}
+
 inline void register_users(::httplib::Server& svr, ::sqlite3* db,
                             const std::string& base) {
     const std::string col = base + "/users";
@@ -40,15 +66,22 @@ inline void register_users(::httplib::Server& svr, ::sqlite3* db,
         ::harpia::db::users_dao dao(db);
         std::vector<::users> rows;
         if (!dao.list(&rows)) { res.status = 500; return; }
-        std::string body = "[";
-        for (size_t i = 0; i < rows.size(); ++i) {
-            std::string j;
-            ::harpia::json::to_json(rows[i], &j);
-            if (i) body += ",";
-            body += j;
+        if (wants_xml_users(req)) {
+            std::string body = "<list>";
+            for (const auto& r : rows) body += ::harpia::xml::to_xml(r);
+            body += "</list>";
+            res.set_content(body, "application/xml");
+        } else {
+            std::string body = "[";
+            for (size_t i = 0; i < rows.size(); ++i) {
+                std::string j;
+                ::harpia::json::to_json(rows[i], &j);
+                if (i) body += ",";
+                body += j;
+            }
+            body += "]";
+            res.set_content(body, "application/json");
         }
-        body += "]";
-        res.set_content(body, "application/json");
     });
 
     svr.Get(item, [db](const ::httplib::Request& req, ::httplib::Response& res) {
@@ -56,16 +89,14 @@ inline void register_users(::httplib::Server& svr, ::sqlite3* db,
         ::harpia::db::users_dao dao(db);
         ::users msg;
         if (!dao.read(std::stoll(req.matches[1]), &msg)) { res.status = 404; return; }
-        std::string j;
-        ::harpia::json::to_json(msg, &j);
-        res.set_content(j, "application/json");
+        serialize_users(req, msg, res);
     });
 
     svr.Post(col, [db](const ::httplib::Request& req, ::httplib::Response& res) {
         if (!authorized_users(req)) { res.status = 401; return; }
         ::harpia::db::users_dao dao(db);
         ::users msg;
-        if (!::harpia::json::from_json(req.body, &msg)) { res.status = 400; return; }
+        if (!parse_users(req, &msg)) { res.status = 400; return; }
         if (!dao.create(msg)) { res.status = 500; return; }
         res.status = 201;
     });
@@ -74,7 +105,7 @@ inline void register_users(::httplib::Server& svr, ::sqlite3* db,
         if (!authorized_users(req)) { res.status = 401; return; }
         ::harpia::db::users_dao dao(db);
         ::users msg;
-        if (!::harpia::json::from_json(req.body, &msg)) { res.status = 400; return; }
+        if (!parse_users(req, &msg)) { res.status = 400; return; }
         if (!dao.update(msg)) { res.status = 500; return; }
         res.status = 204;
     });
