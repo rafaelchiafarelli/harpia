@@ -267,6 +267,19 @@ int soap_api() {
         auto g = cli.Post("/soap/users", getEnv, "text/xml");
         if (!g || g->status != 200 || g->body.find("getResponse") == std::string::npos) { code = 105; break; }
         if (g->body.find("address_a") == std::string::npos) { code = 106; break; }
+        ::users b = a;
+        b.set_address("address_u");
+        const std::string ux = ::harpia::xml::to_xml(b);
+        const std::string updEnv = "<soap:Envelope>" + hdr + "<soap:Body><update>" + ux + "</update></soap:Body></soap:Envelope>";
+        auto u = cli.Post("/soap/users", updEnv, "text/xml");
+        if (!u || u->status != 200 || u->body.find("<ok>true</ok>") == std::string::npos) { code = 107; break; }
+        auto g2 = cli.Post("/soap/users", getEnv, "text/xml");
+        if (!g2 || g2->body.find("address_u") == std::string::npos) { code = 108; break; }
+        const std::string delEnv = "<soap:Envelope>" + hdr + "<soap:Body><delete><id>1</id></delete></soap:Body></soap:Envelope>";
+        auto d = cli.Post("/soap/users", delEnv, "text/xml");
+        if (!d || d->status != 200 || d->body.find("<ok>true</ok>") == std::string::npos) { code = 109; break; }
+        auto g3 = cli.Post("/soap/users", getEnv, "text/xml");
+        if (!g3 || g3->body.find("not found") == std::string::npos) { code = 111; break; }
     } while (false);
     svr.stop(); t.join(); ::sqlite3_close(db);
     return code;

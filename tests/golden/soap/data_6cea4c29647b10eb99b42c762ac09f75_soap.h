@@ -11,8 +11,10 @@
 
 // Minimal SOAP-over-HTTP access for data, backed by the CRUDL DAO. Register on
 // an httplib::Server with a base path; POST a SOAP envelope to <base>/data:
-//   <soap:Body><get><id>N</id></get></soap:Body>      -> the data as XML
-//   <soap:Body><set><data>...</data></set></soap:Body> -> create
+//   <soap:Body><get><id>N</id></get></soap:Body>          -> the data as XML
+//   <soap:Body><set><data>...</data></set></soap:Body>       -> create
+//   <soap:Body><update><data>...</data></update></soap:Body> -> update
+//   <soap:Body><delete><id>N</id></delete></soap:Body>    -> delete
 //
 // Every request must carry the generated access credential in the SOAP Header
 // (Stage 5 access rights), or it is rejected with a SOAP Fault (HTTP 401):
@@ -121,6 +123,24 @@ inline void register_data_soap(::httplib::Server& svr, ::sqlite3* db,
             res.set_content(envelope_data(
                 std::string("<setResponse><ok>") + (ok ? "true" : "false") +
                 "</ok></setResponse>"), "text/xml");
+        } else if (name == "update") {
+            const auto* m = op->FirstChildElement();          // the data element
+            ::data msg;
+            if (!m || !::harpia::xml::from_xml_element(m, &msg)) {
+                res.status = 400; return;
+            }
+            const bool ok = dao.update(msg);
+            res.set_content(envelope_data(
+                std::string("<updateResponse><ok>") + (ok ? "true" : "false") +
+                "</ok></updateResponse>"), "text/xml");
+        } else if (name == "delete") {
+            const auto* idEl = op->FirstChildElement("id");
+            const long long id =
+                (idEl && idEl->GetText()) ? ::atoll(idEl->GetText()) : 0;
+            const bool ok = dao.remove(id);
+            res.set_content(envelope_data(
+                std::string("<deleteResponse><ok>") + (ok ? "true" : "false") +
+                "</ok></deleteResponse>"), "text/xml");
         } else {
             res.set_content(envelope_data(
                 "<soap:Fault><faultstring>unknown operation</faultstring></soap:Fault>"),

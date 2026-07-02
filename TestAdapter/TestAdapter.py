@@ -464,6 +464,26 @@ class TestAdapter:
             v = probe.accessor + "_a"
             L.append('        if (g->body.find("' + v + '") == std::string::npos)'
                      " { code = 106; break; }")
+        # update round-trips: change a field, <update>, then <get> sees the change
+        if probe is not None:
+            L += [
+                "        ::" + cls + " b = a;",
+                '        b.set_' + probe.accessor + '("' + probe.accessor + '_u");',
+                "        const std::string ux = ::harpia::xml::to_xml(b);",
+                '        const std::string updEnv = "<soap:Envelope>" + hdr + "<soap:Body><update>" + ux + "</update></soap:Body></soap:Envelope>";',
+                '        auto u = cli.Post("/soap/' + cls + '", updEnv, "text/xml");',
+                '        if (!u || u->status != 200 || u->body.find("<ok>true</ok>") == std::string::npos) { code = 107; break; }',
+                '        auto g2 = cli.Post("/soap/' + cls + '", getEnv, "text/xml");',
+                '        if (!g2 || g2->body.find("' + probe.accessor + '_u") == std::string::npos) { code = 108; break; }',
+            ]
+        # delete round-trips: <delete>, then <get> reports not found
+        L += [
+            '        const std::string delEnv = "<soap:Envelope>" + hdr + "<soap:Body><delete><id>1</id></delete></soap:Body></soap:Envelope>";',
+            '        auto d = cli.Post("/soap/' + cls + '", delEnv, "text/xml");',
+            '        if (!d || d->status != 200 || d->body.find("<ok>true</ok>") == std::string::npos) { code = 109; break; }',
+            '        auto g3 = cli.Post("/soap/' + cls + '", getEnv, "text/xml");',
+            '        if (!g3 || g3->body.find("not found") == std::string::npos) { code = 111; break; }',
+        ]
         L += [
             "    } while (false);",
             "    svr.stop(); t.join(); ::sqlite3_close(db);",

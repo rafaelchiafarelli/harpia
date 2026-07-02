@@ -7,9 +7,11 @@ the XML adapter (spec stage 11):
   POST <base>/<name> with a SOAP envelope whose Body holds:
     <get><id>N</id></get>            -> the <name> serialized as XML
     <set><name-xml></set>            -> create
+    <update><name-xml></update>      -> update
+    <delete><id>N</id></delete>      -> delete
 
 Reuses tinyxml2 (envelope parsing) and the XML adapter; no new dependency. WSDL
-generation and update/delete operations are deferred.
+generation is deferred.
 """
 import os
 
