@@ -37,6 +37,7 @@ from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
+from Database.MigrationAdapter import MigrationAdapter
 from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
@@ -122,6 +123,7 @@ def run(output_dir):
     # 8. SQL schema (supersedes the FileCreator stub) + CRUDL DAOs + DB import/export
     SqlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
     CrudlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+    MigrationAdapter(messages=msg_factory.messages, dest=build_dir).Process()
     DbIoAdapter(messages=msg_factory.messages, dest=build_dir).Process()
 
     # 12. REST bindings (HTTP CRUD over CRUDL + JSON)
@@ -145,6 +147,7 @@ def run(output_dir):
     _collect_grpc(build_dir, os.path.join(output_dir, "grpc"))
     _collect_xml(build_dir, os.path.join(output_dir, "xml"))
     _collect_crudl(build_dir, os.path.join(output_dir, "db"))
+    _collect_migrate(build_dir, os.path.join(output_dir, "migrate"))
     _collect_dbio(build_dir, os.path.join(output_dir, "dbio"))
     _collect_rest(build_dir, os.path.join(output_dir, "rest"))
     _collect_soap(build_dir, os.path.join(output_dir, "soap"))
@@ -217,6 +220,18 @@ def _collect_xml(build_dir, dest):
 
 def _collect_crudl(build_dir, dest):
     src = os.path.join(build_dir, "generated", "cpp", "db")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith(".h"):
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_migrate(build_dir, dest):
+    src = os.path.join(build_dir, "generated", "cpp", "migrate")
     if os.path.exists(dest):
         shutil.rmtree(dest)
     os.makedirs(dest, exist_ok=True)

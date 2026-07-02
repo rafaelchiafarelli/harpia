@@ -135,6 +135,60 @@ def test_crudl_roundtrip(generated, sqlite_obj, tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration needs protoc + protobuf")
+def test_migration_additive(generated, sqlite_obj, tmp_path):
+    """migrate_<name> brings an older table (missing columns) up to the current
+    schema without losing rows, and stamps the version."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "migrate.cpp"
+    prog.write_text(
+        '#include "migrate/users_{h}_migrate.h"\n'
+        "#include <string>\n"
+        "int main() {{\n"
+        "    ::sqlite3* db = nullptr;\n"
+        '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
+        "    auto exec = [db](const char* s) {{ return ::sqlite3_exec(db, s, 0, 0, 0) == SQLITE_OK; }};\n"
+        "    // an older generated version: only the PK + one column, with a row\n"
+        '    if (!exec("CREATE TABLE \\"user_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, \\"address\\" TEXT);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"user_table\\\" (\\\"ID_{h}\\\", \\\"address\\\") VALUES (1, 'matrix');\")) return 3;\n"
+        "    if (!::harpia::db::migrate_users(db)) return 4;\n"
+        "    ::harpia::db::users_dao dao(db);\n"
+        "    // the added columns now exist: a full row round-trips\n"
+        '    ::users a; a.set_id_{h}(2); a.set_address("zion"); a.set_name("neo");\n'
+        "    if (!dao.create(a)) return 5;\n"
+        "    ::users got; if (!dao.read(2, &got)) return 6;\n"
+        '    if (got.name() != "neo" || got.address() != "zion") return 7;\n'
+        "    // the pre-existing row survived the migration\n"
+        "    ::users old; if (!dao.read(1, &old)) return 8;\n"
+        '    if (old.address() != "matrix") return 9;\n'
+        "    // the version was stamped\n"
+        "    ::sqlite3_stmt* st = nullptr;\n"
+        '    if (::sqlite3_prepare_v2(db, "SELECT \\"version\\" FROM \\"_harpia_schema_version\\" WHERE \\"name\\" = \'user_table\';", -1, &st, nullptr) != SQLITE_OK) return 10;\n'
+        "    if (::sqlite3_step(st) != SQLITE_ROW) return 11;\n"
+        "    const std::string v = reinterpret_cast<const char*>(::sqlite3_column_text(st, 0));\n"
+        "    ::sqlite3_finalize(st);\n"
+        '    if (v != "{h}") return 12;\n'
+        "    if (!::harpia::db::migrate_users(db)) return 13;  // idempotent\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb_cc = os.path.join(cpp_root, "protofiles", "users_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "migrate")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, sqlite_obj, "-o", binary,
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=120)
+    assert c.returncode == 0, "migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "migration failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="FK round-trip needs protoc + protobuf")
 def test_fk_roundtrip(generated, sqlite_obj, tmp_path):
     """A singular composed field whose target owns a table (top_users.myUsers ->
