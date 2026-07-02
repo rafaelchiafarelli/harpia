@@ -14,6 +14,7 @@ from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
+from Database.MigrationAdapter import MigrationAdapter
 from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
@@ -140,6 +141,11 @@ if __name__ == '__main__':
     crudlError = CrudlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
     if crudlError is not None:
         log.print(crudlError.__str__())
+
+    #8 (migrate). generate schema-migration / version-transform functions
+    migrateError = MigrationAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    if migrateError is not None:
+        log.print(migrateError.__str__())
 
     #8 (dbio). generate DB <-> JSON/XML bulk import/export (composes CRUDL + adapters)
     dbioError = DbIoAdapter(messages=msgFactory.messages, dest=testDestination).Process()
