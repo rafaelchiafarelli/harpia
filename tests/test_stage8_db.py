@@ -21,7 +21,7 @@ REPO_ROOT = os.path.dirname(HERE)
 RUNNER = os.path.join(HERE, "run_pipeline.py")
 SQLITE = os.path.join(REPO_ROOT, "third_party", "sqlite")
 TINYXML2 = os.path.join(REPO_ROOT, "third_party", "tinyxml2")
-HASH = "6cea4c29647b10eb99b42c762ac09f75"
+HASH = "738be851643f8e1a41c121caf519d41f"
 
 pytestmark = pytest.mark.skipif(
     shutil.which("g++") is None or shutil.which("cc") is None,
@@ -233,6 +233,57 @@ def test_fk_roundtrip(generated, sqlite_obj, tmp_path):
     assert c.returncode == 0, "FK program failed to build:\n" + c.stderr
     run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
     assert run.returncode == 0, "FK round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="repeated-FK round-trip needs protoc + protobuf")
+def test_repeated_fk_roundtrip(generated, sqlite_obj, tmp_path):
+    """A repeated composed field whose target owns a table (top_users.members ->
+    vip_users, 1-to-many) persists each child via its DAO through a link table and
+    reloads them in order on read."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    proto_dir = os.path.join(cpp_root, "protofiles")
+
+    prog = tmp_path / "repfk.cpp"
+    prog.write_text(
+        '#include "db/top_users_{h}_crudl.h"\n'
+        "int main() {{\n"
+        "    ::sqlite3* db = nullptr;\n"
+        '    if (sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
+        "    harpia::db::top_users_dao pdao(db);\n"
+        "    harpia::db::vip_users_dao cdao(db);\n"
+        "    if (!pdao.create_table() || !cdao.create_table()) return 2;\n"
+        '    ::top_users t; t.set_id_{h}(1); t.set_name("boss");\n'
+        "    auto* m1 = t.add_members(); m1->set_id_{h}(11);\n"
+        '    m1->set_name("neo"); m1->set_family("anderson");\n'
+        "    auto* m2 = t.add_members(); m2->set_id_{h}(22);\n"
+        '    m2->set_name("trinity"); m2->set_family("moss");\n'
+        "    if (!pdao.create(t)) return 3;\n"
+        "    ::top_users got;\n"
+        "    if (!pdao.read(1, &got)) return 4;\n"
+        "    if (got.members_size() != 2) return 5;\n"
+        "    // order preserved by the link table's ordinal\n"
+        '    if (got.members(0).name() != "neo" || got.members(0).family() != "anderson") return 6;\n'
+        '    if (got.members(1).name() != "trinity") return 7;\n'
+        "    // each child is independently present in its own table\n"
+        "    ::vip_users c; if (!cdao.read(22, &c) || c.family() != \"moss\") return 8;\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb = [os.path.join(proto_dir, "top_users_{}.pb.cc".format(HASH)),
+          os.path.join(proto_dir, "vip_users_{}.pb.cc".format(HASH))]
+    binary = str(tmp_path / "repfk")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE,
+         *_pkgconfig("--cflags"), str(prog), *pb, sqlite_obj, "-o", binary,
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "repeated-FK program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "repeated-FK round-trip failed at check #{}".format(
         run.returncode)
 
 

@@ -130,7 +130,7 @@ class CrudlAdapter:
         return _CRUDL.format(
             guard="HARPIA_CRUDL_{}_{}".format(msg.name.upper(), msg.md5Hash),
             pb_header="protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash),
-            fk_includes=self._fk_includes(fk_cols),
+            fk_includes=self._fk_includes(fk_cols, reps),
             fk_precreate=self._fk_hooks(fk_cols, "create"),
             fk_preupdate=self._fk_hooks(fk_cols, "update"),
             cls=msg.name,
@@ -158,8 +158,8 @@ class CrudlAdapter:
         )
 
     # -- composed FK (message whose target owns a table) -------------------
-    def _child(self, col):
-        m = self.byName[col.fk_target]
+    def _child_by_name(self, target):
+        m = self.byName[target]
         cols, _ = analyze(m, self.types)
         pk = next((c for c in cols if c.bindable and c.pk), None)
         return {
@@ -167,6 +167,9 @@ class CrudlAdapter:
             "header": "db/{}_{}_crudl.h".format(m.name, m.md5Hash),
             "pk": pk.accessor if pk else "rowid",
         }
+
+    def _child(self, col):
+        return self._child_by_name(col.fk_target)
 
     def _fk_bind(self, col, index):
         ch = self._child(col)
@@ -197,14 +200,21 @@ class CrudlAdapter:
                     "_c.update(msg.{a}()); }}".format(a=c.accessor, dao=dao))
         return "\n".join(lines) + "\n"
 
-    def _fk_includes(self, fk_cols):
-        if not fk_cols:
-            return ""
+    def _fk_includes(self, fk_cols, reps=()):
+        # child-DAO headers for both singular FK columns and repeated FK fields
         seen = []
         for c in fk_cols:
             h = self._child(c)["header"]
             if h not in seen:
                 seen.append(h)
+        for rf in reps:
+            if not rf.fk_target:
+                continue
+            h = self._child_by_name(rf.fk_target)["header"]
+            if h not in seen:
+                seen.append(h)
+        if not seen:
+            return ""
         return "\n" + "\n".join('#include "{}"'.format(h) for h in seen)
 
     # -- map<K,V> child tables (keyed by the parent's primary key) ----------
@@ -355,13 +365,31 @@ class CrudlAdapter:
                 "        {",
                 "            long long _ord = 0;",
                 "            for (const auto& rv : " + rf.entries("msg") + ") {",
+            ]
+            if rf.fk_target:
+                # 1-to-many: persist the child via its DAO, link its primary key
+                ch = self._child_by_name(rf.fk_target)
+                child_op = ("if (!_c.create(rv)) return false;" if op == "create"
+                            else "_c.update(rv);")
+                L += [
+                    "                " + ch["dao"] + " _c(db_);",
+                    "                " + child_op,
+                ]
+            L += [
                 "                ::sqlite3_stmt* cs = nullptr;",
                 '                if (::sqlite3_prepare_v2(db_, "INSERT INTO \\"'
                 + rf.child_table + '\\" (\\"owner\\", \\"ordinal\\", \\"value\\") '
                 'VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;',
                 "                " + _bind_scalar("cs", owner_kind, 1, owner),
                 "                ::sqlite3_bind_int64(cs, 2, _ord++);",
-                "                " + _bind_scalar("cs", rf.val_kind, 3, "rv"),
+            ]
+            if rf.fk_target:
+                ch = self._child_by_name(rf.fk_target)
+                L.append("                ::sqlite3_bind_int64(cs, 3, rv.{}());"
+                         .format(ch["pk"]))
+            else:
+                L.append("                " + _bind_scalar("cs", rf.val_kind, 3, "rv"))
+            L += [
                 "                const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;",
                 "                ::sqlite3_finalize(cs);",
                 "                if (!mok) return false;",
@@ -386,8 +414,21 @@ class CrudlAdapter:
                 'ORDER BY \\"ordinal\\";", -1, &cs, nullptr) == SQLITE_OK) {',
                 "                " + _bind_scalar("cs", owner_kind, 1, owner),
                 "                while (::sqlite3_step(cs) == SQLITE_ROW) {",
-                "                    " + _col_decl(rf.val_kind, 0, "_v"),
-                "                    msg->add_" + rf.field + "(_v);",
+            ]
+            if rf.fk_target:
+                # load each child by its primary key via the child DAO
+                ch = self._child_by_name(rf.fk_target)
+                L += [
+                    "                    const long long _fk = ::sqlite3_column_int64(cs, 0);",
+                    "                    " + ch["dao"] + " _c(db_);",
+                    "                    _c.read(_fk, msg->add_" + rf.field + "());",
+                ]
+            else:
+                L += [
+                    "                    " + _col_decl(rf.val_kind, 0, "_v"),
+                    "                    msg->add_" + rf.field + "(_v);",
+                ]
+            L += [
                 "                }",
                 "                ::sqlite3_finalize(cs);",
                 "            }",

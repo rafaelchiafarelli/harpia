@@ -1,9 +1,0 @@
-syntax = "proto3";
-message users {
-int32 ID_6cea4c29647b10eb99b42c762ac09f75 = 1;
-string address = 2;
-string name = 3;
-string STATUS_6cea4c29647b10eb99b42c762ac09f75 = 4;
-string ERROR_6cea4c29647b10eb99b42c762ac09f75 = 5;
-string ORIGINATOR_6cea4c29647b10eb99b42c762ac09f75 = 6;
-}
