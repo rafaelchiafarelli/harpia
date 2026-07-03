@@ -72,6 +72,11 @@ def isascii(s):
 
 
 def isFileInFolders(folders, file):
+    # A path that already resolves to a file (absolute, or relative to cwd) is
+    # taken as-is; only bare names (e.g. import "file1.harpia") need the folder
+    # search below. This is what lets the input .harpia live anywhere on disk.
+    if os.path.isfile(file):
+        return True, file
     for folder in folders:
         if not os.path.exists(folder):
             return False, Error(errCl = Classes.FILE_HAS_ERROR, 

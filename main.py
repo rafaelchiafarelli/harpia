@@ -1,5 +1,6 @@
 ##this is a file meant to be executed as the main executor
 import os
+import shutil
 from LexicalAnalizer.LexicalAnalyzer import LexicalAnalyzer
 from Logger.logger import logger
 from LexicalAnalizer.pre_lex import pre_lex
@@ -42,10 +43,18 @@ if __name__ == '__main__':
     log.print(os.path.dirname(full_path))
 
     localFolder = os.path.dirname(full_path)
-    testFile = "./HarpiaTest/test.harpia"
-    includeFolder = "./HarpiaTest/Include"
-    testDestination = "./HarpiaTest/test_build"
-    
+    # Input/output are overridable via env so a wrapper (run_harpia.sh) can point
+    # the generator at an arbitrary input folder / output folder. Defaults keep the
+    # original in-repo behaviour.
+    testFile = os.environ.get("HARPIA_INPUT_FILE", "./HarpiaTest/test.harpia")
+    includeFolder = os.environ.get("HARPIA_INCLUDE_FOLDER", "./HarpiaTest/Include")
+    testDestination = os.environ.get("HARPIA_OUTPUT_DIR", "./HarpiaTest/test_build")
+
+    # Clean the output dir before regenerating: a stale build with old-hash
+    # *_service.proto files makes protoc fail ("... _Service is already defined").
+    shutil.rmtree(testDestination, ignore_errors=True)
+    os.makedirs(testDestination, exist_ok=True)
+
     #0. pre-process check
     rootFile = pre_lex(folders=[localFolder], file=testFile, dest=testDestination, includeFolder = includeFolder)
     preProcessorResult = rootFile.process()
