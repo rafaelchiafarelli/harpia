@@ -198,3 +198,91 @@ def test_grpc_service_impl_wires_crudl(built):
     run = subprocess.run([binary], capture_output=True, text=True)
     assert run.returncode == 0, "gRPC CRUDL wiring failed at check #{}".format(
         run.returncode)
+
+
+def test_grpc_metadata_auth(built):
+    """Over a real (in-process) gRPC channel, the data RPCs require the credential
+    metadata (x-user/x-pswd): correct -> OK, absent/wrong -> UNAUTHENTICATED."""
+    SQLITE = os.path.join(REPO_ROOT, "third_party", "sqlite")
+    proto = built["proto_dir"]
+    cpp_root = built["cpp_root"]
+
+    sqlite_obj = os.path.join(built["tmp"], "sqlite3_grpcauth.o")
+    cc = subprocess.run(
+        ["cc", "-c", "-I", SQLITE, os.path.join(SQLITE, "sqlite3.c"),
+         "-o", sqlite_obj], capture_output=True, text=True, timeout=300)
+    assert cc.returncode == 0, cc.stderr
+
+    prog = os.path.join(built["tmp"], "grpc_auth.cc")
+    with open(prog, "w") as f:
+        f.write(
+            '#include "grpc/users_{h}_grpc.h"\n'
+            "#include <grpcpp/grpcpp.h>\n"
+            "#include <sqlite3.h>\n"
+            "int main() {{\n"
+            "    ::sqlite3* db = nullptr;\n"
+            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
+            "    harpia::db::users_dao dao(db);\n"
+            "    if (!dao.create_table()) return 2;\n"
+            "    harpia::grpc_svc::users_service svc(db);\n"
+            "    ::grpc::ServerBuilder b;\n"
+            "    b.RegisterService(&svc);\n"
+            "    auto server = b.BuildAndStart();\n"
+            "    if (!server) return 3;\n"
+            "    auto chan = server->InProcessChannel(::grpc::ChannelArguments());\n"
+            "    auto stub = ::frameworkProtos::users_Service::NewStub(chan);\n"
+            "    auto run = [&]() -> int {{\n"
+            "        ::frameworkProtos::users_Message req;\n"
+            "        req.mutable_msg()->set_id_{h}(1);\n"
+            '        req.mutable_msg()->set_name("neo");\n'
+            "        ::grpc::ClientContext c1;\n"
+            '        c1.AddMetadata("x-user", "users");\n'
+            '        c1.AddMetadata("x-pswd", "{h}");\n'
+            "        ::frameworkProtos::errorCode ec1;\n"
+            "        auto s1 = stub->push(&c1, req, &ec1);\n"
+            "        if (!s1.ok() || ec1.code() != 0) return 4;\n"
+            "        ::grpc::ClientContext c2;\n"
+            "        ::frameworkProtos::errorCode ec2;\n"
+            "        auto s2 = stub->push(&c2, req, &ec2);\n"
+            "        if (s2.error_code() != ::grpc::StatusCode::UNAUTHENTICATED) return 5;\n"
+            "        ::grpc::ClientContext c3;\n"
+            '        c3.AddMetadata("x-user", "users");\n'
+            '        c3.AddMetadata("x-pswd", "nope");\n'
+            "        ::frameworkProtos::users_ID id; id.set_id(1);\n"
+            "        ::frameworkProtos::users_Message resp;\n"
+            "        auto s3 = stub->pullByID(&c3, id, &resp);\n"
+            "        if (s3.error_code() != ::grpc::StatusCode::UNAUTHENTICATED) return 6;\n"
+            "        ::grpc::ClientContext c4;\n"
+            '        c4.AddMetadata("x-user", "users");\n'
+            '        c4.AddMetadata("x-pswd", "{h}");\n'
+            "        ::frameworkProtos::users_Message resp2;\n"
+            "        auto s4 = stub->pullByID(&c4, id, &resp2);\n"
+            '        if (!s4.ok() || resp2.msg().name() != "neo") return 7;\n'
+            "        return 0;\n"
+            "    }};\n"
+            "    const int code = run();\n"
+            "    server->Shutdown();\n"
+            "    ::sqlite3_close(db);\n"
+            "    return code;\n"
+            "}}\n".format(h=HASH)
+        )
+
+    pb = lambda n: os.path.join(proto, "{}.pb.cc".format(n))
+    objs = [
+        os.path.join(proto, "users_{}_service.grpc.pb.cc".format(HASH)),
+        pb("users_{}_service".format(HASH)),
+        pb("users_{}".format(HASH)),
+        pb("errorCode"),
+        pb("heartBeat"),
+        sqlite_obj,
+    ]
+    binary = os.path.join(built["tmp"], "grpc_auth")
+    cmd = ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE,
+           *_pkgconfig("--cflags"), prog, *objs, "-o", binary,
+           *_pkgconfig("--libs"), "-lpthread", "-ldl"]
+    c = subprocess.run(cmd, capture_output=True, text=True)
+    assert c.returncode == 0, "gRPC auth program failed to build:\n" + c.stderr
+
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "gRPC metadata auth failed at check #{}".format(
+        run.returncode)

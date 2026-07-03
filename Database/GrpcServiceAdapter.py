@@ -11,8 +11,9 @@ message: it emits a concrete service implementation
 so the gRPC transport becomes a real end-to-end path over SQLite (like the ZMQ
 transport already is). Header-only C++; compiles once Stage 7 + Stage 13
 (GrpcCompiler) have produced the message and service code. Non-table messages get
-no implementation (there is no DAO to back them). Access-credential enforcement
-over gRPC metadata is deferred.
+no implementation (there is no DAO to back them). The data operations enforce the
+generated access credential via x-user/x-pswd call metadata (UNAUTHENTICATED on
+mismatch), mirroring SOAP/REST; heartBeat stays open.
 """
 import os
 
