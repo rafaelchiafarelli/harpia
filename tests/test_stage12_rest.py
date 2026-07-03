@@ -21,7 +21,7 @@ RUNNER = os.path.join(HERE, "run_pipeline.py")
 SQLITE = os.path.join(REPO_ROOT, "third_party", "sqlite")
 HTTPLIB = os.path.join(REPO_ROOT, "third_party", "cpp-httplib")
 TINYXML2 = os.path.join(REPO_ROOT, "third_party", "tinyxml2")
-HASH = "738be851643f8e1a41c121caf519d41f"
+HASH = "c96f8fd7f45108efee5a8ecb43eab1da"
 
 pytestmark = pytest.mark.skipif(
     any(shutil.which(t) is None for t in ("protoc", "g++", "cc", "pkg-config")),

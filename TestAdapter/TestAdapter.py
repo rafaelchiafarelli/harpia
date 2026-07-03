@@ -199,10 +199,10 @@ class TestAdapter:
                          "return 33;".format(e=entries, k=_map_key(mf.key_kind, i),
                                              v=_map_val(mf.val_kind, i)))
         for rf in reps:
-            L.append("    if (got.{f}_size() != 2) return 34;".format(f=rf.field))
+            L.append("    if ({} != 2) return 34;".format(rf.size_of("got")))
             for i in (1, 2):
-                L.append("    if (got.{f}({idx}) != {v}) return 34;".format(
-                    f=rf.field, idx=i - 1, v=_map_val(rf.val_kind, i)))
+                L.append("    if ({at} != {v}) return 34;".format(
+                    at=rf.at("got", i - 1), v=_map_val(rf.val_kind, i)))
 
         if text_field is not None:
             L += [

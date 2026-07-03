@@ -108,20 +108,45 @@ class RepeatedField:
     target owns a table (fk_target set) it holds the child's primary key and the
     children are created/loaded via the child DAO (a 1-to-many relationship)."""
     def __init__(self, child_table, field, val_sql, val_kind,
-                 fk_target=None) -> None:
+                 fk_target=None, embed=None) -> None:
         self.child_table = child_table
         self.field = field          # protobuf accessor of the repeated field
         self.val_sql = val_sql
         self.val_kind = val_kind
         self.fk_target = fk_target  # child message name (repeated FK) or None
+        self.embed = embed          # parent field accessor if embed-nested
 
     def entries(self, src):
         """Const repeated-field expression on message ``src`` (for iteration)."""
+        if self.embed:
+            return "{}.{}().{}()".format(src, self.embed, self.field)
         return "{}.{}()".format(src, self.field)
+
+    def add_stmt(self, value):
+        """C++ statement appending ``value`` to this field on ``msg`` (pointer)."""
+        if self.embed:
+            return "msg->mutable_{}()->add_{}({})".format(
+                self.embed, self.field, value)
+        return "msg->add_{}({})".format(self.field, value)
 
     def add_on(self, inst, value):
         """Append ``value`` on a local value ``inst`` (dot access, for tests)."""
+        if self.embed:
+            return "{}.mutable_{}()->add_{}({})".format(
+                inst, self.embed, self.field, value)
         return "{}.add_{}({})".format(inst, self.field, value)
+
+    def at(self, inst, index):
+        """Indexed read of element ``index`` on a local value ``inst``."""
+        if self.embed:
+            return "{}.{}().{}({})".format(inst, self.embed, self.field, index)
+        return "{}.{}({})".format(inst, self.field, index)
+
+    def size_of(self, inst):
+        """Element-count expression on a local value ``inst``."""
+        if self.embed:
+            return "{}.{}().{}_size()".format(inst, self.embed, self.field)
+        return "{}.{}_size()".format(inst, self.field)
 
 
 # field names the front-end injects into every message; meaningless when a
@@ -175,8 +200,12 @@ def _flatten(parent, child_msg, types):
             notes.append("-- {}.{}: map in embedded {} -> child table"
                          .format(parent, v.name, child_msg.name))
             continue
+        if "REPETEABLE" in mods and _SCALARS.get(v.type[0]) is not None:
+            notes.append("-- {}.{}: repeated in embedded {} -> child table"
+                         .format(parent, v.name, child_msg.name))
+            continue
         if "REPETEABLE" in mods:
-            notes.append("-- {}.{}: repeated in embedded {} (deferred)"
+            notes.append("-- {}.{}: repeated composed in embedded {} (deferred)"
                          .format(parent, v.name, child_msg.name))
             continue
         if v.type[0] == "ID":  # nested composed field inside the embedded message
@@ -337,6 +366,27 @@ def repeated_fields(msg, types=None):
         if scalar is None:
             continue
         out.append(RepeatedField(child, v.name.lower(), scalar[0], scalar[1]))
+    # repeated scalar fields reached through a flattened non-table composed field
+    # (embed-nested), mirroring map_fields; keyed by the parent's PK.
+    for v in (msg.variables or []):
+        if v.typeMap or v.type[0] != "ID":
+            continue
+        kind, target_msg = _lookup(types, v.type[1])
+        if kind != "message" or target_msg is None:
+            continue
+        for cv in (target_msg.variables or []):
+            if _is_hidden(cv.name) or cv.typeMap:
+                continue
+            cmods = {m[0] for m in (cv.modifiers or [])}
+            if "REPETEABLE" not in cmods or cv.type[0] == "ID":
+                continue
+            scalar = _SCALARS.get(cv.type[0])
+            if scalar is None:
+                continue
+            out.append(RepeatedField(
+                "{}__{}_{}".format(table, v.name.lower(), cv.name),
+                cv.name.lower(), scalar[0], scalar[1],
+                embed=v.name.lower()))
     return out
 
 

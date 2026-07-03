@@ -1,0 +1,14 @@
+syntax = "proto3";
+import "protofiles/prince_c96f8fd7f45108efee5a8ecb43eab1da.proto";
+import "protofiles/grower_c96f8fd7f45108efee5a8ecb43eab1da.proto";
+message data {
+int32 ID_c96f8fd7f45108efee5a8ecb43eab1da = 1;
+int32 i = 2;
+int32 j = 3;
+prince val = 4;
+grower car = 5;
+repeated int32 tags = 6;
+string STATUS_c96f8fd7f45108efee5a8ecb43eab1da = 7;
+string ERROR_c96f8fd7f45108efee5a8ecb43eab1da = 8;
+string ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da = 9;
+}

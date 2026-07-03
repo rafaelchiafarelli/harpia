@@ -18,35 +18,35 @@ add_library(harpia_tinyxml2 STATIC
 target_include_directories(harpia_tinyxml2 PUBLIC
     ${CMAKE_SOURCE_DIR}/third_party/tinyxml2)
 
-add_executable(data_test data_738be851643f8e1a41c121caf519d41f_test.cpp)
+add_executable(data_test data_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
 target_include_directories(data_test PRIVATE
     ${CMAKE_SOURCE_DIR}/generated/cpp
     ${CMAKE_SOURCE_DIR}/third_party/cpp-httplib)
 target_link_libraries(data_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
 add_test(NAME data_test COMMAND data_test)
 
-add_executable(users_test users_738be851643f8e1a41c121caf519d41f_test.cpp)
+add_executable(users_test users_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
 target_include_directories(users_test PRIVATE
     ${CMAKE_SOURCE_DIR}/generated/cpp
     ${CMAKE_SOURCE_DIR}/third_party/cpp-httplib)
 target_link_libraries(users_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
 add_test(NAME users_test COMMAND users_test)
 
-add_executable(vip_users_test vip_users_738be851643f8e1a41c121caf519d41f_test.cpp)
+add_executable(vip_users_test vip_users_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
 target_include_directories(vip_users_test PRIVATE
     ${CMAKE_SOURCE_DIR}/generated/cpp
     ${CMAKE_SOURCE_DIR}/third_party/cpp-httplib)
 target_link_libraries(vip_users_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
 add_test(NAME vip_users_test COMMAND vip_users_test)
 
-add_executable(top_users_test top_users_738be851643f8e1a41c121caf519d41f_test.cpp)
+add_executable(top_users_test top_users_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
 target_include_directories(top_users_test PRIVATE
     ${CMAKE_SOURCE_DIR}/generated/cpp
     ${CMAKE_SOURCE_DIR}/third_party/cpp-httplib)
 target_link_libraries(top_users_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
 add_test(NAME top_users_test COMMAND top_users_test)
 
-add_executable(app_test app_738be851643f8e1a41c121caf519d41f_test.cpp)
+add_executable(app_test app_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
 target_include_directories(app_test PRIVATE
     ${CMAKE_SOURCE_DIR}/generated/cpp
     ${CMAKE_SOURCE_DIR}/third_party/cpp-httplib)
