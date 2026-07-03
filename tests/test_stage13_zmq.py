@@ -26,7 +26,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
 RUNNER = os.path.join(HERE, "run_pipeline.py")
 
-HASH = "738be851643f8e1a41c121caf519d41f"
+HASH = "c96f8fd7f45108efee5a8ecb43eab1da"
 
 
 def _have_libzmq():

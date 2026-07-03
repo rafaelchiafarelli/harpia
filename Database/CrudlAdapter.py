@@ -426,7 +426,7 @@ class CrudlAdapter:
             else:
                 L += [
                     "                    " + _col_decl(rf.val_kind, 0, "_v"),
-                    "                    msg->add_" + rf.field + "(_v);",
+                    "                    " + rf.add_stmt("_v") + ";",
                 ]
             L += [
                 "                }",
