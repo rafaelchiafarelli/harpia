@@ -153,6 +153,10 @@ class TestAdapter:
             return ("    // no primary key column: CRUDL round-trip deferred "
                     "(Stage 14a)\n    return 0;")
 
+        # repeated scalars round-trip here with literal values; repeated FK
+        # (1-to-many) is exercised by the host test_repeated_fk_roundtrip instead
+        # (like the singular FK), since it needs child messages.
+        reps = [rf for rf in reps if not rf.fk_target]
         text_field = next((c for c in non_pk if c.kind == "text"), None)
         L = [
             "    ::sqlite3* db = nullptr;",

@@ -1,0 +1,11 @@
+syntax = "proto3";
+message king {
+int32 ID_738be851643f8e1a41c121caf519d41f = 1;
+int32 sdfas = 2;
+map<string, int32> cvxbcv = 3;
+map<int32, string> zxcvbxcvn = 4;
+int32 vava = 5;
+string STATUS_738be851643f8e1a41c121caf519d41f = 6;
+string ERROR_738be851643f8e1a41c121caf519d41f = 7;
+string ORIGINATOR = 8;
+}

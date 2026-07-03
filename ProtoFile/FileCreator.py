@@ -42,7 +42,14 @@ class FileCreator():
             protoData+="import \"{}\"\n".format(dep)
         protoData+="\n"
         if self.message.dependency is not None:
+            # dedup by target type name: a message may reference the same composed
+            # type from more than one field (e.g. a singular FK and a repeated FK),
+            # but protoc rejects a .proto that imports the same file twice.
+            seenDeps = set()
             for dep in self.message.dependency:
+                if dep[1] in seenDeps:
+                    continue
+                seenDeps.add(dep[1])
                 protoData+="import \"{}/{}_{}.proto\";\n".format("protofiles",dep[1],self.message.md5Hash)
         
         if self.message.isEnum == False:

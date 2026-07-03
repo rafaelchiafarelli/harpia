@@ -102,13 +102,18 @@ class MapField:
 
 
 class RepeatedField:
-    """A repeated scalar field persisted as a child table "<table>__<field>" keyed
-    by the parent's PK, with an ordinal column preserving insertion order."""
-    def __init__(self, child_table, field, val_sql, val_kind) -> None:
+    """A repeated field persisted as a child table "<table>__<field>" keyed by the
+    parent's PK, with an ordinal column preserving insertion order. For a repeated
+    scalar the "value" column holds the value; for a repeated composed field whose
+    target owns a table (fk_target set) it holds the child's primary key and the
+    children are created/loaded via the child DAO (a 1-to-many relationship)."""
+    def __init__(self, child_table, field, val_sql, val_kind,
+                 fk_target=None) -> None:
         self.child_table = child_table
         self.field = field          # protobuf accessor of the repeated field
         self.val_sql = val_sql
         self.val_kind = val_kind
+        self.fk_target = fk_target  # child message name (repeated FK) or None
 
     def entries(self, src):
         """Const repeated-field expression on message ``src`` (for iteration)."""
@@ -220,6 +225,9 @@ def analyze(msg, types=None):
             if _SCALARS.get(v.type[0]) is not None:
                 notes.append("-- {}: repeated -> child table (see repeated_fields)"
                              .format(v.name))
+            elif v.type[0] == "ID" and _lookup(types, v.type[1])[0] == "table":
+                notes.append("-- {}: repeated FK -> {} link table (see "
+                             "repeated_fields)".format(v.name, v.type[1]))
             else:
                 notes.append("-- {}: repeated composed -> child table (deferred)"
                              .format(v.name))
@@ -316,11 +324,19 @@ def repeated_fields(msg, types=None):
         mods = {m[0] for m in (v.modifiers or [])}
         if "REPETEABLE" not in mods:
             continue
+        child = "{}__{}".format(table, v.name)
+        if v.type[0] == "ID":  # repeated composed field
+            kind, _ = _lookup(types, v.type[1])
+            if kind == "table":
+                # 1-to-many: the link table's value is the child's primary key
+                out.append(RepeatedField(child, v.name.lower(), "INTEGER",
+                                         "int64", fk_target=v.type[1]))
+            # repeated enum / repeated non-table composed -> deferred
+            continue
         scalar = _SCALARS.get(v.type[0])
         if scalar is None:
-            continue  # repeated composed -> deferred
-        out.append(RepeatedField("{}__{}".format(table, v.name), v.name.lower(),
-                                 scalar[0], scalar[1]))
+            continue
+        out.append(RepeatedField(child, v.name.lower(), scalar[0], scalar[1]))
     return out
 
 

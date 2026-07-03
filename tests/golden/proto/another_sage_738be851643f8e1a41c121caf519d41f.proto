@@ -1,0 +1,10 @@
+syntax = "proto3";
+import "protofiles/vip_users_738be851643f8e1a41c121caf519d41f.proto";
+message another_sage {
+int32 ID_738be851643f8e1a41c121caf519d41f = 1;
+int32 msg = 2;
+vip_users usr = 3;
+string STATUS_738be851643f8e1a41c121caf519d41f = 4;
+string ERROR_738be851643f8e1a41c121caf519d41f = 5;
+string ORIGINATOR = 6;
+}

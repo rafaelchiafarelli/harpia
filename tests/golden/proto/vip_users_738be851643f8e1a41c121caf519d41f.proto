@@ -1,0 +1,9 @@
+syntax = "proto3";
+message vip_users {
+int32 ID_738be851643f8e1a41c121caf519d41f = 1;
+string name = 2;
+string family = 3;
+string STATUS_738be851643f8e1a41c121caf519d41f = 4;
+string ERROR_738be851643f8e1a41c121caf519d41f = 5;
+string ORIGINATOR_738be851643f8e1a41c121caf519d41f = 6;
+}

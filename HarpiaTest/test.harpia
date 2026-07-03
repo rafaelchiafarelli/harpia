@@ -66,6 +66,7 @@ stream pull push event message top_users{
         string family;
     }table_vip_users;
     vip_users myUsers;
+    repeteable vip_users members;
 }user_table;
 
 message another_sage{

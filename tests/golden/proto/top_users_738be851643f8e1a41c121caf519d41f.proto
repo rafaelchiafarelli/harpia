@@ -1,0 +1,12 @@
+syntax = "proto3";
+import "protofiles/vip_users_738be851643f8e1a41c121caf519d41f.proto";
+message top_users {
+int32 ID_738be851643f8e1a41c121caf519d41f = 1;
+string sponsor = 2;
+string name = 3;
+vip_users myUsers = 4;
+repeated vip_users members = 5;
+string STATUS_738be851643f8e1a41c121caf519d41f = 6;
+string ERROR_738be851643f8e1a41c121caf519d41f = 7;
+string ORIGINATOR_738be851643f8e1a41c121caf519d41f = 8;
+}
