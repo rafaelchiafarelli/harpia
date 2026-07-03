@@ -55,11 +55,34 @@ docker/run.sh bash -c '
 Without Docker you can still run the Python-only tests in a venv (the
 compile/run tests skip themselves). See `tests/README.md`.
 
+### Run against an input folder → output folder
+
+`run_harpia.sh` is the one-shot driver: point it at an input folder (holding one
+`.harpia`, plus an optional `Include/` subfolder of `import` modules) and an
+output folder — both may live **anywhere** on the filesystem. It generates,
+builds, and runs the generated tests inside the Docker image:
+
+```sh
+./run_harpia.sh <input_folder> <output_folder>            # codegen + cmake + ctest
+./run_harpia.sh <input_folder> <output_folder> --no-build # codegen only
+```
+
+The output folder is a **self-contained, portable example**: it vendors its own
+copy of `third_party/` and includes a generated `HOW_TO_BUILD.md`, so you can
+copy it to any machine with a C++17 toolchain + `protoc`/gRPC and build it with
+`cmake -S . -B build -DHARPIA_BUILD_TESTS=ON && cmake --build build && ctest`.
+The cmake build itself runs in a throwaway dir, so the output stays clean source.
+
+Internally the generator reads three env vars (with in-repo defaults), which the
+script sets: `HARPIA_INPUT_FILE`, `HARPIA_INCLUDE_FOLDER`, `HARPIA_OUTPUT_DIR`.
+`main.py` cleans `HARPIA_OUTPUT_DIR` before regenerating.
+
 ## Repository layout
 
 | path | role |
 |------|------|
 | `main.py` | pipeline entry point |
+| `run_harpia.sh` | one-shot driver: input folder → output folder (codegen + build + ctest) |
 | `LexicalAnalizer/`, `Message/`, `Errors/`, `Logger/`, `Util/` | front-end (lex, parse, build messages) |
 | `ProtoFile/` | `.proto` emission (`FileCreator`), Stage 7 (`ProtoCompiler`), Stage 13 gRPC (`GrpcCompiler`) |
 | `JsonAdapter/`, `XmlAdapter/`, `ZmqAdapter/`, `Database/` | back-end generators; each has a `templates/` dir of generator templates (XmlAdapter also a `runtime/`, Database a shared `model.py`) |
