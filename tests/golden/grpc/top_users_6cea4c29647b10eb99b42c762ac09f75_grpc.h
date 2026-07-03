@@ -2,6 +2,7 @@
 #ifndef HARPIA_GRPC_TOP_USERS_6cea4c29647b10eb99b42c762ac09f75
 #define HARPIA_GRPC_TOP_USERS_6cea4c29647b10eb99b42c762ac09f75
 
+#include <string>
 #include <vector>
 
 #include <grpcpp/grpcpp.h>
@@ -14,9 +15,13 @@
 //   push(msg)      -> dao.create(msg)             -> errorCode
 //   pullByID(id)   -> dao.read(id)                -> top_users_Message (NOT_FOUND)
 //   streamSrc()    -> dao.list() streamed back    -> stream top_users_Message
-//   heartBeat(hb)  -> echo                         (no CRUDL)
+//   heartBeat(hb)  -> echo                         (no CRUDL, unauthenticated)
 // Construct with a sqlite3* the caller owns; register with a grpc::ServerBuilder.
-// (Access-credential enforcement over gRPC metadata is deferred.)
+//
+// The data operations enforce the generated access credential (Stage 5): the
+// call must carry x-user: top_users and x-pswd: 6cea4c29647b10eb99b42c762ac09f75 metadata, or it is rejected
+// with UNAUTHENTICATED (mirrors the SOAP <credentials> / REST X-User headers).
+// heartBeat stays open as a liveness probe.
 namespace harpia {
 namespace grpc_svc {
 
@@ -25,9 +30,25 @@ class top_users_service final
 public:
     explicit top_users_service(::sqlite3* db) : db_(db) {}
 
-    ::grpc::Status push(::grpc::ServerContext*,
+    // True iff the call carries the correct credential metadata for top_users. A
+    // null context (direct in-process call, no wire) is allowed; the wire path
+    // always supplies a context.
+    static bool authorized(::grpc::ServerContext* ctx) {
+        if (!ctx) return true;
+        const auto& md = ctx->client_metadata();
+        auto u = md.find("x-user");
+        auto p = md.find("x-pswd");
+        return u != md.end() && p != md.end() &&
+               ::std::string(u->second.data(), u->second.length()) == "top_users" &&
+               ::std::string(p->second.data(), p->second.length()) == "6cea4c29647b10eb99b42c762ac09f75";
+    }
+
+    ::grpc::Status push(::grpc::ServerContext* context,
                         const ::frameworkProtos::top_users_Message* request,
                         ::frameworkProtos::errorCode* response) override {
+        if (!authorized(context)) {
+            return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED, "unauthorized");
+        }
         ::harpia::db::top_users_dao dao(db_);
         const bool ok = dao.create(request->msg());
         response->set_code(ok ? 0 : 1);
@@ -35,9 +56,12 @@ public:
         return ::grpc::Status::OK;
     }
 
-    ::grpc::Status pullByID(::grpc::ServerContext*,
+    ::grpc::Status pullByID(::grpc::ServerContext* context,
                             const ::frameworkProtos::top_users_ID* request,
                             ::frameworkProtos::top_users_Message* response) override {
+        if (!authorized(context)) {
+            return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED, "unauthorized");
+        }
         ::harpia::db::top_users_dao dao(db_);
         if (!dao.read(request->id(), response->mutable_msg())) {
             return ::grpc::Status(::grpc::StatusCode::NOT_FOUND, "not found");
@@ -46,9 +70,12 @@ public:
     }
 
     ::grpc::Status streamSrc(
-            ::grpc::ServerContext*,
+            ::grpc::ServerContext* context,
             const ::frameworkProtos::top_users_Stream*,
             ::grpc::ServerWriter< ::frameworkProtos::top_users_Message>* writer) override {
+        if (!authorized(context)) {
+            return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED, "unauthorized");
+        }
         ::harpia::db::top_users_dao dao(db_);
         std::vector< ::top_users> rows;
         if (!dao.list(&rows)) {
