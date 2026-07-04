@@ -2,21 +2,26 @@
 #ifndef HARPIA_REST_VIP_USERS_c96f8fd7f45108efee5a8ecb43eab1da
 #define HARPIA_REST_VIP_USERS_c96f8fd7f45108efee5a8ecb43eab1da
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
-#include "httplib.h"
+#include "crow.h"
 #include "db/vip_users_c96f8fd7f45108efee5a8ecb43eab1da_crudl.h"
 #include "json/vip_users_c96f8fd7f45108efee5a8ecb43eab1da_json.h"
 #include "xml/vip_users_c96f8fd7f45108efee5a8ecb43eab1da_xml.h"
 
-// RESTful CRUD for vip_users, backed by the CRUDL DAO. Register on an
-// httplib::Server with a base path (e.g. "/project/v1"); routes are then:
+// RESTful CRUD for vip_users, backed by the CRUDL DAO. Register on a
+// crow::SimpleApp with a base path (e.g. "/project/v1"); routes are then:
 //   GET    <base>/vip_users        list
 //   GET    <base>/vip_users/:id    read
 //   POST   <base>/vip_users        create   (JSON or XML body)
 //   PUT    <base>/vip_users/:id    update   (JSON or XML body)
 //   DELETE <base>/vip_users/:id    delete
+//
+// Routes are registered with route_dynamic (not CROW_ROUTE): the path is built
+// from the runtime `base` argument, so it cannot be a compile-time literal. Item
+// routes use the "<int>" tag, delivered to the handler as a trailing int64_t.
 //
 // Content negotiation: a request body is parsed as XML when its Content-Type
 // contains "xml" (else JSON); a response is serialized as XML when the Accept
@@ -30,92 +35,103 @@ namespace rest {
 
 // True iff the request carries the correct credential for vip_users. Exposed so it
 // can be unit-tested directly.
-inline bool authorized_vip_users(const ::httplib::Request& req) {
+inline bool authorized_vip_users(const crow::request& req) {
     return req.get_header_value("X-User") == "vip_users" &&
            req.get_header_value("X-Pswd") == "c96f8fd7f45108efee5a8ecb43eab1da";
 }
 
 // content negotiation: XML when asked for, JSON otherwise
-inline bool wants_xml_vip_users(const ::httplib::Request& req) {
+inline bool wants_xml_vip_users(const crow::request& req) {
     return req.get_header_value("Accept").find("xml") != std::string::npos;
 }
-inline bool body_xml_vip_users(const ::httplib::Request& req) {
+inline bool body_xml_vip_users(const crow::request& req) {
     return req.get_header_value("Content-Type").find("xml") != std::string::npos;
 }
-inline bool parse_vip_users(const ::httplib::Request& req, ::vip_users* msg) {
+inline bool parse_vip_users(const crow::request& req, ::vip_users* msg) {
     return body_xml_vip_users(req) ? ::harpia::xml::from_xml(req.body, msg)
                                 : ::harpia::json::from_json(req.body, msg);
 }
-inline void serialize_vip_users(const ::httplib::Request& req,
-                             const ::vip_users& msg, ::httplib::Response& res) {
+inline void serialize_vip_users(const crow::request& req,
+                             const ::vip_users& msg, crow::response& res) {
     if (wants_xml_vip_users(req)) {
-        res.set_content(::harpia::xml::to_xml(msg), "application/xml");
+        res.set_header("Content-Type", "application/xml");
+        res.body = ::harpia::xml::to_xml(msg);
     } else {
         std::string j; ::harpia::json::to_json(msg, &j);
-        res.set_content(j, "application/json");
+        res.set_header("Content-Type", "application/json");
+        res.body = j;
     }
 }
 
-inline void register_vip_users(::httplib::Server& svr, ::sqlite3* db,
+inline void register_vip_users(crow::SimpleApp& app, ::sqlite3* db,
                             const std::string& base) {
     const std::string col = base + "/vip_users";
-    const std::string item = col + R"(/(\d+))";
+    const std::string item = col + "/<int>";
 
-    svr.Get(col, [db](const ::httplib::Request& req, ::httplib::Response& res) {
-        if (!authorized_vip_users(req)) { res.status = 401; return; }
-        ::harpia::db::vip_users_dao dao(db);
-        std::vector<::vip_users> rows;
-        if (!dao.list(&rows)) { res.status = 500; return; }
-        if (wants_xml_vip_users(req)) {
-            std::string body = "<list>";
-            for (const auto& r : rows) body += ::harpia::xml::to_xml(r);
-            body += "</list>";
-            res.set_content(body, "application/xml");
-        } else {
-            std::string body = "[";
-            for (size_t i = 0; i < rows.size(); ++i) {
-                std::string j;
-                ::harpia::json::to_json(rows[i], &j);
-                if (i) body += ",";
-                body += j;
+    app.route_dynamic(col).methods(crow::HTTPMethod::GET)(
+        [db](const crow::request& req, crow::response& res) {
+            if (!authorized_vip_users(req)) { res.code = 401; res.end(); return; }
+            ::harpia::db::vip_users_dao dao(db);
+            std::vector<::vip_users> rows;
+            if (!dao.list(&rows)) { res.code = 500; res.end(); return; }
+            if (wants_xml_vip_users(req)) {
+                std::string body = "<list>";
+                for (const auto& r : rows) body += ::harpia::xml::to_xml(r);
+                body += "</list>";
+                res.set_header("Content-Type", "application/xml");
+                res.body = body;
+            } else {
+                std::string body = "[";
+                for (size_t i = 0; i < rows.size(); ++i) {
+                    std::string j;
+                    ::harpia::json::to_json(rows[i], &j);
+                    if (i) body += ",";
+                    body += j;
+                }
+                body += "]";
+                res.set_header("Content-Type", "application/json");
+                res.body = body;
             }
-            body += "]";
-            res.set_content(body, "application/json");
-        }
-    });
+            res.end();
+        });
 
-    svr.Get(item, [db](const ::httplib::Request& req, ::httplib::Response& res) {
-        if (!authorized_vip_users(req)) { res.status = 401; return; }
-        ::harpia::db::vip_users_dao dao(db);
-        ::vip_users msg;
-        if (!dao.read(std::stoll(req.matches[1]), &msg)) { res.status = 404; return; }
-        serialize_vip_users(req, msg, res);
-    });
+    app.route_dynamic(item).methods(crow::HTTPMethod::GET)(
+        [db](const crow::request& req, crow::response& res, int64_t id) {
+            if (!authorized_vip_users(req)) { res.code = 401; res.end(); return; }
+            ::harpia::db::vip_users_dao dao(db);
+            ::vip_users msg;
+            if (!dao.read(id, &msg)) { res.code = 404; res.end(); return; }
+            serialize_vip_users(req, msg, res);
+            res.end();
+        });
 
-    svr.Post(col, [db](const ::httplib::Request& req, ::httplib::Response& res) {
-        if (!authorized_vip_users(req)) { res.status = 401; return; }
-        ::harpia::db::vip_users_dao dao(db);
-        ::vip_users msg;
-        if (!parse_vip_users(req, &msg)) { res.status = 400; return; }
-        if (!dao.create(msg)) { res.status = 500; return; }
-        res.status = 201;
-    });
+    app.route_dynamic(col).methods(crow::HTTPMethod::POST)(
+        [db](const crow::request& req, crow::response& res) {
+            if (!authorized_vip_users(req)) { res.code = 401; res.end(); return; }
+            ::harpia::db::vip_users_dao dao(db);
+            ::vip_users msg;
+            if (!parse_vip_users(req, &msg)) { res.code = 400; res.end(); return; }
+            if (!dao.create(msg)) { res.code = 500; res.end(); return; }
+            res.code = 201; res.end();
+        });
 
-    svr.Put(item, [db](const ::httplib::Request& req, ::httplib::Response& res) {
-        if (!authorized_vip_users(req)) { res.status = 401; return; }
-        ::harpia::db::vip_users_dao dao(db);
-        ::vip_users msg;
-        if (!parse_vip_users(req, &msg)) { res.status = 400; return; }
-        if (!dao.update(msg)) { res.status = 500; return; }
-        res.status = 204;
-    });
+    app.route_dynamic(item).methods(crow::HTTPMethod::PUT)(
+        [db](const crow::request& req, crow::response& res, int64_t) {
+            if (!authorized_vip_users(req)) { res.code = 401; res.end(); return; }
+            ::harpia::db::vip_users_dao dao(db);
+            ::vip_users msg;
+            if (!parse_vip_users(req, &msg)) { res.code = 400; res.end(); return; }
+            if (!dao.update(msg)) { res.code = 500; res.end(); return; }
+            res.code = 204; res.end();
+        });
 
-    svr.Delete(item, [db](const ::httplib::Request& req, ::httplib::Response& res) {
-        if (!authorized_vip_users(req)) { res.status = 401; return; }
-        ::harpia::db::vip_users_dao dao(db);
-        if (!dao.remove(std::stoll(req.matches[1]))) { res.status = 500; return; }
-        res.status = 204;
-    });
+    app.route_dynamic(item).methods(crow::HTTPMethod::DELETE)(
+        [db](const crow::request& req, crow::response& res, int64_t id) {
+            if (!authorized_vip_users(req)) { res.code = 401; res.end(); return; }
+            ::harpia::db::vip_users_dao dao(db);
+            if (!dao.remove(id)) { res.code = 500; res.end(); return; }
+            res.code = 204; res.end();
+        });
 }
 
 }  // namespace rest
