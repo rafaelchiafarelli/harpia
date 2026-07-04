@@ -5,12 +5,12 @@
 #include <cstdlib>
 #include <string>
 
-#include "httplib.h"
+#include "crow.h"
 #include "db/vip_users_c96f8fd7f45108efee5a8ecb43eab1da_crudl.h"
 #include "xml/vip_users_c96f8fd7f45108efee5a8ecb43eab1da_xml.h"   // brings tinyxml2 + the XML runtime
 
 // Minimal SOAP-over-HTTP access for vip_users, backed by the CRUDL DAO. Register on
-// an httplib::Server with a base path; POST a SOAP envelope to <base>/vip_users:
+// a crow::SimpleApp with a base path; POST a SOAP envelope to <base>/vip_users:
 //   <soap:Body><get><id>N</id></get></soap:Body>          -> the vip_users as XML
 //   <soap:Body><set><vip_users>...</vip_users></set></soap:Body>       -> create
 //   <soap:Body><update><vip_users>...</vip_users></update></soap:Body> -> update
@@ -76,27 +76,31 @@ inline bool authorized_vip_users(const std::string& soap_xml) {
     return authorized_vip_users(doc);
 }
 
-inline void register_vip_users_soap(::httplib::Server& svr, ::sqlite3* db,
+inline void register_vip_users_soap(crow::SimpleApp& app, ::sqlite3* db,
                                  const std::string& base) {
-    svr.Post(base + "/vip_users",
-             [db](const ::httplib::Request& req, ::httplib::Response& res) {
+    app.route_dynamic(base + "/vip_users").methods(crow::HTTPMethod::POST)(
+             [db](const crow::request& req, crow::response& res) {
+        // all SOAP replies carry an XML body; set the content type once
+        auto reply = [&res](const std::string& xml) {
+            res.set_header("Content-Type", "text/xml");
+            res.body = xml;
+        };
         ::harpia::db::vip_users_dao dao(db);
         ::tinyxml2::XMLDocument doc;
         if (doc.Parse(req.body.c_str()) != ::tinyxml2::XML_SUCCESS) {
-            res.status = 400; return;
+            res.code = 400; res.end(); return;
         }
         if (!authorized_vip_users(doc)) {
-            res.status = 401;
-            res.set_content(envelope_vip_users(
+            res.code = 401;
+            reply(envelope_vip_users(
                 "<soap:Fault><faultcode>Client.Authentication</faultcode>"
-                "<faultstring>unauthorized</faultstring></soap:Fault>"),
-                "text/xml");
-            return;
+                "<faultstring>unauthorized</faultstring></soap:Fault>"));
+            res.end(); return;
         }
         const auto* env = doc.RootElement();                  // soap:Envelope
         const auto* body = ::harpia::soap::detail::find_child(env, "Body");
         const auto* op = body ? body->FirstChildElement() : nullptr;   // operation
-        if (!op) { res.status = 400; return; }
+        if (!op) { res.code = 400; res.end(); return; }
         const std::string name = ::harpia::soap::detail::local_name(op);
 
         if (name == "get") {
@@ -105,47 +109,45 @@ inline void register_vip_users_soap(::httplib::Server& svr, ::sqlite3* db,
                 (idEl && idEl->GetText()) ? ::atoll(idEl->GetText()) : 0;
             ::vip_users msg;
             if (!dao.read(id, &msg)) {
-                res.set_content(envelope_vip_users(
-                    "<soap:Fault><faultstring>not found</faultstring></soap:Fault>"),
-                    "text/xml");
-                return;
+                reply(envelope_vip_users(
+                    "<soap:Fault><faultstring>not found</faultstring></soap:Fault>"));
+                res.end(); return;
             }
-            res.set_content(envelope_vip_users(
-                "<getResponse>" + ::harpia::xml::to_xml(msg) + "</getResponse>"),
-                "text/xml");
+            reply(envelope_vip_users(
+                "<getResponse>" + ::harpia::xml::to_xml(msg) + "</getResponse>"));
         } else if (name == "set") {
             const auto* m = op->FirstChildElement();          // the vip_users element
             ::vip_users msg;
             if (!m || !::harpia::xml::from_xml_element(m, &msg)) {
-                res.status = 400; return;
+                res.code = 400; res.end(); return;
             }
             const bool ok = dao.create(msg);
-            res.set_content(envelope_vip_users(
+            reply(envelope_vip_users(
                 std::string("<setResponse><ok>") + (ok ? "true" : "false") +
-                "</ok></setResponse>"), "text/xml");
+                "</ok></setResponse>"));
         } else if (name == "update") {
             const auto* m = op->FirstChildElement();          // the vip_users element
             ::vip_users msg;
             if (!m || !::harpia::xml::from_xml_element(m, &msg)) {
-                res.status = 400; return;
+                res.code = 400; res.end(); return;
             }
             const bool ok = dao.update(msg);
-            res.set_content(envelope_vip_users(
+            reply(envelope_vip_users(
                 std::string("<updateResponse><ok>") + (ok ? "true" : "false") +
-                "</ok></updateResponse>"), "text/xml");
+                "</ok></updateResponse>"));
         } else if (name == "delete") {
             const auto* idEl = op->FirstChildElement("id");
             const long long id =
                 (idEl && idEl->GetText()) ? ::atoll(idEl->GetText()) : 0;
             const bool ok = dao.remove(id);
-            res.set_content(envelope_vip_users(
+            reply(envelope_vip_users(
                 std::string("<deleteResponse><ok>") + (ok ? "true" : "false") +
-                "</ok></deleteResponse>"), "text/xml");
+                "</ok></deleteResponse>"));
         } else {
-            res.set_content(envelope_vip_users(
-                "<soap:Fault><faultstring>unknown operation</faultstring></soap:Fault>"),
-                "text/xml");
+            reply(envelope_vip_users(
+                "<soap:Fault><faultstring>unknown operation</faultstring></soap:Fault>"));
         }
+        res.end();
     });
 }
 
