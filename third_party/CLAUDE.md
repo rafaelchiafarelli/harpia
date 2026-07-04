@@ -5,7 +5,15 @@
 ## Contents
 - `sqlite/` — SQLite, embedded database used by generated ORM/persistence code.
 - `tinyxml2/` — TinyXML-2, XML parsing/serialization (SOAP/XML adapters).
-- `cpp-httplib/` — cpp-httplib, header-only HTTP client/server (RESTful adapters).
+- `crow/` — Crow, header-only C++ HTTP server framework (`crow.h`, the upstream
+  amalgamated `crow_all.h`). Backs the generated REST (Stage 12) and SOAP (Stage 11)
+  servers. Replaced cpp-httplib.
+- `asio/` — standalone asio (no Boost, no OpenSSL), the transport library Crow
+  requires. Header-only tree (`asio.hpp` + `asio/`). Vendored so generated output
+  stays self-contained and cross-compilable across target boards without a system
+  `libasio-dev`.
+- `cpp-httplib/` — cpp-httplib, header-only HTTP client/server. Being retired in
+  favour of Crow; may linger as a test-only HTTP client during the migration.
 
 ## Key facts / gotchas
 - **Do not edit** the library sources — they are upstream vendored copies. Update by re-vendoring the upstream release, not by patching in place.
