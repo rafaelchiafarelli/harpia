@@ -14,7 +14,7 @@
 #   --no-build       generate only; skip the cmake build + ctest run.
 #
 # The generated output folder is self-contained: it vendors its own copy of the
-# third-party C++ libs (sqlite/tinyxml2/cpp-httplib), so you can copy it to any
+# third-party C++ libs (sqlite/tinyxml2/crow/asio), so you can copy it to any
 # machine with a C++17 toolchain + protoc/grpc and build it — see the
 # HOW_TO_BUILD.md this script drops into the output folder.
 #
@@ -117,7 +117,7 @@ cat > "$OUTPUT_ABS/HOW_TO_BUILD.md" <<'EOF'
 # How to build this generated project
 
 This folder is a self-contained Harpia-generated C++ project. It vendors its own
-third-party libraries under `third_party/` (sqlite, tinyxml2, cpp-httplib), so it
+third-party libraries under `third_party/` (sqlite, tinyxml2, crow, asio), so it
 builds anywhere you have the toolchain below — no need for the Harpia repo.
 
 ## Prerequisites

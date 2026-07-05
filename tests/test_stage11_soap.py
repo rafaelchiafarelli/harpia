@@ -1,11 +1,13 @@
 """Stage 11 (SOAP) test -- the generated endpoint serves real SOAP over HTTP.
 
-Starts an httplib server with the generated SOAP endpoint (backed by in-memory
-SQLite), then POSTs SOAP envelopes: a `set` (create) then a `get` (read), plus a
+Starts a Crow server (crow::SimpleApp) with the generated SOAP endpoint (backed
+by in-memory SQLite), then POSTs SOAP envelopes with a small POSIX-socket HTTP
+client (tests/harpia_test_client.h): a `set` (create) then a `get` (read), plus a
 not-found that returns a SOAP Fault.
 
-Needs protoc + g++ + cc + pkg-config (compiles the vendored sqlite; httplib,
-tinyxml2 and the XML adapter are header-only/linked). Skipped otherwise.
+Needs protoc + g++ + cc + pkg-config (compiles the vendored sqlite; Crow, asio,
+the test client, tinyxml2 and the XML adapter are header-only/linked). Skipped
+otherwise.
 """
 import os
 import shutil
@@ -18,7 +20,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
 RUNNER = os.path.join(HERE, "run_pipeline.py")
 SQLITE = os.path.join(REPO_ROOT, "third_party", "sqlite")
-HTTPLIB = os.path.join(REPO_ROOT, "third_party", "cpp-httplib")
+CROW = os.path.join(REPO_ROOT, "third_party", "crow")
+ASIO = os.path.join(REPO_ROOT, "third_party", "asio")
 TINYXML2 = os.path.join(REPO_ROOT, "third_party", "tinyxml2")
 HASH = "c96f8fd7f45108efee5a8ecb43eab1da"
 
@@ -71,42 +74,44 @@ def test_soap_http_roundtrip(built):
     with open(prog, "w") as f:
         f.write(
             '#include "soap/users_{h}_soap.h"\n'
-            "#include <thread>\n"
+            '#include "harpia_test_client.h"\n'
             "int main() {{\n"
             "    ::sqlite3* db = nullptr;\n"
             '    if (sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
             "    harpia::db::users_dao dao(db);\n"
             "    if (!dao.create_table()) return 2;\n"
-            "    ::httplib::Server svr;\n"
-            '    harpia::soap::register_users_soap(svr, db, "/soap");\n'
-            '    std::thread t([&]{{ svr.listen("127.0.0.1", 18077); }});\n'
-            "    svr.wait_until_ready();\n"
-            '    ::httplib::Client cli("127.0.0.1", 18077);\n'
+            "    crow::SimpleApp app;\n"
+            "    app.loglevel(crow::LogLevel::Warning);\n"
+            '    harpia::soap::register_users_soap(app, db, "/soap");\n'
+            "    const int port = 18077;\n"
+            '    auto fut = app.bindaddr("127.0.0.1").port(port).multithreaded().run_async();\n'
+            "    app.wait_for_server_start();\n"
+            '    harpia_test::Client cli("127.0.0.1", port);\n'
             "    auto run = [&]() -> int {{\n"
             "        ::users a; a.set_id_{h}(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
             "        const std::string mx = ::harpia::xml::to_xml(a);\n"
             "        // wrong credential: rejected with a Fault (401), no row created\n"
             '        const std::string badBody = "{env}{badhdr}<soap:Body><set>" + mx + "</set></soap:Body></soap:Envelope>";\n'
             '        auto bad = cli.Post("/soap/users", badBody, "text/xml");\n'
-            '        if (!bad || bad->status != 401 || bad->body.find("Fault") == std::string::npos) return 8;\n'
+            '        if (!bad || bad.status != 401 || bad.body.find("Fault") == std::string::npos) return 8;\n'
             "        ::users probe;\n"
             "        if (dao.read(1, &probe)) return 9;\n"
             "        // correct credential: create + read back\n"
             '        const std::string setBody = "{env}{hdr}<soap:Body><set>" + mx + "</set></soap:Body></soap:Envelope>";\n'
             '        auto s = cli.Post("/soap/users", setBody, "text/xml");\n'
-            '        if (!s || s->status != 200 || s->body.find("<ok>true</ok>") == std::string::npos) return 3;\n'
+            '        if (!s || s.status != 200 || s.body.find("<ok>true</ok>") == std::string::npos) return 3;\n'
             '        const std::string getBody = "{env}{hdr}<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";\n'
             '        auto g = cli.Post("/soap/users", getBody, "text/xml");\n'
-            '        if (!g || g->status != 200) return 4;\n'
-            '        if (g->body.find("getResponse") == std::string::npos) return 5;\n'
-            '        if (g->body.find("neo") == std::string::npos) return 6;\n'
+            '        if (!g || g.status != 200) return 4;\n'
+            '        if (g.body.find("getResponse") == std::string::npos) return 5;\n'
+            '        if (g.body.find("neo") == std::string::npos) return 6;\n'
             '        const std::string missBody = "{env}{hdr}<soap:Body><get><id>999</id></get></soap:Body></soap:Envelope>";\n'
             '        auto nf = cli.Post("/soap/users", missBody, "text/xml");\n'
-            '        if (!nf || nf->body.find("Fault") == std::string::npos) return 7;\n'
+            '        if (!nf || nf.body.find("Fault") == std::string::npos) return 7;\n'
             "        return 0;\n"
             "    }};\n"
             "    const int code = run();\n"
-            "    svr.stop(); t.join();\n"
+            "    app.stop(); fut.get();\n"
             "    return code;\n"
             "}}\n".format(h=HASH, env=env, hdr=hdr, badhdr=badhdr))
 
@@ -116,7 +121,8 @@ def test_soap_http_roundtrip(built):
     binary = os.path.join(built["tmp"], "soap_app")
     c = subprocess.run(
         ["g++", "-std=c++17", "-I", built["cpp_root"], "-I", SQLITE,
-         "-I", HTTPLIB, "-I", TINYXML2, *_pkgconfig("--cflags"), prog, pb_cc,
+         "-I", CROW, "-I", ASIO, "-I", TINYXML2, "-I", HERE,
+         *_pkgconfig("--cflags"), prog, pb_cc,
          tinyxml, built["sqlite_obj"], "-o", binary,
          *_pkgconfig("--libs"), "-lpthread", "-ldl"],
         capture_output=True, text=True, timeout=180)

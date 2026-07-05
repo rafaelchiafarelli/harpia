@@ -29,7 +29,8 @@ REPO_ROOT = os.path.dirname(HERE)
 RUNNER = os.path.join(HERE, "run_pipeline.py")
 SQLITE = os.path.join(REPO_ROOT, "third_party", "sqlite")
 TINYXML2 = os.path.join(REPO_ROOT, "third_party", "tinyxml2")
-HTTPLIB = os.path.join(REPO_ROOT, "third_party", "cpp-httplib")
+CROW = os.path.join(REPO_ROOT, "third_party", "crow")
+ASIO = os.path.join(REPO_ROOT, "third_party", "asio")
 
 pytestmark = pytest.mark.skipif(
     shutil.which("g++") is None or shutil.which("cc") is None,
@@ -152,7 +153,8 @@ def test_every_generated_test_compiles_and_runs(generated, messages_lib,
         binary = os.path.join(str(tmp_path), "{}_test".format(cls))
         c = subprocess.run(
             ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE, "-I", TINYXML2,
-             "-I", HTTPLIB, *_pkgconfig("--cflags"), cpp, *messages_lib["objs"],
+             "-I", CROW, "-I", ASIO, "-I", os.path.dirname(cpp),
+             *_pkgconfig("--cflags"), cpp, *messages_lib["objs"],
              sqlite_obj, tinyxml2_obj, "-o", binary,
              *_pkgconfig("--libs"), "-lpthread", "-ldl"],
             capture_output=True, text=True, timeout=180)

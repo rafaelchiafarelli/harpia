@@ -14,7 +14,9 @@ Invoked from `main.py` and `tests/run_pipeline.py` after all other adapters.
 - In: `messages` (Message objects) + `dest` build dir.
 - Out (under `dest/tests/`): `<name>_<md5Hash>_test.cpp` per table message,
   one `app_<md5Hash>_test.cpp`, and `CMakeLists.txt`. Also copies vendored deps
-  into `dest/third_party/` (`sqlite`, `tinyxml2`, `cpp-httplib`).
+  into `dest/third_party/` (`sqlite`, `tinyxml2`, `crow`, and the `asio` header
+  tree) and the HTTP test client `harpia_test_client.h` next to the tests (Crow
+  ships no client).
 - Tests are opt-in: only built when top-level CMake gets `-DHARPIA_BUILD_TESTS=ON`.
 
 ## Files

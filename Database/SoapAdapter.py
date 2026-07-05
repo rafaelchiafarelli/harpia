@@ -1,8 +1,8 @@
 """Stage 11 -- SOAP access (XML over HTTP).
 
 For each table-bearing message, emit a header (<name>_<hash>_soap.h) that
-registers a SOAP endpoint on a cpp-httplib server, backed by the CRUDL DAO and
-the XML adapter (spec stage 11):
+registers a SOAP endpoint on a Crow server (crow::SimpleApp), backed by the CRUDL
+DAO and the XML adapter (spec stage 11):
 
   POST <base>/<name> with a SOAP envelope whose Body holds:
     <get><id>N</id></get>            -> the <name> serialized as XML

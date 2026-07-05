@@ -1,12 +1,14 @@
 """Stage 12 (REST) test -- the generated bindings serve real HTTP CRUD.
 
-Builds a program that registers the generated routes on a cpp-httplib server
-backed by an in-memory SQLite, then drives them with an HTTP client:
+Builds a program that registers the generated routes on a Crow server
+(crow::SimpleApp) backed by an in-memory SQLite, then drives them with a small
+POSIX-socket HTTP client (tests/harpia_test_client.h):
 POST -> GET/:id -> GET (list) -> PUT -> DELETE -> GET/:id (404).
 
 Needs protoc + g++ + cc + pkg-config (compiles the vendored sqlite + tinyxml2;
-httplib and the JSON/XML adapters are header-only). Content negotiation pulls in
-the XML runtime (tinyxml2). Skipped otherwise; runs in the Docker image.
+Crow, asio, the test client and the JSON/XML adapters are header-only). Content
+negotiation pulls in the XML runtime (tinyxml2). Skipped otherwise; runs in the
+Docker image.
 """
 import os
 import shutil
@@ -19,7 +21,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
 RUNNER = os.path.join(HERE, "run_pipeline.py")
 SQLITE = os.path.join(REPO_ROOT, "third_party", "sqlite")
-HTTPLIB = os.path.join(REPO_ROOT, "third_party", "cpp-httplib")
+CROW = os.path.join(REPO_ROOT, "third_party", "crow")
+ASIO = os.path.join(REPO_ROOT, "third_party", "asio")
 TINYXML2 = os.path.join(REPO_ROOT, "third_party", "tinyxml2")
 HASH = "c96f8fd7f45108efee5a8ecb43eab1da"
 
@@ -66,45 +69,47 @@ def test_rest_http_crud(built):
     with open(prog, "w") as f:
         f.write(
             '#include "rest/users_{h}_rest.h"\n'
-            "#include <thread>\n"
+            '#include "harpia_test_client.h"\n'
             "int main() {{\n"
             "    ::sqlite3* db = nullptr;\n"
             '    if (sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
             "    harpia::db::users_dao dao(db);\n"
             "    if (!dao.create_table()) return 2;\n"
-            "    ::httplib::Server svr;\n"
-            '    harpia::rest::register_users(svr, db, "/api/v1");\n'
-            '    std::thread t([&]{{ svr.listen("127.0.0.1", 18099); }});\n'
-            "    svr.wait_until_ready();\n"
-            '    ::httplib::Client cli("127.0.0.1", 18099);\n'
+            "    crow::SimpleApp app;\n"
+            "    app.loglevel(crow::LogLevel::Warning);\n"
+            '    harpia::rest::register_users(app, db, "/api/v1");\n'
+            "    const int port = 18099;\n"
+            '    auto fut = app.bindaddr("127.0.0.1").port(port).multithreaded().run_async();\n'
+            "    app.wait_for_server_start();\n"
+            '    harpia_test::Client cli("127.0.0.1", port);\n'
             "    // every route requires the generated credential (X-User/X-Pswd)\n"
-            '    ::httplib::Client anon("127.0.0.1", 18099);\n'
+            '    harpia_test::Client anon("127.0.0.1", port);\n'
             '    auto na = anon.Get("/api/v1/users");\n'
-            "    if (!na || na->status != 401) {{ svr.stop(); t.join(); return 10; }}\n"
+            "    if (!na || na.status != 401) {{ app.stop(); fut.get(); return 10; }}\n"
             '    cli.set_default_headers({{{{"X-User", "users"}}, {{"X-Pswd", "{h}"}}}});\n'
             "    auto run = [&]() -> int {{\n"
             "        ::users a; a.set_id_{h}(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
             "        std::string body; ::harpia::json::to_json(a, &body);\n"
             '        auto post = cli.Post("/api/v1/users", body, "application/json");\n'
-            "        if (!post || post->status != 201) return 3;\n"
+            "        if (!post || post.status != 201) return 3;\n"
             '        auto get = cli.Get("/api/v1/users/1");\n'
-            '        if (!get || get->status != 200 || get->body.find("neo") == std::string::npos) return 4;\n'
+            '        if (!get || get.status != 200 || get.body.find("neo") == std::string::npos) return 4;\n'
             '        auto list = cli.Get("/api/v1/users");\n'
-            '        if (!list || list->status != 200 || list->body.find("matrix") == std::string::npos) return 5;\n'
+            '        if (!list || list.status != 200 || list.body.find("matrix") == std::string::npos) return 5;\n'
             "        ::users b = a; b.set_name(\"trinity\");\n"
             "        std::string bb; ::harpia::json::to_json(b, &bb);\n"
             '        auto put = cli.Put("/api/v1/users/1", bb, "application/json");\n'
-            "        if (!put || put->status != 204) return 6;\n"
+            "        if (!put || put.status != 204) return 6;\n"
             '        auto get2 = cli.Get("/api/v1/users/1");\n'
-            '        if (!get2 || get2->body.find("trinity") == std::string::npos) return 7;\n'
+            '        if (!get2 || get2.body.find("trinity") == std::string::npos) return 7;\n'
             '        auto del = cli.Delete("/api/v1/users/1");\n'
-            "        if (!del || del->status != 204) return 8;\n"
+            "        if (!del || del.status != 204) return 8;\n"
             '        auto gone = cli.Get("/api/v1/users/1");\n'
-            "        if (!gone || gone->status != 404) return 9;\n"
+            "        if (!gone || gone.status != 404) return 9;\n"
             "        return 0;\n"
             "    }};\n"
             "    const int code = run();\n"
-            "    svr.stop(); t.join();\n"
+            "    app.stop(); fut.get();\n"
             "    return code;\n"
             "}}\n".format(h=HASH))
 
@@ -114,7 +119,8 @@ def test_rest_http_crud(built):
     tinyxml = os.path.join(TINYXML2, "tinyxml2.cpp")
     c = subprocess.run(
         ["g++", "-std=c++17", "-I", built["cpp_root"], "-I", SQLITE,
-         "-I", HTTPLIB, "-I", TINYXML2, *_pkgconfig("--cflags"), prog, pb_cc,
+         "-I", CROW, "-I", ASIO, "-I", TINYXML2, "-I", HERE,
+         *_pkgconfig("--cflags"), prog, pb_cc,
          tinyxml, built["sqlite_obj"], "-o", binary,
          *_pkgconfig("--libs"), "-lpthread", "-ldl"],
         capture_output=True, text=True, timeout=180)

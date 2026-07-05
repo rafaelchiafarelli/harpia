@@ -7,7 +7,9 @@
 #   - protobuf-compiler-grpc + libgrpc++-dev           : Stage 13 gRPC stubs
 #   - libzmq3-dev + cppzmq-dev                         : Stage 13 ZMQ transport
 #   - cmake, g++, make                                 : compile the generated C++
-# (Stage 10 XML uses tinyxml2 vendored in-tree under third_party/, not apt.)
+# (Stage 10 XML uses tinyxml2, and Stages 11/12 SOAP+REST use Crow + standalone
+#  asio, all vendored in-tree under third_party/ rather than apt — so generated
+#  output stays self-contained and cross-compilable on any target board.)
 #
 # The repository is mounted at /harpia at run time (see docker/run.sh), so edits
 # on the host are picked up without rebuilding the image.

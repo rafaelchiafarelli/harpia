@@ -84,4 +84,5 @@ Do not hand-edit — regenerate via `HARPIA_UPDATE_GOLDEN=1` and review the diff
 
 ## Touchpoints
 - Depends on: the whole generator (all adapters + front-end), `HarpiaTest/`
-  fixtures, repo `third_party/` (vendored sqlite/tinyxml2/cpp-httplib).
+  fixtures, repo `third_party/` (vendored sqlite/tinyxml2/crow/asio), and the
+  HTTP test client `tests/harpia_test_client.h`.

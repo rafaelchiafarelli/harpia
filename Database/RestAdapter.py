@@ -1,8 +1,8 @@
 """Stage 12 -- RESTful HTTP bindings.
 
 For each table-bearing message, emit a header (<name>_<hash>_rest.h) that
-registers CRUD routes on a cpp-httplib server, backed by the CRUDL DAO (spec
-stage 12 / 11.1):
+registers CRUD routes on a Crow server (crow::SimpleApp), backed by the CRUDL
+DAO (spec stage 12 / 11.1):
 
   GET  <base>/<name>      list      GET    <base>/<name>/:id   read
   POST <base>/<name>      create    PUT    <base>/<name>/:id   update

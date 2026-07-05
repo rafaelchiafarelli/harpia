@@ -23,6 +23,7 @@
 #include "json/vip_users_c96f8fd7f45108efee5a8ecb43eab1da_json.h"
 #include "xml/vip_users_c96f8fd7f45108efee5a8ecb43eab1da_xml.h"
 #include "rest/vip_users_c96f8fd7f45108efee5a8ecb43eab1da_rest.h"
+#include "harpia_test_client.h"
 
 #include <cstdint>
 #include <string>
@@ -185,22 +186,23 @@ int rest_api() {
     if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 80;
     harpia::db::vip_users_dao dao(db);
     if (!dao.create_table()) return 81;
-    ::httplib::Server svr;
-    harpia::rest::register_vip_users(svr, db, "/api/v1");
-    const int port = svr.bind_to_any_port("127.0.0.1");
-    if (port <= 0) return 82;
-    std::thread t([&]{ svr.listen_after_bind(); });
-    svr.wait_until_ready();
-    ::httplib::Client cli("127.0.0.1", port);
-    const ::httplib::Headers cred = {{"X-User", "vip_users"}, {"X-Pswd", "c96f8fd7f45108efee5a8ecb43eab1da"}};
-    const ::httplib::Headers credx = {{"X-User", "vip_users"}, {"X-Pswd", "c96f8fd7f45108efee5a8ecb43eab1da"}, {"Accept", "application/xml"}};
+    crow::SimpleApp app;
+    app.loglevel(crow::LogLevel::Warning);
+    harpia::rest::register_vip_users(app, db, "/api/v1");
+    auto fut = app.bindaddr("127.0.0.1").port(0).multithreaded().run_async();
+    app.wait_for_server_start();
+    const int port = app.port();
+    if (port <= 0) { app.stop(); fut.get(); return 82; }
+    harpia_test::Client cli("127.0.0.1", port);
+    const harpia_test::Headers cred = {{"X-User", "vip_users"}, {"X-Pswd", "c96f8fd7f45108efee5a8ecb43eab1da"}};
+    const harpia_test::Headers credx = {{"X-User", "vip_users"}, {"X-Pswd", "c96f8fd7f45108efee5a8ecb43eab1da"}, {"Accept", "application/xml"}};
     int code = 0;
     do {
         // every route requires the generated credential (X-User/X-Pswd)
         auto noc = cli.Get("/api/v1/vip_users");
-        if (!noc || noc->status != 401) { code = 93; break; }
-        auto bad = cli.Get("/api/v1/vip_users", ::httplib::Headers{{"X-User", "vip_users"}, {"X-Pswd", "nope"}});
-        if (!bad || bad->status != 401) { code = 94; break; }
+        if (!noc || noc.status != 401) { code = 93; break; }
+        auto bad = cli.Get("/api/v1/vip_users", harpia_test::Headers{{"X-User", "vip_users"}, {"X-Pswd", "nope"}});
+        if (!bad || bad.status != 401) { code = 94; break; }
         ::vip_users a;
         a.set_id_c96f8fd7f45108efee5a8ecb43eab1da(1);
         a.set_name("name_a");
@@ -210,39 +212,39 @@ int rest_api() {
         a.set_originator_c96f8fd7f45108efee5a8ecb43eab1da("originator_c96f8fd7f45108efee5a8ecb43eab1da_a");
         std::string body;
         if (!::harpia::json::to_json(a, &body)) { code = 83; break; }
-        auto post = cli.Post("/api/v1/vip_users", cred, body, "application/json");
-        if (!post || post->status != 201) { code = 84; break; }
+        auto post = cli.Post("/api/v1/vip_users", body, "application/json", cred);
+        if (!post || post.status != 201) { code = 84; break; }
         auto got = cli.Get("/api/v1/vip_users/1", cred);
-        if (!got || got->status != 200) { code = 85; break; }
-        if (got->body.find("name_a") == std::string::npos) { code = 86; break; }
+        if (!got || got.status != 200) { code = 85; break; }
+        if (got.body.find("name_a") == std::string::npos) { code = 86; break; }
         auto lst = cli.Get("/api/v1/vip_users", cred);
-        if (!lst || lst->status != 200) { code = 87; break; }
+        if (!lst || lst.status != 200) { code = 87; break; }
         // content negotiation: XML response, and an XML request body
         auto gx = cli.Get("/api/v1/vip_users/1", credx);
-        if (!gx || gx->status != 200 || gx->body.find("<") == std::string::npos) { code = 95; break; }
-        if (gx->body.find("name_a") == std::string::npos) { code = 96; break; }
+        if (!gx || gx.status != 200 || gx.body.find("<") == std::string::npos) { code = 95; break; }
+        if (gx.body.find("name_a") == std::string::npos) { code = 96; break; }
         ::vip_users ax = a;
         ax.set_id_c96f8fd7f45108efee5a8ecb43eab1da(2);
         const std::string axml = ::harpia::xml::to_xml(ax);
-        auto xpost = cli.Post("/api/v1/vip_users", cred, axml, "application/xml");
-        if (!xpost || xpost->status != 201) { code = 97; break; }
+        auto xpost = cli.Post("/api/v1/vip_users", axml, "application/xml", cred);
+        if (!xpost || xpost.status != 201) { code = 97; break; }
         auto gx2 = cli.Get("/api/v1/vip_users/2", credx);
-        if (!gx2 || gx2->status != 200) { code = 98; break; }
-        if (gx2->body.find("name_a") == std::string::npos) { code = 99; break; }
+        if (!gx2 || gx2.status != 200) { code = 98; break; }
+        if (gx2.body.find("name_a") == std::string::npos) { code = 99; break; }
         ::vip_users b = a;
         b.set_name("name_u");
         std::string bb;
         if (!::harpia::json::to_json(b, &bb)) { code = 88; break; }
-        auto put = cli.Put("/api/v1/vip_users/1", cred, bb, "application/json");
-        if (!put || put->status != 204) { code = 89; break; }
+        auto put = cli.Put("/api/v1/vip_users/1", bb, "application/json", cred);
+        if (!put || put.status != 204) { code = 89; break; }
         auto g2 = cli.Get("/api/v1/vip_users/1", cred);
-        if (!g2 || g2->body.find("name_u") == std::string::npos) { code = 90; break; }
+        if (!g2 || g2.body.find("name_u") == std::string::npos) { code = 90; break; }
         auto del = cli.Delete("/api/v1/vip_users/1", cred);
-        if (!del || del->status != 204) { code = 91; break; }
+        if (!del || del.status != 204) { code = 91; break; }
         auto gone = cli.Get("/api/v1/vip_users/1", cred);
-        if (!gone || gone->status != 404) { code = 92; break; }
+        if (!gone || gone.status != 404) { code = 92; break; }
     } while (false);
-    svr.stop(); t.join(); ::sqlite3_close(db);
+    app.stop(); fut.get(); ::sqlite3_close(db);
     return code;
 }
 
@@ -251,13 +253,14 @@ int soap_api() {
     if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 100;
     harpia::db::vip_users_dao dao(db);
     if (!dao.create_table()) return 101;
-    ::httplib::Server svr;
-    harpia::soap::register_vip_users_soap(svr, db, "/soap");
-    const int port = svr.bind_to_any_port("127.0.0.1");
-    if (port <= 0) return 102;
-    std::thread t([&]{ svr.listen_after_bind(); });
-    svr.wait_until_ready();
-    ::httplib::Client cli("127.0.0.1", port);
+    crow::SimpleApp app;
+    app.loglevel(crow::LogLevel::Warning);
+    harpia::soap::register_vip_users_soap(app, db, "/soap");
+    auto fut = app.bindaddr("127.0.0.1").port(0).multithreaded().run_async();
+    app.wait_for_server_start();
+    const int port = app.port();
+    if (port <= 0) { app.stop(); fut.get(); return 102; }
+    harpia_test::Client cli("127.0.0.1", port);
     const std::string hdr = "<soap:Header><credentials><user>vip_users</user><pswd>c96f8fd7f45108efee5a8ecb43eab1da</pswd></credentials></soap:Header>";
     const std::string badhdr = "<soap:Header><credentials><user>vip_users</user><pswd>nope</pswd></credentials></soap:Header>";
     int code = 0;
@@ -272,29 +275,29 @@ int soap_api() {
         const std::string mx = ::harpia::xml::to_xml(a);
         const std::string setEnv = "<soap:Envelope>" + hdr + "<soap:Body><set>" + mx + "</set></soap:Body></soap:Envelope>";
         auto s = cli.Post("/soap/vip_users", setEnv, "text/xml");
-        if (!s || s->status != 200 || s->body.find("<ok>true</ok>") == std::string::npos) { code = 103; break; }
+        if (!s || s.status != 200 || s.body.find("<ok>true</ok>") == std::string::npos) { code = 103; break; }
         const std::string badEnv = "<soap:Envelope>" + badhdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";
         auto na = cli.Post("/soap/vip_users", badEnv, "text/xml");
-        if (!na || na->status != 401) { code = 104; break; }
+        if (!na || na.status != 401) { code = 104; break; }
         const std::string getEnv = "<soap:Envelope>" + hdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";
         auto g = cli.Post("/soap/vip_users", getEnv, "text/xml");
-        if (!g || g->status != 200 || g->body.find("getResponse") == std::string::npos) { code = 105; break; }
-        if (g->body.find("name_a") == std::string::npos) { code = 106; break; }
+        if (!g || g.status != 200 || g.body.find("getResponse") == std::string::npos) { code = 105; break; }
+        if (g.body.find("name_a") == std::string::npos) { code = 106; break; }
         ::vip_users b = a;
         b.set_name("name_u");
         const std::string ux = ::harpia::xml::to_xml(b);
         const std::string updEnv = "<soap:Envelope>" + hdr + "<soap:Body><update>" + ux + "</update></soap:Body></soap:Envelope>";
         auto u = cli.Post("/soap/vip_users", updEnv, "text/xml");
-        if (!u || u->status != 200 || u->body.find("<ok>true</ok>") == std::string::npos) { code = 107; break; }
+        if (!u || u.status != 200 || u.body.find("<ok>true</ok>") == std::string::npos) { code = 107; break; }
         auto g2 = cli.Post("/soap/vip_users", getEnv, "text/xml");
-        if (!g2 || g2->body.find("name_u") == std::string::npos) { code = 108; break; }
+        if (!g2 || g2.body.find("name_u") == std::string::npos) { code = 108; break; }
         const std::string delEnv = "<soap:Envelope>" + hdr + "<soap:Body><delete><id>1</id></delete></soap:Body></soap:Envelope>";
         auto d = cli.Post("/soap/vip_users", delEnv, "text/xml");
-        if (!d || d->status != 200 || d->body.find("<ok>true</ok>") == std::string::npos) { code = 109; break; }
+        if (!d || d.status != 200 || d.body.find("<ok>true</ok>") == std::string::npos) { code = 109; break; }
         auto g3 = cli.Post("/soap/vip_users", getEnv, "text/xml");
-        if (!g3 || g3->body.find("not found") == std::string::npos) { code = 111; break; }
+        if (!g3 || g3.body.find("not found") == std::string::npos) { code = 111; break; }
     } while (false);
-    svr.stop(); t.join(); ::sqlite3_close(db);
+    app.stop(); fut.get(); ::sqlite3_close(db);
     return code;
 }
 
