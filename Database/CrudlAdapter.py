@@ -22,6 +22,7 @@ import os
 
 from Logger.logger import logger
 from Util.util import loadTemplate
+from Database.backends import get_backend
 from Database.model import (analyze, create_table_sql, type_registry,
                             map_fields, repeated_fields)
 
@@ -47,12 +48,13 @@ def _use_list(count, base, indent):
 
 
 class CrudlAdapter:
-    def __init__(self, messages, dest) -> None:
+    def __init__(self, messages, dest, backend=None) -> None:
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "db")
         self.types = type_registry(messages)
         self.byName = {m.name: m for m in messages}
+        self.backend = backend or get_backend()
         self.log = logger(outFile=None, moduleName="CrudlAdapter")
 
     def Process(self):
@@ -71,7 +73,7 @@ class CrudlAdapter:
         return None
 
     def _render(self, msg):
-        columns, _ = analyze(msg, self.types)
+        columns, _ = analyze(msg, self.types, self.backend)
         scalar = [c for c in columns if c.bindable or c.embed]
         fk_cols = [c for c in columns if c.fk_table]
         id_col = next((c for c in scalar if c.pk), None)
@@ -81,8 +83,8 @@ class CrudlAdapter:
         insert_all = scalar + fk_cols
         update_all = non_id + fk_cols
 
-        maps = map_fields(msg, self.types)
-        reps = repeated_fields(msg, self.types)
+        maps = map_fields(msg, self.types, self.backend)
+        reps = repeated_fields(msg, self.types, self.backend)
 
         return _CRUDL.format(
             guard="HARPIA_CRUDL_{}_{}".format(msg.name.upper(), msg.md5Hash),
@@ -93,7 +95,7 @@ class CrudlAdapter:
             cls=msg.name,
             table=msg.tableName,
             create_table_sql=create_table_sql(
-                msg, types=self.types).replace('"', '\\"'),
+                msg, types=self.types, backend=self.backend).replace('"', '\\"'),
             insert_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
             insert_ph=", ".join(":c{}".format(i) for i in range(len(insert_all))),
             select_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
@@ -202,7 +204,7 @@ class CrudlAdapter:
     # -- composed FK (message whose target owns a table) -------------------
     def _child_by_name(self, target):
         m = self.byName[target]
-        cols, _ = analyze(m, self.types)
+        cols, _ = analyze(m, self.types, self.backend)
         pk = next((c for c in cols if c.bindable and c.pk), None)
         return {
             "dao": "::harpia::db::{}_dao".format(m.name),
@@ -264,21 +266,17 @@ class CrudlAdapter:
         if not children:
             return ""
         pk = next((c for c in columns if c.pk), None)
-        owner_sql = pk.sql_type if pk else "INTEGER"
+        owner_sql = pk.sql_type if pk else self.backend.int_type
         parts = []
         for ch in children:
             if repeated:
-                sql = ('CREATE TABLE IF NOT EXISTS \\"{c}\\" (\\"owner\\" {o}, '
-                       '\\"ordinal\\" INTEGER, \\"value\\" {v}, '
-                       'PRIMARY KEY(\\"owner\\", \\"ordinal\\"));').format(
-                           c=ch.child_table, o=owner_sql, v=ch.val_sql)
+                sql = self.backend.rep_child_table(
+                    ch.child_table, owner_sql, ch.val_sql)
             else:
-                sql = ('CREATE TABLE IF NOT EXISTS \\"{c}\\" (\\"owner\\" {o}, '
-                       '\\"key\\" {k}, \\"value\\" {v}, '
-                       'PRIMARY KEY(\\"owner\\", \\"key\\"));').format(
-                           c=ch.child_table, o=owner_sql, k=ch.key_sql,
-                           v=ch.val_sql)
-            parts.append('\n            db_ << "{}";'.format(sql))
+                sql = self.backend.map_child_table(
+                    ch.child_table, owner_sql, ch.key_sql, ch.val_sql)
+            parts.append('\n            db_ << "{}";'.format(
+                sql.replace('"', '\\"')))
         return "".join(parts)
 
     def _child_drop_tables(self, children):

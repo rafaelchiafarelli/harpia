@@ -9,11 +9,14 @@ interface and why the rest of the generated C++ is dialect-free (SOCI).
 from Database.backends.base import (DbBackend, SOCI_SESSION_TYPE,
                                     SOCI_CORE_HEADER)
 from Database.backends.sqlite import SqliteBackend
+from Database.backends.postgres import PostgresBackend
 
 DEFAULT_BACKEND = "sqlite"
 
 # name -> singleton (dialects are stateless).
-_REGISTRY = {b.name: b for b in (SqliteBackend(),)}
+_REGISTRY = {b.name: b for b in (SqliteBackend(), PostgresBackend())}
+# convenience aliases for the backend name (directive / HARPIA_DB_BACKEND)
+_ALIASES = {"postgres": "postgresql", "pg": "postgresql", "sqlite3": "sqlite"}
 
 
 def get_backend(name=None):
@@ -21,6 +24,7 @@ def get_backend(name=None):
     ``ValueError`` on an unknown name so a bad ``.harpia`` directive /
     ``HARPIA_DB_BACKEND`` fails loudly at generation time."""
     key = (name or DEFAULT_BACKEND).strip().lower()
+    key = _ALIASES.get(key, key)
     try:
         return _REGISTRY[key]
     except KeyError:
@@ -35,5 +39,5 @@ def register(backend):
     _REGISTRY[backend.name] = backend
 
 
-__all__ = ["DbBackend", "SqliteBackend", "get_backend", "register",
-           "DEFAULT_BACKEND", "SOCI_SESSION_TYPE", "SOCI_CORE_HEADER"]
+__all__ = ["DbBackend", "SqliteBackend", "PostgresBackend", "get_backend",
+           "register", "DEFAULT_BACKEND", "SOCI_SESSION_TYPE", "SOCI_CORE_HEADER"]

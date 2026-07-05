@@ -217,13 +217,46 @@ Override the paths with environment variables:
 | `HARPIA_INPUT_FILE` | path to the root `.harpia` file |
 | `HARPIA_INCLUDE_FOLDER` | folder of importable modules |
 | `HARPIA_OUTPUT_DIR` | where to write the generated project (cleaned first) |
+| `HARPIA_DB_BACKEND` | database dialect: `sqlite` (default) or `postgresql` |
 
 ---
 
-## 7. Notes & limits
+## 7. Choosing the database backend
+
+The persistence layer is **database-agnostic**: the generated data-access code is
+emitted against [SOCI](https://soci.sourceforge.io/), so the same project runs on
+**SQLite** (default) or **PostgreSQL**. Pick the dialect at generation time:
+
+```sh
+HARPIA_DB_BACKEND=postgresql python3 main.py
+```
+
+Only the emitted SQL dialect changes (column types, `CREATE TABLE`, migration
+introspection, version-stamp upsert). The C++ API is identical — every DAO,
+REST/SOAP/gRPC handler and the migration take a `soci::session&`. At the one place
+you open that session, choose the backend:
+
+```cpp
+#include <soci/soci.h>
+#include <soci/sqlite3/soci-sqlite3.h>        // or soci/postgresql/soci-postgresql.h
+::soci::session db(::soci::sqlite3, ":memory:");
+// PostgreSQL: ::soci::session db(::soci::postgresql,
+//                                "host=... dbname=... user=... password=...");
+harpia::db::users_dao dao(db);                // same DAO either way
+```
+
+**Build/runtime deps for the DB layer:** SOCI core + the backend
+(`soci_core` + `soci_sqlite3` or `soci_postgresql`), which link the system SQLite
+/ libpq. These come from the system package manager (like protobuf/gRPC/ZMQ), not
+vendored in-tree — install `libsoci-dev` + the relevant backend package on the
+target.
+
+---
+
+## 8. Notes & limits
 
 - The output is regenerated from scratch each run — **do not hand-edit generated
   files**; change your `.harpia` and regenerate.
 - Exactly one root `.harpia` per input folder (imports go under `Include/`).
-- Persistence today targets SQLite; a database-agnostic (SQLite + PostgreSQL via
-  SOCI) layer is in progress — see `plans/postgres-migration.md`.
+- Message ids (the `ID_*` primary key) are **caller-assigned** — set them before
+  `create()`; the DB does not auto-generate them.
