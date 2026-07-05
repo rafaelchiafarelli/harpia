@@ -17,6 +17,7 @@
 #include "json/users_c96f8fd7f45108efee5a8ecb43eab1da_json.h"
 #include "xml/users_c96f8fd7f45108efee5a8ecb43eab1da_xml.h"
 #include "rest/users_c96f8fd7f45108efee5a8ecb43eab1da_rest.h"
+#include "harpia_test_client.h"
 
 #include <chrono>
 #include <string>
@@ -30,16 +31,17 @@ int all_good() {
     if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 110;
     harpia::db::users_dao dao(db);
     if (!dao.create_table()) return 111;
-    ::httplib::Server svr;
-    harpia::rest::register_users(svr, db, "/api/v1");
-    harpia::soap::register_users_soap(svr, db, "/soap");
-    const int port = svr.bind_to_any_port("127.0.0.1");
-    if (port <= 0) return 112;
-    std::thread t([&]{ svr.listen_after_bind(); });
-    svr.wait_until_ready();
-    ::httplib::Client cli("127.0.0.1", port);
+    crow::SimpleApp app;
+    app.loglevel(crow::LogLevel::Warning);
+    harpia::rest::register_users(app, db, "/api/v1");
+    harpia::soap::register_users_soap(app, db, "/soap");
+    auto fut = app.bindaddr("127.0.0.1").port(0).multithreaded().run_async();
+    app.wait_for_server_start();
+    const int port = app.port();
+    if (port <= 0) { app.stop(); fut.get(); return 112; }
+    harpia_test::Client cli("127.0.0.1", port);
     const std::string hdr = "<soap:Header><credentials><user>users</user><pswd>c96f8fd7f45108efee5a8ecb43eab1da</pswd></credentials></soap:Header>";
-    const ::httplib::Headers rc = {{"X-User", "users"}, {"X-Pswd", "c96f8fd7f45108efee5a8ecb43eab1da"}};
+    const harpia_test::Headers rc = {{"X-User", "users"}, {"X-Pswd", "c96f8fd7f45108efee5a8ecb43eab1da"}};
     int code = 0;
     do {
         ::users a;
@@ -51,16 +53,16 @@ int all_good() {
         a.set_originator_c96f8fd7f45108efee5a8ecb43eab1da("originator_c96f8fd7f45108efee5a8ecb43eab1da_a");
         std::string body;
         if (!::harpia::json::to_json(a, &body)) { code = 113; break; }
-        auto post = cli.Post("/api/v1/users", rc, body, "application/json");
-        if (!post || post->status != 201) { code = 114; break; }
+        auto post = cli.Post("/api/v1/users", body, "application/json", rc);
+        if (!post || post.status != 201) { code = 114; break; }
         const std::string getEnv = "<soap:Envelope>" + hdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";
         auto g = cli.Post("/soap/users", getEnv, "text/xml");
-        if (!g || g->status != 200 || g->body.find("getResponse") == std::string::npos) { code = 115; break; }
-        if (g->body.find("address_a") == std::string::npos) { code = 116; break; }
+        if (!g || g.status != 200 || g.body.find("getResponse") == std::string::npos) { code = 115; break; }
+        if (g.body.find("address_a") == std::string::npos) { code = 116; break; }
         ::users chk;
         if (!dao.read(1, &chk)) { code = 117; break; }
     } while (false);
-    svr.stop(); t.join(); ::sqlite3_close(db);
+    app.stop(); fut.get(); ::sqlite3_close(db);
     return code;
 }
 
@@ -75,53 +77,59 @@ int crash() {
     if (dao.create(a)) return 121;
     ::users got;
     if (dao.read(1, &got)) return 122;
-    ::httplib::Server svr;
-    harpia::rest::register_users(svr, db, "/api/v1");
-    const int port = svr.bind_to_any_port("127.0.0.1");
-    if (port <= 0) return 123;
-    std::thread t([&]{ svr.listen_after_bind(); });
-    svr.wait_until_ready();
-    ::httplib::Client cli("127.0.0.1", port);
-    const ::httplib::Headers rc = {{"X-User", "users"}, {"X-Pswd", "c96f8fd7f45108efee5a8ecb43eab1da"}};
+    crow::SimpleApp app;
+    app.loglevel(crow::LogLevel::Warning);
+    harpia::rest::register_users(app, db, "/api/v1");
+    auto fut = app.bindaddr("127.0.0.1").port(0).multithreaded().run_async();
+    app.wait_for_server_start();
+    const int port = app.port();
+    if (port <= 0) { app.stop(); fut.get(); return 123; }
+    harpia_test::Client cli("127.0.0.1", port);
+    const harpia_test::Headers rc = {{"X-User", "users"}, {"X-Pswd", "c96f8fd7f45108efee5a8ecb43eab1da"}};
     int code = 0;
     do {
         std::string body;
         if (!::harpia::json::to_json(a, &body)) { code = 124; break; }
-        auto post = cli.Post("/api/v1/users", rc, body, "application/json");
+        auto post = cli.Post("/api/v1/users", body, "application/json", rc);
         if (!post) { code = 125; break; }
-        if (post->status != 500) { code = 126; break; }
+        if (post.status != 500) { code = 126; break; }
         auto lst = cli.Get("/api/v1/users", rc);
-        if (!lst || lst->status != 500) { code = 127; break; }
+        if (!lst || lst.status != 500) { code = 127; break; }
     } while (false);
-    svr.stop(); t.join(); ::sqlite3_close(db);
+    app.stop(); fut.get(); ::sqlite3_close(db);
     return code;
 }
 
 int slower() {
-    ::httplib::Server svr;
+    crow::SimpleApp app;
+    app.loglevel(crow::LogLevel::Warning);
     // a deliberately slow handler models a slow application
-    svr.Get("/slow", [](const ::httplib::Request&, ::httplib::Response& res) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(150));
-        res.set_content("ok", "text/plain");
-    });
-    const int port = svr.bind_to_any_port("127.0.0.1");
-    if (port <= 0) return 130;
-    std::thread t([&]{ svr.listen_after_bind(); });
-    svr.wait_until_ready();
+    app.route_dynamic("/slow").methods(crow::HTTPMethod::GET)(
+        [](const crow::request&, crow::response& res) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(150));
+            res.code = 200;
+            res.set_header("Content-Type", "text/plain");
+            res.body = "ok";
+            res.end();
+        });
+    auto fut = app.bindaddr("127.0.0.1").port(0).multithreaded().run_async();
+    app.wait_for_server_start();
+    const int port = app.port();
+    if (port <= 0) { app.stop(); fut.get(); return 130; }
     int code = 0;
     do {
         // a generous read timeout tolerates the slow response
-        ::httplib::Client ok("127.0.0.1", port);
-        ok.set_read_timeout(5, 0);
+        harpia_test::Client ok("127.0.0.1", port);
+        ok.set_read_timeout_ms(5000);
         auto good = ok.Get("/slow");
-        if (!good || good->status != 200) { code = 131; break; }
+        if (!good || good.status != 200) { code = 131; break; }
         // a dead endpoint returns cleanly within a bounded timeout
-        ::httplib::Client dead("127.0.0.1", 1);
-        dead.set_connection_timeout(1, 0);
+        harpia_test::Client dead("127.0.0.1", 1);
+        dead.set_connection_timeout_ms(1000);
         auto r = dead.Get("/nope");
         if (r) { code = 132; break; }
     } while (false);
-    svr.stop(); t.join();
+    app.stop(); fut.get();
     return code;
 }
 
@@ -134,23 +142,24 @@ int non_parseable() {
     if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 143;
     harpia::db::users_dao dao(db);
     if (!dao.create_table()) return 144;
-    ::httplib::Server svr;
-    harpia::rest::register_users(svr, db, "/api/v1");
-    harpia::soap::register_users_soap(svr, db, "/soap");
-    const int port = svr.bind_to_any_port("127.0.0.1");
-    if (port <= 0) return 145;
-    std::thread t([&]{ svr.listen_after_bind(); });
-    svr.wait_until_ready();
-    ::httplib::Client cli("127.0.0.1", port);
-    const ::httplib::Headers rc = {{"X-User", "users"}, {"X-Pswd", "c96f8fd7f45108efee5a8ecb43eab1da"}};
+    crow::SimpleApp app;
+    app.loglevel(crow::LogLevel::Warning);
+    harpia::rest::register_users(app, db, "/api/v1");
+    harpia::soap::register_users_soap(app, db, "/soap");
+    auto fut = app.bindaddr("127.0.0.1").port(0).multithreaded().run_async();
+    app.wait_for_server_start();
+    const int port = app.port();
+    if (port <= 0) { app.stop(); fut.get(); return 145; }
+    harpia_test::Client cli("127.0.0.1", port);
+    const harpia_test::Headers rc = {{"X-User", "users"}, {"X-Pswd", "c96f8fd7f45108efee5a8ecb43eab1da"}};
     int code = 0;
     do {
-        auto bj = cli.Post("/api/v1/users", rc, "{ not json", "application/json");
-        if (!bj || bj->status != 400) { code = 146; break; }
+        auto bj = cli.Post("/api/v1/users", "{ not json", "application/json", rc);
+        if (!bj || bj.status != 400) { code = 146; break; }
         auto bx = cli.Post("/soap/users", "<not soap", "text/xml");
-        if (!bx || bx->status != 400) { code = 147; break; }
+        if (!bx || bx.status != 400) { code = 147; break; }
     } while (false);
-    svr.stop(); t.join(); ::sqlite3_close(db);
+    app.stop(); fut.get(); ::sqlite3_close(db);
     return code;
 }
 
