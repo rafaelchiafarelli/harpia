@@ -3,22 +3,42 @@
 Both the schema generator (SqlAdapter) and the CRUDL generator (CrudlAdapter)
 derive their columns from analyze(), so the CREATE TABLE and the INSERT/SELECT/
 UPDATE always agree.
+
+SQL dialect (column types, PRIMARY KEY syntax, CREATE TABLE) is resolved through
+a DbBackend (Database/backends) rather than hard-wired, so the same model drives
+SQLite / PostgreSQL / ... The backend argument defaults to SQLite everywhere, so
+callers that have not yet been threaded (and today's golden output) are
+unchanged. The neutral C++ bind "kind" (int/int64/double/text) lives here; only
+the SQL type string is the backend's concern.
 """
 
-# harpia scalar type -> (SQLite type, C++ bind/column "kind")
-_SCALARS = {
-    "INT32":  ("INTEGER", "int"),
-    "INT64":  ("INTEGER", "int64"),
-    "BOOL":   ("INTEGER", "int"),
-    "FLOAT":  ("REAL", "double"),
-    "STRING": ("TEXT", "text"),
+from Database.backends import get_backend
+
+# harpia scalar type -> neutral C++ bind/column "kind". The matching SQL type is
+# supplied by the backend (backend.sql_type(token)); see _scalar() below.
+_KINDS = {
+    "INT32":  "int",
+    "INT64":  "int64",
+    "BOOL":   "int",
+    "FLOAT":  "double",
+    "STRING": "text",
 }
+
+
+def _scalar(token, backend):
+    """(sql_type, kind) for a harpia scalar token, or None if it is not a scalar.
+    Mirrors the old ``_SCALARS.get(token)`` shape so call sites are unchanged."""
+    kind = _KINDS.get(token)
+    if kind is None:
+        return None
+    return backend.sql_type(token), kind
 
 
 class Column:
     def __init__(self, name, sql_type, pk=False, required=False, unique=False,
                  bindable=False, kind=None, fk_target=None, enum_type=None,
-                 fk_table=False, embed=None, child_accessor=None) -> None:
+                 fk_table=False, embed=None, child_accessor=None,
+                 backend=None) -> None:
         self.name = name
         self.sql_type = sql_type
         self.pk = pk
@@ -34,6 +54,7 @@ class Column:
                                       # flattened sub-field of a non-table composed
                                       # field (data.val.var -> column "val_var")
         self.child_accessor = child_accessor  # the sub-field's own accessor
+        self._backend = backend or get_backend()  # dialect for sql_def()
 
     @property
     def accessor(self):
@@ -54,14 +75,8 @@ class Column:
         return "msg->set_{}({})".format(self.accessor, value)
 
     def sql_def(self):
-        if self.pk:
-            return "{} PRIMARY KEY".format(self.sql_type)
-        parts = [self.sql_type]
-        if self.required:
-            parts.append("NOT NULL")
-        if self.unique:
-            parts.append("UNIQUE")
-        return " ".join(parts)
+        return self._backend.column_def(
+            self.sql_type, pk=self.pk, required=self.required, unique=self.unique)
 
 
 class MapField:
@@ -183,7 +198,7 @@ def _lookup(types, name):
     return entry["kind"], entry["msg"]
 
 
-def _flatten(parent, child_msg, types):
+def _flatten(parent, child_msg, types, backend):
     """Flatten a non-table composed field's child message into columns prefixed
     with the parent field name (data.val.var -> column "val_var"). Only scalar
     and enum sub-fields are flattened; repeated/map and nested composed
@@ -200,7 +215,7 @@ def _flatten(parent, child_msg, types):
             notes.append("-- {}.{}: map in embedded {} -> child table"
                          .format(parent, v.name, child_msg.name))
             continue
-        if "REPETEABLE" in mods and _SCALARS.get(v.type[0]) is not None:
+        if "REPETEABLE" in mods and v.type[0] in _KINDS:
             notes.append("-- {}.{}: repeated in embedded {} -> child table"
                          .format(parent, v.name, child_msg.name))
             continue
@@ -211,25 +226,27 @@ def _flatten(parent, child_msg, types):
         if v.type[0] == "ID":  # nested composed field inside the embedded message
             kind, _ = _lookup(types, v.type[1])
             if kind == "enum":
-                columns.append(Column(col_name, "INTEGER", bindable=False,
+                columns.append(Column(col_name, backend.int_type, bindable=False,
                                       kind="enum", enum_type=v.type[1],
-                                      embed=parent, child_accessor=v.name.lower()))
+                                      embed=parent, child_accessor=v.name.lower(),
+                                      backend=backend))
                 continue
             notes.append("-- {}.{}: nested composed -> {} in embedded {} (deferred)"
                          .format(parent, v.name, v.type[1], child_msg.name))
             continue
-        scalar = _SCALARS.get(v.type[0])
+        scalar = _scalar(v.type[0], backend)
         if scalar is None:
             notes.append("-- {}.{}: unsupported type {} (skipped)"
                          .format(parent, v.name, v.type[0]))
             continue
         sql_type, kind = scalar
         columns.append(Column(col_name, sql_type, bindable=False, kind=kind,
-                              embed=parent, child_accessor=v.name.lower()))
+                              embed=parent, child_accessor=v.name.lower(),
+                              backend=backend))
     return columns, notes
 
 
-def analyze(msg, types=None):
+def analyze(msg, types=None, backend=None):
     """Return (columns, notes) for a table-bearing message.
 
     Scalar fields become bindable columns. A composed field whose target is an
@@ -240,8 +257,10 @@ def analyze(msg, types=None):
     columns bound through the parent (data.val.var -> column "val_var").
     Repeated/map fields are deferred with a note. ``types`` is the
     type_registry(); without it composed fields fall back to deferred FKs.
+    ``backend`` selects the SQL dialect (defaults to SQLite).
     """
     types = types or {}
+    backend = backend or get_backend()
     columns = []
     notes = []
     for v in (msg.variables or []):
@@ -251,7 +270,7 @@ def analyze(msg, types=None):
                          .format(v.name))
             continue
         if "REPETEABLE" in mods:
-            if _SCALARS.get(v.type[0]) is not None:
+            if v.type[0] in _KINDS:
                 notes.append("-- {}: repeated -> child table (see repeated_fields)"
                              .format(v.name))
             elif v.type[0] == "ID" and _lookup(types, v.type[1])[0] == "table":
@@ -265,27 +284,29 @@ def analyze(msg, types=None):
             target = v.type[1]
             kind, target_msg = _lookup(types, target)
             if kind == "enum":
-                columns.append(Column(v.name, "INTEGER", bindable=True,
-                                      kind="enum", enum_type=target))
+                columns.append(Column(v.name, backend.int_type, bindable=True,
+                                      kind="enum", enum_type=target,
+                                      backend=backend))
                 continue
             if kind == "table":
                 # composed field whose target owns a table: a persistable FK to
                 # the child's primary key (CrudlAdapter creates/loads the child).
-                columns.append(Column(v.name, "INTEGER", bindable=False,
-                                      fk_target=target, fk_table=True))
+                columns.append(Column(v.name, backend.int_type, bindable=False,
+                                      fk_target=target, fk_table=True,
+                                      backend=backend))
                 continue
             if kind == "message":
                 # composed field whose target has no table: flatten its scalar/
                 # enum sub-fields into prefixed columns of this table.
-                sub_cols, sub_notes = _flatten(v.name, target_msg, types)
+                sub_cols, sub_notes = _flatten(v.name, target_msg, types, backend)
                 columns.extend(sub_cols)
                 notes.extend(sub_notes)
                 continue
-            columns.append(Column(v.name, "INTEGER", bindable=False,
-                                  fk_target=target))
+            columns.append(Column(v.name, backend.int_type, bindable=False,
+                                  fk_target=target, backend=backend))
             notes.append("-- {}: FK -> {} (deferred)".format(v.name, target))
             continue
-        scalar = _SCALARS.get(v.type[0])
+        scalar = _scalar(v.type[0], backend)
         if scalar is None:
             notes.append("-- {}: unsupported type {} (skipped)"
                          .format(v.name, v.type[0]))
@@ -294,15 +315,15 @@ def analyze(msg, types=None):
         columns.append(Column(v.name, sql_type, pk=v.name.startswith("ID_"),
                               required="REQUIRED" in mods,
                               unique="UNIQUE" in mods,
-                              bindable=True, kind=kind))
+                              bindable=True, kind=kind, backend=backend))
     return columns, notes
 
 
-def _map_field(table, v, embed=None):
+def _map_field(table, v, backend, embed=None):
     # map key/value types live in v.typeMap (positionally [key, value]); v.type is
     # unreliable for maps (the parser overwrites it with the value type).
-    key = _SCALARS.get(v.typeMap[0][0]) if len(v.typeMap or []) > 0 else None
-    val = _SCALARS.get(v.typeMap[1][0]) if len(v.typeMap or []) > 1 else None
+    key = _scalar(v.typeMap[0][0], backend) if len(v.typeMap or []) > 0 else None
+    val = _scalar(v.typeMap[1][0], backend) if len(v.typeMap or []) > 1 else None
     if not key or not val:
         return None
     path = "{}_{}".format(embed, v.name) if embed else v.name
@@ -310,19 +331,20 @@ def _map_field(table, v, embed=None):
                     key[0], key[1], val[0], val[1], embed=embed)
 
 
-def map_fields(msg, types=None):
+def map_fields(msg, types=None, backend=None):
     """Map<K,V> fields of a table-bearing message, each -> a child table keyed by
     the parent's PK. Includes maps reached through a flattened non-table composed
     field (embed-nested), mirroring _flatten()'s column flattening. Repeated
     fields are handled separately."""
     types = types or {}
+    backend = backend or get_backend()
     table = getattr(msg, "tableName", None)
     if not table:
         return []
     out = []
     for v in (msg.variables or []):
         if v.typeMap:
-            mf = _map_field(table, v)
+            mf = _map_field(table, v, backend)
             if mf is not None:
                 out.append(mf)
             continue
@@ -332,17 +354,18 @@ def map_fields(msg, types=None):
                 for cv in (target_msg.variables or []):
                     if _is_hidden(cv.name) or not cv.typeMap:
                         continue
-                    mf = _map_field(table, cv, embed=v.name.lower())
+                    mf = _map_field(table, cv, backend, embed=v.name.lower())
                     if mf is not None:
                         out.append(mf)
     return out
 
 
-def repeated_fields(msg, types=None):
+def repeated_fields(msg, types=None, backend=None):
     """Repeated scalar fields of a table-bearing message, each -> a child table
     keyed by the parent's PK with an ordinal. Repeated composed fields are
     deferred (noted by analyze)."""
     types = types or {}
+    backend = backend or get_backend()
     table = getattr(msg, "tableName", None)
     if not table:
         return []
@@ -358,11 +381,11 @@ def repeated_fields(msg, types=None):
             kind, _ = _lookup(types, v.type[1])
             if kind == "table":
                 # 1-to-many: the link table's value is the child's primary key
-                out.append(RepeatedField(child, v.name.lower(), "INTEGER",
+                out.append(RepeatedField(child, v.name.lower(), backend.int_type,
                                          "int64", fk_target=v.type[1]))
             # repeated enum / repeated non-table composed -> deferred
             continue
-        scalar = _SCALARS.get(v.type[0])
+        scalar = _scalar(v.type[0], backend)
         if scalar is None:
             continue
         out.append(RepeatedField(child, v.name.lower(), scalar[0], scalar[1]))
@@ -380,7 +403,7 @@ def repeated_fields(msg, types=None):
             cmods = {m[0] for m in (cv.modifiers or [])}
             if "REPETEABLE" not in cmods or cv.type[0] == "ID":
                 continue
-            scalar = _SCALARS.get(cv.type[0])
+            scalar = _scalar(cv.type[0], backend)
             if scalar is None:
                 continue
             out.append(RepeatedField(
@@ -390,9 +413,11 @@ def repeated_fields(msg, types=None):
     return out
 
 
-def create_table_sql(msg, if_not_exists=True, types=None):
+def create_table_sql(msg, if_not_exists=True, types=None, backend=None):
     """Compact single-line CREATE TABLE (for embedding in generated C++)."""
-    columns, _ = analyze(msg, types)
-    cols = ", ".join('"{}" {}'.format(c.name, c.sql_def()) for c in columns)
-    ine = "IF NOT EXISTS " if if_not_exists else ""
-    return 'CREATE TABLE {}"{}" ({});'.format(ine, msg.tableName, cols)
+    backend = backend or get_backend()
+    columns, _ = analyze(msg, types, backend)
+    return backend.create_table(
+        msg.tableName,
+        [(c.name, c.sql_def()) for c in columns],
+        if_not_exists=if_not_exists)
