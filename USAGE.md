@@ -198,7 +198,60 @@ generated access credential (`X-User` / `X-Pswd` headers for REST; a
 
 ---
 
-## 6. Other ways to run it
+## 6. Wiring the generated code into your own project
+
+Beyond building the generated project standalone, you usually want to **consume**
+its code from your own application. A complete, runnable example lives in
+[`examples/consumer/`](examples/consumer/) — inspect it end to end:
+
+- [`examples/consumer/src/main.cpp`](examples/consumer/src/main.cpp) — the app.
+- [`examples/consumer/CMakeLists.txt`](examples/consumer/CMakeLists.txt) — the build wiring.
+- [`examples/consumer/README.md`](examples/consumer/README.md) — how to run it.
+
+It depends only on a project you generated (via `-DHARPIA_GEN=<generated dir>`),
+not on the Harpia repo:
+
+```sh
+./run_harpia.sh HarpiaTest /tmp/gen --no-build          # generate
+cmake -S examples/consumer -B /tmp/cb -DHARPIA_GEN=/tmp/gen
+cmake --build /tmp/cb && /tmp/cb/consumer               # build + run
+```
+
+**What your code calls** (from `main.cpp`): open a `soci::session`, then use the
+generated headers directly —
+
+```cpp
+#include <soci/soci.h>
+#include <soci/sqlite3/soci-sqlite3.h>
+#include "db/users_<hash>_crudl.h"     // CRUDL DAO
+#include "json/users_<hash>_json.h"    // JSON adapter
+#include "rest/users_<hash>_rest.h"    // REST bindings
+
+::soci::session db(::soci::sqlite3, ":memory:");
+harpia::db::users_dao dao(db);              // create/read/update/remove/list
+dao.create_table();
+::users u; u.set_id_<hash>(1); u.set_name("alice"); dao.create(u);
+
+std::string j; ::harpia::json::to_json(u, &j);   // serialize
+
+crow::SimpleApp app;                        // expose it over HTTP
+harpia::rest::register_users(app, db, "/api/v1");
+app.port(8080).run();                       // GET/POST/PUT/DELETE /api/v1/users
+```
+
+**What your `CMakeLists.txt` wires** (see the example): put `<gen>/generated/cpp`
+on the include path; compile the message `*.pb.cc` you use; add the vendored
+`third_party/crow` + `third_party/asio` (header-only) and build
+`third_party/tinyxml2`; link `soci_core` + the backend (`soci_sqlite3` /
+`soci_postgresql`), protobuf, and pthreads.
+
+Note the generated identifiers are **md5-hash-qualified** (`users_<hash>_crudl.h`,
+accessor `id_<hash>()`) — the hash comes from your `.harpia` input, so it changes
+when your definitions do.
+
+---
+
+## 7. Other ways to run it
 
 `run_harpia.sh` is the recommended entry point. Two lower-level options:
 
@@ -221,7 +274,7 @@ Override the paths with environment variables:
 
 ---
 
-## 7. Choosing the database backend
+## 8. Choosing the database backend
 
 The persistence layer is **database-agnostic**: the generated data-access code is
 emitted against [SOCI](https://soci.sourceforge.io/), so the same project runs on
@@ -253,7 +306,7 @@ target.
 
 ---
 
-## 8. Notes & limits
+## 9. Notes & limits
 
 - The output is regenerated from scratch each run — **do not hand-edit generated
   files**; change your `.harpia` and regenerate.
