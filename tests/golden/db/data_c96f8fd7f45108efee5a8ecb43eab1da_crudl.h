@@ -6,370 +6,347 @@
 #include <string>
 #include <vector>
 
-#include "sqlite3.h"
+#include <soci/soci.h>
 #include "protofiles/data_c96f8fd7f45108efee5a8ecb43eab1da.pb.h"
 
 namespace harpia {
 namespace db {
 
-// Data-access object for data over the "table_data" table. Wraps a sqlite3* the
-// caller owns. Scalar/enum fields, singular FKs to table-bearing messages, the
+// Data-access object for data over the "table_data" table. Wraps a soci::session
+// the caller owns; being SOCI-based it runs on any backend (SQLite, PostgreSQL,
+// ...). Scalar/enum fields, singular FKs to table-bearing messages, the
 // flattened sub-fields of a non-table composed field, and map<K,V> + repeated
 // scalar fields (as child tables keyed by the primary key) are persisted.
+//
+// Every method returns false instead of throwing: SOCI signals errors with
+// exceptions, so each body is wrapped in try/catch. use()/into() bind by
+// reference, so bound values are copied into named locals first; nullable reads
+// are guarded by an indicator.
 class data_dao {
 public:
-    explicit data_dao(::sqlite3* db) : db_(db) {}
+    explicit data_dao(::soci::session& db) : db_(db) {}
 
-    bool create_table() { return exec("CREATE TABLE IF NOT EXISTS \"table_data\" (\"ID_c96f8fd7f45108efee5a8ecb43eab1da\" INTEGER PRIMARY KEY, \"i\" INTEGER, \"j\" INTEGER, \"val_vari\" INTEGER, \"val_var\" INTEGER, \"val_val\" INTEGER, \"car\" INTEGER, \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT, \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT, \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT);") && exec("CREATE TABLE IF NOT EXISTS \"table_data__val_a\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));") && exec("CREATE TABLE IF NOT EXISTS \"table_data__val_b\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"key\"));") && exec("CREATE TABLE IF NOT EXISTS \"table_data__val_c\" (\"owner\" INTEGER, \"key\" INTEGER, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));") && exec("CREATE TABLE IF NOT EXISTS \"table_data__tags\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));") && exec("CREATE TABLE IF NOT EXISTS \"table_data__val_scores\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));"); }
-    bool drop_table()   { return exec("DROP TABLE IF EXISTS \"table_data__val_a\";") && exec("DROP TABLE IF EXISTS \"table_data__val_b\";") && exec("DROP TABLE IF EXISTS \"table_data__val_c\";") && exec("DROP TABLE IF EXISTS \"table_data__tags\";") && exec("DROP TABLE IF EXISTS \"table_data__val_scores\";") && exec("DROP TABLE IF EXISTS \"table_data\";"); }
+    bool create_table() {
+        try {
+            db_ << "CREATE TABLE IF NOT EXISTS \"table_data\" (\"ID_c96f8fd7f45108efee5a8ecb43eab1da\" INTEGER PRIMARY KEY, \"i\" INTEGER, \"j\" INTEGER, \"val_vari\" INTEGER, \"val_var\" INTEGER, \"val_val\" INTEGER, \"car\" INTEGER, \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT, \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT, \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT);";
+            db_ << "CREATE TABLE IF NOT EXISTS \"table_data__val_a\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));";
+            db_ << "CREATE TABLE IF NOT EXISTS \"table_data__val_b\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"key\"));";
+            db_ << "CREATE TABLE IF NOT EXISTS \"table_data__val_c\" (\"owner\" INTEGER, \"key\" INTEGER, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));";
+            db_ << "CREATE TABLE IF NOT EXISTS \"table_data__tags\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));";
+            db_ << "CREATE TABLE IF NOT EXISTS \"table_data__val_scores\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));";
+            return true;
+        } catch (const std::exception&) { return false; }
+    }
+    bool drop_table() {
+        try {
+            db_ << "DROP TABLE IF EXISTS \"table_data__val_a\";";
+            db_ << "DROP TABLE IF EXISTS \"table_data__val_b\";";
+            db_ << "DROP TABLE IF EXISTS \"table_data__val_c\";";
+            db_ << "DROP TABLE IF EXISTS \"table_data__tags\";";
+            db_ << "DROP TABLE IF EXISTS \"table_data__val_scores\";";
+            db_ << "DROP TABLE IF EXISTS \"table_data\";";
+            return true;
+        } catch (const std::exception&) { return false; }
+    }
 
     bool create(const ::data& msg) {
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "INSERT INTO \"table_data\" (\"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        ::sqlite3_bind_int(st, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-        ::sqlite3_bind_int(st, 2, msg.i());
-        ::sqlite3_bind_int(st, 3, msg.j());
-        ::sqlite3_bind_int(st, 4, msg.val().vari());
-        ::sqlite3_bind_int(st, 5, msg.val().var());
-        ::sqlite3_bind_int(st, 6, msg.val().val());
-        ::sqlite3_bind_int(st, 7, static_cast<int>(msg.car()));
-        ::sqlite3_bind_text(st, 8, msg.status_c96f8fd7f45108efee5a8ecb43eab1da().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 9, msg.error_c96f8fd7f45108efee5a8ecb43eab1da().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 10, msg.originator_c96f8fd7f45108efee5a8ecb43eab1da().c_str(), -1, SQLITE_TRANSIENT);
-        const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
-        ::sqlite3_finalize(st);
-        if (!ok) return false;
-        for (const auto& kv : msg.val().a()) {
-            ::sqlite3_stmt* cs = nullptr;
-            if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_a\" (\"owner\", \"key\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
-            ::sqlite3_bind_int(cs, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-            ::sqlite3_bind_text(cs, 2, kv.first.c_str(), -1, SQLITE_TRANSIENT);
-            ::sqlite3_bind_text(cs, 3, kv.second.c_str(), -1, SQLITE_TRANSIENT);
-            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
-            ::sqlite3_finalize(cs);
-            if (!mok) return false;
-        }
-        for (const auto& kv : msg.val().b()) {
-            ::sqlite3_stmt* cs = nullptr;
-            if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_b\" (\"owner\", \"key\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
-            ::sqlite3_bind_int(cs, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-            ::sqlite3_bind_text(cs, 2, kv.first.c_str(), -1, SQLITE_TRANSIENT);
-            ::sqlite3_bind_int(cs, 3, kv.second);
-            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
-            ::sqlite3_finalize(cs);
-            if (!mok) return false;
-        }
-        for (const auto& kv : msg.val().c()) {
-            ::sqlite3_stmt* cs = nullptr;
-            if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_c\" (\"owner\", \"key\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
-            ::sqlite3_bind_int(cs, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-            ::sqlite3_bind_int(cs, 2, kv.first);
-            ::sqlite3_bind_text(cs, 3, kv.second.c_str(), -1, SQLITE_TRANSIENT);
-            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
-            ::sqlite3_finalize(cs);
-            if (!mok) return false;
-        }
-        {
-            long long _ord = 0;
-            for (const auto& rv : msg.tags()) {
-                ::sqlite3_stmt* cs = nullptr;
-                if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__tags\" (\"owner\", \"ordinal\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
-                ::sqlite3_bind_int(cs, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-                ::sqlite3_bind_int64(cs, 2, _ord++);
-                ::sqlite3_bind_int(cs, 3, rv);
-                const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
-                ::sqlite3_finalize(cs);
-                if (!mok) return false;
+        try {
+            int c0 = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+            int c1 = msg.i();
+            int c2 = msg.j();
+            int c3 = msg.val().vari();
+            int c4 = msg.val().var();
+            int c5 = msg.val().val();
+            int c6 = static_cast<int>(msg.car());
+            std::string c7 = msg.status_c96f8fd7f45108efee5a8ecb43eab1da();
+            std::string c8 = msg.error_c96f8fd7f45108efee5a8ecb43eab1da();
+            std::string c9 = msg.originator_c96f8fd7f45108efee5a8ecb43eab1da();
+            db_ << "INSERT INTO \"table_data\" (\"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6, :c7, :c8, :c9)",
+                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6), ::soci::use(c7), ::soci::use(c8), ::soci::use(c9);
+            {
+                int _owner = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+                for (const auto& kv : msg.val().a()) {
+                    std::string _k = kv.first;
+                    std::string _v = kv.second;
+                    db_ << "INSERT INTO \"table_data__val_a\" (\"owner\", \"key\", \"value\") VALUES (:o, :k, :v)", ::soci::use(_owner), ::soci::use(_k), ::soci::use(_v);
+                }
             }
-        }
-        {
-            long long _ord = 0;
-            for (const auto& rv : msg.val().scores()) {
-                ::sqlite3_stmt* cs = nullptr;
-                if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_scores\" (\"owner\", \"ordinal\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
-                ::sqlite3_bind_int(cs, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-                ::sqlite3_bind_int64(cs, 2, _ord++);
-                ::sqlite3_bind_int(cs, 3, rv);
-                const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
-                ::sqlite3_finalize(cs);
-                if (!mok) return false;
+            {
+                int _owner = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+                for (const auto& kv : msg.val().b()) {
+                    std::string _k = kv.first;
+                    int _v = kv.second;
+                    db_ << "INSERT INTO \"table_data__val_b\" (\"owner\", \"key\", \"value\") VALUES (:o, :k, :v)", ::soci::use(_owner), ::soci::use(_k), ::soci::use(_v);
+                }
             }
-        }
-        return true;
+            {
+                int _owner = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+                for (const auto& kv : msg.val().c()) {
+                    int _k = kv.first;
+                    std::string _v = kv.second;
+                    db_ << "INSERT INTO \"table_data__val_c\" (\"owner\", \"key\", \"value\") VALUES (:o, :k, :v)", ::soci::use(_owner), ::soci::use(_k), ::soci::use(_v);
+                }
+            }
+            {
+                int _owner = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+                long long _ord = 0;
+                for (const auto& rv : msg.tags()) {
+                    int _v = rv;
+                    db_ << "INSERT INTO \"table_data__tags\" (\"owner\", \"ordinal\", \"value\") VALUES (:o, :n, :v)", ::soci::use(_owner), ::soci::use(_ord), ::soci::use(_v);
+                    ++_ord;
+                }
+            }
+            {
+                int _owner = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+                long long _ord = 0;
+                for (const auto& rv : msg.val().scores()) {
+                    int _v = rv;
+                    db_ << "INSERT INTO \"table_data__val_scores\" (\"owner\", \"ordinal\", \"value\") VALUES (:o, :n, :v)", ::soci::use(_owner), ::soci::use(_ord), ::soci::use(_v);
+                    ++_ord;
+                }
+            }
+            return true;
+        } catch (const std::exception&) { return false; }
     }
 
     bool read(std::int64_t id, ::data* msg) {
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "SELECT \"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" FROM \"table_data\" WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = ?;",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        ::sqlite3_bind_int64(st, 1, id);
-        bool found = false;
-        if (::sqlite3_step(st) == SQLITE_ROW) { extract(st, msg); found = true; }
-        ::sqlite3_finalize(st);
-        return found;
+        try {
+            int l0 = 0; ::soci::indicator n0;
+            int l1 = 0; ::soci::indicator n1;
+            int l2 = 0; ::soci::indicator n2;
+            int l3 = 0; ::soci::indicator n3;
+            int l4 = 0; ::soci::indicator n4;
+            int l5 = 0; ::soci::indicator n5;
+            int l6 = 0; ::soci::indicator n6;
+            std::string l7; ::soci::indicator n7;
+            std::string l8; ::soci::indicator n8;
+            std::string l9; ::soci::indicator n9;
+            db_ << "SELECT \"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" FROM \"table_data\" WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = :id", ::soci::use(id),
+                ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6), ::soci::into(l7, n7), ::soci::into(l8, n8), ::soci::into(l9, n9);
+            if (!db_.got_data()) return false;
+                msg->set_id_c96f8fd7f45108efee5a8ecb43eab1da(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_i(n1 == ::soci::i_ok ? l1 : 0);
+                msg->set_j(n2 == ::soci::i_ok ? l2 : 0);
+                msg->mutable_val()->set_vari(n3 == ::soci::i_ok ? l3 : 0);
+                msg->mutable_val()->set_var(n4 == ::soci::i_ok ? l4 : 0);
+                msg->mutable_val()->set_val(n5 == ::soci::i_ok ? l5 : 0);
+                msg->set_car(static_cast<::grower>(n6 == ::soci::i_ok ? l6 : 0));
+                msg->set_status_c96f8fd7f45108efee5a8ecb43eab1da(n7 == ::soci::i_ok ? l7 : std::string());
+                msg->set_error_c96f8fd7f45108efee5a8ecb43eab1da(n8 == ::soci::i_ok ? l8 : std::string());
+                msg->set_originator_c96f8fd7f45108efee5a8ecb43eab1da(n9 == ::soci::i_ok ? l9 : std::string());
+                {
+                    std::string _k; std::string _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_a\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_val()->mutable_a())[_k] = _v;
+                    }
+                }
+                {
+                    std::string _k; int _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_b\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_val()->mutable_b())[_k] = _v;
+                    }
+                }
+                {
+                    int _k; std::string _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_c\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_val()->mutable_c())[_k] = _v;
+                    }
+                }
+                {
+                    int _v = 0; ::soci::indicator _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"table_data__tags\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
+                    _rs.execute();
+                    while (_rs.fetch()) {
+                        msg->add_tags(_v);
+                    }
+                }
+                {
+                    int _v = 0; ::soci::indicator _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"table_data__val_scores\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
+                    _rs.execute();
+                    while (_rs.fetch()) {
+                        msg->mutable_val()->add_scores(_v);
+                    }
+                }
+            return true;
+        } catch (const std::exception&) { return false; }
     }
 
     bool update(const ::data& msg) {
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "UPDATE \"table_data\" SET \"i\" = ?, \"j\" = ?, \"val_vari\" = ?, \"val_var\" = ?, \"val_val\" = ?, \"car\" = ?, \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" = ?, \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" = ?, \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" = ? WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = ?;",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        ::sqlite3_bind_int(st, 1, msg.i());
-        ::sqlite3_bind_int(st, 2, msg.j());
-        ::sqlite3_bind_int(st, 3, msg.val().vari());
-        ::sqlite3_bind_int(st, 4, msg.val().var());
-        ::sqlite3_bind_int(st, 5, msg.val().val());
-        ::sqlite3_bind_int(st, 6, static_cast<int>(msg.car()));
-        ::sqlite3_bind_text(st, 7, msg.status_c96f8fd7f45108efee5a8ecb43eab1da().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 8, msg.error_c96f8fd7f45108efee5a8ecb43eab1da().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 9, msg.originator_c96f8fd7f45108efee5a8ecb43eab1da().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_int64(st, 10, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-        const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
-        ::sqlite3_finalize(st);
-        if (!ok) return false;
-        {
-            ::sqlite3_stmt* ds = nullptr;
-            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_a\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int(ds, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-                ::sqlite3_step(ds);
-                ::sqlite3_finalize(ds);
+        try {
+            int c0 = msg.i();
+            int c1 = msg.j();
+            int c2 = msg.val().vari();
+            int c3 = msg.val().var();
+            int c4 = msg.val().val();
+            int c5 = static_cast<int>(msg.car());
+            std::string c6 = msg.status_c96f8fd7f45108efee5a8ecb43eab1da();
+            std::string c7 = msg.error_c96f8fd7f45108efee5a8ecb43eab1da();
+            std::string c8 = msg.originator_c96f8fd7f45108efee5a8ecb43eab1da();
+            long long cid = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+            db_ << "UPDATE \"table_data\" SET \"i\" = :c0, \"j\" = :c1, \"val_vari\" = :c2, \"val_var\" = :c3, \"val_val\" = :c4, \"car\" = :c5, \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" = :c6, \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" = :c7, \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" = :c8 WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = :cid",
+                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6), ::soci::use(c7), ::soci::use(c8), ::soci::use(cid);
+            {
+                int _owner = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+                db_ << "DELETE FROM \"table_data__val_a\" WHERE \"owner\" = :o", ::soci::use(_owner);
+                for (const auto& kv : msg.val().a()) {
+                    std::string _k = kv.first;
+                    std::string _v = kv.second;
+                    db_ << "INSERT INTO \"table_data__val_a\" (\"owner\", \"key\", \"value\") VALUES (:o, :k, :v)", ::soci::use(_owner), ::soci::use(_k), ::soci::use(_v);
+                }
             }
-        }
-        for (const auto& kv : msg.val().a()) {
-            ::sqlite3_stmt* cs = nullptr;
-            if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_a\" (\"owner\", \"key\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
-            ::sqlite3_bind_int(cs, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-            ::sqlite3_bind_text(cs, 2, kv.first.c_str(), -1, SQLITE_TRANSIENT);
-            ::sqlite3_bind_text(cs, 3, kv.second.c_str(), -1, SQLITE_TRANSIENT);
-            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
-            ::sqlite3_finalize(cs);
-            if (!mok) return false;
-        }
-        {
-            ::sqlite3_stmt* ds = nullptr;
-            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_b\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int(ds, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-                ::sqlite3_step(ds);
-                ::sqlite3_finalize(ds);
+            {
+                int _owner = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+                db_ << "DELETE FROM \"table_data__val_b\" WHERE \"owner\" = :o", ::soci::use(_owner);
+                for (const auto& kv : msg.val().b()) {
+                    std::string _k = kv.first;
+                    int _v = kv.second;
+                    db_ << "INSERT INTO \"table_data__val_b\" (\"owner\", \"key\", \"value\") VALUES (:o, :k, :v)", ::soci::use(_owner), ::soci::use(_k), ::soci::use(_v);
+                }
             }
-        }
-        for (const auto& kv : msg.val().b()) {
-            ::sqlite3_stmt* cs = nullptr;
-            if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_b\" (\"owner\", \"key\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
-            ::sqlite3_bind_int(cs, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-            ::sqlite3_bind_text(cs, 2, kv.first.c_str(), -1, SQLITE_TRANSIENT);
-            ::sqlite3_bind_int(cs, 3, kv.second);
-            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
-            ::sqlite3_finalize(cs);
-            if (!mok) return false;
-        }
-        {
-            ::sqlite3_stmt* ds = nullptr;
-            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_c\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int(ds, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-                ::sqlite3_step(ds);
-                ::sqlite3_finalize(ds);
+            {
+                int _owner = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+                db_ << "DELETE FROM \"table_data__val_c\" WHERE \"owner\" = :o", ::soci::use(_owner);
+                for (const auto& kv : msg.val().c()) {
+                    int _k = kv.first;
+                    std::string _v = kv.second;
+                    db_ << "INSERT INTO \"table_data__val_c\" (\"owner\", \"key\", \"value\") VALUES (:o, :k, :v)", ::soci::use(_owner), ::soci::use(_k), ::soci::use(_v);
+                }
             }
-        }
-        for (const auto& kv : msg.val().c()) {
-            ::sqlite3_stmt* cs = nullptr;
-            if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_c\" (\"owner\", \"key\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
-            ::sqlite3_bind_int(cs, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-            ::sqlite3_bind_int(cs, 2, kv.first);
-            ::sqlite3_bind_text(cs, 3, kv.second.c_str(), -1, SQLITE_TRANSIENT);
-            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
-            ::sqlite3_finalize(cs);
-            if (!mok) return false;
-        }
-        {
-            ::sqlite3_stmt* ds = nullptr;
-            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__tags\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int(ds, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-                ::sqlite3_step(ds);
-                ::sqlite3_finalize(ds);
+            {
+                int _owner = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+                db_ << "DELETE FROM \"table_data__tags\" WHERE \"owner\" = :o", ::soci::use(_owner);
+                long long _ord = 0;
+                for (const auto& rv : msg.tags()) {
+                    int _v = rv;
+                    db_ << "INSERT INTO \"table_data__tags\" (\"owner\", \"ordinal\", \"value\") VALUES (:o, :n, :v)", ::soci::use(_owner), ::soci::use(_ord), ::soci::use(_v);
+                    ++_ord;
+                }
             }
-        }
-        {
-            long long _ord = 0;
-            for (const auto& rv : msg.tags()) {
-                ::sqlite3_stmt* cs = nullptr;
-                if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__tags\" (\"owner\", \"ordinal\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
-                ::sqlite3_bind_int(cs, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-                ::sqlite3_bind_int64(cs, 2, _ord++);
-                ::sqlite3_bind_int(cs, 3, rv);
-                const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
-                ::sqlite3_finalize(cs);
-                if (!mok) return false;
+            {
+                int _owner = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+                db_ << "DELETE FROM \"table_data__val_scores\" WHERE \"owner\" = :o", ::soci::use(_owner);
+                long long _ord = 0;
+                for (const auto& rv : msg.val().scores()) {
+                    int _v = rv;
+                    db_ << "INSERT INTO \"table_data__val_scores\" (\"owner\", \"ordinal\", \"value\") VALUES (:o, :n, :v)", ::soci::use(_owner), ::soci::use(_ord), ::soci::use(_v);
+                    ++_ord;
+                }
             }
-        }
-        {
-            ::sqlite3_stmt* ds = nullptr;
-            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_scores\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int(ds, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-                ::sqlite3_step(ds);
-                ::sqlite3_finalize(ds);
-            }
-        }
-        {
-            long long _ord = 0;
-            for (const auto& rv : msg.val().scores()) {
-                ::sqlite3_stmt* cs = nullptr;
-                if (::sqlite3_prepare_v2(db_, "INSERT INTO \"table_data__val_scores\" (\"owner\", \"ordinal\", \"value\") VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;
-                ::sqlite3_bind_int(cs, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-                ::sqlite3_bind_int64(cs, 2, _ord++);
-                ::sqlite3_bind_int(cs, 3, rv);
-                const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;
-                ::sqlite3_finalize(cs);
-                if (!mok) return false;
-            }
-        }
-        return true;
+            return true;
+        } catch (const std::exception&) { return false; }
     }
 
     bool remove(std::int64_t id) {
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "DELETE FROM \"table_data\" WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = ?;",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        ::sqlite3_bind_int64(st, 1, id);
-        const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
-        ::sqlite3_finalize(st);
-        if (!ok) return false;
-        {
-            ::sqlite3_stmt* ds = nullptr;
-            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_a\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int64(ds, 1, id);
-                ::sqlite3_step(ds);
-                ::sqlite3_finalize(ds);
-            }
-        }
-        {
-            ::sqlite3_stmt* ds = nullptr;
-            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_b\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int64(ds, 1, id);
-                ::sqlite3_step(ds);
-                ::sqlite3_finalize(ds);
-            }
-        }
-        {
-            ::sqlite3_stmt* ds = nullptr;
-            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_c\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int64(ds, 1, id);
-                ::sqlite3_step(ds);
-                ::sqlite3_finalize(ds);
-            }
-        }
-        {
-            ::sqlite3_stmt* ds = nullptr;
-            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__tags\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int64(ds, 1, id);
-                ::sqlite3_step(ds);
-                ::sqlite3_finalize(ds);
-            }
-        }
-        {
-            ::sqlite3_stmt* ds = nullptr;
-            if (::sqlite3_prepare_v2(db_, "DELETE FROM \"table_data__val_scores\" WHERE \"owner\" = ?;", -1, &ds, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int64(ds, 1, id);
-                ::sqlite3_step(ds);
-                ::sqlite3_finalize(ds);
-            }
-        }
-        return true;
+        try {
+            db_ << "DELETE FROM \"table_data\" WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = :id", ::soci::use(id);
+            db_ << "DELETE FROM \"table_data__val_a\" WHERE \"owner\" = :o", ::soci::use(id);
+            db_ << "DELETE FROM \"table_data__val_b\" WHERE \"owner\" = :o", ::soci::use(id);
+            db_ << "DELETE FROM \"table_data__val_c\" WHERE \"owner\" = :o", ::soci::use(id);
+            db_ << "DELETE FROM \"table_data__tags\" WHERE \"owner\" = :o", ::soci::use(id);
+            db_ << "DELETE FROM \"table_data__val_scores\" WHERE \"owner\" = :o", ::soci::use(id);
+            return true;
+        } catch (const std::exception&) { return false; }
     }
 
     bool list(std::vector<::data>* out) {
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "SELECT \"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" FROM \"table_data\";",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        while (::sqlite3_step(st) == SQLITE_ROW) {
-            ::data msg;
-            extract(st, &msg);
-            out->push_back(msg);
-        }
-        ::sqlite3_finalize(st);
-        return true;
+        try {
+            int l0 = 0; ::soci::indicator n0;
+            int l1 = 0; ::soci::indicator n1;
+            int l2 = 0; ::soci::indicator n2;
+            int l3 = 0; ::soci::indicator n3;
+            int l4 = 0; ::soci::indicator n4;
+            int l5 = 0; ::soci::indicator n5;
+            int l6 = 0; ::soci::indicator n6;
+            std::string l7; ::soci::indicator n7;
+            std::string l8; ::soci::indicator n8;
+            std::string l9; ::soci::indicator n9;
+            ::soci::statement st = (db_.prepare << "SELECT \"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" FROM \"table_data\"",
+                ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6), ::soci::into(l7, n7), ::soci::into(l8, n8), ::soci::into(l9, n9));
+            st.execute();
+            while (st.fetch()) {
+                ::data row;
+                ::data* msg = &row;
+                msg->set_id_c96f8fd7f45108efee5a8ecb43eab1da(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_i(n1 == ::soci::i_ok ? l1 : 0);
+                msg->set_j(n2 == ::soci::i_ok ? l2 : 0);
+                msg->mutable_val()->set_vari(n3 == ::soci::i_ok ? l3 : 0);
+                msg->mutable_val()->set_var(n4 == ::soci::i_ok ? l4 : 0);
+                msg->mutable_val()->set_val(n5 == ::soci::i_ok ? l5 : 0);
+                msg->set_car(static_cast<::grower>(n6 == ::soci::i_ok ? l6 : 0));
+                msg->set_status_c96f8fd7f45108efee5a8ecb43eab1da(n7 == ::soci::i_ok ? l7 : std::string());
+                msg->set_error_c96f8fd7f45108efee5a8ecb43eab1da(n8 == ::soci::i_ok ? l8 : std::string());
+                msg->set_originator_c96f8fd7f45108efee5a8ecb43eab1da(n9 == ::soci::i_ok ? l9 : std::string());
+                {
+                    std::string _k; std::string _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_a\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_val()->mutable_a())[_k] = _v;
+                    }
+                }
+                {
+                    std::string _k; int _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_b\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_val()->mutable_b())[_k] = _v;
+                    }
+                }
+                {
+                    int _k; std::string _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_c\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_val()->mutable_c())[_k] = _v;
+                    }
+                }
+                {
+                    int _v = 0; ::soci::indicator _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"table_data__tags\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
+                    _rs.execute();
+                    while (_rs.fetch()) {
+                        msg->add_tags(_v);
+                    }
+                }
+                {
+                    int _v = 0; ::soci::indicator _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"table_data__val_scores\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
+                    _rs.execute();
+                    while (_rs.fetch()) {
+                        msg->mutable_val()->add_scores(_v);
+                    }
+                }
+                out->push_back(row);
+            }
+            return true;
+        } catch (const std::exception&) { return false; }
     }
 
 private:
-    bool exec(const char* sql) {
-        return ::sqlite3_exec(db_, sql, nullptr, nullptr, nullptr) == SQLITE_OK;
-    }
-    void extract(::sqlite3_stmt* st, ::data* msg) {
-        msg->set_id_c96f8fd7f45108efee5a8ecb43eab1da(::sqlite3_column_int(st, 0));
-        msg->set_i(::sqlite3_column_int(st, 1));
-        msg->set_j(::sqlite3_column_int(st, 2));
-        msg->mutable_val()->set_vari(::sqlite3_column_int(st, 3));
-        msg->mutable_val()->set_var(::sqlite3_column_int(st, 4));
-        msg->mutable_val()->set_val(::sqlite3_column_int(st, 5));
-        msg->set_car(static_cast<::grower>(::sqlite3_column_int(st, 6)));
-        { const unsigned char* p = ::sqlite3_column_text(st, 7); msg->set_status_c96f8fd7f45108efee5a8ecb43eab1da(p ? reinterpret_cast<const char*>(p) : ""); }
-        { const unsigned char* p = ::sqlite3_column_text(st, 8); msg->set_error_c96f8fd7f45108efee5a8ecb43eab1da(p ? reinterpret_cast<const char*>(p) : ""); }
-        { const unsigned char* p = ::sqlite3_column_text(st, 9); msg->set_originator_c96f8fd7f45108efee5a8ecb43eab1da(p ? reinterpret_cast<const char*>(p) : ""); }
-        {
-            ::sqlite3_stmt* cs = nullptr;
-            if (::sqlite3_prepare_v2(db_, "SELECT \"key\", \"value\" FROM \"table_data__val_a\" WHERE \"owner\" = ?;", -1, &cs, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int(cs, 1, msg->id_c96f8fd7f45108efee5a8ecb43eab1da());
-                while (::sqlite3_step(cs) == SQLITE_ROW) {
-                    const unsigned char* _kp = ::sqlite3_column_text(cs, 0); const std::string _k = _kp ? reinterpret_cast<const char*>(_kp) : "";
-                    const unsigned char* _vp = ::sqlite3_column_text(cs, 1); const std::string _v = _vp ? reinterpret_cast<const char*>(_vp) : "";
-                    (*msg->mutable_val()->mutable_a())[_k] = _v;
-                }
-                ::sqlite3_finalize(cs);
-            }
-        }
-        {
-            ::sqlite3_stmt* cs = nullptr;
-            if (::sqlite3_prepare_v2(db_, "SELECT \"key\", \"value\" FROM \"table_data__val_b\" WHERE \"owner\" = ?;", -1, &cs, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int(cs, 1, msg->id_c96f8fd7f45108efee5a8ecb43eab1da());
-                while (::sqlite3_step(cs) == SQLITE_ROW) {
-                    const unsigned char* _kp = ::sqlite3_column_text(cs, 0); const std::string _k = _kp ? reinterpret_cast<const char*>(_kp) : "";
-                    const int _v = ::sqlite3_column_int(cs, 1);
-                    (*msg->mutable_val()->mutable_b())[_k] = _v;
-                }
-                ::sqlite3_finalize(cs);
-            }
-        }
-        {
-            ::sqlite3_stmt* cs = nullptr;
-            if (::sqlite3_prepare_v2(db_, "SELECT \"key\", \"value\" FROM \"table_data__val_c\" WHERE \"owner\" = ?;", -1, &cs, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int(cs, 1, msg->id_c96f8fd7f45108efee5a8ecb43eab1da());
-                while (::sqlite3_step(cs) == SQLITE_ROW) {
-                    const int _k = ::sqlite3_column_int(cs, 0);
-                    const unsigned char* _vp = ::sqlite3_column_text(cs, 1); const std::string _v = _vp ? reinterpret_cast<const char*>(_vp) : "";
-                    (*msg->mutable_val()->mutable_c())[_k] = _v;
-                }
-                ::sqlite3_finalize(cs);
-            }
-        }
-        {
-            ::sqlite3_stmt* cs = nullptr;
-            if (::sqlite3_prepare_v2(db_, "SELECT \"value\" FROM \"table_data__tags\" WHERE \"owner\" = ? ORDER BY \"ordinal\";", -1, &cs, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int(cs, 1, msg->id_c96f8fd7f45108efee5a8ecb43eab1da());
-                while (::sqlite3_step(cs) == SQLITE_ROW) {
-                    const int _v = ::sqlite3_column_int(cs, 0);
-                    msg->add_tags(_v);
-                }
-                ::sqlite3_finalize(cs);
-            }
-        }
-        {
-            ::sqlite3_stmt* cs = nullptr;
-            if (::sqlite3_prepare_v2(db_, "SELECT \"value\" FROM \"table_data__val_scores\" WHERE \"owner\" = ? ORDER BY \"ordinal\";", -1, &cs, nullptr) == SQLITE_OK) {
-                ::sqlite3_bind_int(cs, 1, msg->id_c96f8fd7f45108efee5a8ecb43eab1da());
-                while (::sqlite3_step(cs) == SQLITE_ROW) {
-                    const int _v = ::sqlite3_column_int(cs, 0);
-                    msg->mutable_val()->add_scores(_v);
-                }
-                ::sqlite3_finalize(cs);
-            }
-        }
-    }
-    ::sqlite3* db_;
+    ::soci::session& db_;
 };
 
 }  // namespace db

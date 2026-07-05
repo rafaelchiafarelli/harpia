@@ -1,15 +1,22 @@
-"""Stage 8 (database) -- CRUDL code generation.
+"""Stage 8 (database) -- CRUDL code generation (SOCI-based).
 
 For each message that declares a table, emit a header-only data-access object
-(<name>_<hash>_crudl.h) over the vendored SQLite providing create/read/update/
-remove/list plus create_table/drop_table. Columns come from the shared
+(<name>_<hash>_crudl.h) providing create/read/update/remove/list plus
+create_table/drop_table. The DAO is emitted against **SOCI** (soci::session,
+use()/into(), :name placeholders), so one generated codebase runs on any SOCI
+backend (SQLite today, PostgreSQL next). Columns come from the shared
 Database.model so the SQL matches the generated schema.
 
 Scalar/enum fields, singular FKs to table-bearing messages, the flattened
 scalar/enum sub-fields of a non-table composed field, map<K,V> fields, and
-repeated scalar fields (the last two each persisted in a child table keyed by the
-parent's primary key) are handled. The runtime needs sqlite3 on the include/link
-path (vendored under third_party/sqlite).
+repeated scalar/composed fields (child tables keyed by the parent's primary key)
+are handled.
+
+SOCI specifics baked into the generated code (see the DAO's header comment):
+- every method returns bool via try/catch (SOCI throws on error);
+- use()/into() bind by reference, so bound values are copied into named locals;
+- all use() in a statement are POSITIONAL (mixing positional+named throws);
+- into() is indicator-guarded so a NULL fetch does not throw.
 """
 import os
 
@@ -22,55 +29,21 @@ CRUDL_EXT = "_crudl.h"
 
 _CRUDL = loadTemplate(__file__, "crudl.h.tmpl")
 
-
-def _bind_line(col, index, src):
-    acc = col.getter(src)
-    if col.kind == "text":
-        return ("        ::sqlite3_bind_text(st, {i}, {acc}.c_str(), -1, "
-                "SQLITE_TRANSIENT);".format(i=index, acc=acc))
-    if col.kind == "enum":
-        return ("        ::sqlite3_bind_int(st, {i}, static_cast<int>({acc}));"
-                .format(i=index, acc=acc))
-    fn = {"int": "sqlite3_bind_int", "int64": "sqlite3_bind_int64",
-          "double": "sqlite3_bind_double"}[col.kind]
-    return "        ::{fn}(st, {i}, {acc});".format(fn=fn, i=index, acc=acc)
+# neutral bind/read kind -> C++ local type
+_CTYPE = {"text": "std::string", "int": "int", "int64": "long long",
+          "double": "double", "enum": "int"}
 
 
-def _extract_line(col, index):
-    if col.kind == "text":
-        val = "p ? reinterpret_cast<const char*>(p) : \"\""
-        return ("        {{ const unsigned char* p = ::sqlite3_column_text(st, {i});"
-                " {set}; }}".format(i=index, set=col.set_stmt(val)))
-    if col.kind == "enum":
-        val = "static_cast<::{et}>(::sqlite3_column_int(st, {i}))".format(
-            et=col.enum_type, i=index)
-        return "        {};".format(col.set_stmt(val))
-    fn = {"int": "sqlite3_column_int", "int64": "sqlite3_column_int64",
-          "double": "sqlite3_column_double"}[col.kind]
-    val = "::{fn}(st, {i})".format(fn=fn, i=index)
-    return "        {};".format(col.set_stmt(val))
+def _local_ctype(kind):
+    return _CTYPE[kind]
 
 
-# -- scalar bind/read snippets for map child tables (stmt var passed in) -------
-def _bind_scalar(stmt, kind, index, expr):
-    if kind == "text":
-        return ("::sqlite3_bind_text({s}, {i}, {e}.c_str(), -1, SQLITE_TRANSIENT);"
-                .format(s=stmt, i=index, e=expr))
-    fn = {"int": "sqlite3_bind_int", "int64": "sqlite3_bind_int64",
-          "double": "sqlite3_bind_double"}[kind]
-    return "::{fn}({s}, {i}, {e});".format(fn=fn, s=stmt, i=index, e=expr)
-
-
-def _col_decl(kind, index, var):
-    """Declare local ``var`` reading column ``index`` from stmt ``cs``."""
-    if kind == "text":
-        return ("const unsigned char* {v}p = ::sqlite3_column_text(cs, {i}); "
-                "const std::string {v} = {v}p ? reinterpret_cast<const char*>({v}p)"
-                " : \"\";".format(v=var, i=index))
-    ctype = {"int": "int", "int64": "long long", "double": "double"}[kind]
-    fn = {"int": "sqlite3_column_int", "int64": "sqlite3_column_int64",
-          "double": "sqlite3_column_double"}[kind]
-    return "const {c} {v} = ::{fn}(cs, {i});".format(c=ctype, v=var, fn=fn, i=index)
+def _use_list(count, base, indent):
+    """`, use(<base>0), use(<base>1), ...` wrapped onto a continuation line."""
+    if count == 0:
+        return ""
+    uses = ", ".join("::soci::use({}{})".format(base, i) for i in range(count))
+    return ",\n{}{}".format(indent, uses)
 
 
 class CrudlAdapter:
@@ -99,30 +72,14 @@ class CrudlAdapter:
 
     def _render(self, msg):
         columns, _ = analyze(msg, self.types)
-        # scalar/enum columns and flattened-embed columns bind the same way (the
-        # embed columns just read/write through the parent field); only FK
-        # columns (child primary key) need the create/load hooks.
         scalar = [c for c in columns if c.bindable or c.embed]
         fk_cols = [c for c in columns if c.fk_table]
         id_col = next((c for c in scalar if c.pk), None)
         non_id = [c for c in scalar if not c.pk]
 
-        # INSERT/SELECT columns: scalar/enum/embed first, then FK columns.
+        # column order for INSERT/SELECT: scalar/enum/embed first, then FK.
         insert_all = scalar + fk_cols
         update_all = non_id + fk_cols
-
-        create_bind = "\n".join(
-            [_bind_line(c, i, "msg") for i, c in enumerate(scalar, start=1)] +
-            [self._fk_bind(c, i)
-             for i, c in enumerate(fk_cols, start=len(scalar) + 1)])
-        update_bind = "\n".join(
-            [_bind_line(c, i, "msg") for i, c in enumerate(non_id, start=1)] +
-            [self._fk_bind(c, i)
-             for i, c in enumerate(fk_cols, start=len(non_id) + 1)])
-        extract = "\n".join(
-            [_extract_line(c, i) for i, c in enumerate(scalar)] +
-            [self._fk_extract(c, i)
-             for i, c in enumerate(fk_cols, start=len(scalar))])
 
         maps = map_fields(msg, self.types)
         reps = repeated_fields(msg, self.types)
@@ -135,19 +92,25 @@ class CrudlAdapter:
             fk_preupdate=self._fk_hooks(fk_cols, "update"),
             cls=msg.name,
             table=msg.tableName,
-            create_table_sql=create_table_sql(msg, types=self.types).replace('"', '\\"'),
+            create_table_sql=create_table_sql(
+                msg, types=self.types).replace('"', '\\"'),
             insert_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
-            insert_qs=", ".join("?" * len(insert_all)),
+            insert_ph=", ".join(":c{}".format(i) for i in range(len(insert_all))),
             select_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
-            create_bind=create_bind,
-            update_bind=update_bind,
-            update_set=", ".join('\\"{}\\" = ?'.format(c.name) for c in update_all),
-            id_bind_index=len(update_all) + 1,
             id_col=id_col.name if id_col else "rowid",
-            id_accessor=id_col.accessor if id_col else "rowid",
-            extract=extract,
-            map_create_tables=(self._map_create_tables(maps, columns)
-                               + self._rep_create_tables(reps, columns)),
+            create_locals=self._create_locals(scalar, fk_cols),
+            create_use=_use_list(len(insert_all), "c", " " * 16),
+            update_locals=self._update_locals(non_id, fk_cols, id_col),
+            update_set=", ".join('\\"{}\\" = :c{}'.format(c.name, i)
+                                 for i, c in enumerate(update_all)),
+            update_use=self._update_use(len(update_all)),
+            extract_locals=self._extract_locals(scalar, fk_cols),
+            extract_into=self._extract_into(len(insert_all)),
+            extract_set=self._extract_set(scalar),
+            fk_extract=self._fk_extract(scalar, fk_cols),
+            map_create_tables=(self._child_create_tables(maps, columns)
+                               + self._child_create_tables(reps, columns,
+                                                           repeated=True)),
             map_drop_tables=self._child_drop_tables(maps + reps),
             map_create=(self._map_write(maps, id_col, "create")
                         + self._rep_write(reps, id_col, "create")),
@@ -156,6 +119,85 @@ class CrudlAdapter:
             map_read=self._map_read(maps, id_col) + self._rep_read(reps, id_col),
             map_remove=self._child_remove(maps + reps),
         )
+
+    # -- INSERT locals / SELECT locals -------------------------------------
+    def _create_locals(self, scalar, fk_cols):
+        lines = []
+        i = 0
+        for c in scalar:
+            lines.append("            " + self._value_local("c", i, c))
+            i += 1
+        for c in fk_cols:
+            ch = self._child(c)
+            lines.append("            long long c{i} = msg.{a}().{pk}();".format(
+                i=i, a=c.accessor, pk=ch["pk"]))
+            i += 1
+        return "".join(l + "\n" for l in lines)
+
+    def _value_local(self, base, i, col):
+        """A named local holding column ``col``'s value read from `msg` (for use)."""
+        if col.kind == "enum":
+            return "int {b}{i} = static_cast<int>({g});".format(
+                b=base, i=i, g=col.getter("msg"))
+        return "{t} {b}{i} = {g};".format(
+            t=_local_ctype(col.kind), b=base, i=i, g=col.getter("msg"))
+
+    def _update_locals(self, non_id, fk_cols, id_col):
+        lines = []
+        i = 0
+        for c in non_id:
+            lines.append("            " + self._value_local("c", i, c))
+            i += 1
+        for c in fk_cols:
+            ch = self._child(c)
+            lines.append("            long long c{i} = msg.{a}().{pk}();".format(
+                i=i, a=c.accessor, pk=ch["pk"]))
+            i += 1
+        acc = id_col.accessor if id_col else "rowid"
+        lines.append("            long long cid = msg.{}();".format(acc))
+        return "".join(l + "\n" for l in lines)
+
+    def _update_use(self, n_update):
+        uses = ["::soci::use(c{})".format(i) for i in range(n_update)]
+        uses.append("::soci::use(cid)")
+        return ",\n{}{}".format(" " * 16, ", ".join(uses))
+
+    def _extract_locals(self, scalar, fk_cols):
+        lines = []
+        i = 0
+        for c in scalar:
+            lines.append("            " + self._read_local(i, c.kind))
+            i += 1
+        for _ in fk_cols:
+            lines.append("            " + self._read_local(i, "int64"))
+            i += 1
+        return "".join(l + "\n" for l in lines)
+
+    def _read_local(self, i, kind):
+        if kind == "text":
+            return "std::string l{i}; ::soci::indicator n{i};".format(i=i)
+        ctype = _local_ctype("int" if kind == "enum" else kind)
+        return "{t} l{i} = 0; ::soci::indicator n{i};".format(t=ctype, i=i)
+
+    def _extract_into(self, count):
+        intos = ", ".join("::soci::into(l{i}, n{i})".format(i=i)
+                          for i in range(count))
+        return ",\n{}{}".format(" " * 16, intos)
+
+    def _extract_set(self, scalar):
+        # scalar/enum/embed columns are set directly from the into-locals
+        # (indicator-guarded); FK columns are handled by _fk_extract.
+        lines = []
+        for i, c in enumerate(scalar):
+            if c.kind == "text":
+                val = "n{i} == ::soci::i_ok ? l{i} : std::string()".format(i=i)
+            elif c.kind == "enum":
+                val = ("static_cast<::{et}>(n{i} == ::soci::i_ok ? l{i} : 0)"
+                       .format(et=c.enum_type, i=i))
+            else:
+                val = "n{i} == ::soci::i_ok ? l{i} : 0".format(i=i)
+            lines.append("                {};".format(c.set_stmt(val)))
+        return "".join(l + "\n" for l in lines)
 
     # -- composed FK (message whose target owns a table) -------------------
     def _child_by_name(self, target):
@@ -171,17 +213,18 @@ class CrudlAdapter:
     def _child(self, col):
         return self._child_by_name(col.fk_target)
 
-    def _fk_bind(self, col, index):
-        ch = self._child(col)
-        return "        ::sqlite3_bind_int64(st, {i}, msg.{a}().{pk}());".format(
-            i=index, a=col.accessor, pk=ch["pk"])
-
-    def _fk_extract(self, col, index):
-        ch = self._child(col)
-        return ("        {{ const long long _fk{i} = "
-                "::sqlite3_column_int64(st, {i}); if (_fk{i}) {{ {dao} _c(db_); "
-                "_c.read(_fk{i}, msg->mutable_{a}()); }} }}".format(
-                    i=index, dao=ch["dao"], a=col.accessor))
+    def _fk_extract(self, scalar, fk_cols):
+        # FK locals follow the scalar ones in SELECT order; each holds the child's
+        # primary key -- load the child via its own DAO when present.
+        lines = []
+        for j, c in enumerate(fk_cols):
+            i = len(scalar) + j
+            ch = self._child(c)
+            lines.append(
+                "                if (n{i} == ::soci::i_ok && l{i}) {{ {dao} _c(db_); "
+                "_c.read(l{i}, msg->mutable_{a}()); }}".format(
+                    i=i, dao=ch["dao"], a=c.accessor))
+        return "".join(l + "\n" for l in lines)
 
     def _fk_hooks(self, fk_cols, op):
         if not fk_cols:
@@ -191,17 +234,16 @@ class CrudlAdapter:
             dao = self._child(c)["dao"]
             if op == "create":
                 lines.append(
-                    "        if (msg.has_{a}()) {{ {dao} _c(db_); "
+                    "            if (msg.has_{a}()) {{ {dao} _c(db_); "
                     "if (!_c.create(msg.{a}())) return false; }}".format(
                         a=c.accessor, dao=dao))
             else:
                 lines.append(
-                    "        if (msg.has_{a}()) {{ {dao} _c(db_); "
+                    "            if (msg.has_{a}()) {{ {dao} _c(db_); "
                     "_c.update(msg.{a}()); }}".format(a=c.accessor, dao=dao))
         return "\n".join(lines) + "\n"
 
     def _fk_includes(self, fk_cols, reps=()):
-        # child-DAO headers for both singular FK columns and repeated FK fields
         seen = []
         for c in fk_cols:
             h = self._child(c)["header"]
@@ -217,62 +259,74 @@ class CrudlAdapter:
             return ""
         return "\n" + "\n".join('#include "{}"'.format(h) for h in seen)
 
-    # -- map<K,V> child tables (keyed by the parent's primary key) ----------
-    def _map_create_tables(self, maps, columns):
-        if not maps:
+    # -- child tables (map<K,V> and repeated), keyed by the parent's PK -----
+    def _child_create_tables(self, children, columns, repeated=False):
+        if not children:
             return ""
         pk = next((c for c in columns if c.pk), None)
         owner_sql = pk.sql_type if pk else "INTEGER"
         parts = []
-        for mf in maps:
-            sql = ('CREATE TABLE IF NOT EXISTS \\"{child}\\" (\\"owner\\" {o}, '
-                   '\\"key\\" {k}, \\"value\\" {v}, '
-                   'PRIMARY KEY(\\"owner\\", \\"key\\"));').format(
-                       child=mf.child_table, o=owner_sql, k=mf.key_sql, v=mf.val_sql)
-            parts.append(' && exec("{}")'.format(sql))
+        for ch in children:
+            if repeated:
+                sql = ('CREATE TABLE IF NOT EXISTS \\"{c}\\" (\\"owner\\" {o}, '
+                       '\\"ordinal\\" INTEGER, \\"value\\" {v}, '
+                       'PRIMARY KEY(\\"owner\\", \\"ordinal\\"));').format(
+                           c=ch.child_table, o=owner_sql, v=ch.val_sql)
+            else:
+                sql = ('CREATE TABLE IF NOT EXISTS \\"{c}\\" (\\"owner\\" {o}, '
+                       '\\"key\\" {k}, \\"value\\" {v}, '
+                       'PRIMARY KEY(\\"owner\\", \\"key\\"));').format(
+                           c=ch.child_table, o=owner_sql, k=ch.key_sql,
+                           v=ch.val_sql)
+            parts.append('\n            db_ << "{}";'.format(sql))
         return "".join(parts)
 
     def _child_drop_tables(self, children):
-        # drop child tables (maps + repeated) before the parent table
         return "".join(
-            'exec("DROP TABLE IF EXISTS \\"{}\\";") && '.format(ch.child_table)
-            for ch in children)
+            'db_ << "DROP TABLE IF EXISTS \\"{}\\";";\n            '.format(
+                ch.child_table) for ch in children)
+
+    def _child_remove(self, children):
+        # remove()'s `id` parameter is the owner key
+        blocks = []
+        for ch in children:
+            blocks.append(
+                '            db_ << "DELETE FROM \\"{}\\" WHERE \\"owner\\" = :o"'
+                ", ::soci::use(id);".format(ch.child_table))
+        return "".join(b + "\n" for b in blocks)
+
+    def _owner(self, id_col, dot=True):
+        kind = id_col.kind if id_col else "int64"
+        acc = ("msg.{}()".format(id_col.accessor) if dot
+               else "msg->{}()".format(id_col.accessor)) if id_col else "0"
+        return _local_ctype("int" if kind == "enum" else kind), acc
 
     def _map_write(self, maps, id_col, op):
-        """create/update body: (clear then) re-insert each map's entries."""
         if not maps:
             return ""
-        owner_kind = id_col.kind if id_col else "int64"
-        owner = "msg.{}()".format(id_col.accessor) if id_col else "0"
+        octype, oexpr = self._owner(id_col, dot=True)
         blocks = []
         for mf in maps:
-            L = []
+            L = ["            {",
+                 "                {} _owner = {};".format(octype, oexpr)]
             if op == "update":
-                L += [
-                    "        {",
-                    "            ::sqlite3_stmt* ds = nullptr;",
-                    '            if (::sqlite3_prepare_v2(db_, "DELETE FROM \\"'
-                    + mf.child_table + '\\" WHERE \\"owner\\" = ?;", -1, &ds, '
-                    "nullptr) == SQLITE_OK) {",
-                    "                " + _bind_scalar("ds", owner_kind, 1, owner),
-                    "                ::sqlite3_step(ds);",
-                    "                ::sqlite3_finalize(ds);",
-                    "            }",
-                    "        }",
-                ]
+                L.append(
+                    '                db_ << "DELETE FROM \\"{}\\" WHERE '
+                    '\\"owner\\" = :o", ::soci::use(_owner);'.format(
+                        mf.child_table))
             L += [
-                "        for (const auto& kv : " + mf.entries("msg") + ") {",
-                "            ::sqlite3_stmt* cs = nullptr;",
-                '            if (::sqlite3_prepare_v2(db_, "INSERT INTO \\"'
-                + mf.child_table + '\\" (\\"owner\\", \\"key\\", \\"value\\") '
-                'VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;',
-                "            " + _bind_scalar("cs", owner_kind, 1, owner),
-                "            " + _bind_scalar("cs", mf.key_kind, 2, "kv.first"),
-                "            " + _bind_scalar("cs", mf.val_kind, 3, "kv.second"),
-                "            const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;",
-                "            ::sqlite3_finalize(cs);",
-                "            if (!mok) return false;",
-                "        }",
+                "                for (const auto& kv : {}) {{".format(
+                    mf.entries("msg")),
+                "                    {} _k = kv.first;".format(
+                    _local_ctype(mf.key_kind)),
+                "                    {} _v = kv.second;".format(
+                    _local_ctype(mf.val_kind)),
+                '                    db_ << "INSERT INTO \\"{}\\" (\\"owner\\", '
+                '\\"key\\", \\"value\\") VALUES (:o, :k, :v)", '
+                "::soci::use(_owner), ::soci::use(_k), ::soci::use(_v);".format(
+                    mf.child_table),
+                "                }",
+                "            }",
             ]
             blocks.append("\n".join(L))
         return "\n".join(blocks) + "\n"
@@ -280,121 +334,67 @@ class CrudlAdapter:
     def _map_read(self, maps, id_col):
         if not maps:
             return ""
-        owner_kind = id_col.kind if id_col else "int64"
-        owner = "msg->{}()".format(id_col.accessor) if id_col else "0"
+        octype, oexpr = self._owner(id_col, dot=False)
         blocks = []
         for mf in maps:
             L = [
-                "        {",
-                "            ::sqlite3_stmt* cs = nullptr;",
-                '            if (::sqlite3_prepare_v2(db_, "SELECT \\"key\\", '
-                '\\"value\\" FROM \\"' + mf.child_table + '\\" WHERE \\"owner\\" '
-                '= ?;", -1, &cs, nullptr) == SQLITE_OK) {',
-                "                " + _bind_scalar("cs", owner_kind, 1, owner),
-                "                while (::sqlite3_step(cs) == SQLITE_ROW) {",
-                "                    " + _col_decl(mf.key_kind, 0, "_k"),
-                "                    " + _col_decl(mf.val_kind, 1, "_v"),
-                "                    (*" + mf.mutable() + ")[_k] = _v;",
+                "                {",
+                "                    {} _k; {} _v;".format(
+                    _local_ctype(mf.key_kind), _local_ctype(mf.val_kind)),
+                "                    ::soci::indicator _ki, _vi;",
+                "                    {} _owner = {};".format(octype, oexpr),
+                '                    ::soci::statement _ms = (db_.prepare << '
+                '"SELECT \\"key\\", \\"value\\" FROM \\"{}\\" WHERE '
+                '\\"owner\\" = :o", ::soci::use(_owner), '
+                "::soci::into(_k, _ki), ::soci::into(_v, _vi));".format(
+                    mf.child_table),
+                "                    _ms.execute();",
+                "                    while (_ms.fetch()) {",
+                "                        (*{})[_k] = _v;".format(mf.mutable()),
+                "                    }",
                 "                }",
-                "                ::sqlite3_finalize(cs);",
-                "            }",
-                "        }",
             ]
             blocks.append("\n".join(L))
         return "\n".join(blocks) + "\n"
-
-    def _child_remove(self, children):
-        if not children:
-            return ""
-        blocks = []
-        for ch in children:
-            L = [
-                "        {",
-                "            ::sqlite3_stmt* ds = nullptr;",
-                '            if (::sqlite3_prepare_v2(db_, "DELETE FROM \\"'
-                + ch.child_table + '\\" WHERE \\"owner\\" = ?;", -1, &ds, '
-                "nullptr) == SQLITE_OK) {",
-                "                ::sqlite3_bind_int64(ds, 1, id);",
-                "                ::sqlite3_step(ds);",
-                "                ::sqlite3_finalize(ds);",
-                "            }",
-                "        }",
-            ]
-            blocks.append("\n".join(L))
-        return "\n".join(blocks) + "\n"
-
-    # -- repeated scalar child tables (owner, ordinal, value) ---------------
-    def _rep_create_tables(self, reps, columns):
-        if not reps:
-            return ""
-        pk = next((c for c in columns if c.pk), None)
-        owner_sql = pk.sql_type if pk else "INTEGER"
-        parts = []
-        for rf in reps:
-            sql = ('CREATE TABLE IF NOT EXISTS \\"{child}\\" (\\"owner\\" {o}, '
-                   '\\"ordinal\\" INTEGER, \\"value\\" {v}, '
-                   'PRIMARY KEY(\\"owner\\", \\"ordinal\\"));').format(
-                       child=rf.child_table, o=owner_sql, v=rf.val_sql)
-            parts.append(' && exec("{}")'.format(sql))
-        return "".join(parts)
 
     def _rep_write(self, reps, id_col, op):
-        """create/update body: (clear then) re-insert each repeated field's values
-        with a running ordinal that preserves order."""
         if not reps:
             return ""
-        owner_kind = id_col.kind if id_col else "int64"
-        owner = "msg.{}()".format(id_col.accessor) if id_col else "0"
+        octype, oexpr = self._owner(id_col, dot=True)
         blocks = []
         for rf in reps:
-            L = []
+            L = ["            {",
+                 "                {} _owner = {};".format(octype, oexpr)]
             if op == "update":
-                L += [
-                    "        {",
-                    "            ::sqlite3_stmt* ds = nullptr;",
-                    '            if (::sqlite3_prepare_v2(db_, "DELETE FROM \\"'
-                    + rf.child_table + '\\" WHERE \\"owner\\" = ?;", -1, &ds, '
-                    "nullptr) == SQLITE_OK) {",
-                    "                " + _bind_scalar("ds", owner_kind, 1, owner),
-                    "                ::sqlite3_step(ds);",
-                    "                ::sqlite3_finalize(ds);",
-                    "            }",
-                    "        }",
-                ]
+                L.append(
+                    '                db_ << "DELETE FROM \\"{}\\" WHERE '
+                    '\\"owner\\" = :o", ::soci::use(_owner);'.format(
+                        rf.child_table))
             L += [
-                "        {",
-                "            long long _ord = 0;",
-                "            for (const auto& rv : " + rf.entries("msg") + ") {",
+                "                long long _ord = 0;",
+                "                for (const auto& rv : {}) {{".format(
+                    rf.entries("msg")),
             ]
             if rf.fk_target:
-                # 1-to-many: persist the child via its DAO, link its primary key
                 ch = self._child_by_name(rf.fk_target)
                 child_op = ("if (!_c.create(rv)) return false;" if op == "create"
                             else "_c.update(rv);")
                 L += [
-                    "                " + ch["dao"] + " _c(db_);",
-                    "                " + child_op,
+                    "                    {} _c(db_);".format(ch["dao"]),
+                    "                    " + child_op,
+                    "                    long long _v = rv.{}();".format(ch["pk"]),
                 ]
-            L += [
-                "                ::sqlite3_stmt* cs = nullptr;",
-                '                if (::sqlite3_prepare_v2(db_, "INSERT INTO \\"'
-                + rf.child_table + '\\" (\\"owner\\", \\"ordinal\\", \\"value\\") '
-                'VALUES (?, ?, ?);", -1, &cs, nullptr) != SQLITE_OK) return false;',
-                "                " + _bind_scalar("cs", owner_kind, 1, owner),
-                "                ::sqlite3_bind_int64(cs, 2, _ord++);",
-            ]
-            if rf.fk_target:
-                ch = self._child_by_name(rf.fk_target)
-                L.append("                ::sqlite3_bind_int64(cs, 3, rv.{}());"
-                         .format(ch["pk"]))
             else:
-                L.append("                " + _bind_scalar("cs", rf.val_kind, 3, "rv"))
+                L.append("                    {} _v = rv;".format(
+                    _local_ctype(rf.val_kind)))
             L += [
-                "                const bool mok = ::sqlite3_step(cs) == SQLITE_DONE;",
-                "                ::sqlite3_finalize(cs);",
-                "                if (!mok) return false;",
+                '                    db_ << "INSERT INTO \\"{}\\" (\\"owner\\", '
+                '\\"ordinal\\", \\"value\\") VALUES (:o, :n, :v)", '
+                "::soci::use(_owner), ::soci::use(_ord), ::soci::use(_v);".format(
+                    rf.child_table),
+                "                    ++_ord;",
+                "                }",
                 "            }",
-                "        }",
             ]
             blocks.append("\n".join(L))
         return "\n".join(blocks) + "\n"
@@ -402,37 +402,36 @@ class CrudlAdapter:
     def _rep_read(self, reps, id_col):
         if not reps:
             return ""
-        owner_kind = id_col.kind if id_col else "int64"
-        owner = "msg->{}()".format(id_col.accessor) if id_col else "0"
+        octype, oexpr = self._owner(id_col, dot=False)
         blocks = []
         for rf in reps:
+            is_text = (not rf.fk_target) and rf.val_kind == "text"
+            valtype = "long long" if rf.fk_target else _local_ctype(rf.val_kind)
+            vdecl = ("{} _v;".format(valtype) if is_text
+                     else "{} _v = 0;".format(valtype))
             L = [
-                "        {",
-                "            ::sqlite3_stmt* cs = nullptr;",
-                '            if (::sqlite3_prepare_v2(db_, "SELECT \\"value\\" '
-                'FROM \\"' + rf.child_table + '\\" WHERE \\"owner\\" = ? '
-                'ORDER BY \\"ordinal\\";", -1, &cs, nullptr) == SQLITE_OK) {',
-                "                " + _bind_scalar("cs", owner_kind, 1, owner),
-                "                while (::sqlite3_step(cs) == SQLITE_ROW) {",
+                "                {",
+                "                    {} ::soci::indicator _vi;".format(vdecl),
+                "                    {} _owner = {};".format(octype, oexpr),
+                '                    ::soci::statement _rs = (db_.prepare << '
+                '"SELECT \\"value\\" FROM \\"{}\\" WHERE \\"owner\\" = :o '
+                'ORDER BY \\"ordinal\\"", ::soci::use(_owner), '
+                "::soci::into(_v, _vi));".format(rf.child_table),
+                "                    _rs.execute();",
+                "                    while (_rs.fetch()) {",
             ]
             if rf.fk_target:
-                # load each child by its primary key via the child DAO
                 ch = self._child_by_name(rf.fk_target)
                 L += [
-                    "                    const long long _fk = ::sqlite3_column_int64(cs, 0);",
-                    "                    " + ch["dao"] + " _c(db_);",
-                    "                    _c.read(_fk, msg->add_" + rf.field + "());",
+                    "                        {} _c(db_);".format(ch["dao"]),
+                    "                        _c.read(_v, msg->add_{}());".format(
+                        rf.field),
                 ]
             else:
-                L += [
-                    "                    " + _col_decl(rf.val_kind, 0, "_v"),
-                    "                    " + rf.add_stmt("_v") + ";",
-                ]
+                L.append("                        {};".format(rf.add_stmt("_v")))
             L += [
+                "                    }",
                 "                }",
-                "                ::sqlite3_finalize(cs);",
-                "            }",
-                "        }",
             ]
             blocks.append("\n".join(L))
         return "\n".join(blocks) + "\n"

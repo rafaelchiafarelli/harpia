@@ -6,108 +6,123 @@
 #include <string>
 #include <vector>
 
-#include "sqlite3.h"
+#include <soci/soci.h>
 #include "protofiles/vip_users_c96f8fd7f45108efee5a8ecb43eab1da.pb.h"
 
 namespace harpia {
 namespace db {
 
-// Data-access object for vip_users over the "table_vip_users" table. Wraps a sqlite3* the
-// caller owns. Scalar/enum fields, singular FKs to table-bearing messages, the
+// Data-access object for vip_users over the "table_vip_users" table. Wraps a soci::session
+// the caller owns; being SOCI-based it runs on any backend (SQLite, PostgreSQL,
+// ...). Scalar/enum fields, singular FKs to table-bearing messages, the
 // flattened sub-fields of a non-table composed field, and map<K,V> + repeated
 // scalar fields (as child tables keyed by the primary key) are persisted.
+//
+// Every method returns false instead of throwing: SOCI signals errors with
+// exceptions, so each body is wrapped in try/catch. use()/into() bind by
+// reference, so bound values are copied into named locals first; nullable reads
+// are guarded by an indicator.
 class vip_users_dao {
 public:
-    explicit vip_users_dao(::sqlite3* db) : db_(db) {}
+    explicit vip_users_dao(::soci::session& db) : db_(db) {}
 
-    bool create_table() { return exec("CREATE TABLE IF NOT EXISTS \"table_vip_users\" (\"ID_c96f8fd7f45108efee5a8ecb43eab1da\" INTEGER PRIMARY KEY, \"name\" TEXT, \"family\" TEXT, \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT, \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT, \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT);"); }
-    bool drop_table()   { return exec("DROP TABLE IF EXISTS \"table_vip_users\";"); }
+    bool create_table() {
+        try {
+            db_ << "CREATE TABLE IF NOT EXISTS \"table_vip_users\" (\"ID_c96f8fd7f45108efee5a8ecb43eab1da\" INTEGER PRIMARY KEY, \"name\" TEXT, \"family\" TEXT, \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT, \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT, \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT);";
+            return true;
+        } catch (const std::exception&) { return false; }
+    }
+    bool drop_table() {
+        try {
+            db_ << "DROP TABLE IF EXISTS \"table_vip_users\";";
+            return true;
+        } catch (const std::exception&) { return false; }
+    }
 
     bool create(const ::vip_users& msg) {
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "INSERT INTO \"table_vip_users\" (\"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"name\", \"family\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\") VALUES (?, ?, ?, ?, ?, ?);",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        ::sqlite3_bind_int(st, 1, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-        ::sqlite3_bind_text(st, 2, msg.name().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 3, msg.family().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 4, msg.status_c96f8fd7f45108efee5a8ecb43eab1da().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 5, msg.error_c96f8fd7f45108efee5a8ecb43eab1da().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 6, msg.originator_c96f8fd7f45108efee5a8ecb43eab1da().c_str(), -1, SQLITE_TRANSIENT);
-        const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
-        ::sqlite3_finalize(st);
-        if (!ok) return false;
-        return true;
+        try {
+            int c0 = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+            std::string c1 = msg.name();
+            std::string c2 = msg.family();
+            std::string c3 = msg.status_c96f8fd7f45108efee5a8ecb43eab1da();
+            std::string c4 = msg.error_c96f8fd7f45108efee5a8ecb43eab1da();
+            std::string c5 = msg.originator_c96f8fd7f45108efee5a8ecb43eab1da();
+            db_ << "INSERT INTO \"table_vip_users\" (\"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"name\", \"family\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5)",
+                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5);
+            return true;
+        } catch (const std::exception&) { return false; }
     }
 
     bool read(std::int64_t id, ::vip_users* msg) {
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "SELECT \"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"name\", \"family\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" FROM \"table_vip_users\" WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = ?;",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        ::sqlite3_bind_int64(st, 1, id);
-        bool found = false;
-        if (::sqlite3_step(st) == SQLITE_ROW) { extract(st, msg); found = true; }
-        ::sqlite3_finalize(st);
-        return found;
+        try {
+            int l0 = 0; ::soci::indicator n0;
+            std::string l1; ::soci::indicator n1;
+            std::string l2; ::soci::indicator n2;
+            std::string l3; ::soci::indicator n3;
+            std::string l4; ::soci::indicator n4;
+            std::string l5; ::soci::indicator n5;
+            db_ << "SELECT \"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"name\", \"family\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" FROM \"table_vip_users\" WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = :id", ::soci::use(id),
+                ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5);
+            if (!db_.got_data()) return false;
+                msg->set_id_c96f8fd7f45108efee5a8ecb43eab1da(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
+                msg->set_family(n2 == ::soci::i_ok ? l2 : std::string());
+                msg->set_status_c96f8fd7f45108efee5a8ecb43eab1da(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_error_c96f8fd7f45108efee5a8ecb43eab1da(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_originator_c96f8fd7f45108efee5a8ecb43eab1da(n5 == ::soci::i_ok ? l5 : std::string());
+            return true;
+        } catch (const std::exception&) { return false; }
     }
 
     bool update(const ::vip_users& msg) {
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "UPDATE \"table_vip_users\" SET \"name\" = ?, \"family\" = ?, \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" = ?, \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" = ?, \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" = ? WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = ?;",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        ::sqlite3_bind_text(st, 1, msg.name().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 2, msg.family().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 3, msg.status_c96f8fd7f45108efee5a8ecb43eab1da().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 4, msg.error_c96f8fd7f45108efee5a8ecb43eab1da().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_text(st, 5, msg.originator_c96f8fd7f45108efee5a8ecb43eab1da().c_str(), -1, SQLITE_TRANSIENT);
-        ::sqlite3_bind_int64(st, 6, msg.id_c96f8fd7f45108efee5a8ecb43eab1da());
-        const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
-        ::sqlite3_finalize(st);
-        if (!ok) return false;
-        return true;
+        try {
+            std::string c0 = msg.name();
+            std::string c1 = msg.family();
+            std::string c2 = msg.status_c96f8fd7f45108efee5a8ecb43eab1da();
+            std::string c3 = msg.error_c96f8fd7f45108efee5a8ecb43eab1da();
+            std::string c4 = msg.originator_c96f8fd7f45108efee5a8ecb43eab1da();
+            long long cid = msg.id_c96f8fd7f45108efee5a8ecb43eab1da();
+            db_ << "UPDATE \"table_vip_users\" SET \"name\" = :c0, \"family\" = :c1, \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" = :c2, \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" = :c3, \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" = :c4 WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = :cid",
+                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(cid);
+            return true;
+        } catch (const std::exception&) { return false; }
     }
 
     bool remove(std::int64_t id) {
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "DELETE FROM \"table_vip_users\" WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = ?;",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        ::sqlite3_bind_int64(st, 1, id);
-        const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
-        ::sqlite3_finalize(st);
-        if (!ok) return false;
-        return true;
+        try {
+            db_ << "DELETE FROM \"table_vip_users\" WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = :id", ::soci::use(id);
+            return true;
+        } catch (const std::exception&) { return false; }
     }
 
     bool list(std::vector<::vip_users>* out) {
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "SELECT \"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"name\", \"family\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" FROM \"table_vip_users\";",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        while (::sqlite3_step(st) == SQLITE_ROW) {
-            ::vip_users msg;
-            extract(st, &msg);
-            out->push_back(msg);
-        }
-        ::sqlite3_finalize(st);
-        return true;
+        try {
+            int l0 = 0; ::soci::indicator n0;
+            std::string l1; ::soci::indicator n1;
+            std::string l2; ::soci::indicator n2;
+            std::string l3; ::soci::indicator n3;
+            std::string l4; ::soci::indicator n4;
+            std::string l5; ::soci::indicator n5;
+            ::soci::statement st = (db_.prepare << "SELECT \"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"name\", \"family\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" FROM \"table_vip_users\"",
+                ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5));
+            st.execute();
+            while (st.fetch()) {
+                ::vip_users row;
+                ::vip_users* msg = &row;
+                msg->set_id_c96f8fd7f45108efee5a8ecb43eab1da(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
+                msg->set_family(n2 == ::soci::i_ok ? l2 : std::string());
+                msg->set_status_c96f8fd7f45108efee5a8ecb43eab1da(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_error_c96f8fd7f45108efee5a8ecb43eab1da(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_originator_c96f8fd7f45108efee5a8ecb43eab1da(n5 == ::soci::i_ok ? l5 : std::string());
+                out->push_back(row);
+            }
+            return true;
+        } catch (const std::exception&) { return false; }
     }
 
 private:
-    bool exec(const char* sql) {
-        return ::sqlite3_exec(db_, sql, nullptr, nullptr, nullptr) == SQLITE_OK;
-    }
-    void extract(::sqlite3_stmt* st, ::vip_users* msg) {
-        msg->set_id_c96f8fd7f45108efee5a8ecb43eab1da(::sqlite3_column_int(st, 0));
-        { const unsigned char* p = ::sqlite3_column_text(st, 1); msg->set_name(p ? reinterpret_cast<const char*>(p) : ""); }
-        { const unsigned char* p = ::sqlite3_column_text(st, 2); msg->set_family(p ? reinterpret_cast<const char*>(p) : ""); }
-        { const unsigned char* p = ::sqlite3_column_text(st, 3); msg->set_status_c96f8fd7f45108efee5a8ecb43eab1da(p ? reinterpret_cast<const char*>(p) : ""); }
-        { const unsigned char* p = ::sqlite3_column_text(st, 4); msg->set_error_c96f8fd7f45108efee5a8ecb43eab1da(p ? reinterpret_cast<const char*>(p) : ""); }
-        { const unsigned char* p = ::sqlite3_column_text(st, 5); msg->set_originator_c96f8fd7f45108efee5a8ecb43eab1da(p ? reinterpret_cast<const char*>(p) : ""); }
-    }
-    ::sqlite3* db_;
+    ::soci::session& db_;
 };
 
 }  // namespace db
