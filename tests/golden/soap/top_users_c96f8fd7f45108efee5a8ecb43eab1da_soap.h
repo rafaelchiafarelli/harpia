@@ -76,16 +76,19 @@ inline bool authorized_top_users(const std::string& soap_xml) {
     return authorized_top_users(doc);
 }
 
-inline void register_top_users_soap(crow::SimpleApp& app, ::sqlite3* db,
+inline void register_top_users_soap(crow::SimpleApp& app, ::soci::session& db,
                                  const std::string& base) {
+    // capture a session pointer (soci::session is non-copyable); the caller must
+    // keep the session alive for the lifetime of the registered route.
+    ::soci::session* dbp = &db;
     app.route_dynamic(base + "/top_users").methods(crow::HTTPMethod::POST)(
-             [db](const crow::request& req, crow::response& res) {
+             [dbp](const crow::request& req, crow::response& res) {
         // all SOAP replies carry an XML body; set the content type once
         auto reply = [&res](const std::string& xml) {
             res.set_header("Content-Type", "text/xml");
             res.body = xml;
         };
-        ::harpia::db::top_users_dao dao(db);
+        ::harpia::db::top_users_dao dao(*dbp);
         ::tinyxml2::XMLDocument doc;
         if (doc.Parse(req.body.c_str()) != ::tinyxml2::XML_SUCCESS) {
             res.code = 400; res.end(); return;

@@ -19,6 +19,9 @@
 #include "rest/users_c96f8fd7f45108efee5a8ecb43eab1da_rest.h"
 #include "harpia_test_client.h"
 
+#include <soci/soci.h>
+#include <soci/sqlite3/soci-sqlite3.h>
+
 #include <chrono>
 #include <string>
 #include <thread>
@@ -27,8 +30,7 @@
 namespace {
 
 int all_good() {
-    ::sqlite3* db = nullptr;
-    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 110;
+    ::soci::session db(::soci::sqlite3, ":memory:");
     harpia::db::users_dao dao(db);
     if (!dao.create_table()) return 111;
     crow::SimpleApp app;
@@ -62,14 +64,13 @@ int all_good() {
         ::users chk;
         if (!dao.read(1, &chk)) { code = 117; break; }
     } while (false);
-    app.stop(); fut.get(); ::sqlite3_close(db);
+    app.stop(); fut.get();
     return code;
 }
 
 int crash() {
     // no create_table(): backend ops must fail cleanly, not crash
-    ::sqlite3* db = nullptr;
-    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 120;
+    ::soci::session db(::soci::sqlite3, ":memory:");
     harpia::db::users_dao dao(db);
     ::users a;
     a.set_id_c96f8fd7f45108efee5a8ecb43eab1da(1);
@@ -96,7 +97,7 @@ int crash() {
         auto lst = cli.Get("/api/v1/users", rc);
         if (!lst || lst.status != 500) { code = 127; break; }
     } while (false);
-    app.stop(); fut.get(); ::sqlite3_close(db);
+    app.stop(); fut.get();
     return code;
 }
 
@@ -138,8 +139,7 @@ int non_parseable() {
     if (::harpia::json::from_json("{ not valid json", &m)) return 140;
     if (::harpia::json::is_valid_json("definitely not json")) return 141;
     if (::harpia::xml::from_xml("<unclosed", &m)) return 142;
-    ::sqlite3* db = nullptr;
-    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 143;
+    ::soci::session db(::soci::sqlite3, ":memory:");
     harpia::db::users_dao dao(db);
     if (!dao.create_table()) return 144;
     crow::SimpleApp app;
@@ -159,7 +159,7 @@ int non_parseable() {
         auto bx = cli.Post("/soap/users", "<not soap", "text/xml");
         if (!bx || bx.status != 400) { code = 147; break; }
     } while (false);
-    app.stop(); fut.get(); ::sqlite3_close(db);
+    app.stop(); fut.get();
     return code;
 }
 

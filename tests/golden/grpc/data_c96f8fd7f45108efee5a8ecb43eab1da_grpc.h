@@ -6,7 +6,7 @@
 #include <vector>
 
 #include <grpcpp/grpcpp.h>
-#include "sqlite3.h"
+#include <soci/soci.h>
 #include "protofiles/data_c96f8fd7f45108efee5a8ecb43eab1da_service.grpc.pb.h"
 #include "db/data_c96f8fd7f45108efee5a8ecb43eab1da_crudl.h"
 
@@ -16,7 +16,7 @@
 //   pullByID(id)   -> dao.read(id)                -> data_Message (NOT_FOUND)
 //   streamSrc()    -> dao.list() streamed back    -> stream data_Message
 //   heartBeat(hb)  -> echo                         (no CRUDL, unauthenticated)
-// Construct with a sqlite3* the caller owns; register with a grpc::ServerBuilder.
+// Construct with a soci::session the caller owns; register with a grpc::ServerBuilder.
 //
 // The data operations enforce the generated access credential (Stage 5): the
 // call must carry x-user: data and x-pswd: c96f8fd7f45108efee5a8ecb43eab1da metadata, or it is rejected
@@ -28,7 +28,7 @@ namespace grpc_svc {
 class data_service final
     : public ::frameworkProtos::data_Service::Service {
 public:
-    explicit data_service(::sqlite3* db) : db_(db) {}
+    explicit data_service(::soci::session& db) : db_(db) {}
 
     // True iff the call carries the correct credential metadata for data. A
     // null context (direct in-process call, no wire) is allowed; the wire path
@@ -97,7 +97,7 @@ public:
     }
 
 private:
-    ::sqlite3* db_;
+    ::soci::session& db_;
 };
 
 }  // namespace grpc_svc

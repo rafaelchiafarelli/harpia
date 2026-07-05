@@ -2,15 +2,11 @@
 #
 # Built only when the top-level CMake is configured with
 # -DHARPIA_BUILD_TESTS=ON; run with `ctest` from the build dir.
-enable_language(C)
 find_package(Threads)
 
-# Vendored SQLite, compiled once for the generated DB unit tests.
-add_library(harpia_sqlite STATIC
-    ${CMAKE_SOURCE_DIR}/third_party/sqlite/sqlite3.c)
-target_include_directories(harpia_sqlite PUBLIC
-    ${CMAKE_SOURCE_DIR}/third_party/sqlite)
-target_link_libraries(harpia_sqlite PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+# The DB layer is emitted against SOCI (soci_core + the sqlite3
+# backend); SOCI's sqlite3 backend links the system libsqlite3.
+set(HARPIA_SOCI_LIBS soci_core soci_sqlite3)
 
 # Vendored tinyxml2 for the SOAP credential (access-rights) tests.
 add_library(harpia_tinyxml2 STATIC
@@ -24,7 +20,7 @@ target_include_directories(data_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
-target_link_libraries(data_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
+target_link_libraries(data_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
 add_test(NAME data_test COMMAND data_test)
 
 add_executable(users_test users_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -33,7 +29,7 @@ target_include_directories(users_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
-target_link_libraries(users_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
+target_link_libraries(users_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
 add_test(NAME users_test COMMAND users_test)
 
 add_executable(vip_users_test vip_users_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -42,7 +38,7 @@ target_include_directories(vip_users_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
-target_link_libraries(vip_users_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
+target_link_libraries(vip_users_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
 add_test(NAME vip_users_test COMMAND vip_users_test)
 
 add_executable(top_users_test top_users_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -51,7 +47,7 @@ target_include_directories(top_users_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
-target_link_libraries(top_users_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
+target_link_libraries(top_users_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
 add_test(NAME top_users_test COMMAND top_users_test)
 
 add_executable(app_test app_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -60,5 +56,5 @@ target_include_directories(app_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
-target_link_libraries(app_test PRIVATE protofiles harpia_sqlite harpia_tinyxml2)
+target_link_libraries(app_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
 add_test(NAME app_test COMMAND app_test)

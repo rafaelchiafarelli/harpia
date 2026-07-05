@@ -25,6 +25,9 @@
 #include "rest/top_users_c96f8fd7f45108efee5a8ecb43eab1da_rest.h"
 #include "harpia_test_client.h"
 
+#include <soci/soci.h>
+#include <soci/sqlite3/soci-sqlite3.h>
+
 #include <cstdint>
 #include <string>
 #include <thread>
@@ -50,8 +53,7 @@ int simple_access() {
 }
 
 int database_roundtrip() {
-    ::sqlite3* db = nullptr;
-    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 20;
+    ::soci::session db(::soci::sqlite3, ":memory:");
     harpia::db::top_users_dao dao(db);
     if (!dao.create_table()) return 21;
 
@@ -95,7 +97,6 @@ int database_roundtrip() {
     ::top_users gone;
     if (dao.read(1, &gone)) return 31;
 
-    ::sqlite3_close(db);
     return 0;
 }
 
@@ -110,8 +111,7 @@ int access_rights() {
 }
 
 int access_modifiers() {
-    ::sqlite3* db = nullptr;
-    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 40;
+    ::soci::session db(::soci::sqlite3, ":memory:");
     harpia::db::top_users_dao dao(db);
     if (!dao.create_table()) return 41;
     ::top_users a;
@@ -131,7 +131,6 @@ int access_modifiers() {
     dup.set_error_c96f8fd7f45108efee5a8ecb43eab1da("error_c96f8fd7f45108efee5a8ecb43eab1da_b");
     dup.set_originator_c96f8fd7f45108efee5a8ecb43eab1da("originator_c96f8fd7f45108efee5a8ecb43eab1da_b");
     if (dao.create(dup)) return 43;
-    ::sqlite3_close(db);
     return 0;
 }
 
@@ -182,8 +181,7 @@ int xml_parser() {
 }
 
 int rest_api() {
-    ::sqlite3* db = nullptr;
-    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 80;
+    ::soci::session db(::soci::sqlite3, ":memory:");
     harpia::db::top_users_dao dao(db);
     if (!dao.create_table()) return 81;
     crow::SimpleApp app;
@@ -244,13 +242,12 @@ int rest_api() {
         auto gone = cli.Get("/api/v1/top_users/1", cred);
         if (!gone || gone.status != 404) { code = 92; break; }
     } while (false);
-    app.stop(); fut.get(); ::sqlite3_close(db);
+    app.stop(); fut.get();
     return code;
 }
 
 int soap_api() {
-    ::sqlite3* db = nullptr;
-    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 100;
+    ::soci::session db(::soci::sqlite3, ":memory:");
     harpia::db::top_users_dao dao(db);
     if (!dao.create_table()) return 101;
     crow::SimpleApp app;
@@ -297,7 +294,7 @@ int soap_api() {
         auto g3 = cli.Post("/soap/top_users", getEnv, "text/xml");
         if (!g3 || g3.body.find("not found") == std::string::npos) { code = 111; break; }
     } while (false);
-    app.stop(); fut.get(); ::sqlite3_close(db);
+    app.stop(); fut.get();
     return code;
 }
 

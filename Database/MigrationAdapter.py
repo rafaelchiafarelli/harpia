@@ -1,7 +1,7 @@
 """Stage 8 (database) -- schema migration / version transforms (spec 8 / 7.2).
 
 For each table-bearing message, emit a header (<name>_<hash>_migrate.h) with a
-migrate_<name>(sqlite3*) that brings an existing database up to the current
+migrate_<name>(soci::session&) that brings an existing database up to the current
 schema version and records it in a "_harpia_schema_version" table. Migration is
 additive: it ensures the table (and its child tables) exist and ALTERs in any
 column an older generated version is missing. Renames/drops, type changes and
