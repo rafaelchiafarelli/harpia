@@ -8,9 +8,10 @@ For each table-bearing message this emits a self-contained test program
                         against an in-memory SQLite database
 
 It also emits the generated project's ``tests/CMakeLists.txt`` (one CTest test
-per message) and vendors SQLite into the build tree so the generated project
-stays self-contained. The tests are opt-in in the top-level CMake via
-``-DHARPIA_BUILD_TESTS=ON`` so the existing demo build is unaffected.
+per message). The DB layer is emitted against SOCI (soci_core + sqlite3 backend,
+which links the system libsqlite3), so the tests link SOCI rather than a vendored
+SQLite. The tests are opt-in in the top-level CMake via ``-DHARPIA_BUILD_TESTS=ON``
+so the existing demo build is unaffected.
 
 Later slices add the remaining sub-items (access rights/modifiers, JSON/XML
 parsers, REST/SOAP APIs, and the all-good/crash/slower/non-parseable apps).
@@ -32,9 +33,11 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _THIRD_PARTY = os.path.join(_REPO_ROOT, "third_party")
 # the harpia test HTTP client (Crow ships no client); emitted alongside the tests
 _CLIENT_HDR = os.path.join(_REPO_ROOT, "tests", "harpia_test_client.h")
-# (subdir, files) to copy into the generated project's third_party/
+# (subdir, files) to copy into the generated project's third_party/.
+# SQLite is no longer vendored: the DB layer is emitted against SOCI, whose
+# sqlite3 backend links the system libsqlite3 (SOCI/libpq come from the system,
+# like protobuf/gRPC/ZMQ).
 _VENDOR = (
-    ("sqlite", ("sqlite3.c", "sqlite3.h", "sqlite3ext.h")),
     ("tinyxml2", ("tinyxml2.cpp", "tinyxml2.h")),     # SOAP credential parsing
     ("crow", ("crow.h",)),                            # REST/SOAP HTTP server
 )
@@ -163,8 +166,7 @@ class TestAdapter:
         reps = [rf for rf in reps if not rf.fk_target]
         text_field = next((c for c in non_pk if c.kind == "text"), None)
         L = [
-            "    ::sqlite3* db = nullptr;",
-            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 20;',
+            '    ::soci::session db(::soci::sqlite3, ":memory:");',
             "    harpia::db::{}_dao dao(db);".format(cls),
             "    if (!dao.create_table()) return 21;",
             "",
@@ -238,7 +240,6 @@ class TestAdapter:
             "    ::{} gone;".format(cls),
             "    if (dao.read(1, &gone)) return 31;",
             "",
-            "    ::sqlite3_close(db);",
             "    return 0;",
         ]
         return "\n".join(L)
@@ -273,8 +274,7 @@ class TestAdapter:
             return ("    // no primary key column: constraint check deferred "
                     "(Stage 14b)\n    return 0;")
         L = [
-            "    ::sqlite3* db = nullptr;",
-            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 40;',
+            '    ::soci::session db(::soci::sqlite3, ":memory:");',
             "    harpia::db::{}_dao dao(db);".format(cls),
             "    if (!dao.create_table()) return 41;",
             "    ::{} a;".format(cls),
@@ -292,7 +292,6 @@ class TestAdapter:
               for c in non_pk]
         L += [
             "    if (dao.create(dup)) return 43;",
-            "    ::sqlite3_close(db);",
             "    return 0;",
         ]
         return "\n".join(L)
@@ -385,8 +384,7 @@ class TestAdapter:
         wrong = ('harpia_test::Headers{{"X-User", "' + cls +
                  '"}, {"X-Pswd", "nope"}}')
         L = [
-            "    ::sqlite3* db = nullptr;",
-            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 80;',
+            '    ::soci::session db(::soci::sqlite3, ":memory:");',
             "    harpia::db::" + cls + "_dao dao(db);",
             "    if (!dao.create_table()) return 81;",
         ]
@@ -460,7 +458,7 @@ class TestAdapter:
             '        auto gone = cli.Get("/api/v1/' + cls + '/1", cred);',
             "        if (!gone || gone.status != 404) { code = 92; break; }",
             "    } while (false);",
-            "    app.stop(); fut.get(); ::sqlite3_close(db);",
+            "    app.stop(); fut.get();",
             "    return code;",
         ]
         return "\n".join(L)
@@ -478,8 +476,7 @@ class TestAdapter:
         bad = ('<soap:Header><credentials><user>' + cls +
                '</user><pswd>nope</pswd></credentials></soap:Header>')
         L = [
-            "    ::sqlite3* db = nullptr;",
-            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 100;',
+            '    ::soci::session db(::soci::sqlite3, ":memory:");',
             "    harpia::db::" + cls + "_dao dao(db);",
             "    if (!dao.create_table()) return 101;",
         ]
@@ -533,7 +530,7 @@ class TestAdapter:
         ]
         L += [
             "    } while (false);",
-            "    app.stop(); fut.get(); ::sqlite3_close(db);",
+            "    app.stop(); fut.get();",
             "    return code;",
         ]
         return "\n".join(L)
@@ -596,8 +593,7 @@ class TestAdapter:
         cls = msg.name
         L = [
             "int all_good() {",
-            "    ::sqlite3* db = nullptr;",
-            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 110;',
+            '    ::soci::session db(::soci::sqlite3, ":memory:");',
             "    harpia::db::" + cls + "_dao dao(db);",
             "    if (!dao.create_table()) return 111;",
         ]
@@ -631,7 +627,7 @@ class TestAdapter:
             "        ::" + cls + " chk;",
             "        if (!dao.read(1, &chk)) { code = 117; break; }",
             "    } while (false);",
-            "    app.stop(); fut.get(); ::sqlite3_close(db);",
+            "    app.stop(); fut.get();",
             "    return code;",
             "}",
         ]
@@ -642,8 +638,7 @@ class TestAdapter:
         L = [
             "int crash() {",
             "    // no create_table(): backend ops must fail cleanly, not crash",
-            "    ::sqlite3* db = nullptr;",
-            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 120;',
+            '    ::soci::session db(::soci::sqlite3, ":memory:");',
             "    harpia::db::" + cls + "_dao dao(db);",
             "    ::" + cls + " a;",
             "    a.set_" + pk.accessor + "(1);",
@@ -669,7 +664,7 @@ class TestAdapter:
             '        auto lst = cli.Get("/api/v1/' + cls + '", rc);',
             "        if (!lst || lst.status != 500) { code = 127; break; }",
             "    } while (false);",
-            "    app.stop(); fut.get(); ::sqlite3_close(db);",
+            "    app.stop(); fut.get();",
             "    return code;",
             "}",
         ]
@@ -719,8 +714,7 @@ class TestAdapter:
             '    if (::harpia::json::from_json("{ not valid json", &m)) return 140;',
             '    if (::harpia::json::is_valid_json("definitely not json")) return 141;',
             '    if (::harpia::xml::from_xml("<unclosed", &m)) return 142;',
-            "    ::sqlite3* db = nullptr;",
-            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 143;',
+            '    ::soci::session db(::soci::sqlite3, ":memory:");',
             "    harpia::db::" + cls + "_dao dao(db);",
             "    if (!dao.create_table()) return 144;",
         ] + self._serve([
@@ -735,7 +729,7 @@ class TestAdapter:
             '        auto bx = cli.Post("/soap/' + cls + '", "<not soap", "text/xml");',
             "        if (!bx || bx.status != 400) { code = 147; break; }",
             "    } while (false);",
-            "    app.stop(); fut.get(); ::sqlite3_close(db);",
+            "    app.stop(); fut.get();",
             "    return code;",
             "}",
         ])
@@ -767,16 +761,11 @@ class TestAdapter:
             "#",
             "# Built only when the top-level CMake is configured with",
             "# -DHARPIA_BUILD_TESTS=ON; run with `ctest` from the build dir.",
-            "enable_language(C)",
             "find_package(Threads)",
             "",
-            "# Vendored SQLite, compiled once for the generated DB unit tests.",
-            "add_library(harpia_sqlite STATIC",
-            "    ${CMAKE_SOURCE_DIR}/third_party/sqlite/sqlite3.c)",
-            "target_include_directories(harpia_sqlite PUBLIC",
-            "    ${CMAKE_SOURCE_DIR}/third_party/sqlite)",
-            "target_link_libraries(harpia_sqlite PUBLIC "
-            "Threads::Threads ${CMAKE_DL_LIBS})",
+            "# The DB layer is emitted against SOCI (soci_core + the sqlite3",
+            "# backend); SOCI's sqlite3 backend links the system libsqlite3.",
+            "set(HARPIA_SOCI_LIBS soci_core soci_sqlite3)",
             "",
             "# Vendored tinyxml2 for the SOAP credential (access-rights) tests.",
             "add_library(harpia_tinyxml2 STATIC",
@@ -793,8 +782,9 @@ class TestAdapter:
                 "    ${CMAKE_CURRENT_SOURCE_DIR}",
                 "    ${CMAKE_SOURCE_DIR}/third_party/crow",
                 "    ${CMAKE_SOURCE_DIR}/third_party/asio)",
-                "target_link_libraries({} PRIVATE protofiles harpia_sqlite "
-                "harpia_tinyxml2)".format(tgt),
+                "target_link_libraries({} PRIVATE protofiles harpia_tinyxml2 "
+                "${{HARPIA_SOCI_LIBS}} Threads::Threads ${{CMAKE_DL_LIBS}})".format(
+                    tgt),
                 "add_test(NAME {} COMMAND {})".format(tgt, tgt),
                 "",
             ]

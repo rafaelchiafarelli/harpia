@@ -63,15 +63,18 @@ inline void serialize_vip_users(const crow::request& req,
     }
 }
 
-inline void register_vip_users(crow::SimpleApp& app, ::sqlite3* db,
+inline void register_vip_users(crow::SimpleApp& app, ::soci::session& db,
                             const std::string& base) {
     const std::string col = base + "/vip_users";
     const std::string item = col + "/<int>";
+    // capture a session pointer (soci::session is non-copyable); the caller must
+    // keep the session alive for the lifetime of the registered routes.
+    ::soci::session* dbp = &db;
 
     app.route_dynamic(col).methods(crow::HTTPMethod::GET)(
-        [db](const crow::request& req, crow::response& res) {
+        [dbp](const crow::request& req, crow::response& res) {
             if (!authorized_vip_users(req)) { res.code = 401; res.end(); return; }
-            ::harpia::db::vip_users_dao dao(db);
+            ::harpia::db::vip_users_dao dao(*dbp);
             std::vector<::vip_users> rows;
             if (!dao.list(&rows)) { res.code = 500; res.end(); return; }
             if (wants_xml_vip_users(req)) {
@@ -96,9 +99,9 @@ inline void register_vip_users(crow::SimpleApp& app, ::sqlite3* db,
         });
 
     app.route_dynamic(item).methods(crow::HTTPMethod::GET)(
-        [db](const crow::request& req, crow::response& res, int64_t id) {
+        [dbp](const crow::request& req, crow::response& res, int64_t id) {
             if (!authorized_vip_users(req)) { res.code = 401; res.end(); return; }
-            ::harpia::db::vip_users_dao dao(db);
+            ::harpia::db::vip_users_dao dao(*dbp);
             ::vip_users msg;
             if (!dao.read(id, &msg)) { res.code = 404; res.end(); return; }
             serialize_vip_users(req, msg, res);
@@ -106,9 +109,9 @@ inline void register_vip_users(crow::SimpleApp& app, ::sqlite3* db,
         });
 
     app.route_dynamic(col).methods(crow::HTTPMethod::POST)(
-        [db](const crow::request& req, crow::response& res) {
+        [dbp](const crow::request& req, crow::response& res) {
             if (!authorized_vip_users(req)) { res.code = 401; res.end(); return; }
-            ::harpia::db::vip_users_dao dao(db);
+            ::harpia::db::vip_users_dao dao(*dbp);
             ::vip_users msg;
             if (!parse_vip_users(req, &msg)) { res.code = 400; res.end(); return; }
             if (!dao.create(msg)) { res.code = 500; res.end(); return; }
@@ -116,9 +119,9 @@ inline void register_vip_users(crow::SimpleApp& app, ::sqlite3* db,
         });
 
     app.route_dynamic(item).methods(crow::HTTPMethod::PUT)(
-        [db](const crow::request& req, crow::response& res, int64_t) {
+        [dbp](const crow::request& req, crow::response& res, int64_t) {
             if (!authorized_vip_users(req)) { res.code = 401; res.end(); return; }
-            ::harpia::db::vip_users_dao dao(db);
+            ::harpia::db::vip_users_dao dao(*dbp);
             ::vip_users msg;
             if (!parse_vip_users(req, &msg)) { res.code = 400; res.end(); return; }
             if (!dao.update(msg)) { res.code = 500; res.end(); return; }
@@ -126,9 +129,9 @@ inline void register_vip_users(crow::SimpleApp& app, ::sqlite3* db,
         });
 
     app.route_dynamic(item).methods(crow::HTTPMethod::DELETE)(
-        [db](const crow::request& req, crow::response& res, int64_t id) {
+        [dbp](const crow::request& req, crow::response& res, int64_t id) {
             if (!authorized_vip_users(req)) { res.code = 401; res.end(); return; }
-            ::harpia::db::vip_users_dao dao(db);
+            ::harpia::db::vip_users_dao dao(*dbp);
             if (!dao.remove(id)) { res.code = 500; res.end(); return; }
             res.code = 204; res.end();
         });

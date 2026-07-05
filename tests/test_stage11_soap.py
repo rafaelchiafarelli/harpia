@@ -51,14 +51,8 @@ def built(tmp_path_factory):
     build = os.path.join(str(out), "build")
     assert ProtoCompiler(dest=build).Process() is None, "Stage 7 failed"
 
-    sqlite_obj = os.path.join(str(out), "sqlite3.o")
-    cc = subprocess.run(
-        ["cc", "-c", "-I", SQLITE, os.path.join(SQLITE, "sqlite3.c"),
-         "-o", sqlite_obj], capture_output=True, text=True, timeout=300)
-    assert cc.returncode == 0, cc.stderr
     return {
         "cpp_root": os.path.join(build, "generated", "cpp"),
-        "sqlite_obj": sqlite_obj,
         "tmp": str(out),
     }
 
@@ -75,9 +69,10 @@ def test_soap_http_roundtrip(built):
         f.write(
             '#include "soap/users_{h}_soap.h"\n'
             '#include "harpia_test_client.h"\n'
+            "#include <soci/soci.h>\n"
+            "#include <soci/sqlite3/soci-sqlite3.h>\n"
             "int main() {{\n"
-            "    ::sqlite3* db = nullptr;\n"
-            '    if (sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
+            '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
             "    harpia::db::users_dao dao(db);\n"
             "    if (!dao.create_table()) return 2;\n"
             "    crow::SimpleApp app;\n"
@@ -120,10 +115,11 @@ def test_soap_http_roundtrip(built):
     tinyxml = os.path.join(TINYXML2, "tinyxml2.cpp")
     binary = os.path.join(built["tmp"], "soap_app")
     c = subprocess.run(
-        ["g++", "-std=c++17", "-I", built["cpp_root"], "-I", SQLITE,
+        ["g++", "-std=c++17", "-I", built["cpp_root"],
          "-I", CROW, "-I", ASIO, "-I", TINYXML2, "-I", HERE,
          *_pkgconfig("--cflags"), prog, pb_cc,
-         tinyxml, built["sqlite_obj"], "-o", binary,
+         tinyxml, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
          *_pkgconfig("--libs"), "-lpthread", "-ldl"],
         capture_output=True, text=True, timeout=180)
     assert c.returncode == 0, "SOAP program failed to build:\n" + c.stderr

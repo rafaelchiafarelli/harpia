@@ -5,7 +5,7 @@
 #include <set>
 #include <string>
 
-#include "sqlite3.h"
+#include <soci/soci.h>
 #include "db/users_c96f8fd7f45108efee5a8ecb43eab1da_crudl.h"
 
 // Schema migration for users (spec 8 / 7.2 "validation/transformative functions
@@ -17,54 +17,51 @@
 //   - stamps the current version hash.
 // Column renames/drops, type changes and cross-version data transforms are not
 // handled (additive migrations only).
+//
+// SOCI-based (works on any backend); the SQL dialect (version table, column
+// introspection, ALTER, version-stamp upsert) comes from the harpia DbBackend.
 namespace harpia {
 namespace db {
 
-inline bool migrate_users(::sqlite3* db) {
-    auto exec = [db](const char* sql) {
-        return ::sqlite3_exec(db, sql, nullptr, nullptr, nullptr) == SQLITE_OK;
-    };
-    if (!exec("CREATE TABLE IF NOT EXISTS \"_harpia_schema_version\" "
-              "(\"name\" TEXT PRIMARY KEY, \"version\" TEXT);")) return false;
+inline bool migrate_users(::soci::session& db) {
+    try {
+        db << "CREATE TABLE IF NOT EXISTS \"_harpia_schema_version\" (\"name\" TEXT PRIMARY KEY, \"version\" TEXT);";
 
-    // ensure the table + its map/repeated child tables exist at the current schema
-    ::harpia::db::users_dao dao(db);
-    if (!dao.create_table()) return false;
+        // ensure the table + its map/repeated child tables exist at the current schema
+        ::harpia::db::users_dao dao(db);
+        if (!dao.create_table()) return false;
 
-    // columns the live table currently has
-    std::set<std::string> have;
-    {
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db, "PRAGMA table_info(\"user_table\");",
-                                 -1, &st, nullptr) == SQLITE_OK) {
-            while (::sqlite3_step(st) == SQLITE_ROW) {
-                const unsigned char* n = ::sqlite3_column_text(st, 1);
-                if (n) have.insert(reinterpret_cast<const char*>(n));
-            }
-            ::sqlite3_finalize(st);
+        // columns the live table currently has (dialect-uniform: the query's one
+        // selected column is each existing column's name)
+        std::set<std::string> have;
+        {
+            std::string _cn; ::soci::indicator _ci;
+            ::soci::statement _cs = (db.prepare << "SELECT \"name\" FROM pragma_table_info('user_table');",
+                                     ::soci::into(_cn, _ci));
+            _cs.execute();
+            while (_cs.fetch()) { if (_ci == ::soci::i_ok) have.insert(_cn); }
         }
-    }
 
-    // additive migration: add any column missing from an older table version
-    if (!have.count("address")) {
-        if (!exec("ALTER TABLE \"user_table\" ADD COLUMN \"address\" TEXT;")) return false;
-    }
-    if (!have.count("name")) {
-        if (!exec("ALTER TABLE \"user_table\" ADD COLUMN \"name\" TEXT;")) return false;
-    }
-    if (!have.count("STATUS_c96f8fd7f45108efee5a8ecb43eab1da")) {
-        if (!exec("ALTER TABLE \"user_table\" ADD COLUMN \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT;")) return false;
-    }
-    if (!have.count("ERROR_c96f8fd7f45108efee5a8ecb43eab1da")) {
-        if (!exec("ALTER TABLE \"user_table\" ADD COLUMN \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT;")) return false;
-    }
-    if (!have.count("ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da")) {
-        if (!exec("ALTER TABLE \"user_table\" ADD COLUMN \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT;")) return false;
-    }
-    // stamp the current version
-    if (!exec("INSERT OR REPLACE INTO \"_harpia_schema_version\" "
-              "(\"name\", \"version\") VALUES ('user_table', 'c96f8fd7f45108efee5a8ecb43eab1da');")) return false;
-    return true;
+        // additive migration: add any column missing from an older table version
+        if (!have.count("address")) {
+            db << "ALTER TABLE \"user_table\" ADD COLUMN \"address\" TEXT;";
+        }
+        if (!have.count("name")) {
+            db << "ALTER TABLE \"user_table\" ADD COLUMN \"name\" TEXT;";
+        }
+        if (!have.count("STATUS_c96f8fd7f45108efee5a8ecb43eab1da")) {
+            db << "ALTER TABLE \"user_table\" ADD COLUMN \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT;";
+        }
+        if (!have.count("ERROR_c96f8fd7f45108efee5a8ecb43eab1da")) {
+            db << "ALTER TABLE \"user_table\" ADD COLUMN \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT;";
+        }
+        if (!have.count("ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da")) {
+            db << "ALTER TABLE \"user_table\" ADD COLUMN \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT;";
+        }
+        // stamp the current version
+        db << "INSERT OR REPLACE INTO \"_harpia_schema_version\" (\"name\", \"version\") VALUES ('user_table', 'c96f8fd7f45108efee5a8ecb43eab1da');";
+        return true;
+    } catch (const std::exception&) { return false; }
 }
 
 // The version hash this migration targets.

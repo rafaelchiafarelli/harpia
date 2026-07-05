@@ -6,94 +6,83 @@
 #include <string>
 #include <vector>
 
-#include "sqlite3.h"
+#include <soci/soci.h>
 #include "{pb_header}"{fk_includes}
 
 namespace harpia {{
 namespace db {{
 
-// Data-access object for {cls} over the "{table}" table. Wraps a sqlite3* the
-// caller owns. Scalar/enum fields, singular FKs to table-bearing messages, the
+// Data-access object for {cls} over the "{table}" table. Wraps a soci::session
+// the caller owns; being SOCI-based it runs on any backend (SQLite, PostgreSQL,
+// ...). Scalar/enum fields, singular FKs to table-bearing messages, the
 // flattened sub-fields of a non-table composed field, and map<K,V> + repeated
 // scalar fields (as child tables keyed by the primary key) are persisted.
+//
+// Every method returns false instead of throwing: SOCI signals errors with
+// exceptions, so each body is wrapped in try/catch. use()/into() bind by
+// reference, so bound values are copied into named locals first; nullable reads
+// are guarded by an indicator.
 class {cls}_dao {{
 public:
-    explicit {cls}_dao(::sqlite3* db) : db_(db) {{}}
+    explicit {cls}_dao(::soci::session& db) : db_(db) {{}}
 
-    bool create_table() {{ return exec("{create_table_sql}"){map_create_tables}; }}
-    bool drop_table()   {{ return {map_drop_tables}exec("DROP TABLE IF EXISTS \"{table}\";"); }}
+    bool create_table() {{
+        try {{
+            db_ << "{create_table_sql}";{map_create_tables}
+            return true;
+        }} catch (const std::exception&) {{ return false; }}
+    }}
+    bool drop_table() {{
+        try {{
+            {map_drop_tables}db_ << "DROP TABLE IF EXISTS \"{table}\";";
+            return true;
+        }} catch (const std::exception&) {{ return false; }}
+    }}
 
     bool create(const ::{cls}& msg) {{
-{fk_precreate}        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "INSERT INTO \"{table}\" ({insert_cols}) VALUES ({insert_qs});",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-{create_bind}
-        const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
-        ::sqlite3_finalize(st);
-        if (!ok) return false;
-{map_create}        return true;
+        try {{
+{fk_precreate}{create_locals}            db_ << "INSERT INTO \"{table}\" ({insert_cols}) VALUES ({insert_ph})"{create_use};
+{map_create}            return true;
+        }} catch (const std::exception&) {{ return false; }}
     }}
 
     bool read(std::int64_t id, ::{cls}* msg) {{
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "SELECT {select_cols} FROM \"{table}\" WHERE \"{id_col}\" = ?;",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        ::sqlite3_bind_int64(st, 1, id);
-        bool found = false;
-        if (::sqlite3_step(st) == SQLITE_ROW) {{ extract(st, msg); found = true; }}
-        ::sqlite3_finalize(st);
-        return found;
+        try {{
+{extract_locals}            db_ << "SELECT {select_cols} FROM \"{table}\" WHERE \"{id_col}\" = :id", ::soci::use(id){extract_into};
+            if (!db_.got_data()) return false;
+{extract_set}{fk_extract}{map_read}            return true;
+        }} catch (const std::exception&) {{ return false; }}
     }}
 
     bool update(const ::{cls}& msg) {{
-{fk_preupdate}        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "UPDATE \"{table}\" SET {update_set} WHERE \"{id_col}\" = ?;",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-{update_bind}
-        ::sqlite3_bind_int64(st, {id_bind_index}, msg.{id_accessor}());
-        const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
-        ::sqlite3_finalize(st);
-        if (!ok) return false;
-{map_update}        return true;
+        try {{
+{fk_preupdate}{update_locals}            db_ << "UPDATE \"{table}\" SET {update_set} WHERE \"{id_col}\" = :cid"{update_use};
+{map_update}            return true;
+        }} catch (const std::exception&) {{ return false; }}
     }}
 
     bool remove(std::int64_t id) {{
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "DELETE FROM \"{table}\" WHERE \"{id_col}\" = ?;",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        ::sqlite3_bind_int64(st, 1, id);
-        const bool ok = ::sqlite3_step(st) == SQLITE_DONE;
-        ::sqlite3_finalize(st);
-        if (!ok) return false;
-{map_remove}        return true;
+        try {{
+            db_ << "DELETE FROM \"{table}\" WHERE \"{id_col}\" = :id", ::soci::use(id);
+{map_remove}            return true;
+        }} catch (const std::exception&) {{ return false; }}
     }}
 
     bool list(std::vector<::{cls}>* out) {{
-        ::sqlite3_stmt* st = nullptr;
-        if (::sqlite3_prepare_v2(db_,
-                "SELECT {select_cols} FROM \"{table}\";",
-                -1, &st, nullptr) != SQLITE_OK) return false;
-        while (::sqlite3_step(st) == SQLITE_ROW) {{
-            ::{cls} msg;
-            extract(st, &msg);
-            out->push_back(msg);
-        }}
-        ::sqlite3_finalize(st);
-        return true;
+        try {{
+{extract_locals}            ::soci::statement st = (db_.prepare << "SELECT {select_cols} FROM \"{table}\""{extract_into});
+            st.execute();
+            while (st.fetch()) {{
+                ::{cls} row;
+                ::{cls}* msg = &row;
+{extract_set}{fk_extract}{map_read}                out->push_back(row);
+            }}
+            return true;
+        }} catch (const std::exception&) {{ return false; }}
     }}
 
 private:
-    bool exec(const char* sql) {{
-        return ::sqlite3_exec(db_, sql, nullptr, nullptr, nullptr) == SQLITE_OK;
-    }}
-    void extract(::sqlite3_stmt* st, ::{cls}* msg) {{
-{extract}
-{map_read}    }}
-    ::sqlite3* db_;
+    ::soci::session& db_;
 }};
 
 }}  // namespace db

@@ -145,20 +145,15 @@ def test_grpc_service_impl_wires_crudl(built):
     proto = built["proto_dir"]
     cpp_root = built["cpp_root"]
 
-    sqlite_obj = os.path.join(built["tmp"], "sqlite3_grpc.o")
-    cc = subprocess.run(
-        ["cc", "-c", "-I", SQLITE, os.path.join(SQLITE, "sqlite3.c"),
-         "-o", sqlite_obj], capture_output=True, text=True, timeout=300)
-    assert cc.returncode == 0, cc.stderr
 
     prog = os.path.join(built["tmp"], "grpc_crudl.cc")
     with open(prog, "w") as f:
         f.write(
             '#include "grpc/users_{h}_grpc.h"\n'
-            "#include <sqlite3.h>\n"
+            "#include <soci/soci.h>\n"
+            "#include <soci/sqlite3/soci-sqlite3.h>\n"
             "int main() {{\n"
-            "    ::sqlite3* db = nullptr;\n"
-            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
+            '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
             "    harpia::db::users_dao dao(db);\n"
             "    if (!dao.create_table()) return 2;\n"
             "    harpia::grpc_svc::users_service svc(db);\n"
@@ -174,7 +169,6 @@ def test_grpc_service_impl_wires_crudl(built):
             "    ::frameworkProtos::users_ID miss; miss.set_id(999);\n"
             "    ::frameworkProtos::users_Message r2;\n"
             "    if (svc.pullByID(nullptr, &miss, &r2).ok()) return 6;\n"
-            "    ::sqlite3_close(db);\n"
             "    return 0;\n"
             "}}\n".format(h=HASH)
         )
@@ -186,11 +180,11 @@ def test_grpc_service_impl_wires_crudl(built):
         pb("users_{}".format(HASH)),
         pb("errorCode"),
         pb("heartBeat"),
-        sqlite_obj,
     ]
     binary = os.path.join(built["tmp"], "grpc_crudl")
-    cmd = ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE,
+    cmd = ["g++", "-std=c++17", "-I", cpp_root,
            *_pkgconfig("--cflags"), prog, *objs, "-o", binary,
+           "-lsoci_core", "-lsoci_sqlite3",
            *_pkgconfig("--libs"), "-lpthread", "-ldl"]
     c = subprocess.run(cmd, capture_output=True, text=True)
     assert c.returncode == 0, "gRPC CRUDL program failed to build:\n" + c.stderr
@@ -207,21 +201,16 @@ def test_grpc_metadata_auth(built):
     proto = built["proto_dir"]
     cpp_root = built["cpp_root"]
 
-    sqlite_obj = os.path.join(built["tmp"], "sqlite3_grpcauth.o")
-    cc = subprocess.run(
-        ["cc", "-c", "-I", SQLITE, os.path.join(SQLITE, "sqlite3.c"),
-         "-o", sqlite_obj], capture_output=True, text=True, timeout=300)
-    assert cc.returncode == 0, cc.stderr
 
     prog = os.path.join(built["tmp"], "grpc_auth.cc")
     with open(prog, "w") as f:
         f.write(
             '#include "grpc/users_{h}_grpc.h"\n'
             "#include <grpcpp/grpcpp.h>\n"
-            "#include <sqlite3.h>\n"
+            "#include <soci/soci.h>\n"
+            "#include <soci/sqlite3/soci-sqlite3.h>\n"
             "int main() {{\n"
-            "    ::sqlite3* db = nullptr;\n"
-            '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
+            '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
             "    harpia::db::users_dao dao(db);\n"
             "    if (!dao.create_table()) return 2;\n"
             "    harpia::grpc_svc::users_service svc(db);\n"
@@ -262,7 +251,6 @@ def test_grpc_metadata_auth(built):
             "    }};\n"
             "    const int code = run();\n"
             "    server->Shutdown();\n"
-            "    ::sqlite3_close(db);\n"
             "    return code;\n"
             "}}\n".format(h=HASH)
         )
@@ -274,11 +262,11 @@ def test_grpc_metadata_auth(built):
         pb("users_{}".format(HASH)),
         pb("errorCode"),
         pb("heartBeat"),
-        sqlite_obj,
     ]
     binary = os.path.join(built["tmp"], "grpc_auth")
-    cmd = ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE,
+    cmd = ["g++", "-std=c++17", "-I", cpp_root,
            *_pkgconfig("--cflags"), prog, *objs, "-o", binary,
+           "-lsoci_core", "-lsoci_sqlite3",
            *_pkgconfig("--libs"), "-lpthread", "-ldl"]
     c = subprocess.run(cmd, capture_output=True, text=True)
     assert c.returncode == 0, "gRPC auth program failed to build:\n" + c.stderr

@@ -64,19 +64,6 @@ def generated(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def sqlite_obj(tmp_path_factory):
-    """Compile the vendored sqlite3.c once (it is C; g++ would reject it)."""
-    out = tmp_path_factory.mktemp("sqlite_obj_s14")
-    obj = os.path.join(str(out), "sqlite3.o")
-    c = subprocess.run(
-        ["cc", "-c", "-I", SQLITE, os.path.join(SQLITE, "sqlite3.c"), "-o", obj],
-        capture_output=True, text=True, timeout=300,
-    )
-    assert c.returncode == 0, "sqlite3.c failed to compile:\n" + c.stderr
-    return obj
-
-
-@pytest.fixture(scope="module")
 def tinyxml2_obj(tmp_path_factory):
     """Compile vendored tinyxml2 once (the SOAP access-rights test parses XML)."""
     out = tmp_path_factory.mktemp("tinyxml2_obj_s14")
@@ -94,9 +81,8 @@ def test_unit_tests_generated(generated):
     cpps = sorted(glob.glob(os.path.join(tests_dir, "*_test.cpp")))
     assert cpps, "no unit-test programs generated"
     assert os.path.exists(os.path.join(tests_dir, "CMakeLists.txt"))
-    # SQLite must be vendored into the generated project so it stays self-contained.
-    assert os.path.exists(os.path.join(generated, "third_party", "sqlite",
-                                       "sqlite3.c"))
+    # the test HTTP client is emitted alongside the generated tests
+    assert os.path.exists(os.path.join(tests_dir, "harpia_test_client.h"))
 
 
 def test_ctest_wiring_is_wellformed(generated):
@@ -142,9 +128,10 @@ def messages_lib(generated, tmp_path_factory):
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="generated tests need protoc + protobuf for the message C++")
 def test_every_generated_test_compiles_and_runs(generated, messages_lib,
-                                                sqlite_obj, tinyxml2_obj, tmp_path):
+                                                tinyxml2_obj, tmp_path):
     """Compile + run each *_test.cpp directly against its real message, DAO and
-    SOAP endpoint (the access-rights test pulls in the soap header + tinyxml2)."""
+    SOAP endpoint (the access-rights test pulls in the soap header + tinyxml2).
+    The DB layer links SOCI (soci_core + sqlite3 backend -> system libsqlite3)."""
     cpp_root = messages_lib["cpp_root"]
     cpps = sorted(glob.glob(os.path.join(generated, "tests", "*_test.cpp")))
     assert cpps, "no unit-test programs generated"
@@ -152,10 +139,11 @@ def test_every_generated_test_compiles_and_runs(generated, messages_lib,
         cls, _ = _name_and_hash(os.path.basename(cpp))
         binary = os.path.join(str(tmp_path), "{}_test".format(cls))
         c = subprocess.run(
-            ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE, "-I", TINYXML2,
+            ["g++", "-std=c++17", "-I", cpp_root, "-I", TINYXML2,
              "-I", CROW, "-I", ASIO, "-I", os.path.dirname(cpp),
              *_pkgconfig("--cflags"), cpp, *messages_lib["objs"],
-             sqlite_obj, tinyxml2_obj, "-o", binary,
+             tinyxml2_obj, "-o", binary,
+             "-lsoci_core", "-lsoci_sqlite3",
              *_pkgconfig("--libs"), "-lpthread", "-ldl"],
             capture_output=True, text=True, timeout=180)
         assert c.returncode == 0, "{} test failed to build:\n{}".format(

@@ -96,10 +96,11 @@ def test_crudl_roundtrip(generated, sqlite_obj, tmp_path):
     prog = tmp_path / "crudl.cpp"
     prog.write_text(
         '#include "db/users_{h}_crudl.h"\n'
+        '#include <soci/soci.h>\n'
+        '#include <soci/sqlite3/soci-sqlite3.h>\n'
         "#include <vector>\n"
         "int main() {{\n"
-        "    ::sqlite3* db = nullptr;\n"
-        '    if (sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
         "    harpia::db::users_dao dao(db);\n"
         "    if (!dao.create_table()) return 2;\n"
         "    ::users a; a.set_id_{h}(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
@@ -124,8 +125,9 @@ def test_crudl_roundtrip(generated, sqlite_obj, tmp_path):
     pb_cc = os.path.join(cpp_root, "protofiles", "users_{}.pb.cc".format(HASH))
     binary = str(tmp_path / "crudl")
     c = subprocess.run(
-        ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE,
-         *_pkgconfig("--cflags"), str(prog), pb_cc, sqlite_obj, "-o", binary,
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
          *_pkgconfig("--libs"), "-lpthread", "-ldl"],
         capture_output=True, text=True, timeout=120)
     assert c.returncode == 0, "CRUDL program failed to build:\n" + c.stderr
@@ -146,11 +148,12 @@ def test_migration_additive(generated, sqlite_obj, tmp_path):
     prog = tmp_path / "migrate.cpp"
     prog.write_text(
         '#include "migrate/users_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
         "#include <string>\n"
         "int main() {{\n"
-        "    ::sqlite3* db = nullptr;\n"
-        '    if (::sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
-        "    auto exec = [db](const char* s) {{ return ::sqlite3_exec(db, s, 0, 0, 0) == SQLITE_OK; }};\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
         "    // an older generated version: only the PK + one column, with a row\n"
         '    if (!exec("CREATE TABLE \\"user_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, \\"address\\" TEXT);")) return 2;\n'
         "    if (!exec(\"INSERT INTO \\\"user_table\\\" (\\\"ID_{h}\\\", \\\"address\\\") VALUES (1, 'matrix');\")) return 3;\n"
@@ -165,11 +168,9 @@ def test_migration_additive(generated, sqlite_obj, tmp_path):
         "    ::users old; if (!dao.read(1, &old)) return 8;\n"
         '    if (old.address() != "matrix") return 9;\n'
         "    // the version was stamped\n"
-        "    ::sqlite3_stmt* st = nullptr;\n"
-        '    if (::sqlite3_prepare_v2(db, "SELECT \\"version\\" FROM \\"_harpia_schema_version\\" WHERE \\"name\\" = \'user_table\';", -1, &st, nullptr) != SQLITE_OK) return 10;\n'
-        "    if (::sqlite3_step(st) != SQLITE_ROW) return 11;\n"
-        "    const std::string v = reinterpret_cast<const char*>(::sqlite3_column_text(st, 0));\n"
-        "    ::sqlite3_finalize(st);\n"
+        "    std::string v; ::soci::indicator vi;\n"
+        '    db << "SELECT \\"version\\" FROM \\"_harpia_schema_version\\" WHERE \\"name\\" = \'user_table\'", ::soci::into(v, vi);\n'
+        "    if (!db.got_data() || vi != ::soci::i_ok) return 11;\n"
         '    if (v != "{h}") return 12;\n'
         "    if (!::harpia::db::migrate_users(db)) return 13;  // idempotent\n"
         "    return 0;\n"
@@ -178,8 +179,9 @@ def test_migration_additive(generated, sqlite_obj, tmp_path):
     pb_cc = os.path.join(cpp_root, "protofiles", "users_{}.pb.cc".format(HASH))
     binary = str(tmp_path / "migrate")
     c = subprocess.run(
-        ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE,
-         *_pkgconfig("--cflags"), str(prog), pb_cc, sqlite_obj, "-o", binary,
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
          *_pkgconfig("--libs"), "-lpthread", "-ldl"],
         capture_output=True, text=True, timeout=120)
     assert c.returncode == 0, "migration program failed to build:\n" + c.stderr
@@ -201,9 +203,10 @@ def test_fk_roundtrip(generated, sqlite_obj, tmp_path):
     prog = tmp_path / "fk.cpp"
     prog.write_text(
         '#include "db/top_users_{h}_crudl.h"\n'
+        '#include <soci/soci.h>\n'
+        '#include <soci/sqlite3/soci-sqlite3.h>\n'
         "int main() {{\n"
-        "    ::sqlite3* db = nullptr;\n"
-        '    if (sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
         "    harpia::db::top_users_dao pdao(db);\n"
         "    harpia::db::vip_users_dao cdao(db);\n"
         "    if (!pdao.create_table() || !cdao.create_table()) return 2;\n"
@@ -226,8 +229,9 @@ def test_fk_roundtrip(generated, sqlite_obj, tmp_path):
           os.path.join(proto_dir, "vip_users_{}.pb.cc".format(HASH))]
     binary = str(tmp_path / "fk")
     c = subprocess.run(
-        ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE,
-         *_pkgconfig("--cflags"), str(prog), *pb, sqlite_obj, "-o", binary,
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), *pb, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
          *_pkgconfig("--libs"), "-lpthread", "-ldl"],
         capture_output=True, text=True, timeout=180)
     assert c.returncode == 0, "FK program failed to build:\n" + c.stderr
@@ -250,9 +254,10 @@ def test_repeated_fk_roundtrip(generated, sqlite_obj, tmp_path):
     prog = tmp_path / "repfk.cpp"
     prog.write_text(
         '#include "db/top_users_{h}_crudl.h"\n'
+        '#include <soci/soci.h>\n'
+        '#include <soci/sqlite3/soci-sqlite3.h>\n'
         "int main() {{\n"
-        "    ::sqlite3* db = nullptr;\n"
-        '    if (sqlite3_open(":memory:", &db) != SQLITE_OK) return 1;\n'
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
         "    harpia::db::top_users_dao pdao(db);\n"
         "    harpia::db::vip_users_dao cdao(db);\n"
         "    if (!pdao.create_table() || !cdao.create_table()) return 2;\n"
@@ -277,8 +282,9 @@ def test_repeated_fk_roundtrip(generated, sqlite_obj, tmp_path):
           os.path.join(proto_dir, "vip_users_{}.pb.cc".format(HASH))]
     binary = str(tmp_path / "repfk")
     c = subprocess.run(
-        ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE,
-         *_pkgconfig("--cflags"), str(prog), *pb, sqlite_obj, "-o", binary,
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), *pb, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
          *_pkgconfig("--libs"), "-lpthread", "-ldl"],
         capture_output=True, text=True, timeout=180)
     assert c.returncode == 0, "repeated-FK program failed to build:\n" + c.stderr
@@ -298,25 +304,27 @@ def test_dbio_roundtrip(generated, sqlite_obj, tmp_path):
     prog = tmp_path / "dbio.cpp"
     prog.write_text(
         '#include "dbio/users_{h}_dbio.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
         "#include <vector>\n"
-        "static ::sqlite3* fresh() {{\n"
-        "    ::sqlite3* db = nullptr; ::sqlite3_open(\":memory:\", &db); return db;\n"
-        "}}\n"
         "int main() {{\n"
-        "    harpia::db::users_dao dao(fresh());\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    harpia::db::users_dao dao(db);\n"
         "    if (!dao.create_table()) return 1;\n"
         "    ::users a; a.set_id_{h}(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
         "    ::users b; b.set_id_{h}(2); b.set_name(\"trinity\");\n"
         "    if (!dao.create(a) || !dao.create(b)) return 2;\n"
         "    // JSON export -> import into a fresh DB\n"
         "    std::string js; if (!harpia::dbio::export_json(dao, &js)) return 3;\n"
-        "    harpia::db::users_dao jdao(fresh()); jdao.create_table();\n"
+        '    ::soci::session jdb(::soci::sqlite3, ":memory:");\n'
+        "    harpia::db::users_dao jdao(jdb); jdao.create_table();\n"
         "    if (!harpia::dbio::import_json(jdao, js)) return 4;\n"
         "    std::vector<::users> jr; jdao.list(&jr); if (jr.size() != 2) return 5;\n"
         "    ::users jg; if (!jdao.read(1, &jg) || jg.name() != \"neo\") return 6;\n"
         "    // XML export -> import into a fresh DB\n"
         "    std::string xs; if (!harpia::dbio::export_xml(dao, &xs)) return 7;\n"
-        "    harpia::db::users_dao xdao(fresh()); xdao.create_table();\n"
+        '    ::soci::session xdb(::soci::sqlite3, ":memory:");\n'
+        "    harpia::db::users_dao xdao(xdb); xdao.create_table();\n"
         "    if (!harpia::dbio::import_xml(xdao, xs)) return 8;\n"
         "    std::vector<::users> xr; xdao.list(&xr); if (xr.size() != 2) return 9;\n"
         "    ::users xg; if (!xdao.read(2, &xg) || xg.name() != \"trinity\") return 10;\n"
@@ -327,9 +335,9 @@ def test_dbio_roundtrip(generated, sqlite_obj, tmp_path):
     tinyxml = os.path.join(TINYXML2, "tinyxml2.cpp")
     binary = str(tmp_path / "dbio")
     c = subprocess.run(
-        ["g++", "-std=c++17", "-I", cpp_root, "-I", SQLITE, "-I", TINYXML2,
-         *_pkgconfig("--cflags"), str(prog), pb_cc, tinyxml, sqlite_obj,
-         "-o", binary, *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", TINYXML2,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, tinyxml, "-o", binary, "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
         capture_output=True, text=True, timeout=180)
     assert c.returncode == 0, "DB import/export program failed to build:\n" + c.stderr
     run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
