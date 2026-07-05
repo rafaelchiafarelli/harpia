@@ -6,10 +6,18 @@
 #   - protobuf-compiler (protoc) + libprotobuf-dev     : Stage 7, .proto -> C++
 #   - protobuf-compiler-grpc + libgrpc++-dev           : Stage 13 gRPC stubs
 #   - libzmq3-dev + cppzmq-dev                         : Stage 13 ZMQ transport
+#   - libsoci-dev + libsoci-sqlite3/postgresql + libpq + libsqlite3-dev
+#                                                      : Stage 8 persistence
+#       (SOCI is the DB-agnostic access layer the generated DAO is emitted
+#        against; sqlite3 backend backs the hermetic tests, postgresql backend
+#        the production target. libsqlite3-dev supplies the <sqlite3.h> the SOCI
+#        sqlite3 backend header includes — see Database/backends/ +
+#        plans/postgres-migration.md)
 #   - cmake, g++, make                                 : compile the generated C++
 # (Stage 10 XML uses tinyxml2, and Stages 11/12 SOAP+REST use Crow + standalone
 #  asio, all vendored in-tree under third_party/ rather than apt — so generated
-#  output stays self-contained and cross-compilable on any target board.)
+#  output stays self-contained and cross-compilable on any target board. protobuf,
+#  gRPC, ZMQ and SOCI are the heavier libs and come from apt, like on a board.)
 #
 # The repository is mounted at /harpia at run time (see docker/run.sh), so edits
 # on the host are picked up without rebuilding the image.
@@ -26,6 +34,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libgrpc++-dev \
         libzmq3-dev \
         cppzmq-dev \
+        libsoci-dev \
+        libsoci-sqlite3-4.0 \
+        libsoci-postgresql4.0 \
+        libpq-dev \
+        libsqlite3-dev \
+        libboost-dev \
         cmake \
         g++ \
         make \
