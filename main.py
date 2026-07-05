@@ -141,18 +141,30 @@ if __name__ == '__main__':
     if xmlError is not None:
         log.print(xmlError.__str__())
 
+    #8. pick the DB dialect (SQLite default; PostgreSQL via HARPIA_DB_BACKEND).
+    # The generated DAO is dialect-free (SOCI); only the SQL the backend emits
+    # (types, DDL, migration introspection, version stamp) changes.
+    from Database.backends import get_backend
+    dbBackend = get_backend(os.environ.get("HARPIA_DB_BACKEND"))
+    log.print("DB backend: {} (soci:{})".format(
+        dbBackend.name, dbBackend.soci_backend))
+
     #8. generate the SQL schema (supersedes the FileCreator stub)
-    sqlError = SqlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    sqlError = SqlAdapter(messages=msgFactory.messages, dest=testDestination,
+                          backend=dbBackend).Process()
     if sqlError is not None:
         log.print(sqlError.__str__())
 
-    #8 (crudl). generate the CRUDL data-access objects over SQLite
-    crudlError = CrudlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    #8 (crudl). generate the CRUDL data-access objects (SOCI)
+    crudlError = CrudlAdapter(messages=msgFactory.messages, dest=testDestination,
+                              backend=dbBackend).Process()
     if crudlError is not None:
         log.print(crudlError.__str__())
 
     #8 (migrate). generate schema-migration / version-transform functions
-    migrateError = MigrationAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    migrateError = MigrationAdapter(messages=msgFactory.messages,
+                                    dest=testDestination,
+                                    backend=dbBackend).Process()
     if migrateError is not None:
         log.print(migrateError.__str__())
 
