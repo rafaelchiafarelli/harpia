@@ -27,6 +27,7 @@ import os
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
 from Util.util import loadTemplate
+from Database.backends import get_backend
 from Database.model import analyze, type_registry, map_fields, repeated_fields
 
 SQL_EXT = "_table.sql"
@@ -35,11 +36,12 @@ _TABLE = loadTemplate(__file__, "table.sql.tmpl")
 
 
 class SqlAdapter:
-    def __init__(self, messages, dest) -> None:
+    def __init__(self, messages, dest, backend=None) -> None:
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "database")
         self.types = type_registry(messages)
+        self.backend = backend or get_backend()
         self.log = logger(outFile=None, moduleName="SqlAdapter")
 
     def Process(self):
@@ -62,7 +64,7 @@ class SqlAdapter:
         if not msg.tableName:
             return "-- {}: no table declared\n".format(msg.name)
 
-        columns, notes = analyze(msg, self.types)
+        columns, notes = analyze(msg, self.types, self.backend)
         column_lines = ['    "{}" {}'.format(c.name, c.sql_def()) for c in columns]
         main = _TABLE.format(
             name=msg.name,
@@ -76,12 +78,12 @@ class SqlAdapter:
     def _child_tables(self, msg, columns):
         """A child table per map<K,V> field (owner, key, value) and per repeated
         scalar field (owner, ordinal, value), keyed by the parent's PK."""
-        maps = map_fields(msg, self.types)
-        reps = repeated_fields(msg, self.types)
+        maps = map_fields(msg, self.types, self.backend)
+        reps = repeated_fields(msg, self.types, self.backend)
         if not maps and not reps:
             return ""
         pk = next((c for c in columns if c.pk), None)
-        owner_sql = pk.sql_type if pk else "INTEGER"
+        owner_sql = pk.sql_type if pk else self.backend.int_type
         blocks = [""]
         for mf in maps:
             blocks.append(
