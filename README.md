@@ -18,7 +18,7 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 |-------|------|--------|
 | 0–6 | front-end: pre-process, tokenize, build messages, emit clean `.proto` | ✅ implemented |
 | 7 | run `protoc` → compilable C++ messages | ✅ implemented |
-| 8 | database / SQL (schema, CRUDL, version transforms) | ✅ CREATE TABLE schema + CRUDL DAO over vendored SQLite, incl. enum columns, singular FK to a table-bearing message (the child row is persisted/loaded via its own DAO), a singular composed field to a table-less message flattened into prefixed columns (`data.val.var` → column `val_var`), `map<K,V>` fields (direct or embed-nested) persisted in a child table `<table>__<path>` keyed by the parent PK (create/read/update/remove cascade), repeated scalar fields (`repeteable int tags`, direct or embed-nested like `data.val.scores`) persisted in an ordinal-keyed child table, and repeated composed fields to a table-bearing message (`repeteable vip_users members`, a 1-to-many: each child persisted/loaded via its DAO through a link table); the `repeteable` modifier now emits proto `repeated`. Schema migration / version transforms: a `migrate_<name>(db)` per table brings an older database up to the current schema (additive `ALTER TABLE`, version stamped in `_harpia_schema_version`). Repeated composed fields and non-additive (rename/drop/type-change) transforms deferred |
+| 8 | database / SQL (schema, CRUDL, version transforms) | ✅ CREATE TABLE schema + CRUDL DAO emitted against **SOCI** — database-agnostic: SQLite by default or PostgreSQL via `HARPIA_DB_BACKEND=postgresql` (same generated code, only the SQL dialect changes), incl. enum columns, singular FK to a table-bearing message (the child row is persisted/loaded via its own DAO), a singular composed field to a table-less message flattened into prefixed columns (`data.val.var` → column `val_var`), `map<K,V>` fields (direct or embed-nested) persisted in a child table `<table>__<path>` keyed by the parent PK (create/read/update/remove cascade), repeated scalar fields (`repeteable int tags`, direct or embed-nested like `data.val.scores`) persisted in an ordinal-keyed child table, and repeated composed fields to a table-bearing message (`repeteable vip_users members`, a 1-to-many: each child persisted/loaded via its DAO through a link table); the `repeteable` modifier now emits proto `repeated`. Schema migration / version transforms: a `migrate_<name>(db)` per table brings an older database up to the current schema (additive `ALTER TABLE`, version stamped in `_harpia_schema_version`). Repeated composed fields and non-additive (rename/drop/type-change) transforms deferred |
 | 9 | JSON adapter (`to_json`/`from_json` + checker) | ✅ message↔JSON + DB bulk export/import (NDJSON) |
 | 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD + DB bulk export/import |
 | 11 | SOAP | ✅ SOAP get/set/update/delete endpoint (XML over HTTP) over CRUDL (Crow + tinyxml2), gated by the Stage 5 access credential (SOAP Header `<credentials>`, 401 Fault on mismatch); WSDL 1.1 descriptor emitted per message (`wsdl/<name>_<hash>.wsdl`, document/literal SOAP binding) |
@@ -28,6 +28,13 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 
 The generated project builds with its own CMake and ships a runnable
 client/server demo (ZMQ). See `tests/` for what is verified end to end.
+
+**Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the
+consumer's guide (generate, the `.harpia` language by example, what gets
+generated, building, choosing the DB backend, and wiring the output into your own
+project). A complete, runnable downstream example lives in
+[`examples/consumer/`](examples/consumer/) and is guarded by
+`tests/test_consumer_example.py`.
 
 ## Build, test & run
 
