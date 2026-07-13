@@ -45,6 +45,12 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `test_stage13_zmq.py` — ZMQ PUSH/PULL round-trip over a real socket.
 - `test_stage14.py` — every generated `*_test.cpp` compiles/runs green; CTest
   wiring; `cmake -DHARPIA_BUILD_TESTS=ON` + `ctest`.
+- `test_stage8_pg.py` — **opt-in** live-PostgreSQL CRUDL round-trip (generates with
+  `HARPIA_DB_BACKEND=postgresql`); skipped unless `HARPIA_PG_DSN` points at a
+  reachable server.
+- `test_consumer_example.py` — downstream-consumption contract: builds + runs
+  `examples/consumer/` against a freshly generated project
+  (`cmake -DHARPIA_GEN=<gen>`), asserting the black-box wiring still works.
 - `test_demo.py` — end-to-end: build generated project with its own CMake, run
   client→server. (cmake, protoc, grpc_cpp_plugin, g++, libzmq)
 
