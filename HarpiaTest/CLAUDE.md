@@ -1,0 +1,17 @@
+# HarpiaTest — sample `.harpia` input + generated output tree
+
+**Role:** The canonical demo/test input the pipeline runs on by default, plus its generated build output. `main.py` defaults: input `./HarpiaTest/test.harpia`, includes `./HarpiaTest/Include`, output `./HarpiaTest/test_build` (all overridable via `HARPIA_INPUT_FILE`, `HARPIA_INCLUDE_FOLDER`, `HARPIA_OUTPUT_DIR`).
+
+## Contents
+- `test.harpia` — root input. Starts with `import "file1.harpia"` / `file2` / `file3` (resolved from `Include/`). Exercises messages, nested messages, enums, `optional`/`required`/`repeteable`, `map<>`, `pagination[N]`, and stream/pull/push/event message modifiers plus comment styles.
+- `Include/file1.harpia` (`message pope`), `file2.harpia` (`message king`, `queen`), `file3.harpia` — module files pulled in by the root's `import` statements.
+- `test_build/` — GENERATED output (proto, generated/cpp adapters, CMake, server/client demo). Wiped and recreated each run (`shutil.rmtree` + `makedirs` in `main.py`).
+
+## Key facts / gotchas
+- `test_build/` is **generated and gitignored** (repo `.gitignore` has `*build*`). Never edit by hand or commit; regenerate by running the pipeline.
+- Input md5 (current golden input, for detecting drift):
+  - `test.harpia` = `c96f8fd7f45108efee5a8ecb43eab1da`
+  - `Include/file1.harpia` = `e7f528d62098cd94d92019bda39c8f43`
+  - `Include/file2.harpia` = `f9ea5ac8ffa3e7d57e6a95824840d191`
+  - `Include/file3.harpia` = `155027516795d2f9dfc73c21e1df49e7`
+- Imports are resolved by filename against `includeFolder`; the root file references them bare (`file1.harpia`), not by relative path.

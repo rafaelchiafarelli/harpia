@@ -5,6 +5,99 @@
 ## Harpia is the Mithological creature responsible to deliver the news and other things.
 ## Data Exchange and Service Gateway
 
+> **Note:** most of this document is the design vision/spec. The sections below
+> ("Current status", "Build, test & run", "Repository layout") describe what is
+> actually implemented today. Everything past "## objective:" is the spec.
+
+## Current status
+
+Harpia turns a `.harpia` definition into compilable C++ transport/serialization
+code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
+
+| Stage | What | Status |
+|-------|------|--------|
+| 0–6 | front-end: pre-process, tokenize, build messages, emit clean `.proto` | ✅ implemented |
+| 7 | run `protoc` → compilable C++ messages | ✅ implemented |
+| 8 | database / SQL (schema, CRUDL, version transforms) | ✅ CREATE TABLE schema + CRUDL DAO emitted against **SOCI** — database-agnostic: SQLite by default or PostgreSQL via `HARPIA_DB_BACKEND=postgresql` (same generated code, only the SQL dialect changes), incl. enum columns, singular FK to a table-bearing message (the child row is persisted/loaded via its own DAO), a singular composed field to a table-less message flattened into prefixed columns (`data.val.var` → column `val_var`), `map<K,V>` fields (direct or embed-nested) persisted in a child table `<table>__<path>` keyed by the parent PK (create/read/update/remove cascade), repeated scalar fields (`repeteable int tags`, direct or embed-nested like `data.val.scores`) persisted in an ordinal-keyed child table, and repeated composed fields to a table-bearing message (`repeteable vip_users members`, a 1-to-many: each child persisted/loaded via its DAO through a link table); the `repeteable` modifier now emits proto `repeated`. Schema migration / version transforms: a `migrate_<name>(db)` per table brings an older database up to the current schema (additive `ALTER TABLE`, version stamped in `_harpia_schema_version`). Repeated composed fields and non-additive (rename/drop/type-change) transforms deferred |
+| 9 | JSON adapter (`to_json`/`from_json` + checker) | ✅ message↔JSON + DB bulk export/import (NDJSON) |
+| 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD + DB bulk export/import |
+| 11 | SOAP | ✅ SOAP get/set/update/delete endpoint (XML over HTTP) over CRUDL (Crow + tinyxml2), gated by the Stage 5 access credential (SOAP Header `<credentials>`, 401 Fault on mismatch); WSDL 1.1 descriptor emitted per message (`wsdl/<name>_<hash>.wsdl`, document/literal SOAP binding) |
+| 12 | HTML / REST bindings | ✅ REST CRUD (GET/POST/PUT/DELETE) over CRUDL (Crow) with JSON/XML content negotiation (`Content-Type`/`Accept`, via the JSON + XML adapters), gated by the Stage 5 access credential (`X-User`/`X-Pswd` headers, 401 on mismatch) |
+| 13 | zmq/socket + gRPC access | ✅ gRPC stubs **wired to CRUDL** (per table message, a `<name>_service` impl: push→create, pullByID→read, streamSrc→list, heartBeat→echo), with the data RPCs gated by the Stage 5 credential via `x-user`/`x-pswd` call metadata (UNAUTHENTICATED on mismatch) **and** ZMQ push/pull + pub/sub, with a compile-time sender "originator" id (process.md 1.3.1.1, one-to-* case) |
+| 14 | generated-code unit tests | ✅ per-message C++ unit tests + one app-level test as an opt-in CTest target (`-DHARPIA_BUILD_TESTS=ON`): simple field access + CRUDL round-trip (14.1/14.2), SOAP access-rights credential gate (14.3), access-modifier constraint enforcement (14.4), JSON (14.5) + XML (14.6) parser round-trips, live REST JSON-CRUD (14.7/14.10) and SOAP-over-HTTP (14.8/14.9) HTTP APIs, and an application-level all-good/crash/slower/non-parseable suite (14.11–14.14) |
+
+The generated project builds with its own CMake and ships a runnable
+client/server demo (ZMQ). See `tests/` for what is verified end to end.
+
+**Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the
+consumer's guide (generate, the `.harpia` language by example, what gets
+generated, building, choosing the DB backend, and wiring the output into your own
+project). A complete, runnable downstream example lives in
+[`examples/consumer/`](examples/consumer/) and is guarded by
+`tests/test_consumer_example.py`.
+
+## Build, test & run
+
+The full toolchain (Python, `protoc`, gRPC, CMake, g++, ZMQ) lives in a Docker
+image so nothing is installed on the host. Third-party C++ libs are vendored
+in-tree under `third_party/` (e.g. tinyxml2), not installed from the system.
+
+```sh
+docker/run.sh pytest            # full test suite
+docker/run.sh python3 main.py   # run the generator → HarpiaTest/test_build/
+docker/run.sh                   # interactive shell in the toolchain
+```
+
+`docker/run.sh` builds the image (`Dockerfile`) on first use and runs as your
+UID so generated files are owned by you. To run the end-to-end demo by hand:
+
+```sh
+docker/run.sh bash -c '
+  python3 main.py && cd HarpiaTest/test_build &&
+  cmake -S . -B build && cmake --build build -j &&
+  ./build/server/server "tcp://*:5599" & sleep 1 &&
+  ./build/client/client "tcp://localhost:5599"'
+```
+
+Without Docker you can still run the Python-only tests in a venv (the
+compile/run tests skip themselves). See `tests/README.md`.
+
+### Run against an input folder → output folder
+
+`run_harpia.sh` is the one-shot driver: point it at an input folder (holding one
+`.harpia`, plus an optional `Include/` subfolder of `import` modules) and an
+output folder — both may live **anywhere** on the filesystem. It generates,
+builds, and runs the generated tests inside the Docker image:
+
+```sh
+./run_harpia.sh <input_folder> <output_folder>            # codegen + cmake + ctest
+./run_harpia.sh <input_folder> <output_folder> --no-build # codegen only
+```
+
+The output folder is a **self-contained, portable example**: it vendors its own
+copy of `third_party/` and includes a generated `HOW_TO_BUILD.md`, so you can
+copy it to any machine with a C++17 toolchain + `protoc`/gRPC and build it with
+`cmake -S . -B build -DHARPIA_BUILD_TESTS=ON && cmake --build build && ctest`.
+The cmake build itself runs in a throwaway dir, so the output stays clean source.
+
+Internally the generator reads three env vars (with in-repo defaults), which the
+script sets: `HARPIA_INPUT_FILE`, `HARPIA_INCLUDE_FOLDER`, `HARPIA_OUTPUT_DIR`.
+`main.py` cleans `HARPIA_OUTPUT_DIR` before regenerating.
+
+## Repository layout
+
+| path | role |
+|------|------|
+| `main.py` | pipeline entry point |
+| `run_harpia.sh` | one-shot driver: input folder → output folder (codegen + build + ctest) |
+| `LexicalAnalizer/`, `Message/`, `Errors/`, `Logger/`, `Util/` | front-end (lex, parse, build messages) |
+| `ProtoFile/` | `.proto` emission (`FileCreator`), Stage 7 (`ProtoCompiler`), Stage 13 gRPC (`GrpcCompiler`) |
+| `JsonAdapter/`, `XmlAdapter/`, `ZmqAdapter/`, `Database/` | back-end generators; each has a `templates/` dir of generator templates (XmlAdapter also a `runtime/`, Database a shared `model.py`) |
+| `Assets/` | project skeleton copied into output (CMake, proto templates, server/client demo) |
+| `third_party/` | vendored third-party source (tinyxml2, SQLite, Crow + standalone asio) |
+| `tests/` | golden snapshots + per-stage compile/run tests (see `tests/README.md`) |
+| `HarpiaTest/` | the sample `test.harpia` and its includes |
+
 ## objective:
 Create a generalized interface for processes and threads to share data among themselves, database and web that has gRPC, ORM, RESTFull, SOAP, CRUDL, multi-project, multi-language and a  multi-thread library to exchange data.
 
@@ -184,7 +277,7 @@ now, for this development
    * if it is not a table, repeateble variables are present in memory as arrays, vectors, or lists
 ### Serialization
  * Serializers provided are intrinscically safe. Never ever they will crash.
- * Memory consumption is limited by the system. If memory is out, serializer returns an error of no memory and a standardized message.
+ * Memory consumption is limited by the system. If memory is out, serializer returns an error of no memory and a standartized message.
  * map variables are serialized as dicts 
 ### SOAP
 * SOAP is a xml protocol implemented over http
@@ -220,9 +313,9 @@ All features and code generation can be independently disabled. If a feature dep
 * bashs
 
 # Configurations
-All configurations must be available at the harpia file.
-Configurations related to specific language definitions must be available at the harpia file.
-Should have language selection within the harpia file??
+All configurations must be available at the protobuf file.
+Configurations related to specific language definitions must be available at the protobuf file.
+Should have language selection within the protobuf?
 
 # philosophy
 1. every bug create unit tests.
