@@ -1,0 +1,1 @@
+-- another_sage: no table declared

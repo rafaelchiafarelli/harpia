@@ -1,0 +1,10 @@
+syntax = "proto3";
+enum grower {
+g_a = 0;
+g_b = 1;
+g_c = 2;
+g_d = 3;
+g_e = 4;
+g_f = 5;
+g_g = 6;
+}
