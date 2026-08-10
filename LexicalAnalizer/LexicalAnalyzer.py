@@ -5,11 +5,11 @@ from Errors.Error import Error, Types, Classes
 ## LexicalAnalyzer should only tokenize the files 
 class LexicalAnalyzer:
     log = logger(outFile=None, moduleName="LexicalAnalizer" )    
-    
+    # Token row
+    lin_num = 1
+    tokens = []
     def __init__(self) -> None:
         self.name = "empty"
-        self.tokens = []
-        self.lin_num = 1    
         self.rules = [
             ('IMPORT', r'import'),
             ('QUOTES', r'\"'),
@@ -87,9 +87,9 @@ class LexicalAnalyzer:
                 continue
             elif token_type == 'MISMATCH':
                 self.log.print("{} unexpected on line {}".format(token_lexeme, self.lin_num))
-                return Error(errCl = Classes.FILE_HAS_ERROR, 
-                         errTp = Types.LEXICAL_ANALYZER_ERROR, 
-                         FileName = self.file, 
+                return Error(errCl = Classes.FILE_HAS_ERROR,
+                         errTp = Types.LEXICAL_ANALYZER_ERROR,
+                         FileName = self.name,
                          FileLine = "",
                          CharacterNumber = 0)
             else:

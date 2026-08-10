@@ -2,7 +2,6 @@
 import copy
 from Errors.Error import Error, Types, Classes
 from Logger.logger import logger
-import re
 import uuid
 class variable():
     index = -1
@@ -67,15 +66,19 @@ class Variables():
                 for i,t in enumerate(self.tokens[variableBegins:variableEnds]):
 
                     if t[0] == 'REPETEABLE':
+                        firstID = i
                         repeteable = self.getRepeteable(self.tokens[variableBegins+i:variableEnds])
                         if repeteable is None:
-                            return Error(errCl=Classes.VARTYPES, 
-                                        errTp=Types.MALFORMED_REPETEABLE, 
+                            return Error(errCl=Classes.VARTYPES,
+                                        errTp=Types.MALFORMED_REPETEABLE,
                                         FileName=self.file,
                                         FileLine=t[2],
                                         CharacterNumber=t[3])
-                        
-                        var.modifiers.append(repeteable)
+                        # append the REPETEABLE token (like the other modifiers) so
+                        # {m[0] for m in modifiers} can detect it; keep the bound
+                        # separately as a memory hint.
+                        var.modifiers.append(t)
+                        var.repeteableSize = repeteable
                     if t[0] == 'OPTIONAL':
                         firstID = i
                         var.modifiers.append(t)
@@ -258,28 +261,28 @@ class Variables():
 
 
     def getRepeteable(self,tokens):
+        # A repeateable is either unbounded ("repeteable", dynamic memory bound ->
+        # size 0) or bounded to a constant ("repeteable[N]" -> N). The bound is the
+        # first bracket pair right after the REPETEABLE token; a later regex bracket
+        # on the field's type is not part of it. Returns the bound (int) or None on
+        # a malformed/unbalanced bracket.
         if tokens[0][0] != 'REPETEABLE':
             return None
-        repStart = 0
-        repStop = 0
-        for i,t in enumerate(tokens):
-            if t[0] == 'SQLEFTBRACKET':
-                repStart = i
-            if t[0] == 'SQRIGHTBRACKET':
-                repStop = i
-        regex = ""
-        for t in tokens[repStart:repStop]:
-            regex+=t[1]
-        is_valid = False
-        try:
-            re.compile(regex)
-            is_valid = True
-        except re.error:
+        repStart = next(
+            (i for i, t in enumerate(tokens) if t[0] == 'SQLEFTBRACKET'), None)
+        if repStart is None:
+            return 0  # unbounded (dynamic)
+        bound = None
+        repStop = None
+        for j in range(repStart + 1, len(tokens)):
+            if tokens[j][0] == 'SQRIGHTBRACKET':
+                repStop = j
+                break
+            if tokens[j][0] == 'INTEGER_CONST':
+                bound = int(tokens[j][1])
+        if repStop is None or bound is None:
             return None
-        if is_valid == True:
-            return tokens[repStart:repStop]
-        else:
-            return None
+        return bound
 
     def getPagination(self, tokens):
         if tokens[0][0] != 'PAGINATION':
