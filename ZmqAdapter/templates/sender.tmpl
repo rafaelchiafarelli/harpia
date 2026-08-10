@@ -1,0 +1,31 @@
+{comment}
+class {name}_{role} {{
+public:
+    {name}_{role}(::zmq::context_t& ctx, const std::string& endpoint)
+        : {name}_{role}(ctx, endpoint, origin_id()) {{}}
+    // many-to-*: the zmq/socket module assigns the sender id at runtime
+    {name}_{role}(::zmq::context_t& ctx, const std::string& endpoint,
+                  const std::string& origin)
+        : origin_(origin), socket_(ctx, ::zmq::socket_type::{sock}) {{
+        socket_.{connect}(endpoint);
+    }}
+    // compile-time unique sender number (one-to-*): hash(file)+message
+    static const std::string& origin_id() {{
+        static const std::string id = "{origin_id}";
+        return id;
+    }}
+    const std::string& origin() const {{ return origin_; }}
+    bool {verb}(const {cls}& msg) {{
+        {cls} stamped = msg;
+{stamp}        std::string bytes;
+        if (!stamped.SerializeToString(&bytes)) return false;
+        ::zmq::message_t frame(bytes.size());
+        std::memcpy(frame.data(), bytes.data(), bytes.size());
+        return socket_.send(frame, ::zmq::send_flags::none).has_value();
+    }}
+    ::zmq::socket_t& socket() {{ return socket_; }}
+private:
+    std::string origin_;
+    ::zmq::socket_t socket_;
+}};
+
