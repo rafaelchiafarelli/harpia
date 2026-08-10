@@ -274,3 +274,89 @@ def test_grpc_metadata_auth(built):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, "gRPC metadata auth failed at check #{}".format(
         run.returncode)
+
+
+def test_grpc_streamsrc_pagination(built):
+    """streamSrc honors the request's offset/limit (limit>0 -> paginated
+    subset in order); limit<=0 (unset, proto3 default) still streams
+    everything -- pre-pagination behavior unchanged."""
+    proto = built["proto_dir"]
+    cpp_root = built["cpp_root"]
+
+    prog = os.path.join(built["tmp"], "grpc_page.cc")
+    with open(prog, "w") as f:
+        f.write(
+            '#include "grpc/users_{h}_grpc.h"\n'
+            "#include <grpcpp/grpcpp.h>\n"
+            "#include <soci/soci.h>\n"
+            "#include <soci/sqlite3/soci-sqlite3.h>\n"
+            "#include <vector>\n"
+            "int main() {{\n"
+            '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+            "    harpia::db::users_dao dao(db);\n"
+            "    if (!dao.create_table()) return 2;\n"
+            "    harpia::grpc_svc::users_service svc(db);\n"
+            "    ::grpc::ServerBuilder b;\n"
+            "    b.RegisterService(&svc);\n"
+            "    auto server = b.BuildAndStart();\n"
+            "    if (!server) return 3;\n"
+            "    auto chan = server->InProcessChannel(::grpc::ChannelArguments());\n"
+            "    auto stub = ::frameworkProtos::users_Service::NewStub(chan);\n"
+            "    auto run = [&]() -> int {{\n"
+            "        for (int i = 1; i <= 5; ++i) {{\n"
+            "            ::frameworkProtos::users_Message req;\n"
+            "            req.mutable_msg()->set_id_{h}(i);\n"
+            '            req.mutable_msg()->set_name("n" + std::to_string(i));\n'
+            "            ::grpc::ClientContext c;\n"
+            '            c.AddMetadata("x-user", "users");\n'
+            '            c.AddMetadata("x-pswd", "{h}");\n'
+            "            ::frameworkProtos::errorCode ec;\n"
+            "            if (!stub->push(&c, req, &ec).ok() || ec.code() != 0) return 4;\n"
+            "        }}\n"
+            "        ::grpc::ClientContext cp;\n"
+            '        cp.AddMetadata("x-user", "users");\n'
+            '        cp.AddMetadata("x-pswd", "{h}");\n'
+            "        ::frameworkProtos::users_Stream reqp;\n"
+            "        reqp.set_offset(1); reqp.set_limit(2);\n"
+            "        auto rp = stub->streamSrc(&cp, reqp);\n"
+            "        std::vector<std::string> page;\n"
+            "        ::frameworkProtos::users_Message m;\n"
+            "        while (rp->Read(&m)) page.push_back(m.msg().name());\n"
+            "        if (!rp->Finish().ok()) return 5;\n"
+            '        if (page.size() != 2 || page[0] != "n2" || page[1] != "n3") return 6;\n'
+            "        ::grpc::ClientContext ca;\n"
+            '        ca.AddMetadata("x-user", "users");\n'
+            '        ca.AddMetadata("x-pswd", "{h}");\n'
+            "        ::frameworkProtos::users_Stream reqa;  // offset/limit unset (0)\n"
+            "        auto ra = stub->streamSrc(&ca, reqa);\n"
+            "        int count = 0;\n"
+            "        ::frameworkProtos::users_Message m2;\n"
+            "        while (ra->Read(&m2)) ++count;\n"
+            "        if (!ra->Finish().ok() || count != 5) return 7;\n"
+            "        return 0;\n"
+            "    }};\n"
+            "    const int code = run();\n"
+            "    server->Shutdown();\n"
+            "    return code;\n"
+            "}}\n".format(h=HASH)
+        )
+
+    pb = lambda n: os.path.join(proto, "{}.pb.cc".format(n))
+    objs = [
+        os.path.join(proto, "users_{}_service.grpc.pb.cc".format(HASH)),
+        pb("users_{}_service".format(HASH)),
+        pb("users_{}".format(HASH)),
+        pb("errorCode"),
+        pb("heartBeat"),
+    ]
+    binary = os.path.join(built["tmp"], "grpc_page")
+    cmd = ["g++", "-std=c++17", "-I", cpp_root,
+           *_pkgconfig("--cflags"), prog, *objs, "-o", binary,
+           "-lsoci_core", "-lsoci_sqlite3",
+           *_pkgconfig("--libs"), "-lpthread", "-ldl"]
+    c = subprocess.run(cmd, capture_output=True, text=True)
+    assert c.returncode == 0, "gRPC streamSrc pagination program failed to build:\n" + c.stderr
+
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "gRPC streamSrc pagination failed at check #{}".format(
+        run.returncode)

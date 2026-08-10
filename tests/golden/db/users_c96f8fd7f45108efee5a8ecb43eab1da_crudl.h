@@ -121,6 +121,33 @@ public:
         } catch (const std::exception&) { return false; }
     }
 
+    // Paginated list: LIMIT/OFFSET applied server-side. offset is 0-based.
+    bool list(std::vector<::users>* out, long long offset, long long limit) {
+        try {
+            int l0 = 0; ::soci::indicator n0;
+            std::string l1; ::soci::indicator n1;
+            std::string l2; ::soci::indicator n2;
+            std::string l3; ::soci::indicator n3;
+            std::string l4; ::soci::indicator n4;
+            std::string l5; ::soci::indicator n5;
+            ::soci::statement st = (db_.prepare << "SELECT \"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"address\", \"name\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" FROM \"user_table\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
+                ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5));
+            st.execute();
+            while (st.fetch()) {
+                ::users row;
+                ::users* msg = &row;
+                msg->set_id_c96f8fd7f45108efee5a8ecb43eab1da(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_address(n1 == ::soci::i_ok ? l1 : std::string());
+                msg->set_name(n2 == ::soci::i_ok ? l2 : std::string());
+                msg->set_status_c96f8fd7f45108efee5a8ecb43eab1da(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_error_c96f8fd7f45108efee5a8ecb43eab1da(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_originator_c96f8fd7f45108efee5a8ecb43eab1da(n5 == ::soci::i_ok ? l5 : std::string());
+                out->push_back(row);
+            }
+            return true;
+        } catch (const std::exception&) { return false; }
+    }
+
 private:
     ::soci::session& db_;
 };

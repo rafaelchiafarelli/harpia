@@ -3,6 +3,7 @@
 #define HARPIA_REST_VIP_USERS_c96f8fd7f45108efee5a8ecb43eab1da
 
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -13,11 +14,16 @@
 
 // RESTful CRUD for vip_users, backed by the CRUDL DAO. Register on a
 // crow::SimpleApp with a base path (e.g. "/project/v1"); routes are then:
-//   GET    <base>/vip_users        list
+//   GET    <base>/vip_users        list   (?limit=&offset= to paginate)
 //   GET    <base>/vip_users/:id    read
 //   POST   <base>/vip_users        create   (JSON or XML body)
 //   PUT    <base>/vip_users/:id    update   (JSON or XML body)
 //   DELETE <base>/vip_users/:id    delete
+//
+// GET list is paginated when the request supplies ?limit= (>0), or when
+// vip_users declares a "pagination[size]" field (its size becomes the default
+// limit); ?offset= defaults to 0. With no limit in play, list() returns
+// everything, matching pre-pagination behavior.
 //
 // Routes are registered with route_dynamic (not CROW_ROUTE): the path is built
 // from the runtime `base` argument, so it cannot be a compile-time literal. Item
@@ -76,7 +82,20 @@ inline void register_vip_users(crow::SimpleApp& app, ::soci::session& db,
             if (!authorized_vip_users(req)) { res.code = 401; res.end(); return; }
             ::harpia::db::vip_users_dao dao(*dbp);
             std::vector<::vip_users> rows;
-            if (!dao.list(&rows)) { res.code = 500; res.end(); return; }
+            // ?limit=&offset= (or the table's declared pagination[size]
+            // default) paginate the list; omitting both keeps the
+            // unpaginated behavior.
+            const char* lim_s = req.url_params.get("limit");
+            long long limit = lim_s ? std::atoll(lim_s) : 0LL;
+            bool listed;
+            if (limit > 0) {
+                const char* off_s = req.url_params.get("offset");
+                long long offset = off_s ? std::atoll(off_s) : 0;
+                listed = dao.list(&rows, offset, limit);
+            } else {
+                listed = dao.list(&rows);
+            }
+            if (!listed) { res.code = 500; res.end(); return; }
             if (wants_xml_vip_users(req)) {
                 std::string body = "<list>";
                 for (const auto& r : rows) body += ::harpia::xml::to_xml(r);

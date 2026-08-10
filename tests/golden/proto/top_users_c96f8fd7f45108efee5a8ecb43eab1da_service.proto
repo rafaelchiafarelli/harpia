@@ -22,6 +22,10 @@ message top_users_ID {
 message top_users_Stream {
     int32 id = 1;
     string name = 2;
+    // pagination (spec: "pagination" field modifier): limit <= 0 means
+    // unbounded (return everything, matching pre-pagination behavior).
+    int32 offset = 3;
+    int32 limit = 4;
 }
 service top_users_Service {
     rpc heartBeat(top_users_HeartBeat) returns (top_users_HeartBeat) {}

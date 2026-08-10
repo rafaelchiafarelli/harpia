@@ -137,6 +137,54 @@ def test_crudl_roundtrip(generated, sqlite_obj, tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="CRUDL pagination needs protoc + protobuf")
+def test_crudl_pagination(generated, sqlite_obj, tmp_path):
+    """The paginated list(offset, limit) overload returns the right subset in
+    insertion order, and an unpaginated list() still returns everything."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "pagination.cpp"
+    prog.write_text(
+        '#include "db/users_{h}_crudl.h"\n'
+        '#include <soci/soci.h>\n'
+        '#include <soci/sqlite3/soci-sqlite3.h>\n'
+        "#include <vector>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    harpia::db::users_dao dao(db);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        "    for (int i = 1; i <= 5; ++i) {{\n"
+        "        ::users u; u.set_id_{h}(i); u.set_name(\"n\" + std::to_string(i));\n"
+        "        if (!dao.create(u)) return 3;\n"
+        "    }}\n"
+        "    std::vector<::users> page;\n"
+        "    if (!dao.list(&page, 1, 2) || page.size() != 2) return 4;\n"
+        '    if (page[0].name() != "n2" || page[1].name() != "n3") return 5;\n'
+        "    std::vector<::users> last;\n"
+        "    if (!dao.list(&last, 4, 2) || last.size() != 1) return 6;\n"
+        '    if (last[0].name() != "n5") return 7;\n'
+        "    std::vector<::users> all;\n"
+        "    if (!dao.list(&all) || all.size() != 5) return 8;\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb_cc = os.path.join(cpp_root, "protofiles", "users_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "pagination")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=120)
+    assert c.returncode == 0, "pagination program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "pagination round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="migration needs protoc + protobuf")
 def test_migration_additive(generated, sqlite_obj, tmp_path):
     """migrate_<name> brings an older table (missing columns) up to the current

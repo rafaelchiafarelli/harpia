@@ -15,6 +15,7 @@
 //   push(msg)      -> dao.create(msg)             -> errorCode
 //   pullByID(id)   -> dao.read(id)                -> vip_users_Message (NOT_FOUND)
 //   streamSrc()    -> dao.list() streamed back    -> stream vip_users_Message
+//                     (paginated via the request's offset/limit when limit>0)
 //   heartBeat(hb)  -> echo                         (no CRUDL, unauthenticated)
 // Construct with a soci::session the caller owns; register with a grpc::ServerBuilder.
 //
@@ -71,14 +72,20 @@ public:
 
     ::grpc::Status streamSrc(
             ::grpc::ServerContext* context,
-            const ::frameworkProtos::vip_users_Stream*,
+            const ::frameworkProtos::vip_users_Stream* request,
             ::grpc::ServerWriter< ::frameworkProtos::vip_users_Message>* writer) override {
         if (!authorized(context)) {
             return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED, "unauthorized");
         }
         ::harpia::db::vip_users_dao dao(db_);
         std::vector< ::vip_users> rows;
-        if (!dao.list(&rows)) {
+        // limit <= 0 (proto3 default / not set) means unbounded, matching
+        // pre-pagination behavior.
+        const bool paginated = request->limit() > 0;
+        const bool ok = paginated
+            ? dao.list(&rows, request->offset(), request->limit())
+            : dao.list(&rows);
+        if (!ok) {
             return ::grpc::Status(::grpc::StatusCode::INTERNAL, "list failed");
         }
         for (const auto& r : rows) {

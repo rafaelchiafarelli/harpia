@@ -22,6 +22,10 @@ message pope_ID {
 message pope_Stream {
     int32 id = 1;
     string name = 2;
+    // pagination (spec: "pagination" field modifier): limit <= 0 means
+    // unbounded (return everything, matching pre-pagination behavior).
+    int32 offset = 3;
+    int32 limit = 4;
 }
 service pope_Service {
     rpc heartBeat(pope_HeartBeat) returns (pope_HeartBeat) {}

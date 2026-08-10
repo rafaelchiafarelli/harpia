@@ -198,6 +198,17 @@ def _lookup(types, name):
     return entry["kind"], entry["msg"]
 
 
+def pagination_default(msg):
+    """The table's declared default page size, i.e. the paginationSize of the
+    first field carrying the PAGINATION modifier, or None if the message has
+    none. Drives the paginated list()/streamSrc/GET-list surfaces."""
+    for v in (msg.variables or []):
+        mods = {m[0] for m in (v.modifiers or [])}
+        if "PAGINATION" in mods:
+            return v.paginationSize
+    return None
+
+
 def _flatten(parent, child_msg, types, backend):
     """Flatten a non-table composed field's child message into columns prefixed
     with the parent field name (data.val.var -> column "val_var"). Only scalar
