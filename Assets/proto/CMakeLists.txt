@@ -1,4 +1,10 @@
-find_package(Protobuf CONFIG REQUIRED)
+# Protobuf ships a CMake CONFIG package when built from source, but Debian/Ubuntu
+# apt only provides the module-mode FindProtobuf. Try CONFIG, fall back to MODULE
+# so the generated project builds in both environments (incl. the harpia Docker).
+find_package(Protobuf CONFIG QUIET)
+if(NOT Protobuf_FOUND)
+    find_package(Protobuf MODULE REQUIRED)
+endif()
 find_package(gRPC CONFIG REQUIRED)
 find_package(Threads)
 
