@@ -13,7 +13,7 @@
 - Pure text emission — does NOT need `protoc` to have run; the emitted headers only *compile* after Stage 7 produced the `.pb.h` files (inside Docker).
 - Includes the generated message header via protoc include root `-I <dest>/generated/cpp`.
 - Filenames are md5-hash-qualified (`<name>_<hash>`), same hash scheme as ProtoFile — relevant to multi-root.
-- Database-backed JSON functions (spec 8.3-8.6) are intentionally deferred pending Stage 8.
+- Database-backed JSON functions (spec 8.3-8.6) are implemented in `Database/DbIoAdapter.py` (composes `to_json`/`from_json` with the CRUDL DAO), not here.
 
 ## Touchpoints
 - Called by: `main.py` (step 9).

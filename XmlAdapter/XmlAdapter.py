@@ -12,8 +12,9 @@ Unlike JSON, protobuf has no built-in XML, so the runtime walks the message via
 the protobuf descriptor/reflection API (handling nested messages, repeated
 fields, enums and maps generically) and uses the vendored tinyxml2 for parsing.
 
-The database-backed XML functions in the spec (9.3-9.6) are deferred until
-Stage 8 (database access) exists.
+The database-backed XML functions in the spec (9.3-9.6) are implemented in
+Database/DbIoAdapter.py, which composes this module's to_xml/from_xml with the
+Stage 8 CRUDL DAO rather than duplicating that logic here.
 """
 import os
 import shutil

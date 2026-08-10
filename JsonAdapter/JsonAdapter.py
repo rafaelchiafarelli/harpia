@@ -17,8 +17,9 @@ adapters only *compile* once Stage 7 has produced the .pb.h headers (done inside
 the harpia Docker image).
 
 The database-backed JSON functions in the spec (export/import to/from the
-database, 8.3-8.6) are intentionally deferred: they depend on Stage 8 (database
-access), which is not implemented yet.
+database, 8.3-8.6) are implemented in Database/DbIoAdapter.py, which composes
+this module's to_json/from_json with the Stage 8 CRUDL DAO rather than
+duplicating that logic here.
 """
 import os
 

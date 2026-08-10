@@ -15,7 +15,7 @@
 - `_WRAPPER` template and `_RUNTIME_SRC` path are resolved at import time. Runtime is copied on every `Process()` call.
 - Root element in `to_xml` is the message *type name*; XSD collects reachable message types depth-first (cycle-safe).
 - md5-hash-qualified filenames (multi-root relevance, same as ProtoFile/JsonAdapter).
-- Database-backed XML functions (spec 9.3-9.6) deferred pending Stage 8.
+- Database-backed XML functions (spec 9.3-9.6) are implemented in `Database/DbIoAdapter.py` (composes `to_xml`/`from_xml` with the CRUDL DAO), not here.
 
 ## Touchpoints
 - Called by: `main.py` (step 10).
