@@ -2,13 +2,32 @@
 #ifndef {guard}
 #define {guard}
 
+#include <atomic>
+#include <cstdint>
 #include <cstring>
+#include <random>
+#include <sstream>
 #include <string>
+#include <unistd.h>
 #include <zmq.hpp>
 #include "{pb_header}"
 
 namespace harpia {{
 namespace zmq_transport {{
+
+// Runtime-unique sender id for many-to-* (push/pushpull) publishers, where a
+// shared compile-time id would make every "many" sender indistinguishable
+// (process.md 1.3.1.1). Combines the process id, a per-process monotonic
+// counter, and random bits, so concurrent senders across processes and
+// within one process never collide -- no coordinating broker/service needed.
+inline std::string runtime_origin_id() {{
+    static std::atomic<std::uint64_t> counter{{0}};
+    std::random_device rd;
+    std::uint64_t r = (static_cast<std::uint64_t>(rd()) << 32) | rd();
+    std::ostringstream oss;
+    oss << ::getpid() << "-" << counter.fetch_add(1) << "-" << std::hex << r;
+    return oss.str();
+}}
 
 {body}}}  // namespace zmq_transport
 }}  // namespace harpia

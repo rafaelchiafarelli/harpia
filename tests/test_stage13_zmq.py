@@ -156,3 +156,47 @@ def test_zmq_pushpull_roundtrip_runs(built):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, "zmq round-trip failed at check #{}".format(
         run.returncode)
+
+
+def test_zmq_manytoone_runtime_origin_id(built):
+    """`courier` is PUSH-only (no PULL/EVENT/STREAM), a many-to-one/shared
+    publisher: its sender's default constructor must hand out a distinct
+    runtime id per instance (not the single shared compile-time origin_id()
+    every one-to-* message uses -- see test_zmq_pushpull_roundtrip_runs's
+    check on `users`). The explicit-origin constructor still works for a
+    caller-supplied id."""
+    adapter = "courier_{}_zmq.h".format(HASH)
+    assert os.path.exists(os.path.join(built["zmq_dir"], adapter)), \
+        "courier transport missing"
+
+    prog = os.path.join(built["tmp"], "zmq_manytoone.cc")
+    with open(prog, "w") as f:
+        f.write(
+            '#include "zmq/{adapter}"\n'
+            "int main() {{\n"
+            "    ::zmq::context_t ctx{{1}};\n"
+            "    // bind receivers first so the inproc endpoints exist for connect()\n"
+            '    harpia::zmq_transport::courier_receiver r1(ctx, "inproc://c1");\n'
+            '    harpia::zmq_transport::courier_receiver r2(ctx, "inproc://c2");\n'
+            '    harpia::zmq_transport::courier_receiver r3(ctx, "inproc://c3");\n'
+            '    harpia::zmq_transport::courier_sender a(ctx, "inproc://c1");\n'
+            '    harpia::zmq_transport::courier_sender b(ctx, "inproc://c2");\n'
+            "    if (a.origin() == b.origin()) return 1;\n"
+            "    if (a.origin().empty() || b.origin().empty()) return 2;\n"
+            "    // explicit-origin constructor still works\n"
+            '    harpia::zmq_transport::courier_sender c(ctx, "inproc://c3", "custom-id");\n'
+            '    if (c.origin() != "custom-id") return 3;\n'
+            "    return 0;\n"
+            "}}\n".format(adapter=adapter)
+        )
+
+    binary = os.path.join(built["tmp"], "zmq_manytoone")
+    cmd = ["g++", "-std=c++17", "-I", built["cpp_root"],
+           *_pkgconfig("--cflags"), prog, "-o", binary,
+           *_pkgconfig("--libs")]
+    c = subprocess.run(cmd, capture_output=True, text=True)
+    assert c.returncode == 0, "zmq many-to-one program failed to build:\n" + c.stderr
+
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "zmq many-to-one check failed at #{}".format(
+        run.returncode)

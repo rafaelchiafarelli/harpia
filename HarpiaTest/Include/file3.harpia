@@ -1,9 +1,15 @@
 message queen{
-    
+
     int var;
     optional int val;
     required pagination[12] map<string,string> a;
     required map<string,int> b;
     required map<int,string> c;
     pagination[12] int vari;
+};
+
+// PUSH only, no PULL EVENT or STREAM, exercises the runtime per-instance
+// origin id many-to-one ZMQ senders use.
+push message courier{
+    string payload;
 };

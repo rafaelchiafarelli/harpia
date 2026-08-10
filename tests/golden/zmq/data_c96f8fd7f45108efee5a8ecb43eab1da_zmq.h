@@ -2,20 +2,41 @@
 #ifndef HARPIA_ZMQ_DATA_c96f8fd7f45108efee5a8ecb43eab1da
 #define HARPIA_ZMQ_DATA_c96f8fd7f45108efee5a8ecb43eab1da
 
+#include <atomic>
+#include <cstdint>
 #include <cstring>
+#include <random>
+#include <sstream>
 #include <string>
+#include <unistd.h>
 #include <zmq.hpp>
 #include "protofiles/data_c96f8fd7f45108efee5a8ecb43eab1da.pb.h"
 
 namespace harpia {
 namespace zmq_transport {
 
+// Runtime-unique sender id for many-to-* (push/pushpull) publishers, where a
+// shared compile-time id would make every "many" sender indistinguishable
+// (process.md 1.3.1.1). Combines the process id, a per-process monotonic
+// counter, and random bits, so concurrent senders across processes and
+// within one process never collide -- no coordinating broker/service needed.
+inline std::string runtime_origin_id() {
+    static std::atomic<std::uint64_t> counter{0};
+    std::random_device rd;
+    std::uint64_t r = (static_cast<std::uint64_t>(rd()) << 32) | rd();
+    std::ostringstream oss;
+    oss << ::getpid() << "-" << counter.fetch_add(1) << "-" << std::hex << r;
+    return oss.str();
+}
+
 // push/pull: data_sender pushes (stamping origin), data_receiver pulls.
 class data_sender {
 public:
     data_sender(::zmq::context_t& ctx, const std::string& endpoint)
         : data_sender(ctx, endpoint, origin_id()) {}
-    // many-to-*: the zmq/socket module assigns the sender id at runtime
+    // explicit-origin constructor: pass any externally-sourced id (e.g. if a
+    // future broker hands one out); the default constructor above already
+    // supplies a runtime-unique id for many-to-* senders on its own.
     data_sender(::zmq::context_t& ctx, const std::string& endpoint,
                   const std::string& origin)
         : origin_(origin), socket_(ctx, ::zmq::socket_type::push) {
@@ -61,7 +82,9 @@ class data_publisher {
 public:
     data_publisher(::zmq::context_t& ctx, const std::string& endpoint)
         : data_publisher(ctx, endpoint, origin_id()) {}
-    // many-to-*: the zmq/socket module assigns the sender id at runtime
+    // explicit-origin constructor: pass any externally-sourced id (e.g. if a
+    // future broker hands one out); the default constructor above already
+    // supplies a runtime-unique id for many-to-* senders on its own.
     data_publisher(::zmq::context_t& ctx, const std::string& endpoint,
                   const std::string& origin)
         : origin_(origin), socket_(ctx, ::zmq::socket_type::pub) {
