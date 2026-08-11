@@ -4,7 +4,7 @@
 
 ## Contents
 - `test.harpia` — root input. Starts with `import "file1.harpia"` / `file2` / `file3` (resolved from `Include/`). Exercises messages, nested messages, enums, `optional`/`required`/`repeteable`, `map<>`, `pagination[N]`, and stream/pull/push/event message modifiers plus comment styles.
-- `Include/file1.harpia` (`message pope`), `file2.harpia` (`message king`, `queen`), `file3.harpia` — module files pulled in by the root's `import` statements.
+- `Include/file1.harpia` (`message pope`), `file2.harpia` (`message king`), `file3.harpia` (`message queen`, plus fixtures added for specific generator features: `courier` — PUSH-only, exercises the ZMQ many-to-* runtime origin id; `parcel`/`shipment` — a repeated field targeting a table-less composed message (`RepeatedComposedField`); `waypoint`/`route`/`journey` — a composed field nested two levels deep inside an embedded table-less message) — module files pulled in by the root's `import` statements. **Only the root file's own md5 is used to tag every message** (see LexicalAnalizer/CLAUDE.md), so editing an Include file's content never perturbs the pinned `HASH` constants in `tests/` — this is why new fixtures land in Include files, not `test.harpia` itself.
 - `test_build/` — GENERATED output (proto, generated/cpp adapters, CMake, server/client demo). Wiped and recreated each run (`shutil.rmtree` + `makedirs` in `main.py`).
 
 ## Key facts / gotchas
@@ -13,5 +13,5 @@
   - `test.harpia` = `c96f8fd7f45108efee5a8ecb43eab1da`
   - `Include/file1.harpia` = `e7f528d62098cd94d92019bda39c8f43`
   - `Include/file2.harpia` = `f9ea5ac8ffa3e7d57e6a95824840d191`
-  - `Include/file3.harpia` = `155027516795d2f9dfc73c21e1df49e7`
+  - `Include/file3.harpia` = `c3d7c48789d7f8b364afed7e6bad0114`
 - Imports are resolved by filename against `includeFolder`; the root file references them bare (`file1.harpia`), not by relative path.
