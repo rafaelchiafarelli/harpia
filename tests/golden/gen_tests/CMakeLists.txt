@@ -50,6 +50,24 @@ target_include_directories(top_users_test PRIVATE
 target_link_libraries(top_users_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
 add_test(NAME top_users_test COMMAND top_users_test)
 
+add_executable(shipment_test shipment_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+target_include_directories(shipment_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/generated/cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/third_party/crow
+    ${CMAKE_SOURCE_DIR}/third_party/asio)
+target_link_libraries(shipment_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+add_test(NAME shipment_test COMMAND shipment_test)
+
+add_executable(journey_test journey_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+target_include_directories(journey_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/generated/cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/third_party/crow
+    ${CMAKE_SOURCE_DIR}/third_party/asio)
+target_link_libraries(journey_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+add_test(NAME journey_test COMMAND journey_test)
+
 add_executable(app_test app_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
 target_include_directories(app_test PRIVATE
     ${CMAKE_SOURCE_DIR}/generated/cpp

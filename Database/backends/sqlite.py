@@ -95,6 +95,14 @@ class SqliteBackend(DbBackend):
                 '"value" {}, PRIMARY KEY("owner", "ordinal"));').format(
                     self._ine(if_not_exists), child, owner_type, val_type)
 
+    def rep_composed_child_table(self, child, owner_type, columns,
+                                 if_not_exists=True):
+        cols = "".join(', "{}" {}'.format(name, sql_type)
+                       for name, sql_type in columns)
+        return ('CREATE TABLE {}"{}" ("owner" {}, "ordinal" INTEGER{}, '
+                'PRIMARY KEY("owner", "ordinal"));').format(
+                    self._ine(if_not_exists), child, owner_type, cols)
+
     # -- migration ------------------------------------------------------------
     def version_table(self):
         return ('CREATE TABLE IF NOT EXISTS "_harpia_schema_version" '

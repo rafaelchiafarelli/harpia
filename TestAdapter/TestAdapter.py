@@ -21,7 +21,8 @@ import shutil
 
 from Logger.logger import logger
 from Util.util import loadTemplate
-from Database.model import analyze, type_registry, map_fields, repeated_fields
+from Database.model import (analyze, type_registry, map_fields, repeated_fields,
+                            RepeatedComposedField)
 
 TEST_EXT = "_test.cpp"
 
@@ -62,6 +63,27 @@ def _value(col, variant):
     if col.kind == "int64":
         return "7" if variant == "a" else "8"
     return "1"
+
+
+def _embed_getter(inst, col):
+    """C++ read chain for an embed-flattened column: inst.step0().step1()....
+    child_accessor(). col.embed is the (possibly multi-level) accessor chain
+    from Database.model.Column."""
+    chain = inst
+    for step in col.embed:
+        chain = "{}.{}()".format(chain, step)
+    return "{}.{}()".format(chain, col.child_accessor)
+
+
+def _embed_mutable(inst, col):
+    """C++ write chain for an embed-flattened column:
+    inst.mutable_step0()->mutable_step1()->...->set_child_accessor(value) is
+    built by the caller appending 'set_<child_accessor>(value)'; this returns
+    just the inst.mutable_step0()->mutable_step1()->...-> pointer chain."""
+    chain = "{}.mutable_{}()".format(inst, col.embed[0])
+    for step in col.embed[1:]:
+        chain = "{}->mutable_{}()".format(chain, step)
+    return chain
 
 
 def _map_key(kind, i):
@@ -161,9 +183,11 @@ class TestAdapter:
                     "(Stage 14a)\n    return 0;")
 
         # repeated scalars round-trip here with literal values; repeated FK
-        # (1-to-many) is exercised by the host test_repeated_fk_roundtrip instead
-        # (like the singular FK), since it needs child messages.
-        reps = [rf for rf in reps if not rf.fk_target]
+        # (1-to-many) and repeated composed-to-table-less (RepeatedComposedField)
+        # are exercised by host tests instead (test_repeated_fk_roundtrip /
+        # test_repeated_composed_roundtrip), since both need dedicated fixtures.
+        reps = [rf for rf in reps if not getattr(rf, "fk_target", None)
+               and not isinstance(rf, RepeatedComposedField)]
         text_field = next((c for c in non_pk if c.kind == "text"), None)
         L = [
             '    ::soci::session db(::soci::sqlite3, ":memory:");',
@@ -177,8 +201,9 @@ class TestAdapter:
         L += ["    a.set_{}({});".format(c.accessor, _value(c, "a"))
               for c in non_pk]
         # flattened sub-fields of a non-table composed field round-trip too
-        L += ["    a.mutable_{}()->set_{}({});".format(
-              c.embed, c.child_accessor, _value(c, "a")) for c in embed_cols]
+        L += ["    {}->set_{}({});".format(
+              _embed_mutable("a", c), c.child_accessor, _value(c, "a"))
+              for c in embed_cols]
         # map<K,V> fields round-trip through their child tables (two entries each)
         for mf in maps:
             for i in (1, 2):
@@ -196,8 +221,8 @@ class TestAdapter:
         ]
         L += ["    if (got.{}() != {}) return 24;".format(c.accessor,
               _value(c, "a")) for c in non_pk]
-        L += ["    if (got.{}().{}() != {}) return 32;".format(
-              c.embed, c.child_accessor, _value(c, "a")) for c in embed_cols]
+        L += ["    if ({} != {}) return 32;".format(
+              _embed_getter("got", c), _value(c, "a")) for c in embed_cols]
         for mf in maps:
             for i in (1, 2):
                 entries = mf.entries("got")

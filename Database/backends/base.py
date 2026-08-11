@@ -108,6 +108,15 @@ class DbBackend(ABC):
         """Child table for a repeated field: columns ``(owner, ordinal, value)``
         with ``PRIMARY KEY(owner, ordinal)``."""
 
+    @abstractmethod
+    def rep_composed_child_table(self, child: str, owner_type: str, columns,
+                                 if_not_exists: bool = True) -> str:
+        """Child table for a repeated field whose target is a table-less
+        composed message: columns ``(owner, ordinal, <one per flattened
+        field>)`` with ``PRIMARY KEY(owner, ordinal)``. ``columns`` is an
+        iterable of ``(name, sql_type)`` pairs (the target's own flattened
+        scalar/enum fields, unprefixed)."""
+
     # -- migration / introspection -------------------------------------------
     @abstractmethod
     def version_table(self) -> str:

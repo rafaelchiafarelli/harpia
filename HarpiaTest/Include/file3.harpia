@@ -13,3 +13,36 @@ message queen{
 push message courier{
     string payload;
 };
+
+// table-less target for a repeated composed field (Database.model
+// RepeatedComposedField), a child table with one column per each parcel
+// own flattened fields, one row per repetition.
+message parcel{
+    string label;
+    int weight;
+};
+
+// exercises repeteable of a table-less composed type.
+message shipment{
+    string tag;
+    repeteable parcel cargo;
+}shipment_table;
+
+// table-less leaf, and a table-less message nesting ANOTHER table-less
+// composed field (route.start), exercising the recursive embed flatten.
+message waypoint{
+    string city;
+    int elevation;
+};
+
+message route{
+    waypoint start;
+    string label;
+};
+
+// exercises a singular composed field whose own sub-field is itself
+// composed to a table-less message (2-level embed flatten).
+message journey{
+    route path;
+    string vessel;
+}journey_table;

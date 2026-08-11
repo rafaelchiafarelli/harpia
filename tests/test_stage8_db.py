@@ -342,6 +342,115 @@ def test_repeated_fk_roundtrip(generated, sqlite_obj, tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="repeated-composed round-trip needs protoc + protobuf")
+def test_repeated_composed_roundtrip(generated, sqlite_obj, tmp_path):
+    """A repeated composed field whose target has no table of its own
+    (shipment.cargo -> parcel, table-less) persists one child-table row per
+    element (one column per parcel's own flattened fields) and reloads them
+    in order on read -- no child DAO involved, unlike the repeated-FK case."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    proto_dir = os.path.join(cpp_root, "protofiles")
+
+    prog = tmp_path / "repcomposed.cpp"
+    prog.write_text(
+        '#include "db/shipment_{h}_crudl.h"\n'
+        '#include <soci/soci.h>\n'
+        '#include <soci/sqlite3/soci-sqlite3.h>\n'
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    harpia::db::shipment_dao dao(db);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        '    ::shipment s; s.set_id_{h}(1); s.set_tag("crate");\n'
+        "    auto* p1 = s.add_cargo();\n"
+        '    p1->set_label("books"); p1->set_weight(3);\n'
+        "    auto* p2 = s.add_cargo();\n"
+        '    p2->set_label("tools"); p2->set_weight(7);\n'
+        "    if (!dao.create(s)) return 3;\n"
+        "    ::shipment got;\n"
+        "    if (!dao.read(1, &got)) return 4;\n"
+        "    if (got.cargo_size() != 2) return 5;\n"
+        "    // order preserved by the child table's ordinal\n"
+        '    if (got.cargo(0).label() != "books" || got.cargo(0).weight() != 3) return 6;\n'
+        '    if (got.cargo(1).label() != "tools" || got.cargo(1).weight() != 7) return 7;\n'
+        "    // update replaces the child rows (delete-then-reinsert)\n"
+        "    ::shipment s2 = s; s2.clear_cargo();\n"
+        "    auto* p3 = s2.add_cargo();\n"
+        '    p3->set_label("solo"); p3->set_weight(1);\n'
+        "    if (!dao.update(s2)) return 8;\n"
+        "    ::shipment got2; if (!dao.read(1, &got2)) return 9;\n"
+        '    if (got2.cargo_size() != 1 || got2.cargo(0).label() != "solo") return 10;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb = [os.path.join(proto_dir, "shipment_{}.pb.cc".format(HASH)),
+          os.path.join(proto_dir, "parcel_{}.pb.cc".format(HASH))]
+    binary = str(tmp_path / "repcomposed")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), *pb, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "repeated-composed program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "repeated-composed round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="nested-embed round-trip needs protoc + protobuf")
+def test_nested_embed_roundtrip(generated, sqlite_obj, tmp_path):
+    """A singular composed field whose own sub-field is itself composed to a
+    table-less message (journey.path -> route, route.start -> waypoint)
+    flattens both levels into prefixed columns (path_start_city etc.) and
+    round-trips through the plain scalar-column path -- no child table."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    proto_dir = os.path.join(cpp_root, "protofiles")
+
+    prog = tmp_path / "nestedembed.cpp"
+    prog.write_text(
+        '#include "db/journey_{h}_crudl.h"\n'
+        '#include <soci/soci.h>\n'
+        '#include <soci/sqlite3/soci-sqlite3.h>\n'
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    harpia::db::journey_dao dao(db);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        '    ::journey j; j.set_id_{h}(1); j.set_vessel("kon-tiki");\n'
+        "    auto* path = j.mutable_path();\n"
+        '    path->set_label("pacific");\n'
+        "    auto* start = path->mutable_start();\n"
+        '    start->set_city("callao"); start->set_elevation(12);\n'
+        "    if (!dao.create(j)) return 3;\n"
+        "    ::journey got;\n"
+        "    if (!dao.read(1, &got)) return 4;\n"
+        '    if (got.path().label() != "pacific") return 5;\n'
+        '    if (got.path().start().city() != "callao") return 6;\n'
+        "    if (got.path().start().elevation() != 12) return 7;\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb = [os.path.join(proto_dir, "journey_{}.pb.cc".format(HASH)),
+          os.path.join(proto_dir, "route_{}.pb.cc".format(HASH)),
+          os.path.join(proto_dir, "waypoint_{}.pb.cc".format(HASH))]
+    binary = str(tmp_path / "nestedembed")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), *pb, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "nested-embed program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "nested-embed round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="DB import/export round-trip needs protoc + protobuf")
 def test_dbio_roundtrip(generated, sqlite_obj, tmp_path):
     """Export the table to JSON and XML, import into fresh DBs, verify rows."""
