@@ -82,6 +82,24 @@ class Column:
             return "{}->set_{}({})".format(chain, self.child_accessor, value)
         return "msg->set_{}({})".format(self.accessor, value)
 
+    def mutable_ptr(self):
+        """Mutable pointer to this composed field on ``msg`` (chains through
+        any embed levels, materializing each with mutable_*()). Used for a
+        fk_table column, to load the child DAO's result into place."""
+        chain = "msg"
+        for step in (self.embed or []):
+            chain = "{}->mutable_{}()".format(chain, step)
+        return "{}->mutable_{}()".format(chain, self.child_accessor or self.accessor)
+
+    def has_expr(self, src):
+        """C++ has_*() check for this composed field on ``src`` (chains
+        through any embed levels; reading through an unset intermediate
+        embed is safe -- protobuf returns a default sub-message)."""
+        chain = src
+        for step in (self.embed or []):
+            chain = "{}.{}()".format(chain, step)
+        return "{}.has_{}()".format(chain, self.child_accessor or self.accessor)
+
     def sql_def(self):
         return self._backend.column_def(
             self.sql_type, pk=self.pk, required=self.required, unique=self.unique)

@@ -74,7 +74,7 @@ class CrudlAdapter:
 
     def _render(self, msg):
         columns, _ = analyze(msg, self.types, self.backend)
-        scalar = [c for c in columns if c.bindable or c.embed]
+        scalar = [c for c in columns if (c.bindable or c.embed) and not c.fk_table]
         fk_cols = [c for c in columns if c.fk_table]
         id_col = next((c for c in scalar if c.pk), None)
         non_id = [c for c in scalar if not c.pk]
@@ -131,8 +131,8 @@ class CrudlAdapter:
             i += 1
         for c in fk_cols:
             ch = self._child(c)
-            lines.append("            long long c{i} = msg.{a}().{pk}();".format(
-                i=i, a=c.accessor, pk=ch["pk"]))
+            lines.append("            long long c{i} = {g}.{pk}();".format(
+                i=i, g=c.getter("msg"), pk=ch["pk"]))
             i += 1
         return "".join(l + "\n" for l in lines)
 
@@ -154,8 +154,8 @@ class CrudlAdapter:
             i += 1
         for c in fk_cols:
             ch = self._child(c)
-            lines.append("            long long c{i} = msg.{a}().{pk}();".format(
-                i=i, a=c.accessor, pk=ch["pk"]))
+            lines.append("            long long c{i} = {g}.{pk}();".format(
+                i=i, g=c.getter("msg"), pk=ch["pk"]))
             i += 1
         acc = id_col.accessor if id_col else "rowid"
         lines.append("            long long cid = msg.{}();".format(acc))
@@ -226,8 +226,8 @@ class CrudlAdapter:
             ch = self._child(c)
             lines.append(
                 "                if (n{i} == ::soci::i_ok && l{i}) {{ {dao} _c(db_); "
-                "_c.read(l{i}, msg->mutable_{a}()); }}".format(
-                    i=i, dao=ch["dao"], a=c.accessor))
+                "_c.read(l{i}, {p}); }}".format(
+                    i=i, dao=ch["dao"], p=c.mutable_ptr()))
         return "".join(l + "\n" for l in lines)
 
     def _fk_hooks(self, fk_cols, op):
@@ -238,13 +238,14 @@ class CrudlAdapter:
             dao = self._child(c)["dao"]
             if op == "create":
                 lines.append(
-                    "            if (msg.has_{a}()) {{ {dao} _c(db_); "
-                    "if (!_c.create(msg.{a}())) return false; }}".format(
-                        a=c.accessor, dao=dao))
+                    "            if ({h}) {{ {dao} _c(db_); "
+                    "if (!_c.create({g})) return false; }}".format(
+                        h=c.has_expr("msg"), g=c.getter("msg"), dao=dao))
             else:
                 lines.append(
-                    "            if (msg.has_{a}()) {{ {dao} _c(db_); "
-                    "_c.update(msg.{a}()); }}".format(a=c.accessor, dao=dao))
+                    "            if ({h}) {{ {dao} _c(db_); "
+                    "_c.update({g}); }}".format(
+                        h=c.has_expr("msg"), g=c.getter("msg"), dao=dao))
         return "\n".join(lines) + "\n"
 
     def _fk_includes(self, fk_cols, reps=()):
