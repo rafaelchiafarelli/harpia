@@ -239,6 +239,66 @@ def test_migration_additive(generated, sqlite_obj, tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_drop_and_rename(generated, sqlite_obj, tmp_path):
+    """migrate_<name> RENAMEs a column carrying renamed_from[<old>] (data
+    survives, beacon_log.label <- an older "handle" column) and DROPs a live
+    column the current schema no longer declares ("legacy_note"), and a
+    second call is idempotent."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "migrate_nonadditive.cpp"
+    prog.write_text(
+        '#include "migrate/beacon_log_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        "    // an older generated version: the field under its old name, plus\n"
+        "    // a stray column the current schema no longer declares\n"
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '\\"handle\\" TEXT, \\"strength\\" INTEGER, \\"legacy_note\\" TEXT);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"ID_{h}\\\", \\\"handle\\\", "
+        "\\\"strength\\\", \\\"legacy_note\\\") VALUES (1, 'north', 5, 'obsolete');\")) return 3;\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 4;\n"
+        "    ::harpia::db::beacon_log_dao dao(db);\n"
+        "    // the renamed column carried its data over\n"
+        "    ::beacon_log got;\n"
+        "    if (!dao.read(1, &got)) return 5;\n"
+        '    if (got.label() != "north") return 6;\n'
+        "    if (got.strength() != 5) return 7;\n"
+        "    // the stray column is gone\n"
+        "    int seen = 0; ::soci::indicator si;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('beacon_log_table') "
+        "WHERE name = 'legacy_note'\", ::soci::into(seen, si);\n"
+        "    if (seen != 0) return 8;\n"
+        "    // idempotent: a second call does not corrupt the row or re-add legacy_note\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 9;\n"
+        "    ::beacon_log got2;\n"
+        "    if (!dao.read(1, &got2)) return 10;\n"
+        '    if (got2.label() != "north" || got2.strength() != 5) return 11;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb_cc = os.path.join(cpp_root, "protofiles", "beacon_log_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "migrate_nonadditive")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=120)
+    assert c.returncode == 0, "non-additive migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "non-additive migration failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="FK round-trip needs protoc + protobuf")
 def test_fk_roundtrip(generated, sqlite_obj, tmp_path):
     """A singular composed field whose target owns a table (top_users.myUsers ->

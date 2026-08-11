@@ -12,14 +12,20 @@
 // for versions"). Brings an existing database up to the current schema version
 // (c96f8fd7f45108efee5a8ecb43eab1da) and records it in "_harpia_schema_version":
 //   - ensures the table (and its map/repeated child tables) exist,
+//   - RENAMEs a column carrying the DSL's renamed_from[<old>] modifier (both
+//     names are known at generation time), before anything else runs,
 //   - adds any column present in the current schema but missing from a live table
 //     an older generated version created (additive evolution via ALTER TABLE),
+//   - DROPs any column a live table has that the current schema no longer
+//     declares. This is an IMPLICIT, UNCONDITIONAL diff, not a marker-driven
+//     one: there is no schema history, so any unrecognized live column is
+//     dropped, including one added out-of-band.
 //   - stamps the current version hash.
-// Column renames/drops, type changes and cross-version data transforms are not
-// handled (additive migrations only).
+// Column type changes and cross-version data transforms are still not handled.
 //
 // SOCI-based (works on any backend); the SQL dialect (version table, column
-// introspection, ALTER, version-stamp upsert) comes from the harpia DbBackend.
+// introspection, ALTER/RENAME/DROP, version-stamp upsert) comes from the
+// harpia DbBackend.
 namespace harpia {
 namespace db {
 
@@ -42,6 +48,10 @@ inline bool migrate_users(::soci::session& db) {
             while (_cs.fetch()) { if (_ci == ::soci::i_ok) have.insert(_cn); }
         }
 
+        // renames: old column name -> new, ahead of add/drop so they see the
+        // corrected column set. Idempotent: a no-op once the old name is gone
+        // (a second migrate_users call, or a table that never had it).
+
         // additive migration: add any column missing from an older table version
         if (!have.count("address")) {
             db << "ALTER TABLE \"user_table\" ADD COLUMN \"address\" TEXT;";
@@ -57,6 +67,20 @@ inline bool migrate_users(::soci::session& db) {
         }
         if (!have.count("ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da")) {
             db << "ALTER TABLE \"user_table\" ADD COLUMN \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT;";
+        }
+        // non-additive: drop any live column the current schema no longer
+        // declares (see the header comment above for the implicit-diff caveat)
+        {
+            static const std::set<std::string> _current = { "ID_c96f8fd7f45108efee5a8ecb43eab1da", "address", "name", "STATUS_c96f8fd7f45108efee5a8ecb43eab1da", "ERROR_c96f8fd7f45108efee5a8ecb43eab1da", "ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da" };
+            for (auto _hit = have.begin(); _hit != have.end(); ) {
+                if (!_current.count(*_hit)) {
+                    const std::string& _dc = *_hit;
+                    db << "ALTER TABLE \"user_table\" DROP COLUMN \"" + _dc + "\";";
+                    _hit = have.erase(_hit);
+                } else {
+                    ++_hit;
+                }
+            }
         }
         // stamp the current version
         db << "INSERT OR REPLACE INTO \"_harpia_schema_version\" (\"name\", \"version\") VALUES ('user_table', 'c96f8fd7f45108efee5a8ecb43eab1da');";

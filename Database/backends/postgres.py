@@ -115,6 +115,14 @@ class PostgresBackend(DbBackend):
         return 'ALTER TABLE "{}" ADD COLUMN "{}" {};'.format(
             table, name, column_def)
 
+    def rename_column(self, table, old, new):
+        return 'ALTER TABLE "{}" RENAME COLUMN "{}" TO "{}";'.format(
+            table, old, new)
+
+    def drop_column_dynamic(self, table, name_expr):
+        return '"ALTER TABLE \\"{}\\" DROP COLUMN \\"" + {} + "\\";"'.format(
+            table, name_expr)
+
     def stamp_version(self, table, version):
         return ('INSERT INTO "_harpia_schema_version" ("name", "version") '
                 "VALUES ('{}', '{}') ON CONFLICT (\"name\") DO UPDATE "
@@ -131,4 +139,6 @@ if __name__ == "__main__":
     ]))
     print(b.map_child_table("devices__labels", b.int_type, "TEXT", "TEXT"))
     print(b.list_columns_sql("devices"))
+    print(b.rename_column("devices", "nickname", "label"))
+    print(b.drop_column_dynamic("devices", "_dc"))
     print(b.stamp_version("devices", "c96f8fd7"))

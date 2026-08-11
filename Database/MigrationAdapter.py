@@ -2,10 +2,18 @@
 
 For each table-bearing message, emit a header (<name>_<hash>_migrate.h) with a
 migrate_<name>(soci::session&) that brings an existing database up to the current
-schema version and records it in a "_harpia_schema_version" table. Migration is
-additive: it ensures the table (and its child tables) exist and ALTERs in any
-column an older generated version is missing. Renames/drops, type changes and
-cross-version data transforms are out of scope.
+schema version and records it in a "_harpia_schema_version" table:
+  - ensures the table (and its child tables) exist,
+  - RENAMEs a column carrying the DSL's renamed_from[<old>] modifier (both
+    names known at generation time -- run first so the subsequent add/drop
+    steps see the corrected column set),
+  - ADDs any column the current schema declares that an older generated
+    version is missing (additive),
+  - DROPs any column a live table has that the current schema no longer
+    declares (an inverse diff against the runtime-introspected column set --
+    there is no schema history, so this is an unconditional "unrecognized
+    column" removal, not a marker-driven one).
+Type changes and cross-version data transforms are still out of scope.
 
 Columns come from the shared Database.model so the migration agrees with the
 schema (SqlAdapter) and the DAO (CrudlAdapter). Header-only C++.
@@ -23,6 +31,11 @@ _MIGRATE = loadTemplate(__file__, "migrate.h.tmpl")
 
 _ALTER = ('        if (!have.count("{cname}")) {{\n'
           '            db << "{alter_sql}";\n'
+          '        }}')
+
+_RENAME = ('        if (have.count("{old}") && !have.count("{new}")) {{\n'
+          '            db << "{rename_sql}";\n'
+          '            have.erase("{old}"); have.insert("{new}");\n'
           '        }}')
 
 
@@ -57,6 +70,13 @@ class MigrationAdapter:
     def _render(self, msg):
         columns, _ = analyze(msg, self.types, self.backend)
         b = self.backend
+        # renames run first, against the OLD name, and correct `have` in place
+        # so the additive/drop steps below see the post-rename column set.
+        renames = "\n".join(
+            _RENAME.format(old=c.renamed_from, new=c.name,
+                          rename_sql=_esc(b.rename_column(
+                              msg.tableName, c.renamed_from, c.name)))
+            for c in columns if getattr(c, "renamed_from", None))
         # additive migration only ALTERs in non-PK columns (the PK always exists
         # from the first version; ALTER cannot add a PRIMARY KEY / NOT NULL column)
         alters = "\n".join(
@@ -64,6 +84,14 @@ class MigrationAdapter:
                           alter_sql=_esc(b.add_column(msg.tableName, c.name,
                                                       c.sql_type)))
             for c in columns if not c.pk)
+        # non-additive: drop any live column the current schema no longer
+        # declares (an inverse diff -- `have` minus the current column names).
+        # drop_column_dynamic returns a full C++ expression (quotes and all,
+        # concatenating the runtime-known column name), not a SQL string to
+        # escape into a literal like the other backend calls above -- it is
+        # substituted into the template unescaped, as C++ source.
+        current_cols = ", ".join('"{}"'.format(_esc(c.name)) for c in columns)
+        drop_expr = b.drop_column_dynamic(msg.tableName, "_dc")
         return _MIGRATE.format(
             guard="HARPIA_MIGRATE_{}_{}".format(msg.name.upper(), msg.md5Hash),
             name=msg.name,
@@ -72,5 +100,8 @@ class MigrationAdapter:
             version_table_sql=_esc(b.version_table()),
             list_columns_sql=_esc(b.list_columns_sql(msg.tableName)),
             stamp_version_sql=_esc(b.stamp_version(msg.tableName, msg.md5Hash)),
+            renames=renames,
             alters=alters,
+            current_cols=current_cols,
+            drop_expr=drop_expr,
         )

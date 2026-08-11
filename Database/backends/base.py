@@ -134,6 +134,23 @@ class DbBackend(ABC):
         """Additive migration: ``ALTER TABLE ... ADD COLUMN``."""
 
     @abstractmethod
+    def rename_column(self, table: str, old: str, new: str) -> str:
+        """Non-additive migration: ``ALTER TABLE ... RENAME COLUMN``. Both
+        names are known at generation time (from the DSL's
+        ``renamed_from[<old>]`` field modifier), unlike
+        :meth:`drop_column_dynamic` below."""
+
+    @abstractmethod
+    def drop_column_dynamic(self, table: str, name_expr: str) -> str:
+        """Non-additive migration: a C++ EXPRESSION (not a complete SQL
+        literal, unlike every other method here) that concatenates a
+        RUNTIME-known column name (``name_expr``, a C++ ``std::string``
+        expression) into a ``DROP COLUMN`` statement for ``table``. The
+        dropped column's name is only known once migration runs against a
+        live database -- there is no schema history to diff against at
+        generation time, only the live table's actual columns."""
+
+    @abstractmethod
     def stamp_version(self, table: str, version: str) -> str:
         """Upsert ``(table, version)`` into ``_harpia_schema_version``."""
 
