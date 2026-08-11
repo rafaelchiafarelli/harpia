@@ -29,6 +29,29 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 The generated project builds with its own CMake and ships a runnable
 client/server demo (ZMQ). See `tests/` for what is verified end to end.
 
+### Known gaps
+
+Within the pipeline above (stages 0–14, C++ only):
+- A composed field nested inside an embedded message whose own target is a
+  table-bearing message (an FK found inside an embed) — needs embed-aware
+  `fk_table` columns threaded through `CrudlAdapter`'s FK hooks/extract,
+  which currently assume top-level expressions.
+- Non-additive schema migrations (rename/drop/type-change) — `migrate_<name>`
+  only ever adds columns.
+- The "continuable process" / sha256-registry crash-recovery machinery
+  described in `harpia.architecture.md` — explicitly aspirational there.
+
+Beyond the pipeline (the "## objective:"-onward spec section below is the
+design vision, not current status):
+- No YAML serialization (JSON and XML adapters exist; spec calls for
+  YAML-style `toString` too).
+- No Doxygen generation for the emitted C++.
+- No SSL/TLS in any generated transport (REST/SOAP/gRPC/ZMQ).
+- No multi-tier RBAC — every credential-gated surface checks a single flat
+  `X-User`/`X-Pswd`-style secret, not the admin/main/guest roles the spec
+  describes.
+- C++ is the only generation target (spec envisions Node/Rust/Python/Java).
+
 **Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the
 consumer's guide (generate, the `.harpia` language by example, what gets
 generated, building, choosing the DB backend, and wiring the output into your own
