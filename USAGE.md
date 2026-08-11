@@ -131,6 +131,7 @@ Building blocks you can use:
 | `optional` / `required` | field presence modifiers |
 | `repeteable` | a repeated field (persisted in an ordinal child table) |
 | `pagination[N]` | a bounded-size hint on a field |
+| `renamed_from[old_name]` | this field replaced `old_name` in an earlier schema version — `migrate_<name>` renames the live column instead of dropping and re-adding it |
 | `stream` / `pull` / `push` / `event` | transport/role qualifiers on a message |
 
 > The full grammar and the semantics of each qualifier live in
@@ -151,7 +152,7 @@ my_project/
 ├── generated/cpp/
 │   ├── protofiles/         # protobuf/gRPC C++ (compiled from proto/)
 │   ├── db/                 # CRUDL data-access objects (create/read/update/remove/list)
-│   ├── migrate/            # additive schema-migration helpers
+│   ├── migrate/            # schema-migration helpers (add/rename/drop columns)
 │   ├── dbio/               # DB <-> JSON/XML bulk import/export
 │   ├── json/               # message <-> JSON adapters
 │   ├── xml/                # message <-> XML adapters (+ XSD)
