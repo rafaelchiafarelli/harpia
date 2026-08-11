@@ -65,3 +65,10 @@ message outpost{
     string commander;
     crew_quarters berth;
 }outpost_table;
+
+// exercises non-additive migration RENAME (this field replaces an older
+// column that used to be named handle).
+message beacon_log{
+    renamed_from[handle] string label;
+    int strength;
+}beacon_log_table;

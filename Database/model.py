@@ -38,7 +38,7 @@ class Column:
     def __init__(self, name, sql_type, pk=False, required=False, unique=False,
                  bindable=False, kind=None, fk_target=None, enum_type=None,
                  fk_table=False, embed=None, child_accessor=None,
-                 backend=None) -> None:
+                 renamed_from=None, backend=None) -> None:
         self.name = name
         self.sql_type = sql_type
         self.pk = pk
@@ -57,6 +57,9 @@ class Column:
                                       # (data.val.inner.var -> column
                                       # "val_inner_var", C++ x.val().inner().var())
         self.child_accessor = child_accessor  # the sub-field's own accessor
+        self.renamed_from = renamed_from  # old column name (MigrationAdapter
+                                          # RENAME COLUMN), from the DSL's
+                                          # renamed_from[<old>] modifier
         self._backend = backend or get_backend()  # dialect for sql_def()
 
     @property
@@ -436,7 +439,9 @@ def analyze(msg, types=None, backend=None):
         columns.append(Column(v.name, sql_type, pk=v.name.startswith("ID_"),
                               required="REQUIRED" in mods,
                               unique="UNIQUE" in mods,
-                              bindable=True, kind=kind, backend=backend))
+                              bindable=True, kind=kind,
+                              renamed_from=getattr(v, "renamedFrom", None),
+                              backend=backend))
     return columns, notes
 
 

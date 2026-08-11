@@ -26,7 +26,8 @@ class LexicalAnalyzer:
             ('PAGINATION',r'pagination'),
             ('REQUIRED',r'required '),
             ('UNIQUE',r'unique '),
-            ('MAP', r'map'),            
+            ('RENAMED_FROM', r'renamed_from\[\s*[a-zA-Z]\w*\s*\]'),
+            ('MAP', r'map'),
             ('INT32', r'int'),            # int32
             ('INT64', r'int64'),            # int64
             ('FLOAT', r'float'),        # float

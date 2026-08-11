@@ -86,6 +86,15 @@ target_include_directories(outpost_test PRIVATE
 target_link_libraries(outpost_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
 add_test(NAME outpost_test COMMAND outpost_test)
 
+add_executable(beacon_log_test beacon_log_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+target_include_directories(beacon_log_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/generated/cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/third_party/crow
+    ${CMAKE_SOURCE_DIR}/third_party/asio)
+target_link_libraries(beacon_log_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+add_test(NAME beacon_log_test COMMAND beacon_log_test)
+
 add_executable(app_test app_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
 target_include_directories(app_test PRIVATE
     ${CMAKE_SOURCE_DIR}/generated/cpp
