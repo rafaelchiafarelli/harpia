@@ -1,5 +1,6 @@
 ## this class will read all tokens and create a list of variables for them
 import copy
+import re
 from Errors.Error import Error, Types, Classes
 from Logger.logger import logger
 import uuid
@@ -13,11 +14,12 @@ class variable():
     repeteableSize = 0
     modifiers = None
     constant = None
+    renamedFrom = None
     def __init__(self) -> None:
         self.modifiers = []
 
     def __str__(self) -> str:
-        st = "index: {}, name:{}, type: {}, regex:{}, modifiers:{} pag_size:{}".format(self.index,self.name, self.type,self.regex,self.modifiers,self.paginationSize)
+        st = "index: {}, name:{}, type: {}, regex:{}, modifiers:{} pag_size:{} renamed:{}".format(self.index,self.name, self.type,self.regex,self.modifiers,self.paginationSize,self.renamedFrom)
         return st
 
 
@@ -88,6 +90,11 @@ class Variables():
                     if t[0] == 'REQUIRED':
                         firstID = i
                         var.modifiers.append(t)
+                    if t[0] == 'RENAMED_FROM':
+                        firstID = i
+                        var.modifiers.append(t)
+                        var.renamedFrom = re.match(
+                            r'renamed_from\[\s*([a-zA-Z]\w*)\s*\]', t[1]).group(1)
                     if t[0] == 'PAGINATION':
                         firstID = i
                         pagination = self.getPagination(self.tokens[variableBegins+i:variableEnds])
