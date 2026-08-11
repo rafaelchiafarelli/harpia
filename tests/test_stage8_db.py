@@ -451,6 +451,61 @@ def test_nested_embed_roundtrip(generated, sqlite_obj, tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="embedded-FK round-trip needs protoc + protobuf")
+def test_embedded_fk_roundtrip(generated, sqlite_obj, tmp_path):
+    """A composed field nested inside a table-less embedded message, whose OWN
+    target owns a table (outpost.berth -> crew_quarters, crew_quarters.skipper
+    -> crew), persists the child via its own DAO through the embed's accessor
+    chain and reloads it on read -- the FK-inside-an-embed gap."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    proto_dir = os.path.join(cpp_root, "protofiles")
+
+    prog = tmp_path / "embeddedfk.cpp"
+    prog.write_text(
+        '#include "db/outpost_{h}_crudl.h"\n'
+        '#include <soci/soci.h>\n'
+        '#include <soci/sqlite3/soci-sqlite3.h>\n'
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    harpia::db::outpost_dao pdao(db);\n"
+        "    harpia::db::crew_dao cdao(db);\n"
+        "    if (!pdao.create_table() || !cdao.create_table()) return 2;\n"
+        '    ::outpost o; o.set_id_{h}(1); o.set_commander("shepard");\n'
+        "    auto* berth = o.mutable_berth();\n"
+        '    berth->set_label("bay 3");\n'
+        "    auto* skipper = berth->mutable_skipper();\n"
+        '    skipper->set_id_{h}(9); skipper->set_name("anderson");\n'
+        "    if (!pdao.create(o)) return 3;\n"          # creates child + parent
+        "    ::outpost got;\n"
+        "    if (!pdao.read(1, &got)) return 4;\n"
+        '    if (got.berth().label() != "bay 3") return 5;\n'
+        "    if (!got.berth().has_skipper()) return 6;\n"
+        "    if (got.berth().skipper().id_{h}() != 9) return 7;\n"
+        '    if (got.berth().skipper().name() != "anderson") return 8;\n'
+        "    // the child row is independently present in its own table\n"
+        '    ::crew c; if (!cdao.read(9, &c) || c.name() != "anderson") return 9;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb = [os.path.join(proto_dir, "outpost_{}.pb.cc".format(HASH)),
+          os.path.join(proto_dir, "crew_quarters_{}.pb.cc".format(HASH)),
+          os.path.join(proto_dir, "crew_{}.pb.cc".format(HASH))]
+    binary = str(tmp_path / "embeddedfk")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), *pb, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "embedded-FK program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "embedded-FK round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="DB import/export round-trip needs protoc + protobuf")
 def test_dbio_roundtrip(generated, sqlite_obj, tmp_path):
     """Export the table to JSON and XML, import into fresh DBs, verify rows."""

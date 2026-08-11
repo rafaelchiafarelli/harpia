@@ -46,3 +46,22 @@ message journey{
     route path;
     string vessel;
 }journey_table;
+
+// table-bearing leaf reached from INSIDE an embedded message below --
+// exercises a composed field nested inside a table-less embed whose own
+// target owns a table (an FK found inside an embed).
+message crew{
+    string name;
+}crew_table;
+
+// table-less; embeds a plain scalar sub-field (the already-working case)
+// alongside a composed sub-field whose own target owns a table (the gap).
+message crew_quarters{
+    string label;
+    crew skipper;
+};
+
+message outpost{
+    string commander;
+    crew_quarters berth;
+}outpost_table;

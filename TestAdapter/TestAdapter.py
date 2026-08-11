@@ -144,7 +144,11 @@ class TestAdapter:
     def _render(self, msg):
         columns, _ = analyze(msg, self.types)
         bindable = [c for c in columns if c.bindable]
-        embed_cols = [c for c in columns if c.embed]
+        # an embed-nested FK column (fk_table) is a submessage, not a scalar
+        # value _embed_getter/_embed_mutable can set/compare -- like the
+        # repeated-FK case below, it's exercised by a dedicated host test
+        # instead (test_embedded_fk_roundtrip).
+        embed_cols = [c for c in columns if c.embed and not c.fk_table]
         pk = next((c for c in bindable if c.pk), None)
         non_pk = [c for c in bindable if not c.pk]
 

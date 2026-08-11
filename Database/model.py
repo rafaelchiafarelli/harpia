@@ -330,6 +330,17 @@ def _flatten(name_prefix, child_msg, types, backend, embed_path=None, prefix=Tru
                 columns.extend(sub_cols)
                 notes.extend(sub_notes)
                 continue
+            if kind == "table":
+                # nested composed field whose OWN target owns a table: a
+                # persistable FK to the child's primary key, reached through
+                # this embed's accessor chain (CrudlAdapter creates/loads the
+                # child via its own DAO, same as a top-level FK).
+                columns.append(Column(col_name, backend.int_type, bindable=False,
+                                      fk_target=v.type[1], fk_table=True,
+                                      embed=(embed_path if prefix else None),
+                                      child_accessor=v.name.lower(),
+                                      backend=backend))
+                continue
             notes.append("-- {}.{}: nested composed -> {} in embedded {} (deferred)"
                          .format(name_prefix, v.name, v.type[1], child_msg.name))
             continue
