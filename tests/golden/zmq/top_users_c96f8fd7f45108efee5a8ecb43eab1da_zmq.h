@@ -8,7 +8,11 @@
 #include <random>
 #include <sstream>
 #include <string>
+#ifdef _WIN32
+#include <process.h>
+#else
 #include <unistd.h>
+#endif
 #include <zmq.hpp>
 #include "protofiles/top_users_c96f8fd7f45108efee5a8ecb43eab1da.pb.h"
 
@@ -25,7 +29,11 @@ inline std::string runtime_origin_id() {
     std::random_device rd;
     std::uint64_t r = (static_cast<std::uint64_t>(rd()) << 32) | rd();
     std::ostringstream oss;
+#ifdef _WIN32
+    oss << ::_getpid() << "-" << counter.fetch_add(1) << "-" << std::hex << r;
+#else
     oss << ::getpid() << "-" << counter.fetch_add(1) << "-" << std::hex << r;
+#endif
     return oss.str();
 }
 
