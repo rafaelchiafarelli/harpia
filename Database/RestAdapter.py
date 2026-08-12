@@ -24,7 +24,7 @@ with HTTP 401 (mirrors the SOAP endpoint, which gates on <credentials>).
 import os
 
 from Logger.logger import logger
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different
 from Database.model import pagination_default
 
 REST_EXT = "_rest.h"
@@ -53,8 +53,7 @@ class RestAdapter:
                 default_limit=default_limit,
             )
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, REST_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(header)
+            write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
         self.log.print("generated {} REST binding(s) into {}".format(
             written, self.outDir))

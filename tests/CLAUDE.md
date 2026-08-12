@@ -51,6 +51,17 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `test_consumer_example.py` — downstream-consumption contract: builds + runs
   `examples/consumer/` against a freshly generated project
   (`cmake -DHARPIA_GEN=<gen>`), asserting the black-box wiring still works.
+  Also builds/runs it with `-DUSE_TLS=ON` and does a real TLS handshake
+  (`ssl.get_server_certificate`) against the running server.
+- `test_incremental_regen.py` — regeneration is write-if-different, not a
+  blanket wipe (see `Util.util.write_if_different`/`prune_stale_outputs`,
+  `main.py`). Runs the pipeline twice against the *same* persistent output
+  dir (the only place in the suite that does): once with unchanged input,
+  asserting a generated file's mtime doesn't move; once renaming a message
+  between runs (root file's own text unchanged, so its hash stays stable —
+  the normal `Include/`-editing workflow), asserting the old name's output
+  is pruned. Uses a tiny inline two-file fixture, not the shared
+  `HarpiaTest/Include` ones, so it doesn't touch the pinned `HASH` below.
 - `test_demo.py` — end-to-end: build generated project with its own CMake, run
   client→server. (cmake, protoc, grpc_cpp_plugin, g++, libzmq)
 

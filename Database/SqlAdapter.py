@@ -26,7 +26,7 @@ import os
 
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different
 from Database.backends import get_backend
 from Database.model import (analyze, type_registry, map_fields, repeated_fields,
                             RepeatedComposedField)
@@ -51,8 +51,7 @@ class SqlAdapter:
         for msg in self.messages:
             content = self._render(msg)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, SQL_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(content)
+            write_if_different(os.path.join(self.outDir, fileName), content)
             if not getattr(msg, "isEnum", False) and msg.tableName:
                 tables += 1
         self.log.print("generated SQL schema for {} table(s) into {}".format(

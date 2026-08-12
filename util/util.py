@@ -1,14 +1,24 @@
 ##util.py is a file that contains small functions and helpers to be genericly used.
 ## specification is not recommended on this file.
+import filecmp
 import shutil
 import string
 import os
+import re
 import json as _json
 from Errors.Error import Error, Types, Classes
 import hashlib
 
 _HIDDEN_PREFIXES = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
 _DEMO_SCALARS = {"STRING", "INT32", "INT64", "FLOAT"}
+
+# Harpia's generated-file naming convention: "<message name>_<root md5 hash>...".
+# `prune_stale_outputs` uses this to tell a generated file from anything else
+# in the output tree (CMakeLists.txt, vendored third_party/, ...).
+_NAME_HASH_RE = re.compile(r'^([A-Za-z_]\w*)_([0-9a-f]{32})')
+# Non-message-keyed but still hash-qualified filenames that must never be
+# treated as orphans -- TestAdapter's single app-level test (app_<hash>_test.cpp).
+_ALWAYS_VALID_BASENAMES = {"app"}
 
 
 def chooseDemo(messages):
@@ -96,6 +106,50 @@ def isFileInFolders(folders, file):
                         CharacterNumber = 0)
 
 
+def write_if_different(path, content):
+    """Write content to path unless it's already there unchanged, so an
+    unchanged generated file keeps its mtime -- lets a downstream cmake/make
+    build treat it as unchanged too, instead of recompiling it on every
+    regenerate just because the write gave it a fresh mtime."""
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            if f.read() == content:
+                return False
+    with open(path, "w") as f:
+        f.write(content)
+    return True
+
+
+def copy_if_different(src, dst):
+    """shutil.copy2, skipped (mtime preserved) when dst already matches src
+    byte-for-byte -- same goal as write_if_different, for the static/vendored
+    files that are copied rather than rendered."""
+    if os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False):
+        return False
+    shutil.copy2(src, dst)
+    return True
+
+
+def prune_stale_outputs(dest, current_hash, valid_names):
+    """Remove generated files left behind by a message that was renamed or
+    removed, or by a previous run against a different root-file hash --
+    replaces the old blanket `shutil.rmtree(dest)` now that regeneration is
+    write-if-different (see main.py). Only touches files matching harpia's
+    own "<name>_<hash>..." naming convention; anything else (CMakeLists.txt,
+    vendored third_party/, ...) is left alone.
+    """
+    for root, _dirs, files in os.walk(dest):
+        for fn in files:
+            m = _NAME_HASH_RE.match(fn)
+            if not m:
+                continue
+            name, file_hash = m.group(1), m.group(2)
+            if file_hash == current_hash and (
+                    name in valid_names or name in _ALWAYS_VALID_BASENAMES):
+                continue
+            os.remove(os.path.join(root, fn))
+
+
 def copyTemplates(src, dest):
     for item in os.listdir(src):
         s = os.path.join(src, item)
@@ -111,31 +165,26 @@ def copyTemplates(src, dest):
 def copyCMakeFiles(src, dest):
     mainCMakePathSrc = "{}/{}".format(src, "CMakeLists.txt")
     if not os.path.exists(dest):
-        os.makedirs(dest)   
-    if os.path.isfile(os.path.join(dest, "CMakeLists.txt")):
-        os.remove(os.path.join(dest, "CMakeLists.txt"))
-    shutil.copy(mainCMakePathSrc, dest)
-    
+        os.makedirs(dest)
+    copy_if_different(mainCMakePathSrc, os.path.join(dest, "CMakeLists.txt"))
+
     protoCMakePathSrc = "{}/{}".format(src, "proto/CMakeLists.txt")
     if not os.path.exists(os.path.join(dest, "proto")):
         os.makedirs(os.path.join(dest, "proto"))
-    if os.path.isfile(os.path.join(dest,"proto","CMakeLists.txt")):
-        os.remove(os.path.join(dest,"proto","CMakeLists.txt"))        
-    shutil.copy(protoCMakePathSrc, os.path.join(dest, "proto"))
-    
+    copy_if_different(protoCMakePathSrc,
+                       os.path.join(dest, "proto", "CMakeLists.txt"))
+
     serverCMakePathSrc = "{}/{}".format(src, "server_template/CMakeLists.txt")
     if not os.path.exists(os.path.join(dest, "server")):
         os.makedirs(os.path.join(dest, "server"))
-    if os.path.isfile(os.path.join(dest,"server","CMakeLists.txt")):
-        os.remove(os.path.join(dest,"server","CMakeLists.txt"))
-    shutil.copy(serverCMakePathSrc, os.path.join(dest, "server"))
-    
+    copy_if_different(serverCMakePathSrc,
+                       os.path.join(dest, "server", "CMakeLists.txt"))
+
     clientCMakePathSrc = "{}/{}".format(src, "client_template/CMakeLists.txt")
     if not os.path.exists(os.path.join(dest, "client")):
         os.makedirs(os.path.join(dest, "client"))
-    if os.path.isfile(os.path.join(dest,"client","CMakeLists.txt")):
-        os.remove(os.path.join(dest,"client","CMakeLists.txt"))
-    shutil.copy(clientCMakePathSrc, os.path.join(dest, "client"))
+    copy_if_different(clientCMakePathSrc,
+                       os.path.join(dest, "client", "CMakeLists.txt"))
     
 
 def copyServerClientTemplates(src, dest, demo=None):
@@ -152,10 +201,6 @@ def copyServerClientTemplates(src, dest, demo=None):
 
     serverDest = os.path.join(dest, "server", "src", serverName)
     clientDest = os.path.join(dest, "client", "src", clientName)
-    if os.path.isfile(serverDest):
-        os.remove(serverDest)
-    if os.path.isfile(clientDest):
-        os.remove(clientDest)
 
     _emitTemplate(serverTemplatePathSrc, serverDest, demo)
     _emitTemplate(clientTemplatePathSrc, clientDest, demo)
@@ -167,19 +212,18 @@ def _emitTemplate(srcPath, destPath, demo):
     If there is no push/pull message to demo (demo is None) the placeholders
     can't resolve, so emit a tiny stub that still compiles instead."""
     if demo is None:
-        with open(destPath, "w") as out:
-            out.write("#include <iostream>\n"
-                      "int main() {\n"
-                      "    std::cout << \"harpia: no push/pull message to demo\\n\";\n"
-                      "    return 0;\n"
-                      "}\n")
+        write_if_different(destPath,
+            "#include <iostream>\n"
+            "int main() {\n"
+            "    std::cout << \"harpia: no push/pull message to demo\\n\";\n"
+            "    return 0;\n"
+            "}\n")
         return
     with open(srcPath, "r") as f:
         data = f.read()
     for key, value in demo.items():
         data = data.replace("%{}%".format(key), value)
-    with open(destPath, "w") as out:
-        out.write(data)
+    write_if_different(destPath, data)
                 
 def readFromTemplate(templateName, messageName):
     with open("./Assets/proto/protofiles/{}".format(templateName), "r") as f:
@@ -201,5 +245,5 @@ def copyBasicProtos(src, dest):
     errorProto = os.path.join(src, "errorCode.proto")
     heartBeatProto = os.path.join(src, "heartBeat.proto")
     destination = os.path.join(dest,"proto","protofiles")
-    shutil.copy2(errorProto, destination)
-    shutil.copy2(heartBeatProto, destination)
+    copy_if_different(errorProto, os.path.join(destination, "errorCode.proto"))
+    copy_if_different(heartBeatProto, os.path.join(destination, "heartBeat.proto"))

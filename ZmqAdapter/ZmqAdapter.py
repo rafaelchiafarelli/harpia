@@ -38,7 +38,7 @@ import os
 
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different
 
 ZMQ_EXT = "_zmq.h"
 
@@ -95,8 +95,7 @@ class ZmqAdapter:
                                else "runtime_origin_id()")
             header = self._render(msg, push_pull, pub_sub, default_id_expr)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, ZMQ_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(header)
+            write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
 
         if written == 0:

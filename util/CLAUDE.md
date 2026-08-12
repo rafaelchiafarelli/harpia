@@ -13,6 +13,26 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
 - `util.py` — every helper below lives here.
 
 ## Public functions (in util.py)
+- `write_if_different(path, content) -> bool` — writes `content` to `path`
+  unless it's already there unchanged, so an unchanged generated file keeps
+  its mtime (a downstream `cmake`/`make` build then correctly skips
+  recompiling it, instead of every regenerate looking like "everything
+  changed"). Used by every adapter that emits generated C++/SQL/proto text
+  (`JsonAdapter`, `XmlAdapter`, `ZmqAdapter`, every `Database/*Adapter.py`,
+  `ProtoFile/FileCreator.py`, `TestAdapter/TestAdapter.py`) in place of a raw
+  `open(path,"w").write(content)`.
+- `copy_if_different(src, dst) -> bool` — same idea via `filecmp.cmp`, for
+  the static/vendored files that are copied rather than rendered
+  (`copyCMakeFiles`, `copyBasicProtos`, `TestAdapter._vendor_deps`).
+- `prune_stale_outputs(dest, current_hash, valid_names)` — removes generated
+  files left behind by a message renamed/removed since the last run, or by a
+  previous run against a different root-file hash. Matches harpia's
+  `<name>_<hash>...` filename convention (`_NAME_HASH_RE`) so it never
+  touches anything that doesn't look generated (CMakeLists.txt, vendored
+  `third_party/`, ...); `_ALWAYS_VALID_BASENAMES` allowlists the one
+  non-message-keyed exception (`TestAdapter`'s `app_<hash>_test.cpp`).
+  Called once by `main.py`, right after messages are parsed and before
+  anything is written, replacing the old blanket `shutil.rmtree(dest)`.
 - `chooseDemo(messages)` — picks the message that drives the end-to-end demo:
   the first non-enum message with a PUSH or PULL access modifier (client PUSHes,
   server PULLs). Returns a substitution dict `{DEMO_MESSAGE, DEMO_HASH,
@@ -61,7 +81,8 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
 
 ## Touchpoints
 - Imported by: `main.py` (copyCMakeFiles, copyServerClientTemplates,
-  copyBasicProtos, chooseDemo), `LexicalAnalizer/pre_lex.py` (isFileInFolders,
-  isascii), adapters (loadTemplate), `tests/run_pipeline.py`.
-- Depends on: `Errors.Error` (Error, Types, Classes), stdlib (shutil, os, string,
-  json, hashlib).
+  copyBasicProtos, chooseDemo, prune_stale_outputs), `LexicalAnalizer/pre_lex.py`
+  (isFileInFolders, isascii), every adapter that writes output
+  (write_if_different / copy_if_different, plus loadTemplate), `tests/run_pipeline.py`.
+- Depends on: `Errors.Error` (Error, Types, Classes), stdlib (shutil, os, re,
+  filecmp, string, json, hashlib).

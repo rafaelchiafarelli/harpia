@@ -1,6 +1,7 @@
 #get one message and create one proto, one .message and one .variables files
+import os
 from Logger.logger import logger
-from Util.util import readFromTemplate
+from Util.util import readFromTemplate, write_if_different
 PROTO_EXT = ".proto"
 MESSAGE_EXT = ".message"
 VARIABLES_EXT = ".variables"
@@ -137,38 +138,38 @@ class FileCreator():
             gRPCPath = "{}/proto/protofiles/{}".format(self.destination,self.gRPCfileName)
             messageModifierPath = "{}/modifier/{}".format(self.destination,self.modifierName)
             accessModifierPath = "{}/access_modifier/{}".format(self.destination,self.accessName)
-            dataBasePath = "{}/database/{}".format(self.destination,self.tableName)
             dataBaseAccessPath = "{}/database_access/{}".format(self.destination,self.tableAccess)
         else:
             messagePath = "{}/proto/protofiles/{}".format(fileFolder,self.fileName)
             gRPCPath = "{}/proto/protofiles/{}".format(fileFolder,self.gRPCfileName)
             messageModifierPath = "{}/modifier/{}".format(fileFolder,self.modifierName)
             accessModifierPath = "{}/access_modifier/{}".format(fileFolder,self.accessName)
-            dataBasePath = "{}/database/{}".format(fileFolder,self.tableName)
             dataBaseAccessPath = "{}/database_access/{}".format(fileFolder,self.tableAccess)
-        
-        with open(messagePath, "w") as outFile:
-            outFile.write(self.messageData)
 
-        with open(gRPCPath, "w") as outFile:
-            outFile.write(self.gRPCData)
+        write_if_different(messagePath, self.messageData)
+        write_if_different(gRPCPath, self.gRPCData)
 
-        with open(messageModifierPath, 'w') as outFile:
-            modifierData=""
-            for modifier in self.modifierData:
-                modifierData+="{}\n".format(modifier.__str__())
-            outFile.write(modifierData)
+        modifierData = ""
+        for modifier in self.modifierData:
+            modifierData += "{}\n".format(modifier.__str__())
+        write_if_different(messageModifierPath, modifierData)
 
-        with open(accessModifierPath, 'w') as outFile:
-            accessModifierData=""
-            for access in self.accessData:
-                accessModifierData+="{}:{};\n".format(access[0],access[1])
-            outFile.write(accessModifierData)
-            
-        with open(dataBasePath, 'w') as outFile:
-            outFile.write(self.dataBaseData)      
-              
-        if self.message.visibility is not None:
-            if self.message.visibility == "PRIVATE":
-                with open(dataBaseAccessPath, 'w') as outFile:
-                    outFile.write("{}".format(self.dataBaseAccess))
+        accessModifierData = ""
+        for access in self.accessData:
+            accessModifierData += "{}:{};\n".format(access[0], access[1])
+        write_if_different(accessModifierPath, accessModifierData)
+
+        # database/<name>_<hash>_table.sql is NOT written here: SqlAdapter
+        # (runs later in main.py, for every message including enums)
+        # unconditionally supersedes it with the real schema, so writing a
+        # stub here first just means every run touches this path twice --
+        # defeating write-if-different for no benefit.
+
+        if self.message.visibility == "PRIVATE":
+            write_if_different(dataBaseAccessPath,
+                               "{}".format(self.dataBaseAccess))
+        elif os.path.exists(dataBaseAccessPath):
+            # visibility changed away from PRIVATE since the last run -- this
+            # sidecar's (name, hash) still matches a live message, so
+            # Util.util.prune_stale_outputs wouldn't catch it as an orphan.
+            os.remove(dataBaseAccessPath)

@@ -21,7 +21,7 @@ SOCI specifics baked into the generated code (see the DAO's header comment):
 import os
 
 from Logger.logger import logger
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different
 from Database.backends import get_backend
 from Database.model import (analyze, create_table_sql, type_registry,
                             map_fields, repeated_fields, RepeatedComposedField)
@@ -65,8 +65,7 @@ class CrudlAdapter:
                 continue
             header = self._render(msg)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, CRUDL_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(header)
+            write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
         self.log.print("generated {} CRUDL DAO(s) into {}".format(
             written, self.outDir))

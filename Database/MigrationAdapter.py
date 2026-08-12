@@ -31,7 +31,7 @@ schema (SqlAdapter) and the DAO (CrudlAdapter). Header-only C++.
 import os
 
 from Logger.logger import logger
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different
 from Database.backends import get_backend
 from Database.model import analyze, type_registry
 
@@ -70,8 +70,7 @@ class MigrationAdapter:
             if getattr(msg, "isEnum", False) or not msg.tableName:
                 continue
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, MIGRATE_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(self._render(msg))
+            write_if_different(os.path.join(self.outDir, fileName), self._render(msg))
             written += 1
         self.log.print("generated {} migration(s) into {}".format(
             written, self.outDir))

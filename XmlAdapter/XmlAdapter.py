@@ -21,7 +21,7 @@ import shutil
 
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different, copy_if_different
 
 XML_EXT = "_xml.h"
 RUNTIME = "harpia_xml.h"
@@ -41,7 +41,7 @@ class XmlAdapter:
     def Process(self):
         os.makedirs(self.outDir, exist_ok=True)
         # ship the generic runtime alongside the wrappers
-        shutil.copy2(_RUNTIME_SRC, os.path.join(self.outDir, RUNTIME))
+        copy_if_different(_RUNTIME_SRC, os.path.join(self.outDir, RUNTIME))
 
         written = 0
         for msg in self.messages:
@@ -49,8 +49,7 @@ class XmlAdapter:
                 continue
             header = self._render(msg)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, XML_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(header)
+            write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
 
         if written == 0:

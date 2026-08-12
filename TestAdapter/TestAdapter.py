@@ -20,7 +20,7 @@ import os
 import shutil
 
 from Logger.logger import logger
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different, copy_if_different
 from Database.model import (analyze, type_registry, map_fields, repeated_fields,
                             RepeatedComposedField)
 
@@ -120,8 +120,7 @@ class TestAdapter:
         for msg in tables:
             src = self._render(msg)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, TEST_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(src)
+            write_if_different(os.path.join(self.outDir, fileName), src)
             units.append(("{}_test".format(msg.name), fileName))
 
         if tables:
@@ -130,8 +129,8 @@ class TestAdapter:
             # message, exercising the whole stack and its failure modes.
             rep = self._pick_rep(tables)
             appFile = "app_{}{}".format(rep.md5Hash, TEST_EXT)
-            with open(os.path.join(self.outDir, appFile), "w") as out:
-                out.write(self._app_render(rep))
+            write_if_different(os.path.join(self.outDir, appFile),
+                               self._app_render(rep))
             units.append(("app_test", appFile))
 
         self._write_cmake(units)
@@ -771,18 +770,27 @@ class TestAdapter:
             for name in files:
                 src = os.path.join(_THIRD_PARTY, sub, name)
                 if os.path.exists(src):
-                    shutil.copy2(src, os.path.join(dst, name))
+                    copy_if_different(src, os.path.join(dst, name))
         # header trees (e.g. standalone asio) copied whole so the generated
-        # project stays self-contained on any target board (no system package)
+        # project stays self-contained on any target board (no system package).
+        # Walked file-by-file (not shutil.copytree, which always overwrites) so
+        # an unchanged vendored file keeps its mtime like everything else here.
         for sub in _VENDOR_TREES:
             src = os.path.join(_THIRD_PARTY, sub)
-            if os.path.isdir(src):
-                shutil.copytree(src, os.path.join(self.dest, "third_party", sub),
-                                dirs_exist_ok=True)
+            if not os.path.isdir(src):
+                continue
+            dst_root = os.path.join(self.dest, "third_party", sub)
+            for root, _dirs, files in os.walk(src):
+                rel = os.path.relpath(root, src)
+                dst_dir = dst_root if rel == "." else os.path.join(dst_root, rel)
+                os.makedirs(dst_dir, exist_ok=True)
+                for name in files:
+                    copy_if_different(os.path.join(root, name),
+                                      os.path.join(dst_dir, name))
         # the test HTTP client lives next to the generated tests (Crow has none)
         if os.path.exists(_CLIENT_HDR):
-            shutil.copy2(_CLIENT_HDR,
-                         os.path.join(self.outDir, "harpia_test_client.h"))
+            copy_if_different(_CLIENT_HDR,
+                              os.path.join(self.outDir, "harpia_test_client.h"))
 
     def _write_cmake(self, units):
         lines = [
@@ -817,5 +825,5 @@ class TestAdapter:
                 "add_test(NAME {} COMMAND {})".format(tgt, tgt),
                 "",
             ]
-        with open(os.path.join(self.outDir, "CMakeLists.txt"), "w") as out:
-            out.write("\n".join(lines))
+        write_if_different(os.path.join(self.outDir, "CMakeLists.txt"),
+                           "\n".join(lines))

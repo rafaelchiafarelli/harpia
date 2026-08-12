@@ -18,7 +18,7 @@ mismatch), mirroring SOAP/REST; heartBeat stays open.
 import os
 
 from Logger.logger import logger
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different
 
 GRPC_EXT = "_grpc.h"
 
@@ -44,8 +44,7 @@ class GrpcServiceAdapter:
                 hash=msg.md5Hash,
             )
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, GRPC_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(header)
+            write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
         self.log.print("generated {} gRPC service impl(s) into {}".format(
             written, self.outDir))

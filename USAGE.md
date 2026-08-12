@@ -44,7 +44,9 @@ Add `--no-build` to generate only (skip the cmake build + ctest):
 ./run_harpia.sh HarpiaTest /tmp/my_project --no-build
 ```
 
-Both folders may live **anywhere** on disk; the output folder is cleaned first.
+Both folders may live **anywhere** on disk. The output folder is regenerated
+write-if-different (see §10) — safe to point at the same folder across runs;
+it is not wiped first.
 
 ---
 
@@ -270,7 +272,7 @@ Override the paths with environment variables:
 |---|---|
 | `HARPIA_INPUT_FILE` | path to the root `.harpia` file |
 | `HARPIA_INCLUDE_FOLDER` | folder of importable modules |
-| `HARPIA_OUTPUT_DIR` | where to write the generated project (cleaned first) |
+| `HARPIA_OUTPUT_DIR` | where to write the generated project (write-if-different; safe to reuse across runs) |
 | `HARPIA_DB_BACKEND` | database dialect: `sqlite` (default) or `postgresql` |
 
 ---
@@ -353,8 +355,14 @@ over it (see its README).
 
 ## 10. Notes & limits
 
-- The output is regenerated from scratch each run — **do not hand-edit generated
-  files**; change your `.harpia` and regenerate.
+- Regeneration is **write-if-different**, not a blanket wipe: an unchanged
+  generated file keeps its original mtime, so a downstream `cmake --build`
+  can skip recompiling it — regenerating into the same output dir after a
+  no-op `.harpia` edit rebuilds close to nothing (a message rename or
+  removal has its old files pruned automatically). **Still never hand-edit
+  generated files** — change your `.harpia` and regenerate; anything you hand
+  edit gets silently overwritten (or removed, if it looks like an
+  orphan) the next time you do.
 - Exactly one root `.harpia` per input folder (imports go under `Include/`).
 - Message ids (the `ID_*` primary key) are **caller-assigned** — set them before
   `create()`; the DB does not auto-generate them.

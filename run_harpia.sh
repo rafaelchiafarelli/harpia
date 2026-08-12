@@ -8,7 +8,8 @@
 #
 #   <input_folder>   a directory containing exactly one .harpia file
 #                    (and, optionally, an Include/ subfolder of import modules)
-#   <output_folder>  where the generated project is written (cleaned first).
+#   <output_folder>  where the generated project is written (write-if-different;
+#                    safe to point at the same folder across runs, not wiped).
 #                    Both folders may live ANYWHERE on the filesystem.
 #
 #   --no-build       generate only; skip the cmake build + ctest run.
@@ -112,7 +113,7 @@ docker run --rm -i \
     "$IMAGE" bash -c "$RUN_CMD"
 
 # Drop a build guide into the output folder so it's a complete, portable example.
-# Written after codegen because main.py cleans the output dir at start.
+# Written after codegen (not before) simply because it documents that run's output.
 cat > "$OUTPUT_ABS/HOW_TO_BUILD.md" <<'EOF'
 # How to build this generated project
 

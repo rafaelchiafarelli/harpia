@@ -36,8 +36,14 @@ Within the pipeline above (stages 0–14, C++ only):
   structure (rename/add/drop/type) up to date, but not an arbitrary
   value-transformation function (e.g. re-deriving one column's data from
   another's on upgrade).
-- The "continuable process" / sha256-registry crash-recovery machinery
-  described in `harpia.architecture.md` — explicitly aspirational there.
+- The "continuable process" gap in `harpia.architecture.md` has two halves:
+  regeneration being wasteful (redoing unchanged work) is **done** —
+  regeneration is write-if-different with stale-output pruning (see
+  `Util.util.write_if_different`/`prune_stale_outputs`, `USAGE.md` §10), so
+  an unchanged file keeps its mtime and a downstream `cmake --build` skips
+  recompiling it. True interrupt/crash recovery (resume a *killed mid-run*
+  generate, not just skip a no-op regenerate) is the sha256-registry/marker
+  machinery the doc describes — still explicitly aspirational, not started.
 
 Beyond the pipeline (the "## objective:"-onward spec section below is the
 design vision, not current status):

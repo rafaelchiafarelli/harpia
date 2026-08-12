@@ -5,7 +5,7 @@
 ## Contents
 - `test.harpia` — root input. Starts with `import "file1.harpia"` / `file2` / `file3` (resolved from `Include/`). Exercises messages, nested messages, enums, `optional`/`required`/`repeteable`, `map<>`, `pagination[N]`, and stream/pull/push/event message modifiers plus comment styles.
 - `Include/file1.harpia` (`message pope`), `file2.harpia` (`message king`), `file3.harpia` (`message queen`, plus fixtures added for specific generator features: `courier` — PUSH-only, exercises the ZMQ many-to-* runtime origin id; `parcel`/`shipment` — a repeated field targeting a table-less composed message (`RepeatedComposedField`); `waypoint`/`route`/`journey` — a composed field nested two levels deep inside an embedded table-less message) — module files pulled in by the root's `import` statements. **Only the root file's own md5 is used to tag every message** (see LexicalAnalizer/CLAUDE.md), so editing an Include file's content never perturbs the pinned `HASH` constants in `tests/` — this is why new fixtures land in Include files, not `test.harpia` itself.
-- `test_build/` — GENERATED output (proto, generated/cpp adapters, CMake, server/client demo). Wiped and recreated each run (`shutil.rmtree` + `makedirs` in `main.py`).
+- `test_build/` — GENERATED output (proto, generated/cpp adapters, CMake, server/client demo). Regenerated write-if-different each run, not wiped (`Util.util.write_if_different`/`prune_stale_outputs`, called from `main.py`) — an unchanged file keeps its mtime; a message renamed/removed since the last run has its old output pruned.
 
 ## Key facts / gotchas
 - `test_build/` is **generated and gitignored** (repo `.gitignore` has `*build*`). Never edit by hand or commit; regenerate by running the pipeline.
