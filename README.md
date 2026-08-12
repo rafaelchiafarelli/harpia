@@ -44,7 +44,13 @@ design vision, not current status):
 - No YAML serialization (JSON and XML adapters exist; spec calls for
   YAML-style `toString` too).
 - No Doxygen generation for the emitted C++.
-- No SSL/TLS in any generated transport (REST/SOAP/gRPC/ZMQ).
+- No SSL/TLS on ZMQ (would need CURVE, a different mechanism from TLS;
+  unverified whether the apt-installed libzmq even has it built in — not
+  started). REST/SOAP (Crow's `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC
+  (`grpc::SslServerCredentials`) are TLS-capable and documented (`USAGE.md`
+  §9); harpia never generated their server-construction code to begin with
+  (that's caller-owned), so enabling TLS is a caller-side build flag, not a
+  generator change — demonstrated in `examples/consumer -DUSE_TLS=ON`.
 - No multi-tier RBAC — every credential-gated surface checks a single flat
   `X-User`/`X-Pswd`-style secret, not the admin/main/guest roles the spec
   describes.

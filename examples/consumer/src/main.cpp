@@ -12,8 +12,11 @@
 #include <soci/soci.h>
 #include <soci/sqlite3/soci-sqlite3.h>   // pick the backend at your session-open site
 
+#include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <string>
+#include <thread>
 #include <vector>
 
 // #define H is only for this demo's readability; the real names are hash-qualified.
@@ -63,12 +66,32 @@ int main() {
     app.loglevel(crow::LogLevel::Warning);
     harpia::rest::register_users(app, db, "/api/v1");
 
+    // TLS is opt-in at build time (-DUSE_TLS=ON, see CMakeLists.txt) -- it's
+    // your server, so it's your call whether to enable it. Crow's ssl_file()
+    // is already there in the vendored header; this just points it at a cert.
+#ifdef HARPIA_DEMO_TLS
+    app.ssl_file(HARPIA_DEMO_CERT, HARPIA_DEMO_KEY);
+#endif
+
     // A real service would just call app.port(8080).run() (blocking). For this
     // self-contained demo we start on an ephemeral port, confirm it, then stop.
     auto fut = app.bindaddr("127.0.0.1").port(0).multithreaded().run_async();
     app.wait_for_server_start();
-    std::cout << "REST server started on http://127.0.0.1:" << app.port()
-              << "/api/v1/users\n";
+    std::cout << "REST server started on "
+#ifdef HARPIA_DEMO_TLS
+              << "https"
+#else
+              << "http"
+#endif
+              << "://127.0.0.1:" << app.port() << "/api/v1/users" << std::endl;
+
+    // Optional hold so an external process can connect before we stop --
+    // never set outside the TLS test harness, so the plain demo is unaffected.
+    // std::endl above already flushed the URL line so a reader waiting on it
+    // (rather than on process exit) sees it before this sleep starts.
+    if (const char* hold_ms = std::getenv("HARPIA_DEMO_HOLD_MS")) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(std::atoi(hold_ms)));
+    }
     app.stop();
     fut.get();
 

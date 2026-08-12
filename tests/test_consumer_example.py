@@ -12,6 +12,7 @@ fully in the harpia Docker image.
 """
 import os
 import shutil
+import ssl
 import subprocess
 import sys
 
@@ -66,3 +67,53 @@ def test_consumer_builds_and_runs(generated, tmp_path):
     assert "as JSON:" in run.stdout, run.stdout
     assert "REST server started" in run.stdout, run.stdout
     assert run.stdout.strip().endswith("OK"), run.stdout
+
+
+@pytest.mark.skipif(shutil.which("openssl") is None, reason="needs the openssl CLI")
+def test_consumer_builds_and_runs_tls(generated, tmp_path):
+    """Same contract as the plain test, but with -DUSE_TLS=ON: proves TLS is not
+    just a flag that compiles -- the running server does a real TLS handshake."""
+    build = str(tmp_path / "consumer_build_tls")
+    cfg = subprocess.run(
+        ["cmake", "-S", CONSUMER, "-B", build,
+         "-DHARPIA_GEN={}".format(generated), "-DUSE_TLS=ON"],
+        capture_output=True, text=True, timeout=180)
+    assert cfg.returncode == 0, "cmake configure failed:\n" + cfg.stdout + cfg.stderr
+
+    b = subprocess.run(["cmake", "--build", build, "-j", "4"],
+                       capture_output=True, text=True, timeout=300)
+    assert b.returncode == 0, "consumer build failed:\n" + b.stdout + b.stderr
+
+    env = dict(os.environ, HARPIA_DEMO_HOLD_MS="1500")
+    proc = subprocess.Popen(
+        [os.path.join(build, "consumer")], env=env,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    lines = []
+    try:
+        port = None
+        for line in proc.stdout:
+            lines.append(line)
+            if "REST server started on https://127.0.0.1:" in line:
+                port = int(line.strip().rsplit(":", 1)[-1].split("/", 1)[0])
+                break
+        assert port is not None, "server never printed its https:// URL:\n" + "".join(lines)
+
+        # A real TLS handshake against the still-running server (self-signed, so
+        # we don't verify the chain -- the point is proving it's TLS, not who
+        # signed it). The HARPIA_DEMO_HOLD_MS env var above keeps the server up
+        # long enough for this to land before the process stops it.
+        pem = ssl.get_server_certificate(("127.0.0.1", port))
+        assert "BEGIN CERTIFICATE" in pem
+
+        rest, _ = proc.communicate(timeout=10)
+        lines.append(rest)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.communicate()
+
+    out = "".join(lines)
+    assert proc.returncode == 0, "consumer run failed:\n" + out
+    assert "rows in the table: 2" in out, out
+    assert "as JSON:" in out, out
+    assert out.strip().endswith("OK"), out

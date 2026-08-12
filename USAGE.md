@@ -307,7 +307,51 @@ target.
 
 ---
 
-## 9. Notes & limits
+## 9. Enabling TLS on REST/SOAP/gRPC
+
+Harpia generates route registration (`RestAdapter`/`SoapAdapter`) or the service
+class (`GrpcServiceAdapter`) — it never generates the server-construction call
+(`app.port().run()`, `grpc::ServerBuilder::BuildAndStart()`). That's caller code,
+same as the `soci::session` in [§8](#8-choosing-the-database-backend) — so TLS is
+something **you** turn on where you build your own server, not a generation-time
+flag.
+
+**REST/SOAP (Crow):** the vendored `third_party/crow/crow.h` already has full SSL
+support, gated behind `CROW_ENABLE_SSL`:
+
+```cpp
+#define CROW_ENABLE_SSL     // before including crow.h anywhere in this TU
+#include "crow.h"
+...
+crow::SimpleApp app;
+harpia::rest::register_users(app, db, "/api/v1");
+app.ssl_file("server.crt", "server.key");   // must be set before .run()/.run_async()
+app.port(8443).run();
+```
+
+Link OpenSSL (`find_package(OpenSSL REQUIRED)`, `target_link_libraries(... OpenSSL::SSL
+OpenSSL::Crypto)`) and supply a cert/key — a self-signed pair is enough for
+development (`openssl req -x509 -newkey rsa:2048 -nodes -keyout server.key -out
+server.crt -days 365 -subj "/CN=localhost"`); use a CA-issued pair in production.
+
+**gRPC:** swap `grpc::InsecureServerCredentials()` for
+`grpc::SslServerCredentials(...)` where you build your `grpc::ServerBuilder` —
+`libgrpc++-dev` already ships this, no extra linking needed:
+
+```cpp
+grpc::SslServerCredentialsOptions opts;
+opts.pem_key_cert_pairs.push_back({read_file("server.key"), read_file("server.crt")});
+builder.AddListeningPort(addr, grpc::SslServerCredentials(opts));
+```
+
+**Worked example:** [`examples/consumer/`](examples/consumer/) demonstrates the
+Crow path end to end — build it with `-DUSE_TLS=ON` to see a generated CMake
+target generate a self-signed cert at configure time and serve real REST traffic
+over it (see its README).
+
+---
+
+## 10. Notes & limits
 
 - The output is regenerated from scratch each run — **do not hand-edit generated
   files**; change your `.harpia` and regenerate.

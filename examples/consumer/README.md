@@ -48,6 +48,23 @@ OK
 - [`CMakeLists.txt`](CMakeLists.txt) — how the generated headers, vendored Crow/asio/
   tinyxml2, protobuf and SOCI are wired into a build.
 
+## TLS
+
+Build with `-DUSE_TLS=ON` to serve the REST demo over HTTPS instead of plain
+HTTP — CMake generates a self-signed cert at configure time and Crow's
+`ssl_file()` (already in the vendored header, just gated behind
+`CROW_ENABLE_SSL`) picks it up:
+
+```sh
+cmake -S examples/consumer -B /tmp/cb_tls -DHARPIA_GEN=/tmp/gen -DUSE_TLS=ON
+cmake --build /tmp/cb_tls
+/tmp/cb_tls/consumer
+```
+
+Output is identical except the last line reads `https://127.0.0.1:<port>/api/v1/users`.
+See [USAGE.md §9](../../USAGE.md#9-enabling-tls-on-restsoapgrpc) for the gRPC
+equivalent (`grpc::SslServerCredentials`, no extra linking needed).
+
 ## Notes
 - Generated names are **md5-hash-qualified** (`users_<hash>_crudl.h`, accessor
   `id_<hash>()`); the hash is derived from your `.harpia` input. This example is

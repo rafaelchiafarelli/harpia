@@ -22,6 +22,10 @@ if(NOT DEFINED HARPIA_GEN)
 endif()
 set(GEN "${HARPIA_GEN}/generated/cpp")
 
+# TLS on the REST server (Crow), opt-in -- see USAGE.md "Enabling TLS on
+# REST/SOAP/gRPC". Off by default so the plain demo build/run is unchanged.
+option(USE_TLS "Build the consumer with Crow SSL enabled" OFF)
+
 find_package(Threads REQUIRED)
 find_package(Protobuf REQUIRED)
 
@@ -50,3 +54,25 @@ target_link_libraries(consumer PRIVATE
     harpia_msgs harpia_tinyxml2
     soci_core soci_sqlite3                     # SOCI + the SQLite backend (system libs)
     Threads::Threads ${CMAKE_DL_LIBS})
+
+if(USE_TLS)
+    # Self-signed, ephemeral -- regenerated on every configure, never committed.
+    set(HARPIA_DEMO_CERT "${CMAKE_BINARY_DIR}/harpia_demo.crt")
+    set(HARPIA_DEMO_KEY "${CMAKE_BINARY_DIR}/harpia_demo.key")
+    execute_process(COMMAND openssl req -x509 -newkey rsa:2048 -nodes
+        -keyout "${HARPIA_DEMO_KEY}" -out "${HARPIA_DEMO_CERT}"
+        -days 1 -subj "/CN=localhost"
+        RESULT_VARIABLE HARPIA_CERT_RC
+        OUTPUT_QUIET ERROR_QUIET)
+    if(NOT HARPIA_CERT_RC EQUAL 0)
+        message(FATAL_ERROR "openssl failed to generate the demo TLS cert/key")
+    endif()
+
+    find_package(OpenSSL REQUIRED)
+    target_link_libraries(consumer PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+    target_compile_definitions(consumer PRIVATE
+        CROW_ENABLE_SSL
+        HARPIA_DEMO_TLS
+        HARPIA_DEMO_CERT="${HARPIA_DEMO_CERT}"
+        HARPIA_DEMO_KEY="${HARPIA_DEMO_KEY}")
+endif()
