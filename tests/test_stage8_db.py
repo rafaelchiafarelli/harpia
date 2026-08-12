@@ -299,6 +299,67 @@ def test_migration_drop_and_rename(generated, sqlite_obj, tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_retype_column(generated, sqlite_obj, tmp_path):
+    """migrate_<name> RETYPEs a column whose live SQL type no longer matches
+    the current schema (beacon_log.strength: an older TEXT column, current
+    schema is INTEGER) -- detected purely by runtime introspection, no DSL
+    marker needed, since (unlike rename) the name is unchanged. SQLite has no
+    ALTER COLUMN TYPE, so this exercises the create/copy(with CAST)/drop/
+    rename table-rebuild path; data survives via CAST, and a second call is
+    idempotent (no rebuild, since the type already matches)."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "migrate_retype.cpp"
+    prog.write_text(
+        '#include "migrate/beacon_log_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        "    // an older generated version: strength stored as TEXT, not INTEGER\n"
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '\\"label\\" TEXT, \\"strength\\" TEXT);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"ID_{h}\\\", \\\"label\\\", "
+        "\\\"strength\\\") VALUES (1, 'north', '7');\")) return 3;\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 4;\n"
+        "    // the column's declared type is now INTEGER\n"
+        "    int seen = 0; ::soci::indicator si;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('beacon_log_table') "
+        "WHERE name = 'strength' AND type = 'INTEGER'\", ::soci::into(seen, si);\n"
+        "    if (seen != 1) return 5;\n"
+        "    // the value survived the CAST\n"
+        "    ::harpia::db::beacon_log_dao dao(db);\n"
+        "    ::beacon_log got;\n"
+        "    if (!dao.read(1, &got)) return 6;\n"
+        '    if (got.label() != "north" || got.strength() != 7) return 7;\n'
+        "    // idempotent: the type already matches, so a second call does not rebuild\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 8;\n"
+        "    ::beacon_log got2;\n"
+        "    if (!dao.read(1, &got2)) return 9;\n"
+        '    if (got2.label() != "north" || got2.strength() != 7) return 10;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb_cc = os.path.join(cpp_root, "protofiles", "beacon_log_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "migrate_retype")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=120)
+    assert c.returncode == 0, "retype migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "retype migration failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="FK round-trip needs protoc + protobuf")
 def test_fk_roundtrip(generated, sqlite_obj, tmp_path):
     """A singular composed field whose target owns a table (top_users.myUsers ->
