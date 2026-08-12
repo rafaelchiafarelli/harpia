@@ -17,9 +17,11 @@ import glob
 import os
 import shutil
 import subprocess
+import tempfile
 
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
+from Util.util import copy_tree_if_different
 
 
 class ProtoCompiler:
@@ -52,14 +54,21 @@ class ProtoCompiler:
                          FileName=self.protoFilesDir)
 
         os.makedirs(self.cppOut, exist_ok=True)
-        cmd = [protoc, "-I", self.protoRoot, "--cpp_out", self.cppOut] + protos
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            self.log.print("protoc failed:\n{}".format(result.stderr.strip()))
-            return Error(errCl=Classes.PROTO_COMPILATION,
-                         errTp=Types.PROTOC_COMPILATION_ERROR,
-                         FileName=self.protoFilesDir,
-                         FileLine=result.stderr.strip())
+        # protoc always rewrites its output unconditionally, which would give
+        # every .pb.h/.pb.cc a fresh mtime on every regenerate regardless of
+        # content. Run it into a scratch dir and diff-copy the result into
+        # place so an unchanged file keeps its mtime, same as every other
+        # adapter's write_if_different (see Util.util).
+        with tempfile.TemporaryDirectory() as scratchOut:
+            cmd = [protoc, "-I", self.protoRoot, "--cpp_out", scratchOut] + protos
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                self.log.print("protoc failed:\n{}".format(result.stderr.strip()))
+                return Error(errCl=Classes.PROTO_COMPILATION,
+                             errTp=Types.PROTOC_COMPILATION_ERROR,
+                             FileName=self.protoFilesDir,
+                             FileLine=result.stderr.strip())
+            copy_tree_if_different(scratchOut, self.cppOut)
 
         self.log.print("protoc generated C++ for {} proto files into {}".format(
             len(protos), self.cppOut))

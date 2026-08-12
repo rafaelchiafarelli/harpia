@@ -130,6 +130,20 @@ def copy_if_different(src, dst):
     return True
 
 
+def copy_tree_if_different(src, dst):
+    """Recursively copy_if_different every file under src into the matching
+    path under dst, creating directories as needed. Lets a tool that always
+    rewrites its output unconditionally (e.g. protoc) still participate in
+    write-if-different regeneration: run it into a scratch dir, then diff-copy
+    the result into place instead of writing straight into dst."""
+    for root, _dirs, files in os.walk(src):
+        rel = os.path.relpath(root, src)
+        destRoot = dst if rel == "." else os.path.join(dst, rel)
+        os.makedirs(destRoot, exist_ok=True)
+        for fn in files:
+            copy_if_different(os.path.join(root, fn), os.path.join(destRoot, fn))
+
+
 def prune_stale_outputs(dest, current_hash, valid_names):
     """Remove generated files left behind by a message that was renamed or
     removed, or by a previous run against a different root-file hash --
