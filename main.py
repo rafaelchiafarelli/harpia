@@ -72,6 +72,7 @@ if __name__ == '__main__':
     mainFileLex.CommentRemover()
     mainFileLex.ImportRemover()
 
+    lastLex = mainFileLex
     for inc in listOfIncludes:
         incFilePreLex = pre_lex(folders=[localFolder], file=inc, dest=testDestination, includeFolder = includeFolder)
         incFilePreProcessorResult = incFilePreLex.process()
@@ -85,8 +86,9 @@ if __name__ == '__main__':
             exit(-1)
         analizer.CommentRemover()
         analizer.ImportRemover()
-        
-    lexicalAnalized += (analizer.getTokens())
+        lastLex = analizer
+
+    lexicalAnalized += (lastLex.getTokens())
 
     msgFactory = MessageCreator(filename=testFile,tokens=lexicalAnalized, md5Hash=rootFile.getHash())
 
