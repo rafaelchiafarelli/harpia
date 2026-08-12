@@ -12,8 +12,18 @@ schema version and records it in a "_harpia_schema_version" table:
   - DROPs any column a live table has that the current schema no longer
     declares (an inverse diff against the runtime-introspected column set --
     there is no schema history, so this is an unconditional "unrecognized
-    column" removal, not a marker-driven one).
-Type changes and cross-version data transforms are still out of scope.
+    column" removal, not a marker-driven one),
+  - RETYPEs any column whose live SQL type no longer matches what the
+    current schema declares for that same name (a second runtime
+    introspection pass, after renames/adds/drops so the live table is
+    already stabilized to the current column set). Unlike a rename this
+    needs no DSL marker -- the column name is unchanged, so the mismatch is
+    unambiguous. Postgres fixes each column independently with a direct
+    ALTER COLUMN ... TYPE; SQLite has no such statement, so it rebuilds the
+    whole table (create with the current schema, copy every row across with
+    a CAST per column, drop the old table, rename the new one into place).
+Cross-version data transforms (an arbitrary value-transformation function,
+not just a CAST) are still out of scope.
 
 Columns come from the shared Database.model so the migration agrees with the
 schema (SqlAdapter) and the DAO (CrudlAdapter). Header-only C++.
@@ -92,6 +102,11 @@ class MigrationAdapter:
         # substituted into the template unescaped, as C++ source.
         current_cols = ", ".join('"{}"'.format(_esc(c.name)) for c in columns)
         drop_expr = b.drop_column_dynamic(msg.tableName, "_dc")
+        # retype: runs against the table's post-rename/add/drop column set, so
+        # every current column is checked (a freshly-added one is already
+        # correctly typed by add_column, so its guard is simply never true).
+        retype_block = b.retype_column_dynamic(
+            msg.tableName, [(c.name, c.sql_type, c.sql_def()) for c in columns])
         return _MIGRATE.format(
             guard="HARPIA_MIGRATE_{}_{}".format(msg.name.upper(), msg.md5Hash),
             name=msg.name,
@@ -99,9 +114,11 @@ class MigrationAdapter:
             table=msg.tableName,
             version_table_sql=_esc(b.version_table()),
             list_columns_sql=_esc(b.list_columns_sql(msg.tableName)),
+            list_column_types_sql=_esc(b.list_column_types_sql(msg.tableName)),
             stamp_version_sql=_esc(b.stamp_version(msg.tableName, msg.md5Hash)),
             renames=renames,
             alters=alters,
             current_cols=current_cols,
             drop_expr=drop_expr,
+            retype_block=retype_block,
         )

@@ -2,6 +2,7 @@
 #ifndef HARPIA_MIGRATE_CREW_c96f8fd7f45108efee5a8ecb43eab1da
 #define HARPIA_MIGRATE_CREW_c96f8fd7f45108efee5a8ecb43eab1da
 
+#include <map>
 #include <set>
 #include <string>
 
@@ -20,12 +21,18 @@
 //     declares. This is an IMPLICIT, UNCONDITIONAL diff, not a marker-driven
 //     one: there is no schema history, so any unrecognized live column is
 //     dropped, including one added out-of-band.
+//   - RETYPEs any column whose live SQL type no longer matches the current
+//     schema's declared type for that same name. Unlike a rename, this needs
+//     no DSL marker -- the name is unchanged, so a mismatch is unambiguous.
+//     Runs last among the structural steps, against the table already
+//     stabilized by the rename/add/drop steps above.
 //   - stamps the current version hash.
-// Column type changes and cross-version data transforms are still not handled.
+// Cross-version data transforms (an arbitrary value-transformation function,
+// not just a CAST) are still not handled.
 //
 // SOCI-based (works on any backend); the SQL dialect (version table, column
-// introspection, ALTER/RENAME/DROP, version-stamp upsert) comes from the
-// harpia DbBackend.
+// introspection, ALTER/RENAME/DROP/RETYPE, version-stamp upsert) comes from
+// the harpia DbBackend.
 namespace harpia {
 namespace db {
 
@@ -78,6 +85,36 @@ inline bool migrate_crew(::soci::session& db) {
                     ++_hit;
                 }
             }
+        }
+        // live column TYPES (dialect-uniform: two selected columns, name then
+        // type), queried AFTER the rename/add/drop steps above so it reflects
+        // the table's now-stabilized current column set -- a mismatch here
+        // can only be a stale type on a pre-existing column.
+        std::map<std::string, std::string> have_types;
+        {
+            std::string _tn, _tt; ::soci::indicator _tni, _tti;
+            ::soci::statement _ts = (db.prepare << "SELECT \"name\", \"type\" FROM pragma_table_info('crew_table');",
+                                     ::soci::into(_tn, _tni), ::soci::into(_tt, _tti));
+            _ts.execute();
+            while (_ts.fetch()) {
+                if (_tni == ::soci::i_ok && _tti == ::soci::i_ok) have_types[_tn] = _tt;
+            }
+        }
+        // non-additive: bring any column whose live type differs from the
+        // current schema to the current type (see the header comment above)
+        {
+        bool _needs_retype = false;
+            if (have_types.count("ID_c96f8fd7f45108efee5a8ecb43eab1da") && have_types["ID_c96f8fd7f45108efee5a8ecb43eab1da"] != "INTEGER") _needs_retype = true;
+            if (have_types.count("name") && have_types["name"] != "TEXT") _needs_retype = true;
+            if (have_types.count("STATUS_c96f8fd7f45108efee5a8ecb43eab1da") && have_types["STATUS_c96f8fd7f45108efee5a8ecb43eab1da"] != "TEXT") _needs_retype = true;
+            if (have_types.count("ERROR_c96f8fd7f45108efee5a8ecb43eab1da") && have_types["ERROR_c96f8fd7f45108efee5a8ecb43eab1da"] != "TEXT") _needs_retype = true;
+            if (have_types.count("ORIGINATOR") && have_types["ORIGINATOR"] != "TEXT") _needs_retype = true;
+        if (_needs_retype) {
+            db << "CREATE TABLE \"crew_table__retype_tmp\" (\"ID_c96f8fd7f45108efee5a8ecb43eab1da\" INTEGER PRIMARY KEY, \"name\" TEXT, \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT, \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT, \"ORIGINATOR\" TEXT);";
+            db << "INSERT INTO \"crew_table__retype_tmp\" (\"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"name\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR\") SELECT CAST(\"ID_c96f8fd7f45108efee5a8ecb43eab1da\" AS INTEGER), CAST(\"name\" AS TEXT), CAST(\"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" AS TEXT), CAST(\"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" AS TEXT), CAST(\"ORIGINATOR\" AS TEXT) FROM \"crew_table\";";
+            db << "DROP TABLE \"crew_table\";";
+            db << "ALTER TABLE \"crew_table__retype_tmp\" RENAME TO \"crew_table\";";
+        }
         }
         // stamp the current version
         db << "INSERT OR REPLACE INTO \"_harpia_schema_version\" (\"name\", \"version\") VALUES ('crew_table', 'c96f8fd7f45108efee5a8ecb43eab1da');";
