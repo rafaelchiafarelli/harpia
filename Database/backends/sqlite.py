@@ -18,7 +18,7 @@ equivalent, adopted so the migration C++ can be dialect-free):
     multi-line schema currently prints ``PRIMARY KEY (...)`` with a space --
     adopting this canonical form is a one-space golden diff, not a semantic one.
 """
-from Database.backends.base import DbBackend
+from Database.backends.base import DbBackend, _esc
 
 
 # harpia scalar token -> SQLite column type. (The neutral C++ bind "kind" that
@@ -128,6 +128,46 @@ class SqliteBackend(DbBackend):
                 "(\"name\", \"version\") VALUES ('{}', '{}');").format(
                     table, version)
 
+    def list_column_types_sql(self, table):
+        return ('SELECT "name", "type" FROM pragma_table_info(\'{}\');'
+                .format(table))
+
+    def retype_column_dynamic(self, table, columns):
+        # SQLite has no ALTER COLUMN ... TYPE at all, so a real type change
+        # needs a whole-table rebuild: create a tmp table with the CURRENT
+        # schema, copy every row across with a CAST per column, drop the old
+        # table, rename the tmp one into place. Only worth doing when at
+        # least one column's live type actually differs -- one bool guards
+        # the whole block, checked against every column up front.
+        columns = list(columns)
+        checks = "\n".join(
+            '            if (have_types.count("{n}") && have_types["{n}"] '
+            '!= "{t}") _needs_retype = true;'.format(n=name, t=sql_type)
+            for name, sql_type, _column_def in columns)
+        tmp = "{}__retype_tmp".format(table)
+        create_sql = self.create_table(
+            tmp, [(name, column_def) for name, _sql_type, column_def in columns],
+            if_not_exists=False)
+        col_list = ", ".join('"{}"'.format(name) for name, _, _ in columns)
+        select_list = ", ".join(
+            'CAST("{}" AS {})'.format(name, sql_type)
+            for name, sql_type, _ in columns)
+        insert_sql = 'INSERT INTO "{}" ({}) SELECT {} FROM "{}";'.format(
+            tmp, col_list, select_list, table)
+        drop_sql = self.drop_table(table, if_exists=False)
+        rename_sql = 'ALTER TABLE "{}" RENAME TO "{}";'.format(tmp, table)
+        return (
+            '        bool _needs_retype = false;\n'
+            '{checks}\n'
+            '        if (_needs_retype) {{\n'
+            '            db << "{create}";\n'
+            '            db << "{insert}";\n'
+            '            db << "{drop}";\n'
+            '            db << "{rename}";\n'
+            '        }}'
+        ).format(checks=checks, create=_esc(create_sql), insert=_esc(insert_sql),
+                 drop=_esc(drop_sql), rename=_esc(rename_sql))
+
 
 if __name__ == "__main__":
     # Eyeball aid: `python3 -m Database.backends.sqlite` prints representative
@@ -150,3 +190,8 @@ if __name__ == "__main__":
     print(b.rename_column("devices", "nickname", "label"))
     print(b.drop_column_dynamic("devices", "_dc"))
     print(b.stamp_version("devices", "c96f8fd7"))
+    print(b.list_column_types_sql("devices"))
+    print(b.retype_column_dynamic("devices", [
+        ("ID_abc", b.int_type, b.column_def(b.int_type, pk=True)),
+        ("weight", b.sql_type("FLOAT"), b.column_def(b.sql_type("FLOAT"))),
+    ]))

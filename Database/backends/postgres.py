@@ -19,7 +19,7 @@ Deltas from SQLite, all grounded in Postgres semantics:
 Identifiers are double-quoted everywhere, which is what keeps the SQLite and
 Postgres output case-compatible (Postgres folds unquoted identifiers to lower).
 """
-from Database.backends.base import DbBackend
+from Database.backends.base import DbBackend, _esc
 
 
 # harpia scalar token -> PostgreSQL column type. (The neutral C++ bind "kind" --
@@ -128,6 +128,31 @@ class PostgresBackend(DbBackend):
                 "VALUES ('{}', '{}') ON CONFLICT (\"name\") DO UPDATE "
                 'SET "version" = EXCLUDED."version";').format(table, version)
 
+    def list_column_types_sql(self, table):
+        return ("SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_name = '{}';").format(table)
+
+    def retype_column_dynamic(self, table, columns):
+        # Postgres has a direct ALTER COLUMN ... TYPE, so (unlike SQLite) each
+        # column is fixed independently, guarded by its own live-type check.
+        # information_schema.columns.data_type reports Postgres's canonical
+        # lower-case type name ("integer", "double precision", ...), which is
+        # exactly our declared sql_type lowercased -- that's what the guard
+        # compares have_types[name] against.
+        lines = []
+        for name, sql_type, _column_def in columns:
+            alter_sql = (
+                'ALTER TABLE "{t}" ALTER COLUMN "{n}" TYPE {st} '
+                'USING "{n}"::{st};'
+            ).format(t=table, n=name, st=sql_type)
+            lines.append(
+                '        if (have_types.count("{n}") && have_types["{n}"] '
+                '!= "{et}") {{\n'
+                '            db << "{alter}";\n'
+                '        }}'.format(n=name, et=sql_type.lower(),
+                                    alter=_esc(alter_sql)))
+        return "\n".join(lines)
+
 
 if __name__ == "__main__":
     b = PostgresBackend()
@@ -142,3 +167,8 @@ if __name__ == "__main__":
     print(b.rename_column("devices", "nickname", "label"))
     print(b.drop_column_dynamic("devices", "_dc"))
     print(b.stamp_version("devices", "c96f8fd7"))
+    print(b.list_column_types_sql("devices"))
+    print(b.retype_column_dynamic("devices", [
+        ("ID_abc", b.int_type, b.column_def(b.int_type, pk=True)),
+        ("weight", b.sql_type("FLOAT"), b.column_def(b.sql_type("FLOAT"))),
+    ]))
