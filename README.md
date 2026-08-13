@@ -61,6 +61,13 @@ design vision, not current status):
   `X-User`/`X-Pswd`-style secret, not the admin/main/guest roles the spec
   describes.
 - C++ is the only generation target (spec envisions Node/Rust/Python/Java).
+- **Windows as a generated-code target** — the generator (`main.py`) still
+  only runs via Docker/Linux, but the *generated* C++ project now builds
+  and runs natively on Windows (MSVC + vcpkg), verified for both the ZMQ
+  server/client demo and the REST/JSON demo (`examples/consumer`,
+  including `-DUSE_TLS=ON`) — see `USAGE.md` §11. Not yet covered: the
+  Stage 14 generated `ctest` suite (its REST/SOAP test client is plain
+  POSIX sockets) and the PostgreSQL backend on Windows.
 
 **Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the
 consumer's guide (generate, the `.harpia` language by example, what gets

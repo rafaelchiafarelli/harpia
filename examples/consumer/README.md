@@ -43,6 +43,24 @@ REST server started on http://127.0.0.1:<port>/api/v1/users
 OK
 ```
 
+## Windows
+
+Verified end to end on MSVC (Visual Studio 2022) + vcpkg, including `-DUSE_TLS=ON`:
+
+```
+cmake -S examples\consumer -B build ^
+    -A x64 -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake ^
+    -DHARPIA_GEN=<output_folder>
+cmake --build build --config Release
+build\Release\consumer.exe
+```
+
+`vcpkg.json` in this folder declares the needed ports (`protobuf`, `grpc`,
+`soci[sqlite3]`, `openssl`); the toolchain file drives `vcpkg install`
+automatically. See [USAGE.md §11](../../USAGE.md#11-building-on-windows) for
+what's behind the `if(WIN32)` branches in `CMakeLists.txt` and known gaps
+(PostgreSQL and the Stage 14 test suite aren't verified there).
+
 ## Files
 - [`src/main.cpp`](src/main.cpp) — the application: open a session → DAO → JSON → REST.
 - [`CMakeLists.txt`](CMakeLists.txt) — how the generated headers, vendored Crow/asio/

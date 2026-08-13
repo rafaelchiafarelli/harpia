@@ -5,8 +5,26 @@
 find_package(Threads)
 
 # The DB layer is emitted against SOCI (soci_core + the sqlite3
-# backend); SOCI's sqlite3 backend links the system libsqlite3.
-set(HARPIA_SOCI_LIBS soci_core soci_sqlite3)
+# backend). apt's soci-dev has no CMake CONFIG package, only bare
+# .so names findable by the linker's default search path; vcpkg's
+# soci port exports SOCI::SOCI (all installed backend components).
+if(WIN32)
+    # SOCI::SQLite3's own link interface references the
+    # SQLite3::SQLite3 imported target without importing it itself.
+    # vcpkg's sqlite3 port has no CONFIG package under that name
+    # (only "unofficial-sqlite3", target unofficial::sqlite3::sqlite3)
+    # and CMake's builtin MODULE-mode FindSQLite3 doesn't reliably win
+    # the search under the vcpkg toolchain, so alias it in by hand --
+    # a known vcpkg soci-port quirk.
+    find_package(unofficial-sqlite3 CONFIG REQUIRED)
+    if(NOT TARGET SQLite3::SQLite3)
+        add_library(SQLite3::SQLite3 ALIAS unofficial::sqlite3::sqlite3)
+    endif()
+    find_package(SOCI CONFIG REQUIRED)
+    set(HARPIA_SOCI_LIBS SOCI::SOCI)
+else()
+    set(HARPIA_SOCI_LIBS soci_core soci_sqlite3)
+endif()
 
 # Vendored tinyxml2 for the SOAP credential (access-rights) tests.
 add_library(harpia_tinyxml2 STATIC
@@ -21,6 +39,12 @@ target_include_directories(data_test PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
 target_link_libraries(data_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(data_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+endif()
 add_test(NAME data_test COMMAND data_test)
 
 add_executable(users_test users_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -30,6 +54,12 @@ target_include_directories(users_test PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
 target_link_libraries(users_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(users_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+endif()
 add_test(NAME users_test COMMAND users_test)
 
 add_executable(vip_users_test vip_users_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -39,6 +69,12 @@ target_include_directories(vip_users_test PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
 target_link_libraries(vip_users_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(vip_users_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+endif()
 add_test(NAME vip_users_test COMMAND vip_users_test)
 
 add_executable(top_users_test top_users_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -48,6 +84,12 @@ target_include_directories(top_users_test PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
 target_link_libraries(top_users_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(top_users_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+endif()
 add_test(NAME top_users_test COMMAND top_users_test)
 
 add_executable(shipment_test shipment_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -57,6 +99,12 @@ target_include_directories(shipment_test PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
 target_link_libraries(shipment_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(shipment_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+endif()
 add_test(NAME shipment_test COMMAND shipment_test)
 
 add_executable(journey_test journey_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -66,6 +114,12 @@ target_include_directories(journey_test PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
 target_link_libraries(journey_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(journey_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+endif()
 add_test(NAME journey_test COMMAND journey_test)
 
 add_executable(crew_test crew_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -75,6 +129,12 @@ target_include_directories(crew_test PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
 target_link_libraries(crew_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(crew_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+endif()
 add_test(NAME crew_test COMMAND crew_test)
 
 add_executable(outpost_test outpost_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -84,6 +144,12 @@ target_include_directories(outpost_test PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
 target_link_libraries(outpost_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(outpost_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+endif()
 add_test(NAME outpost_test COMMAND outpost_test)
 
 add_executable(beacon_log_test beacon_log_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -93,6 +159,12 @@ target_include_directories(beacon_log_test PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
 target_link_libraries(beacon_log_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(beacon_log_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+endif()
 add_test(NAME beacon_log_test COMMAND beacon_log_test)
 
 add_executable(app_test app_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
@@ -102,4 +174,10 @@ target_include_directories(app_test PRIVATE
     ${CMAKE_SOURCE_DIR}/third_party/crow
     ${CMAKE_SOURCE_DIR}/third_party/asio)
 target_link_libraries(app_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(app_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+endif()
 add_test(NAME app_test COMMAND app_test)

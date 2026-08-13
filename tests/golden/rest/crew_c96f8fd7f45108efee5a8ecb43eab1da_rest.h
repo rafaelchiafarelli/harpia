@@ -7,6 +7,23 @@
 #include <string>
 #include <vector>
 
+// Crow's own HTTPMethod enum guards its ALL-CAPS members (DELETE/GET/HEAD/
+// POST/PUT/...) with a single `#ifndef DELETE` around the WHOLE block -- if
+// DELETE is a macro by the time crow.h's own enum is reached, Crow silently
+// falls back to TitleCase members only (Delete/Get/Post/Put), and every
+// crow::HTTPMethod::<VERB> reference below stops existing. The trouble is
+// crow.h itself (line ~915) does `#include <asio.hpp>` long before its own
+// enum (~line 2112), and asio.hpp pulls in <windows.h> (which #defines
+// DELETE, winnt.h's generic-access-rights macro) internally -- undefining
+// DELETE before `#include "crow.h"` doesn't survive that internal
+// re-inclusion. Force <windows.h> in ourselves first and undef DELETE right
+// after: windows.h's own include guard then makes crow.h/asio's later
+// `#include <windows.h>` a no-op, so our undef sticks.
+#ifdef _WIN32
+#include <windows.h>
+#undef DELETE
+#endif
+
 #include "crow.h"
 #include "db/crew_c96f8fd7f45108efee5a8ecb43eab1da_crudl.h"
 #include "json/crew_c96f8fd7f45108efee5a8ecb43eab1da_json.h"

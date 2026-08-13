@@ -182,6 +182,9 @@ def copyCMakeFiles(src, dest):
         os.makedirs(dest)
     copy_if_different(mainCMakePathSrc, os.path.join(dest, "CMakeLists.txt"))
 
+    vcpkgManifestPathSrc = "{}/{}".format(src, "vcpkg.json")
+    copy_if_different(vcpkgManifestPathSrc, os.path.join(dest, "vcpkg.json"))
+
     protoCMakePathSrc = "{}/{}".format(src, "proto/CMakeLists.txt")
     if not os.path.exists(os.path.join(dest, "proto")):
         os.makedirs(os.path.join(dest, "proto"))

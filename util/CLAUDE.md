@@ -43,7 +43,9 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
   composed/message refs) set to a demo value ("harpia-demo" or 7); else `"{}"`.
 - `copyCMakeFiles(src, dest)` — copies the four `CMakeLists.txt` (root, `proto/`,
   `server_template`→`server/`, `client_template`→`client/`) from `src` into the
-  build tree, creating dirs and removing any stale copy first.
+  build tree, creating dirs and removing any stale copy first. Also copies
+  `Assets/vcpkg.json` → `<dest>/vcpkg.json` (Windows-only manifest; harmless
+  no-op input on the Linux/Docker path, which doesn't look for it).
 - `copyServerClientTemplates(src, dest, demo=None)` — writes `server/src/main.cpp`
   and `client/src/main.cpp` from the `*_template/src/main.cpp` sources, doing
   `%KEY%` placeholder substitution from the `demo` dict (via `_emitTemplate`). If
