@@ -418,120 +418,39 @@ Add `-DUSE_TLS=ON` the same as on Linux ([§9](#9-enabling-tls-on-restsoapgrpc))
 `tools` feature, not on PATH by default) and its bundled `openssl.cnf`
 automatically.
 
-### Why the CMake files look the way they do
-
-Every `if(WIN32) ... else() ...` branch in `Assets/server_template`,
-`client_template`, `proto`, and `examples/consumer`'s CMakeLists exists
-because vcpkg's packages export namespaced CONFIG targets (`SOCI::SOCI`,
-`cppzmq`, `gRPC::grpc++`) instead of the bare library names
-(`soci_core`, `zmq`) the Linux/apt path resolves by linker search path —
-the Linux branch is untouched. Three source-level fixes went into the
-generated *code* itself (not just build config), each with a comment at
-its site explaining why:
-
-- **protobuf version skew**: the pipeline's Docker protoc (apt's, an older
-  version) bakes `.pb.h`/`.pb.cc` that won't compile against whatever much
-  newer protobuf vcpkg installs. `Assets/proto/CMakeLists.txt` already
-  regenerates matching code from the raw `.proto` via vcpkg's own protoc;
-  the server/client/consumer CMakeLists list that freshly-regenerated
-  directory *ahead of* the baked one on the include path so it wins.
-- **`XmlAdapter`'s protobuf `Reflection` API** (`XmlAdapter/runtime/harpia_xml.h`):
-  newer protobuf returns `std::string_view` from `FieldDescriptor::name()`/
-  `Descriptor::name()` where older versions returned `const std::string&`;
-  fixed with direct-initialization (`const std::string x(f->name())`) that
-  compiles against both.
-- **Crow's `HTTPMethod` enum** (`Database/templates/rest.h.tmpl`/`soap.h.tmpl`):
-  Crow guards its ALL-CAPS enumerators (`GET`/`POST`/`PUT`/`DELETE`/...)
-  with a single `#ifndef DELETE`, but `<windows.h>` (pulled in by Crow's own
-  `#include <asio.hpp>`, well before Crow's enum) defines `DELETE` as a
-  generic-access-rights macro — so Crow silently falls back to TitleCase
-  members only (`Delete`/`Get`/...) and every generated
-  `crow::HTTPMethod::GET` reference stops existing. Fixed by forcing
-  `<windows.h>` in and undefining `DELETE` *before* `#include "crow.h"`
-  (its own include guard then makes Crow/asio's later re-inclusion a no-op).
-
-### Known gaps on Windows
-
-- The Stage 14 generated `ctest` suite (`-DHARPIA_BUILD_TESTS=ON`) is
-  **not** verified on Windows — `tests/harpia_test_client.h` (its REST/SOAP
-  HTTP round-trip test client) is plain POSIX sockets, unrelated to the two
-  demos above.
-- Only the SQLite backend is verified; PostgreSQL-on-Windows is untested.
-- **Antivirus false positives**: freshly-built, unsigned, network-listening
-  executables (`server.exe` especially) can get locked or silently removed
-  by a real-time antivirus's behavioral heuristics (observed with Avast).
-  If a rebuild fails with `LNK1104: cannot open file ...exe` right after a
-  demo run, or the `.exe` has simply vanished from the build output, add an
-  exclusion for the build output folder in your antivirus and rebuild.
-
----
-
-## 11. Building on Windows
-
-Verified end to end on MSVC (Visual Studio 2022, toolset v143) + vcpkg,
-covering the ZMQ server/client transport demo and the REST/JSON demo
-(`examples/consumer`, including `-DUSE_TLS=ON`). The generator itself
-(`main.py`) still only runs via Docker/Linux — this section is about the
-**generated C++ project** compiling and running natively on Windows.
-
-### One-time setup
-
-1. Visual Studio 2022 (or Build Tools) with the "Desktop development with
-   C++" workload, and a standalone CMake ≥ 3.20.
-2. A fresh, standalone vcpkg clone (don't fight Visual Studio's bundled
-   copy — it's in "artifacts" manifest mode and awkward to drive from plain
-   CMake):
-   ```
-   git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
-   C:\vcpkg\bootstrap-vcpkg.bat
-   ```
-
-### Building the generated project (server/client ZMQ demo)
+### Building the Stage 14 generated `ctest` suite
 
 ```
-run_harpia.sh <input_folder> <output_folder> --no-build   # generate, from WSL/Linux
 cmake -S <output_folder> -B <output_folder>\build ^
-    -A x64 -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
+    -A x64 -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake ^
+    -DHARPIA_BUILD_TESTS=ON
 cmake --build <output_folder>\build --config Release
+ctest --test-dir <output_folder>\build -C Release --output-on-failure
 ```
 
-`vcpkg.json` (copied into every generated project alongside its root
-`CMakeLists.txt`) declares `protobuf`, `grpc`, `zeromq`, `cppzmq`, and
-`soci[sqlite3]`; the CMake toolchain file drives `vcpkg install`
-automatically at configure time. Expect the first configure to take a
-while — gRPC in particular is slow to build from source on Windows.
-
-### Building `examples/consumer` (REST/JSON demo)
-
-```
-cmake -S examples\consumer -B <build_dir> -A x64 ^
-    -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake ^
-    -DHARPIA_GEN=<output_folder>
-cmake --build <build_dir> --config Release
-```
-
-Add `-DUSE_TLS=ON` the same as on Linux ([§9](#9-enabling-tls-on-restsoapgrpc))
-— the demo cert step locates vcpkg's `openssl.exe` (shipped under its
-`tools` feature, not on PATH by default) and its bundled `openssl.cnf`
-automatically.
+Same generated project as the ZMQ demo above, reconfigured with
+`-DHARPIA_BUILD_TESTS=ON` — `run_harpia.sh ... --no-build` already emits the
+`tests/` tree, this just also builds it.
 
 ### Why the CMake files look the way they do
 
 Every `if(WIN32) ... else() ...` branch in `Assets/server_template`,
-`client_template`, `proto`, and `examples/consumer`'s CMakeLists exists
-because vcpkg's packages export namespaced CONFIG targets (`SOCI::SOCI`,
-`cppzmq`, `gRPC::grpc++`) instead of the bare library names
-(`soci_core`, `zmq`) the Linux/apt path resolves by linker search path —
-the Linux branch is untouched. Three source-level fixes went into the
-generated *code* itself (not just build config), each with a comment at
-its site explaining why:
+`client_template`, `proto`, `examples/consumer`'s, and the generated
+`tests/`'s CMakeLists exists because vcpkg's packages export namespaced
+CONFIG targets (`SOCI::SOCI`, `cppzmq`, `gRPC::grpc++`) instead of the bare
+library names (`soci_core`, `zmq`) the Linux/apt path resolves by linker
+search path — the Linux branch is untouched. Four source-level fixes went
+into the generated *code* itself (not just build config), each with a
+comment at its site explaining why:
 
 - **protobuf version skew**: the pipeline's Docker protoc (apt's, an older
   version) bakes `.pb.h`/`.pb.cc` that won't compile against whatever much
   newer protobuf vcpkg installs. `Assets/proto/CMakeLists.txt` already
   regenerates matching code from the raw `.proto` via vcpkg's own protoc;
-  the server/client/consumer CMakeLists list that freshly-regenerated
-  directory *ahead of* the baked one on the include path so it wins.
+  the server/client/consumer/tests CMakeLists list that freshly-regenerated
+  directory *ahead of* the baked one on the include path so it wins (Stage
+  14's generated tests hit this same skew and needed the same fix — see
+  `TestAdapter/TestAdapter.py`'s `HARPIA_TEST_PROTO_INCLUDE_DIR`).
 - **`XmlAdapter`'s protobuf `Reflection` API** (`XmlAdapter/runtime/harpia_xml.h`):
   newer protobuf returns `std::string_view` from `FieldDescriptor::name()`/
   `Descriptor::name()` where older versions returned `const std::string&`;
@@ -546,13 +465,18 @@ its site explaining why:
   `crow::HTTPMethod::GET` reference stops existing. Fixed by forcing
   `<windows.h>` in and undefining `DELETE` *before* `#include "crow.h"`
   (its own include guard then makes Crow/asio's later re-inclusion a no-op).
+- **`tests/harpia_test_client.h`** (the REST/SOAP HTTP round-trip client the
+  Stage 14 tests use — Crow ships no client): was plain POSIX sockets only;
+  ported to a thin `#ifdef _WIN32` Winsock2 path alongside it (`closesocket`
+  vs. `close`, `ioctlsocket`/`FIONBIO` vs. `fcntl`/`O_NONBLOCK`,
+  `WSAGetLastError` vs. `errno`, `SO_RCVTIMEO` taking a `DWORD` ms value on
+  Windows vs. a `timeval` on POSIX). One process-wide `WSAStartup`/
+  `WSACleanup` pair via a function-local static. Links `ws2_32` on Windows
+  (`#pragma comment` covers MSVC; `TestAdapter.py`'s CMake also links it
+  explicitly for other toolchains).
 
 ### Known gaps on Windows
 
-- The Stage 14 generated `ctest` suite (`-DHARPIA_BUILD_TESTS=ON`) is
-  **not** verified on Windows — `tests/harpia_test_client.h` (its REST/SOAP
-  HTTP round-trip test client) is plain POSIX sockets, unrelated to the two
-  demos above.
 - Only the SQLite backend is verified; PostgreSQL-on-Windows is untested.
 - **Antivirus false positives**: freshly-built, unsigned, network-listening
   executables (`server.exe` especially) can get locked or silently removed
