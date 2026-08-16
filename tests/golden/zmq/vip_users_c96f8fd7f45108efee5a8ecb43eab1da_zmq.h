@@ -19,6 +19,27 @@
 namespace harpia {
 namespace zmq_transport {
 
+// CURVE key material (encryption-only: no ZAP client-key allowlisting, so any
+// client presenting valid CURVE crypto is accepted -- the ZMQ analogue of TLS
+// with no client certs). Guarded separately from the per-message HARPIA_ZMQ_VIP_USERS_c96f8fd7f45108efee5a8ecb43eab1da so
+// these definitions stay single even when several *_zmq.h headers land in one
+// translation unit. An empty key means "CURVE disabled" -- the default.
+#ifndef HARPIA_ZMQ_CURVE_KEYS_DEFINED
+#define HARPIA_ZMQ_CURVE_KEYS_DEFINED
+// Bind side (PULL receiver / PUB publisher): only its own secret key is
+// needed -- CURVE_SERVER accepts any client with valid crypto.
+struct CurveServerKeys {
+    std::string secret_key;
+};
+// Connect side (PUSH sender / SUB subscriber): needs the peer's public key
+// plus its own keypair.
+struct CurveClientKeys {
+    std::string server_public_key;
+    std::string public_key;
+    std::string secret_key;
+};
+#endif  // HARPIA_ZMQ_CURVE_KEYS_DEFINED
+
 // Runtime-unique sender id for many-to-* (push/pushpull) publishers, where a
 // shared compile-time id would make every "many" sender indistinguishable
 // (process.md 1.3.1.1). Combines the process id, a per-process monotonic
@@ -44,10 +65,16 @@ public:
         : vip_users_publisher(ctx, endpoint, origin_id()) {}
     // explicit-origin constructor: pass any externally-sourced id (e.g. if a
     // future broker hands one out); the default constructor above already
-    // supplies a runtime-unique id for many-to-* senders on its own.
+    // supplies a runtime-unique id for many-to-* senders on its own. The
+    // trailing curve keys default to disabled (empty), so callers who don't
+    // pass any get today's plaintext behavior unchanged.
     vip_users_publisher(::zmq::context_t& ctx, const std::string& endpoint,
-                  const std::string& origin)
+                  const std::string& origin, CurveServerKeys curve = CurveServerKeys())
         : origin_(origin), socket_(ctx, ::zmq::socket_type::pub) {
+        if (!curve.secret_key.empty()) {
+            socket_.set(::zmq::sockopt::curve_server, true);
+            socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);
+        }
         socket_.bind(endpoint);
     }
     // compile-time unique sender number (one-to-*): hash(file)+message
@@ -73,9 +100,19 @@ private:
 
 class vip_users_subscriber {
 public:
-    vip_users_subscriber(::zmq::context_t& ctx, const std::string& endpoint)
-        : socket_(ctx, ::zmq::socket_type::sub) { socket_.connect(endpoint);
-        socket_.set(::zmq::sockopt::subscribe, ""); }
+    // Trailing curve keys default to disabled (empty), so callers who don't
+    // pass any get today's plaintext behavior unchanged.
+    vip_users_subscriber(::zmq::context_t& ctx, const std::string& endpoint,
+                  CurveClientKeys curve = CurveClientKeys())
+        : socket_(ctx, ::zmq::socket_type::sub) {
+        if (!curve.server_public_key.empty()) {
+            socket_.set(::zmq::sockopt::curve_serverkey, curve.server_public_key);
+            socket_.set(::zmq::sockopt::curve_publickey, curve.public_key);
+            socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);
+        }
+        socket_.connect(endpoint);
+        socket_.set(::zmq::sockopt::subscribe, "");
+    }
     bool receive(::vip_users* msg) {
         ::zmq::message_t frame;
         if (!socket_.recv(frame, ::zmq::recv_flags::none).has_value()) return false;

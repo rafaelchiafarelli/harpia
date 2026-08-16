@@ -23,7 +23,7 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 | 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD + DB bulk export/import |
 | 11 | SOAP | ✅ SOAP get/set/update/delete endpoint (XML over HTTP) over CRUDL (Crow + tinyxml2), gated by the Stage 5 access credential (SOAP Header `<credentials>`, 401 Fault on mismatch); WSDL 1.1 descriptor emitted per message (`wsdl/<name>_<hash>.wsdl`, document/literal SOAP binding) |
 | 12 | HTML / REST bindings | ✅ REST CRUD (GET/POST/PUT/DELETE) over CRUDL (Crow) with JSON/XML content negotiation (`Content-Type`/`Accept`, via the JSON + XML adapters), gated by the Stage 5 access credential (`X-User`/`X-Pswd` headers, 401 on mismatch); GET-list is paginated via `?limit=&offset=` (defaulting to the table's declared `pagination[size]` when present) |
-| 13 | zmq/socket + gRPC access | ✅ gRPC stubs **wired to CRUDL** (per table message, a `<name>_service` impl: push→create, pullByID→read, streamSrc→list [paginated via the request's `offset`/`limit` fields when `limit>0`], heartBeat→echo), with the data RPCs gated by the Stage 5 credential via `x-user`/`x-pswd` call metadata (UNAUTHENTICATED on mismatch) **and** ZMQ push/pull + pub/sub, with a sender "originator" id (process.md 1.3.1.1): a compile-time constant for a unique publisher (`pull`/`event`/`stream`), or a runtime-unique id (pid + counter + random, no broker needed) for a shared publisher (`push`/`pushpull`) |
+| 13 | zmq/socket + gRPC access | ✅ gRPC stubs **wired to CRUDL** (per table message, a `<name>_service` impl: push→create, pullByID→read, streamSrc→list [paginated via the request's `offset`/`limit` fields when `limit>0`], heartBeat→echo), with the data RPCs gated by the Stage 5 credential via `x-user`/`x-pswd` call metadata (UNAUTHENTICATED on mismatch) **and** ZMQ push/pull + pub/sub, with a sender "originator" id (process.md 1.3.1.1): a compile-time constant for a unique publisher (`pull`/`event`/`stream`), or a runtime-unique id (pid + counter + random, no broker needed) for a shared publisher (`push`/`pushpull`); every ZMQ sender/receiver/publisher/subscriber constructor also takes an optional CURVE encryption keys parameter (default-disabled, `USAGE.md` §10) |
 | 14 | generated-code unit tests | ✅ per-message C++ unit tests + one app-level test as an opt-in CTest target (`-DHARPIA_BUILD_TESTS=ON`): simple field access + CRUDL round-trip (14.1/14.2), SOAP access-rights credential gate (14.3), access-modifier constraint enforcement (14.4), JSON (14.5) + XML (14.6) parser round-trips, live REST JSON-CRUD (14.7/14.10) and SOAP-over-HTTP (14.8/14.9) HTTP APIs, and an application-level all-good/crash/slower/non-parseable suite (14.11–14.14) |
 
 The generated project builds with its own CMake and ships a runnable
@@ -39,7 +39,7 @@ Within the pipeline above (stages 0–14, C++ only):
 - The "continuable process" gap in `harpia.architecture.md` has two halves:
   regeneration being wasteful (redoing unchanged work) is **done** —
   regeneration is write-if-different with stale-output pruning (see
-  `Util.util.write_if_different`/`prune_stale_outputs`, `USAGE.md` §10), so
+  `Util.util.write_if_different`/`prune_stale_outputs`, `USAGE.md` §11), so
   an unchanged file keeps its mtime and a downstream `cmake --build` skips
   recompiling it. True interrupt/crash recovery (resume a *killed mid-run*
   generate, not just skip a no-op regenerate) is the sha256-registry/marker
@@ -50,13 +50,20 @@ design vision, not current status):
 - No YAML serialization (JSON and XML adapters exist; spec calls for
   YAML-style `toString` too).
 - No Doxygen generation for the emitted C++.
-- No SSL/TLS on ZMQ (would need CURVE, a different mechanism from TLS;
-  unverified whether the apt-installed libzmq even has it built in — not
-  started). REST/SOAP (Crow's `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC
+- REST/SOAP (Crow's `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC
   (`grpc::SslServerCredentials`) are TLS-capable and documented (`USAGE.md`
   §9); harpia never generated their server-construction code to begin with
   (that's caller-owned), so enabling TLS is a caller-side build flag, not a
-  generator change — demonstrated in `examples/consumer -DUSE_TLS=ON`.
+  generator change — demonstrated in `examples/consumer -DUSE_TLS=ON`. ZMQ
+  now has **CURVE encryption** (encryption-only, no ZAP client-key
+  allowlist — apt's libzmq is libsodium-backed and CURVE-capable, confirmed
+  via `zmq_has("curve")`), a real generated-code change (not just a build
+  flag, unlike TLS above) since ZMQ's `bind`/`connect` happen inside the
+  generated sender/receiver classes themselves — see `USAGE.md` §10. ZMQ
+  still has no credential gate of its own (unlike REST/SOAP/gRPC's
+  `X-User`/`X-Pswd`), so this is encryption only, not access control.
+  Windows' vcpkg `zeromq` port has the `curve`+`sodium` features requested
+  but is not yet build-verified there (Linux/Docker only so far).
 - No multi-tier RBAC — every credential-gated surface checks a single flat
   `X-User`/`X-Pswd`-style secret, not the admin/main/guest roles the spec
   describes.
@@ -67,8 +74,9 @@ design vision, not current status):
   server/client demo, the REST/JSON demo (`examples/consumer`, including
   `-DUSE_TLS=ON`), and the Stage 14 generated `ctest` suite (`10/10`
   passing, including its REST/SOAP HTTP test client now ported to
-  Winsock2) — see `USAGE.md` §11. Not yet covered: the PostgreSQL backend
-  on Windows.
+  Winsock2) — see `USAGE.md` §12. Not yet covered: the PostgreSQL backend
+  on Windows, and `-DUSE_ZMQ_CURVE=ON` (vcpkg feature added, build
+  unverified).
 
 **Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the
 consumer's guide (generate, the `.harpia` language by example, what gets

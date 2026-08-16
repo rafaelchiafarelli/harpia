@@ -50,3 +50,13 @@ else()
             zmq
     )
 endif()
+
+# See root CMakeLists.txt for USE_ZMQ_CURVE / the keygen probe. Server binds
+# (PULL) -- CURVE "server" role, only needs its own secret key. Key material
+# comes from the generated harpia_zmq_curve_keys.h, not a compile definition
+# (Z85 keys can contain characters -- '#', '$', ... -- that a build-system
+# command line would mangle).
+if(USE_ZMQ_CURVE)
+    target_compile_definitions(server PRIVATE HARPIA_DEMO_CURVE)
+    target_include_directories(server PRIVATE ${CMAKE_BINARY_DIR})
+endif()

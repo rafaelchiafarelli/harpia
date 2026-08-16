@@ -50,3 +50,14 @@ else()
             zmq
     )
 endif()
+
+# See root CMakeLists.txt for USE_ZMQ_CURVE / the keygen probe. Client
+# connects (PUSH) -- CURVE "client" role, needs the server's public key plus
+# its own keypair. Key material comes from the generated
+# harpia_zmq_curve_keys.h, not a compile definition (Z85 keys can contain
+# characters -- '#', '$', ... -- that a build-system command line would
+# mangle).
+if(USE_ZMQ_CURVE)
+    target_compile_definitions(client PRIVATE HARPIA_DEMO_CURVE)
+    target_include_directories(client PRIVATE ${CMAKE_BINARY_DIR})
+endif()

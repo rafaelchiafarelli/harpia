@@ -3,36 +3,71 @@
 `README.md`'s "Known gaps" section is the live, authoritative list of
 feature/perf gaps.
 
-## Windows as a generated-code target — done this session (see USAGE.md §11)
+## ZMQ CURVE encryption — done this session (see USAGE.md §10)
 
-The candidate gap from the previous session is closed: the generated C++
-project (not `main.py` itself, which still only runs via Docker/Linux)
-builds and runs natively on Windows (MSVC 2022 + vcpkg), verified for real
-— not just "compiles" — for both the ZMQ server/client transport demo and
-the REST/JSON demo (`examples/consumer`, including `-DUSE_TLS=ON` with a
-real TLS 1.3 handshake). Three genuine source-level Windows-compat bugs got
-fixed along the way (protobuf version skew between Docker's baked codegen
-and vcpkg's runtime; a protobuf `Reflection` API shape change breaking
-`XmlAdapter`; a Crow/`windows.h` `DELETE` macro collision that silently
-drops Crow's ALL-CAPS `HTTPMethod` enum members) — see `USAGE.md` §11 for
-the full writeup and the CLAUDE.md files it points at for exactly where.
+ZMQ was the last transport with zero security (REST/SOAP/gRPC all have TLS
+and an `X-User`/`X-Pswd`-equivalent credential gate; ZMQ had neither).
+Closed the encryption half: every generated sender/receiver/publisher/
+subscriber constructor (`ZmqAdapter/templates/{sender,receiver}.tmpl`) now
+takes a trailing, defaulted CURVE-keys struct (`CurveServerKeys`/
+`CurveClientKeys`, defined once per header behind their own include guard).
+Default/empty = today's plaintext behavior, byte-identical except for the
+added constructor text (all 5 `tests/golden/zmq/*` fixtures regenerated and
+diff-reviewed). Scoped via `AskUserQuestion` before planning: **encryption
+only** (no ZAP client-key allowlist — any client with valid CURVE crypto is
+accepted, the ZMQ analogue of TLS with no client certs, not mTLS), with
+build-time ephemeral keypair generation.
 
-**Not covered, left as follow-ups:**
-- The Stage 14 generated `ctest` suite (`-DHARPIA_BUILD_TESTS=ON`) —
-  `tests/harpia_test_client.h` (its REST/SOAP HTTP round-trip test client)
-  is plain POSIX sockets (`arpa/inet.h`, `sys/socket.h`, `fcntl.h`,
-  `unistd.h`), unrelated to either demo above. Porting it would be a third,
-  separate surface.
-- PostgreSQL backend on Windows — only SQLite is verified; `soci[postgresql]`
-  was never added to the vcpkg manifests and nothing was tested against a
-  real Postgres server from Windows.
-- **Antivirus false positives are real, not hypothetical** — this session
-  hit Avast quarantining/locking a freshly-built, unsigned,
-  network-listening `server.exe` mid-session (rebuild failed with
-  `LNK1104: cannot open file`, no live process holding it). Needed a
-  manual antivirus exclusion before the ZMQ demo could be verified.
-  Documented in `USAGE.md` §11 as a known gotcha for future readers hitting
-  the same thing.
+Architecturally this differs from the REST/SOAP/gRPC TLS work: harpia never
+generates the server-construction call for those, so "enabling TLS" was
+pure caller-side build-enablement with zero generated-code changes. ZMQ's
+`bind()`/`connect()` happen *inside* the generated classes, so this
+necessarily touched the templates themselves.
+
+Key generation: no CLI keygen tool ships with apt's `libzmq3-dev`, so
+`Assets/cmake/curve_keygen_probe.cpp` (calls `zmq_curve_keypair()` twice) is
+compiled+run via `try_run` from the root `Assets/CMakeLists.txt` at
+configure time, gated behind a new `-DUSE_ZMQ_CURVE=ON` option (default
+OFF). `Assets/vcpkg.json`'s `zeromq` dependency gained the `curve`+`sodium`
+features for Windows parity (apt's libzmq on Linux already links libsodium
+and has CURVE built in — confirmed via `zmq_has("curve")`, no apt change
+needed).
+
+**Two real bugs found and fixed, not just theoretical risks:**
+- Z85-encoded CURVE keys can contain characters like `#`/`$`/`(`/`)` that a
+  build system's command-line layer mangles (GNU Make treats `#` as a
+  comment and `$` as a variable reference). First attempt passed keys
+  through `target_compile_definitions` — three of four keys silently never
+  reached the compiler (`'HARPIA_ZMQ_CURVE_SERVER_PUBLIC' was not declared`)
+  despite the CMake-side value being correct. Fixed by writing a generated
+  header (`harpia_zmq_curve_keys.h`, via `file(WRITE ...)`) instead, which
+  sidesteps the shell/Make layer entirely.
+- `ZMQ_LINGER` defaults to `-1` (block forever): a socket with an
+  undelivered message from a failed CURVE handshake hangs on destruction.
+  Caught for real while writing the negative-case test (a process that had
+  already printed its final "recv failed as expected" line still didn't
+  exit) — documented in `USAGE.md` §10 as a gotcha for anyone constructing
+  a sender against a peer that might fail to authenticate.
+
+Verified for real, not just "compiles": a live Docker demo build+run over
+real `tcp://` (both server and client logged "CURVE enabled", message
+crossed correctly); a new `test_zmq_curve_roundtrip` in
+`tests/test_stage13_zmq.py` proving both directions (matching keys succeed
+over real `tcp://` — CURVE is a no-op over `inproc`, so this needed a real
+socket; a wrong server public key times out, proving CURVE actually rejects
+bad crypto); a new `test_demo_message_crosses_with_curve` in
+`tests/test_demo.py` building the full generated project with
+`-DUSE_ZMQ_CURVE=ON` via its own CMake and running server+client over
+`ipc://` (also a real ZMTP handshake, unlike `inproc`). Full suite: 77
+passed, 2 skipped (both pre-existing opt-in live-Postgres tests), no
+regressions.
+
+**Not covered, left as a follow-up:** Windows build-verification. The vcpkg
+feature is added (`Assets/vcpkg.json`) and the `try_run` probe is written to
+use `find_package(ZeroMQ CONFIG)`'s `libzmq` target on `WIN32` (same
+CONFIG-vs-bare-library-name gotcha the demo targets themselves already
+handle), but nothing has actually been built on the native Windows host —
+only Linux/Docker is verified this session.
 
 ## Other open items (see README.md "Known gaps" for the full/current list)
 
@@ -42,18 +77,8 @@ the full writeup and the CLAUDE.md files it points at for exactly where.
   `full_name`) on upgrade. Needs a design decision (new DSL syntax vs. a
   user-supplied C++ hook `migrate_<name>` calls out to) before any code —
   scope via `AskUserQuestion` first.
-- SSL/TLS on **ZMQ** (CURVE) — REST/SOAP/gRPC already have TLS; ZMQ has
-  neither encryption nor any credential gate at all today (checked:
-  `ZmqAdapter` has no `x-user`/`x-pswd`-equivalent check, unlike the other
-  three transports). First step is just verification: does the
-  apt-installed `libzmq` even have CURVE (needs libsodium) built in. Note
-  from a prior session's discussion: CURVE is a poor fit for constrained
-  embedded targets (ATmega2560 can't run libzmq/libsodium at all regardless
-  of crypto choice; ESP32 is more plausible but libzmq's own security
-  mechanisms don't compose with ESP-IDF's native mbedTLS) — if the goal is
-  ever "talk to small devices securely," that's a separate transport/
-  security problem, not a CURVE extension. Explicitly deprioritized by
-  Rafael this session in favor of Windows.
+- PostgreSQL backend on Windows — only SQLite is verified there;
+  `soci[postgresql]` was never added to the vcpkg manifests.
 - True crash/interrupt recovery (resume a *killed mid-run* generate) — the
   sha256-registry/marker half of `harpia.architecture.md`'s "continuable
   process" that the write-if-different work explicitly did not attempt.

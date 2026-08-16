@@ -5,7 +5,13 @@
   "dependencies": [
     "protobuf",
     "grpc",
-    "zeromq",
+    {
+      "name": "zeromq",
+      "features": [
+        "curve",
+        "sodium"
+      ]
+    },
     "cppzmq",
     {
       "name": "soci",

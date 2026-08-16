@@ -1,7 +1,12 @@
 class {name}_{role} {{
 public:
-    {name}_{role}(::zmq::context_t& ctx, const std::string& endpoint)
-        : socket_(ctx, ::zmq::socket_type::{sock}) {{ {setup} }}
+    // Trailing curve keys default to disabled (empty), so callers who don't
+    // pass any get today's plaintext behavior unchanged.
+    {name}_{role}(::zmq::context_t& ctx, const std::string& endpoint,
+                  {curve_type} curve = {curve_type}())
+        : socket_(ctx, ::zmq::socket_type::{sock}) {{
+{curve_apply}        {setup}
+    }}
     bool {verb}({cls}* msg) {{
         ::zmq::message_t frame;
         if (!socket_.recv(frame, ::zmq::recv_flags::none).has_value()) return false;

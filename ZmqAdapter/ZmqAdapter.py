@@ -47,6 +47,26 @@ _HEADER = loadTemplate(__file__, "header.h.tmpl")
 _SENDER = loadTemplate(__file__, "sender.tmpl")
 _RECEIVER = loadTemplate(__file__, "receiver.tmpl")
 
+# CURVE (encryption-only, no ZAP allowlist) socket setup, applied before
+# bind/connect. Bind side (PULL receiver / PUB publisher) only needs its own
+# secret key; connect side (PUSH sender / SUB subscriber) needs the peer's
+# public key plus its own keypair. See CurveServerKeys/CurveClientKeys in
+# templates/header.h.tmpl. Empty key(s) -> the `if` is skipped, so a caller
+# passing nothing gets today's plaintext behavior unchanged.
+_CURVE_SERVER_APPLY = (
+    "        if (!curve.secret_key.empty()) {\n"
+    "            socket_.set(::zmq::sockopt::curve_server, true);\n"
+    "            socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);\n"
+    "        }\n"
+)
+_CURVE_CLIENT_APPLY = (
+    "        if (!curve.server_public_key.empty()) {\n"
+    "            socket_.set(::zmq::sockopt::curve_serverkey, curve.server_public_key);\n"
+    "            socket_.set(::zmq::sockopt::curve_publickey, curve.public_key);\n"
+    "            socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);\n"
+    "        }\n"
+)
+
 
 def _origin_id(md5_hash, name):
     """Deterministic compile-time sender number for a one-to-* publisher.
@@ -127,10 +147,12 @@ class ZmqAdapter:
                 name=msg.name, role="sender", sock="push",
                 connect="connect", verb="send",
                 cls=cls, origin_id=origin_id, stamp=stamp,
-                default_id_expr=default_id_expr)
+                default_id_expr=default_id_expr,
+                curve_type="CurveClientKeys", curve_apply=_CURVE_CLIENT_APPLY)
             body += _RECEIVER.format(
                 name=msg.name, role="receiver", sock="pull",
-                setup="socket_.bind(endpoint);", verb="recv", cls=cls)
+                setup="socket_.bind(endpoint);", verb="recv", cls=cls,
+                curve_type="CurveServerKeys", curve_apply=_CURVE_SERVER_APPLY)
         if pub_sub:
             body += _SENDER.format(
                 comment="// pub/sub (streaming/event): {n}_publisher publishes "
@@ -138,10 +160,12 @@ class ZmqAdapter:
                 name=msg.name, role="publisher", sock="pub",
                 connect="bind", verb="publish",
                 cls=cls, origin_id=origin_id, stamp=stamp,
-                default_id_expr=default_id_expr)
+                default_id_expr=default_id_expr,
+                curve_type="CurveServerKeys", curve_apply=_CURVE_SERVER_APPLY)
             body += _RECEIVER.format(
                 name=msg.name, role="subscriber", sock="sub",
                 setup='socket_.connect(endpoint);\n'
                       '        socket_.set(::zmq::sockopt::subscribe, "");',
-                verb="receive", cls=cls)
+                verb="receive", cls=cls,
+                curve_type="CurveClientKeys", curve_apply=_CURVE_CLIENT_APPLY)
         return _HEADER.format(guard=guard, pb_header=pb, body=body)

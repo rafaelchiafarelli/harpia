@@ -42,7 +42,10 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `test_stage11_soap.py` — SOAP-over-HTTP endpoint (credential gate).
 - `test_stage12_rest.py` — REST HTTP CRUD, credential-gated.
 - `test_stage13.py` — gRPC services compile, CRUDL-backed impl, metadata auth.
-- `test_stage13_zmq.py` — ZMQ PUSH/PULL round-trip over a real socket.
+- `test_stage13_zmq.py` — ZMQ PUSH/PULL round-trip over a real socket, plus a
+  CURVE round-trip over real `tcp://` (matching keys succeed, a wrong server
+  public key times out -- CURVE is a no-op over `inproc`, which the other
+  tests here use, so this one needs a real handshake).
 - `test_stage14.py` — every generated `*_test.cpp` compiles/runs green; CTest
   wiring; `cmake -DHARPIA_BUILD_TESTS=ON` + `ctest`.
 - `test_stage8_pg.py` — **opt-in** live-PostgreSQL CRUDL round-trip (generates with
@@ -63,7 +66,11 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   is pruned. Uses a tiny inline two-file fixture, not the shared
   `HarpiaTest/Include` ones, so it doesn't touch the pinned `HASH` below.
 - `test_demo.py` — end-to-end: build generated project with its own CMake, run
-  client→server. (cmake, protoc, grpc_cpp_plugin, g++, libzmq)
+  client→server. (cmake, protoc, grpc_cpp_plugin, g++, libzmq) Also builds and
+  runs it a second time with `-DUSE_ZMQ_CURVE=ON` (over `ipc://`, which -- like
+  `tcp://` -- goes through the real ZMTP handshake), confirming the ephemeral
+  keypairs the configure-time keygen probe writes actually match between the
+  server and client binaries from the same build.
 
 ## The pinned HASH constant — matters for the multi-root feature
 `test.harpia` (and its includes) hash to an md5 the generator uses to key every

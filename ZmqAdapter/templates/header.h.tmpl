@@ -19,6 +19,27 @@
 namespace harpia {{
 namespace zmq_transport {{
 
+// CURVE key material (encryption-only: no ZAP client-key allowlisting, so any
+// client presenting valid CURVE crypto is accepted -- the ZMQ analogue of TLS
+// with no client certs). Guarded separately from the per-message {guard} so
+// these definitions stay single even when several *_zmq.h headers land in one
+// translation unit. An empty key means "CURVE disabled" -- the default.
+#ifndef HARPIA_ZMQ_CURVE_KEYS_DEFINED
+#define HARPIA_ZMQ_CURVE_KEYS_DEFINED
+// Bind side (PULL receiver / PUB publisher): only its own secret key is
+// needed -- CURVE_SERVER accepts any client with valid crypto.
+struct CurveServerKeys {{
+    std::string secret_key;
+}};
+// Connect side (PUSH sender / SUB subscriber): needs the peer's public key
+// plus its own keypair.
+struct CurveClientKeys {{
+    std::string server_public_key;
+    std::string public_key;
+    std::string secret_key;
+}};
+#endif  // HARPIA_ZMQ_CURVE_KEYS_DEFINED
+
 // Runtime-unique sender id for many-to-* (push/pushpull) publishers, where a
 // shared compile-time id would make every "many" sender indistinguishable
 // (process.md 1.3.1.1). Combines the process id, a per-process monotonic

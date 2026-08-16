@@ -45,7 +45,7 @@ Add `--no-build` to generate only (skip the cmake build + ctest):
 ```
 
 Both folders may live **anywhere** on disk. The output folder is regenerated
-write-if-different (see §10) — safe to point at the same folder across runs;
+write-if-different (see §11) — safe to point at the same folder across runs;
 it is not wiped first.
 
 ---
@@ -353,7 +353,67 @@ over it (see its README).
 
 ---
 
-## 10. Notes & limits
+## 10. Enabling CURVE encryption on ZMQ
+
+Unlike REST/SOAP/gRPC, ZMQ's `bind()`/`connect()` happen **inside** the
+generated sender/receiver classes themselves (`ZmqAdapter`'s
+`sender.tmpl`/`receiver.tmpl`), so "enabling encryption" here isn't a pure
+caller-side build flag the way TLS is in [§9](#9-enabling-tls-on-restsoapgrpc)
+— the generated constructors carry an extra, optional parameter for it.
+
+This is **encryption-only**: any client presenting valid CURVE crypto is
+accepted (there's no ZAP client-key allowlist), the ZMQ analogue of TLS with
+no client certificates — not mutual auth. ZMQ has no credential gate of its
+own at all today (REST/SOAP/gRPC each check an `X-User`/`X-Pswd`-equivalent;
+ZMQ doesn't), so CURVE is purely about encrypting the wire, not access
+control.
+
+Every generated sender/receiver/publisher/subscriber constructor takes a
+trailing, defaulted curve-keys struct — pass nothing and you get exactly
+today's plaintext behavior:
+
+```cpp
+// Bind side (PULL receiver / PUB publisher) -- CURVE "server" role, only
+// needs its own secret key. CURVE_SERVER accepts any client with valid crypto.
+harpia::zmq_transport::CurveServerKeys server_keys{server_secret_z85};
+harpia::zmq_transport::users_receiver receiver(ctx, endpoint, server_keys);
+
+// Connect side (PUSH sender / SUB subscriber) -- CURVE "client" role, needs
+// the peer's public key plus its own keypair.
+harpia::zmq_transport::CurveClientKeys client_keys{
+    server_public_z85, client_public_z85, client_secret_z85};
+harpia::zmq_transport::users_sender sender(ctx, endpoint, origin, client_keys);
+```
+
+Keys are Z85 text (`zmq_curve_keypair()`'s native output) — cppzmq's
+`curve_*` sockopts accept that form directly, no binary decode needed. CURVE
+is a no-op over `inproc://` (it bypasses the ZMTP wire protocol entirely);
+`tcp://` and `ipc://` both go through the real handshake.
+
+**Note on `ZMQ_LINGER`:** if a peer never completes the CURVE handshake (e.g.
+a mismatched key), a socket with an outstanding send blocks on destruction by
+default (`ZMQ_LINGER` is `-1`, "wait forever to flush"). If your code might
+construct a sender against a peer that could fail to authenticate, set
+`sender.socket().set(zmq::sockopt::linger, 0)` explicitly, or shutdown will
+hang.
+
+**Worked example:** `Assets/server_template`/`client_template` (the ZMQ demo)
+gain `-DUSE_ZMQ_CURVE=ON`. No CLI keygen tool ships with apt's
+`libzmq3-dev`, so the root `CMakeLists.txt` compiles+runs a tiny probe
+(`cmake/curve_keygen_probe.cpp`, via `try_run`) at configure time to produce
+a fresh ephemeral keypair per side, written to a generated
+`harpia_zmq_curve_keys.h` (**not** a `target_compile_definitions` string —
+Z85's alphabet includes characters like `#`/`$`/`(` that a build system's
+command-line layer, e.g. Make's `#`-starts-a-comment / `$`-is-a-variable
+handling, will silently corrupt). See `Assets/CLAUDE.md` for the mechanism.
+
+On Windows, vcpkg's `zeromq` port needs the `curve`+`sodium` features (see
+`Assets/vcpkg.json`) — not yet build-verified on Windows (see
+[§12](#12-building-on-windows)'s known-gaps note).
+
+---
+
+## 11. Notes & limits
 
 - Regeneration is **write-if-different**, not a blanket wipe: an unchanged
   generated file keeps its original mtime, so a downstream `cmake --build`
@@ -369,7 +429,7 @@ over it (see its README).
 
 ---
 
-## 11. Building on Windows
+## 12. Building on Windows
 
 Verified end to end on MSVC (Visual Studio 2022, toolset v143) + vcpkg,
 covering the ZMQ server/client transport demo and the REST/JSON demo
@@ -399,8 +459,9 @@ cmake --build <output_folder>\build --config Release
 ```
 
 `vcpkg.json` (copied into every generated project alongside its root
-`CMakeLists.txt`) declares `protobuf`, `grpc`, `zeromq`, `cppzmq`, and
-`soci[sqlite3]`; the CMake toolchain file drives `vcpkg install`
+`CMakeLists.txt`) declares `protobuf`, `grpc`, `zeromq` (with its `curve` +
+`sodium` features, for [§10](#10-enabling-curve-encryption-on-zmq)),
+`cppzmq`, and `soci[sqlite3]`; the CMake toolchain file drives `vcpkg install`
 automatically at configure time. Expect the first configure to take a
 while — gRPC in particular is slow to build from source on Windows.
 
@@ -478,6 +539,11 @@ comment at its site explaining why:
 ### Known gaps on Windows
 
 - Only the SQLite backend is verified; PostgreSQL-on-Windows is untested.
+- `-DUSE_ZMQ_CURVE=ON` ([§10](#10-enabling-curve-encryption-on-zmq)):
+  `Assets/vcpkg.json`'s `zeromq` dependency requests the `curve`+`sodium`
+  features so the port itself builds with CURVE support, but the keygen
+  probe / demo build with CURVE on has not been build-verified on Windows
+  yet (only on Linux/Docker) — flag this if you hit issues.
 - **Antivirus false positives**: freshly-built, unsigned, network-listening
   executables (`server.exe` especially) can get locked or silently removed
   by a real-time antivirus's behavioral heuristics (observed with Avast).
