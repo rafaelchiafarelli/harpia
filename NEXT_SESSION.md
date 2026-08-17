@@ -69,14 +69,52 @@ CONFIG-vs-bare-library-name gotcha the demo targets themselves already
 handle), but nothing has actually been built on the native Windows host —
 only Linux/Docker is verified this session.
 
+## Cross-version data transforms — done this session (see USAGE.md §6)
+
+`migrate_<name>` moved column *structure* forward (rename/add/drop/retype)
+but never *values* — no way to backfill a computed value (e.g. derive `age`
+from `birthdate`, split a retiring `full_name` into `first_name`/
+`last_name`) on upgrade. Scoped via `AskUserQuestion` before planning:
+**caller-supplied C++ hook, not new `.harpia` syntax** — harpia's DSL is a
+deliberately flat, non-recursive grammar (the `renamed_from[<old>]`
+precedent needed one atomic lexer token specifically to dodge the generic
+`[...]` bracket machinery; a separate GUI-DSL prototype was rejected for
+needing a richer recursive grammar), so arbitrary value logic can't live in
+the DSL itself. Same "harpia wires the capability, caller supplies the
+logic" precedent as TLS/CURVE.
+
+`migrate_<name>` gained one trailing, defaulted parameter:
+`std::function<void(::soci::session&)> data_transform = nullptr`. Passing
+nothing preserves today's behavior exactly. This turned out to be a
+**template-only change** — `Database/MigrationAdapter.py`'s `_render()`
+needed zero edits (no new DSL marker feeds it, so there's no new per-column
+logic to generate); only `Database/templates/migrate.h.tmpl` changed
+(`#include <functional>`, the signature, and one static call site).
+
+**Non-obvious design fact found while scoping, not just an implementation
+detail — gets the motivating "split a column" case wrong if missed:** the
+hook must run **after ADD, before DROP**, not at the very end. Reasoning
+through "split a retiring `full_name` into `first_name`/`last_name`" makes
+this concrete: ADD must already have created `first_name`/`last_name` for
+the hook to write into, and DROP must not yet have removed `full_name` or
+the hook has nothing left to read. Structural order is now: RENAME → ADD →
+**transform hook** → DROP → RETYPE → stamp version.
+
+Verified via a new `test_migration_data_transform` in
+`tests/test_stage8_db.py` (same hand-seed-an-older-schema-then-migrate
+pattern as the existing rename/drop/retype tests, reusing the `beacon_log`
+fixture — no new `.harpia` fixture needed): derives `label` from a retiring
+`full_label` column the current schema doesn't declare at all, proving (a)
+the hook actually ran between add and drop (the derived value is correct
+AND the old column is gone afterward), (b) the hook is genuinely optional
+(a second row migrated with no hook argument doesn't crash on the empty
+`std::function`), and (c) idempotency (a second call with the same hook
+doesn't corrupt an already-transformed row). All 9 `tests/golden/migrate/*`
+fixtures regenerated and diff-reviewed — exactly the signature + call-site
++ comment change, nothing else. Full suite green.
+
 ## Other open items (see README.md "Known gaps" for the full/current list)
 
-- Cross-version **data transforms** — `migrate_<name>` moves column
-  *structure* forward (rename/add/drop/retype) but never *values*: no way to
-  backfill a computed value (e.g. derive `age` from `birthdate`, split
-  `full_name`) on upgrade. Needs a design decision (new DSL syntax vs. a
-  user-supplied C++ hook `migrate_<name>` calls out to) before any code —
-  scope via `AskUserQuestion` first.
 - PostgreSQL backend on Windows — only SQLite is verified there;
   `soci[postgresql]` was never added to the vcpkg manifests.
 - True crash/interrupt recovery (resume a *killed mid-run* generate) — the

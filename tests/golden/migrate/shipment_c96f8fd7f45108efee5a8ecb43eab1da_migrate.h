@@ -2,6 +2,7 @@
 #ifndef HARPIA_MIGRATE_SHIPMENT_c96f8fd7f45108efee5a8ecb43eab1da
 #define HARPIA_MIGRATE_SHIPMENT_c96f8fd7f45108efee5a8ecb43eab1da
 
+#include <functional>
 #include <map>
 #include <set>
 #include <string>
@@ -17,6 +18,7 @@
 //     names are known at generation time), before anything else runs,
 //   - adds any column present in the current schema but missing from a live table
 //     an older generated version created (additive evolution via ALTER TABLE),
+//   - runs the caller-supplied data_transform hook, if any (see below),
 //   - DROPs any column a live table has that the current schema no longer
 //     declares. This is an IMPLICIT, UNCONDITIONAL diff, not a marker-driven
 //     one: there is no schema history, so any unrecognized live column is
@@ -27,8 +29,17 @@
 //     Runs last among the structural steps, against the table already
 //     stabilized by the rename/add/drop steps above.
 //   - stamps the current version hash.
-// Cross-version data transforms (an arbitrary value-transformation function,
-// not just a CAST) are still not handled.
+// Cross-version DATA transforms (deriving one column's value from another,
+// not just moving/CASTing structure) are handled via an optional
+// data_transform hook -- harpia has no schema history, so it cannot know
+// what a transform should compute, only guarantee a stable extension point
+// and when it runs. It runs AFTER add (so any new destination column already
+// exists) and BEFORE drop (so an old source column being retired is still
+// there to read) -- e.g. splitting a retiring "full_name" into new
+// "first_name"/"last_name" columns needs exactly this ordering. Pass
+// nothing for today's plaintext behavior; the caller's lambda should be
+// idempotent (e.g. guard with a WHERE clause) since migrate_shipment may run
+// on every startup.
 //
 // SOCI-based (works on any backend); the SQL dialect (version table, column
 // introspection, ALTER/RENAME/DROP/RETYPE, version-stamp upsert) comes from
@@ -36,7 +47,8 @@
 namespace harpia {
 namespace db {
 
-inline bool migrate_shipment(::soci::session& db) {
+inline bool migrate_shipment(::soci::session& db,
+                           std::function<void(::soci::session&)> data_transform = nullptr) {
     try {
         db << "CREATE TABLE IF NOT EXISTS \"_harpia_schema_version\" (\"name\" TEXT PRIMARY KEY, \"version\" TEXT);";
 
@@ -72,6 +84,10 @@ inline bool migrate_shipment(::soci::session& db) {
         if (!have.count("ORIGINATOR")) {
             db << "ALTER TABLE \"shipment_table\" ADD COLUMN \"ORIGINATOR\" TEXT;";
         }
+        // caller-supplied cross-version data transform (see the header
+        // comment above for why this runs here: after add, before drop).
+        // No-op when not supplied.
+        if (data_transform) data_transform(db);
         // non-additive: drop any live column the current schema no longer
         // declares (see the header comment above for the implicit-diff caveat)
         {

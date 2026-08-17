@@ -252,6 +252,33 @@ Note the generated identifiers are **md5-hash-qualified** (`users_<hash>_crudl.h
 accessor `id_<hash>()`) — the hash comes from your `.harpia` input, so it changes
 when your definitions do.
 
+**Schema migration and cross-version data transforms:** each table-bearing
+message also gets a `migrate_<name>(db)` (`migrate/users_<hash>_migrate.h`)
+that brings an older live database up to the current schema — column
+rename/add/drop/retype are all handled automatically from the `.harpia`
+definition alone (see [`Database/CLAUDE.md`](Database/CLAUDE.md)). What
+harpia *can't* infer automatically is a value **derivation** — e.g. filling
+a new column from an old one, or splitting one retiring column into several
+new ones — since that requires knowing what the data *means*, not just
+where it lives. For that, `migrate_<name>` takes an optional
+`data_transform` hook:
+
+```cpp
+harpia::db::migrate_users(db, [](::soci::session& db) {
+    // runs AFTER the add step (so any new destination column already
+    // exists) and BEFORE the drop step (so an old source column being
+    // retired is still there to read) -- e.g. deriving `age` from a
+    // `birthdate` column, or splitting a retiring `full_name` into new
+    // `first_name`/`last_name` columns.
+    db << "UPDATE \"user_table\" SET \"age\" = ... WHERE \"age\" IS NULL";
+});
+```
+
+Pass nothing for today's behavior (no transform runs) — the parameter
+defaults to an empty `std::function`. Write your lambda to be idempotent
+(e.g. guard it with a `WHERE` clause, as above) since `migrate_<name>` may
+run on every application startup, not just once.
+
 ---
 
 ## 7. Other ways to run it

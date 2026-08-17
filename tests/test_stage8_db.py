@@ -300,6 +300,91 @@ def test_migration_drop_and_rename(generated, sqlite_obj, tmp_path):
 
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="migration round-trip needs protoc + protobuf")
+def test_migration_data_transform(generated, sqlite_obj, tmp_path):
+    """migrate_<name> takes an optional caller-supplied data_transform hook
+    (std::function<void(session&)>), run AFTER add and BEFORE drop -- proven
+    here by deriving beacon_log.label from a retiring "full_label" column
+    that the current schema doesn't declare at all: label must already exist
+    (added) and full_label must still exist (not yet dropped) when the hook
+    runs. Also proves the hook is genuinely optional (the default nullptr
+    doesn't crash) and idempotent (a second call with the same hook doesn't
+    corrupt the already-transformed value)."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "migrate_data_transform.cpp"
+    prog.write_text(
+        '#include "migrate/beacon_log_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        "    // an older generated version: the data lives under a column\n"
+        "    // (\"full_label\") the current schema doesn't declare at all --\n"
+        "    // no renamed_from marker applies here, only a value derivation.\n"
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '\\"full_label\\" TEXT, \\"strength\\" INTEGER);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"ID_{h}\\\", \\\"full_label\\\", "
+        "\\\"strength\\\") VALUES (1, 'north-station', 5);\")) return 3;\n"
+        "    // the hook: copy the old column into the new one. Guarded so a\n"
+        "    // second run is a no-op -- callers are responsible for their own\n"
+        "    // idempotency, same as migrate_beacon_log itself may run on every startup.\n"
+        "    auto transform = [](::soci::session& db) {{\n"
+        "        db << \"UPDATE \\\"beacon_log_table\\\" SET \\\"label\\\" = \\\"full_label\\\" \"\n"
+        "              \"WHERE \\\"label\\\" IS NULL OR \\\"label\\\" = ''\";\n"
+        "    }};\n"
+        "    if (!::harpia::db::migrate_beacon_log(db, transform)) return 4;\n"
+        "    ::harpia::db::beacon_log_dao dao(db);\n"
+        "    // label was added (by the add step) and then derived (by the hook)\n"
+        "    // from full_label, which was still present when the hook ran\n"
+        "    ::beacon_log got;\n"
+        "    if (!dao.read(1, &got)) return 5;\n"
+        '    if (got.label() != "north-station") return 6;\n'
+        "    if (got.strength() != 5) return 7;\n"
+        "    // full_label is gone -- the hook ran BEFORE drop, not after, so\n"
+        "    // this only proves drop still ran, not that the hook read it late\n"
+        "    int seen = 0; ::soci::indicator si;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('beacon_log_table') "
+        "WHERE name = 'full_label'\", ::soci::into(seen, si);\n"
+        "    if (seen != 0) return 8;\n"
+        "    // the hook is genuinely optional: a second row, migrated with NO\n"
+        "    // hook argument at all, must not crash (std::bad_function_call on\n"
+        "    // an empty std::function) and must leave that row untouched\n"
+        '    ::beacon_log b; b.set_id_{h}(2); b.set_label("untouched"); b.set_strength(9);\n'
+        "    if (!dao.create(b)) return 9;\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 10;\n"
+        "    ::beacon_log got2;\n"
+        "    if (!dao.read(2, &got2)) return 11;\n"
+        '    if (got2.label() != "untouched" || got2.strength() != 9) return 12;\n'
+        "    // idempotent: calling with the same hook again does not corrupt\n"
+        "    // the already-transformed row (the hook's own WHERE guard is now\n"
+        "    // false for it)\n"
+        "    if (!::harpia::db::migrate_beacon_log(db, transform)) return 13;\n"
+        "    ::beacon_log got3;\n"
+        "    if (!dao.read(1, &got3)) return 14;\n"
+        '    if (got3.label() != "north-station") return 15;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb_cc = os.path.join(cpp_root, "protofiles", "beacon_log_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "migrate_data_transform")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=120)
+    assert c.returncode == 0, "data-transform migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "data-transform migration failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
 def test_migration_retype_column(generated, sqlite_obj, tmp_path):
     """migrate_<name> RETYPEs a column whose live SQL type no longer matches
     the current schema (beacon_log.strength: an older TEXT column, current
