@@ -17,8 +17,8 @@ mismatch), mirroring SOAP/REST; heartBeat stays open.
 """
 import os
 
-from Logger.logger import logger
-from Util.util import loadTemplate, write_if_different
+from logger.logger import logger
+from util.util import loadTemplate, write_if_different
 
 GRPC_EXT = "_grpc.h"
 

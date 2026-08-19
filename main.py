@@ -1,14 +1,14 @@
 ##this is a file meant to be executed as the main executor
 import os
 from LexicalAnalizer.LexicalAnalyzer import LexicalAnalyzer
-from Logger.logger import logger
+from logger.logger import logger
 from LexicalAnalizer.pre_lex import pre_lex
 
 from LexicalAnalizer.MessageCreator import MessageCreator,Message
-from ProtoFile.ProtoFileProcessor import ProtoFileProcessor
-from ProtoFile.FileCreator import FileCreator
-from ProtoFile.ProtoCompiler import ProtoCompiler
-from ProtoFile.GrpcCompiler import GrpcCompiler
+from protoFile.ProtoFileProcessor import ProtoFileProcessor
+from protoFile.FileCreator import FileCreator
+from protoFile.ProtoCompiler import ProtoCompiler
+from protoFile.GrpcCompiler import GrpcCompiler
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
@@ -22,7 +22,7 @@ from Database.WsdlAdapter import WsdlAdapter
 from Database.GrpcServiceAdapter import GrpcServiceAdapter
 from TestAdapter.TestAdapter import TestAdapter
 from copy import deepcopy
-from Util.util import (copyCMakeFiles, copyServerClientTemplates,
+from util.util import (copyCMakeFiles, copyServerClientTemplates,
                        copyBasicProtos, chooseDemo, prune_stale_outputs)
 if __name__ == '__main__':
     log = logger(outFile=None, moduleName="main" )

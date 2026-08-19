@@ -22,7 +22,7 @@ import os
 import shutil
 import subprocess
 
-from Logger.logger import logger
+from logger.logger import logger
 from Errors.Error import Error, Types, Classes
 
 

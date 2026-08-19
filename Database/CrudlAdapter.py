@@ -20,8 +20,8 @@ SOCI specifics baked into the generated code (see the DAO's header comment):
 """
 import os
 
-from Logger.logger import logger
-from Util.util import loadTemplate, write_if_different
+from logger.logger import logger
+from util.util import loadTemplate, write_if_different
 from Database.backends import get_backend
 from Database.model import (analyze, create_table_sql, type_registry,
                             map_fields, repeated_fields, RepeatedComposedField)

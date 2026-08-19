@@ -1,7 +1,7 @@
 #get one message and create one proto, one .message and one .variables files
 import os
-from Logger.logger import logger
-from Util.util import readFromTemplate, write_if_different
+from logger.logger import logger
+from util.util import readFromTemplate, write_if_different
 PROTO_EXT = ".proto"
 MESSAGE_EXT = ".message"
 VARIABLES_EXT = ".variables"

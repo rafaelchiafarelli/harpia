@@ -19,9 +19,9 @@ import shutil
 import subprocess
 import tempfile
 
-from Logger.logger import logger
+from logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from Util.util import copy_tree_if_different
+from util.util import copy_tree_if_different
 
 
 class ProtoCompiler:

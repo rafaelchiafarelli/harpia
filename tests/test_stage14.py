@@ -107,7 +107,7 @@ def messages_lib(generated, tmp_path_factory):
     embed another (a composed/FK field), so its .pb.cc references the dependent
     message's symbols -- linking all message objects mirrors the `protofiles`
     library the generated CMake builds."""
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     proto_dir = os.path.join(cpp_root, "protofiles")

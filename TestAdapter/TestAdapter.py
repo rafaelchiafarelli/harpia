@@ -19,8 +19,8 @@ parsers, REST/SOAP APIs, and the all-good/crash/slower/non-parseable apps).
 import os
 import shutil
 
-from Logger.logger import logger
-from Util.util import loadTemplate, write_if_different, copy_if_different
+from logger.logger import logger
+from util.util import loadTemplate, write_if_different, copy_if_different
 from Database.model import (analyze, type_registry, map_fields, repeated_fields,
                             RepeatedComposedField)
 
