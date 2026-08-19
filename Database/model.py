@@ -38,7 +38,7 @@ class Column:
     def __init__(self, name, sql_type, pk=False, required=False, unique=False,
                  bindable=False, kind=None, fk_target=None, enum_type=None,
                  fk_table=False, embed=None, child_accessor=None,
-                 backend=None) -> None:
+                 renamed_from=None, backend=None) -> None:
         self.name = name
         self.sql_type = sql_type
         self.pk = pk
@@ -50,10 +50,16 @@ class Column:
         self.enum_type = enum_type    # C++ enum type name (kind == "enum")
         self.fk_table = fk_table      # composed field whose target is a table (a
                                       # persistable FK to the child's primary key)
-        self.embed = embed            # parent field accessor when this column is a
-                                      # flattened sub-field of a non-table composed
-                                      # field (data.val.var -> column "val_var")
+        self.embed = list(embed) if embed else None
+                                      # chain of parent field accessors when this
+                                      # column is a flattened sub-field of a
+                                      # (possibly nested) non-table composed field
+                                      # (data.val.inner.var -> column
+                                      # "val_inner_var", C++ x.val().inner().var())
         self.child_accessor = child_accessor  # the sub-field's own accessor
+        self.renamed_from = renamed_from  # old column name (MigrationAdapter
+                                          # RENAME COLUMN), from the DSL's
+                                          # renamed_from[<old>] modifier
         self._backend = backend or get_backend()  # dialect for sql_def()
 
     @property
@@ -64,15 +70,38 @@ class Column:
     def getter(self, src):
         """C++ expression reading this column's value from message ``src``."""
         if self.embed:
-            return "{}.{}().{}()".format(src, self.embed, self.child_accessor)
+            chain = src
+            for step in self.embed:
+                chain = "{}.{}()".format(chain, step)
+            return "{}.{}()".format(chain, self.child_accessor)
         return "{}.{}()".format(src, self.accessor)
 
     def set_stmt(self, value):
         """C++ statement writing ``value`` into this column's field on ``msg``."""
         if self.embed:
-            return "msg->mutable_{}()->set_{}({})".format(
-                self.embed, self.child_accessor, value)
+            chain = "msg"
+            for step in self.embed:
+                chain = "{}->mutable_{}()".format(chain, step)
+            return "{}->set_{}({})".format(chain, self.child_accessor, value)
         return "msg->set_{}({})".format(self.accessor, value)
+
+    def mutable_ptr(self):
+        """Mutable pointer to this composed field on ``msg`` (chains through
+        any embed levels, materializing each with mutable_*()). Used for a
+        fk_table column, to load the child DAO's result into place."""
+        chain = "msg"
+        for step in (self.embed or []):
+            chain = "{}->mutable_{}()".format(chain, step)
+        return "{}->mutable_{}()".format(chain, self.child_accessor or self.accessor)
+
+    def has_expr(self, src):
+        """C++ has_*() check for this composed field on ``src`` (chains
+        through any embed levels; reading through an unset intermediate
+        embed is safe -- protobuf returns a default sub-message)."""
+        chain = src
+        for step in (self.embed or []):
+            chain = "{}.{}()".format(chain, step)
+        return "{}.has_{}()".format(chain, self.child_accessor or self.accessor)
 
     def sql_def(self):
         return self._backend.column_def(
@@ -164,6 +193,42 @@ class RepeatedField:
         return "{}.{}_size()".format(inst, self.field)
 
 
+class RepeatedComposedField:
+    """A repeated field whose target is a table-less composed message,
+    persisted as a child table "<table>__<field>" (owner, ordinal, one column
+    per the target's own flattened scalar/enum fields, unprefixed -- unlike
+    the singular-embed case, each repetition already gets its own row, so no
+    prefix is needed to disambiguate). ``columns`` are produced by
+    _flatten(..., prefix=False), so nested table-less composition and enum
+    sub-fields are already resolved; map/repeated/table-composed sub-fields
+    stay deferred (silently dropped, matching repeated_fields()'s existing
+    deferred cases -- there is no note channel here)."""
+    def __init__(self, child_table, field, columns, embed=None) -> None:
+        self.child_table = child_table
+        self.field = field          # protobuf accessor of the repeated field
+        self.columns = columns      # list of Column, unprefixed names/accessors
+        self.embed = embed          # parent field accessor if embed-nested
+
+    def entries(self, src):
+        """Const repeated-field expression on message ``src`` (for iteration)."""
+        if self.embed:
+            return "{}.{}().{}()".format(src, self.embed, self.field)
+        return "{}.{}()".format(src, self.field)
+
+    def add_ptr_stmt(self):
+        """C++ statement returning a pointer to a newly appended element on
+        ``msg`` (pointer), to be populated field-by-field by the caller."""
+        if self.embed:
+            return "msg->mutable_{}()->add_{}()".format(self.embed, self.field)
+        return "msg->add_{}()".format(self.field)
+
+    def size_of(self, inst):
+        """Element-count expression on a local value ``inst``."""
+        if self.embed:
+            return "{}.{}().{}_size()".format(inst, self.embed, self.field)
+        return "{}.{}_size()".format(inst, self.field)
+
+
 # field names the front-end injects into every message; meaningless when a
 # message is embedded inside another, so flattening skips them.
 _HIDDEN_PREFIXES = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
@@ -198,50 +263,99 @@ def _lookup(types, name):
     return entry["kind"], entry["msg"]
 
 
-def _flatten(parent, child_msg, types, backend):
-    """Flatten a non-table composed field's child message into columns prefixed
-    with the parent field name (data.val.var -> column "val_var"). Only scalar
-    and enum sub-fields are flattened; repeated/map and nested composed
-    sub-fields are deferred with a note."""
+def pagination_default(msg):
+    """The table's declared default page size, i.e. the paginationSize of the
+    first field carrying the PAGINATION modifier, or None if the message has
+    none. Drives the paginated list()/streamSrc/GET-list surfaces."""
+    for v in (msg.variables or []):
+        mods = {m[0] for m in (v.modifiers or [])}
+        if "PAGINATION" in mods:
+            return v.paginationSize
+    return None
+
+
+def _flatten(name_prefix, child_msg, types, backend, embed_path=None, prefix=True):
+    """Flatten a message's scalar/enum fields into columns.
+
+    prefix=True (the default): columns are named with ``name_prefix``
+    (compounding through nesting: data.val.inner.var -> column
+    "val_inner_var") and bound through ``embed_path``, the chain of C++
+    accessors from the table-bearing message down to this level
+    (x.val().inner().var()) -- a table-less composed field embedded
+    (possibly several levels deep) in a table-bearing message.
+    prefix=False: columns keep the child message's own field names,
+    unprefixed and unbound (embed_path stays empty) -- one repetition's
+    worth of columns for a repeated field whose target is a table-less
+    message, where each repetition already gets its own child-table row (see
+    RepeatedComposedField / repeated_fields()).
+
+    Only scalar and enum sub-fields are flattened; repeated/map and nested
+    composed-to-a-table-bearing-message sub-fields are deferred with a note.
+    A nested composed sub-field whose own target is ALSO a table-less
+    message is flattened recursively (compounding name_prefix/embed_path)."""
     columns, notes = [], []
     if child_msg is None:
         return columns, notes
+    embed_path = list(embed_path or [])
     for v in (child_msg.variables or []):
         if _is_hidden(v.name):
             continue
-        col_name = "{}_{}".format(parent, v.name)
+        col_name = "{}_{}".format(name_prefix, v.name) if prefix else v.name
         mods = {m[0] for m in (v.modifiers or [])}
         if v.typeMap:
             notes.append("-- {}.{}: map in embedded {} -> child table"
-                         .format(parent, v.name, child_msg.name))
+                         .format(name_prefix, v.name, child_msg.name))
             continue
         if "REPETEABLE" in mods and v.type[0] in _KINDS:
             notes.append("-- {}.{}: repeated in embedded {} -> child table"
-                         .format(parent, v.name, child_msg.name))
+                         .format(name_prefix, v.name, child_msg.name))
             continue
         if "REPETEABLE" in mods:
             notes.append("-- {}.{}: repeated composed in embedded {} (deferred)"
-                         .format(parent, v.name, child_msg.name))
+                         .format(name_prefix, v.name, child_msg.name))
             continue
         if v.type[0] == "ID":  # nested composed field inside the embedded message
-            kind, _ = _lookup(types, v.type[1])
+            kind, nested_msg = _lookup(types, v.type[1])
             if kind == "enum":
                 columns.append(Column(col_name, backend.int_type, bindable=False,
                                       kind="enum", enum_type=v.type[1],
-                                      embed=parent, child_accessor=v.name.lower(),
+                                      embed=(embed_path if prefix else None),
+                                      child_accessor=v.name.lower(),
+                                      backend=backend))
+                continue
+            if kind == "message":
+                # nested table-less composed field: recurse, reaching further
+                # scalar/enum fields (compounding name_prefix/embed_path).
+                sub_cols, sub_notes = _flatten(
+                    col_name if prefix else v.name, nested_msg, types, backend,
+                    embed_path=(embed_path + [v.name.lower()]) if prefix else None,
+                    prefix=prefix)
+                columns.extend(sub_cols)
+                notes.extend(sub_notes)
+                continue
+            if kind == "table":
+                # nested composed field whose OWN target owns a table: a
+                # persistable FK to the child's primary key, reached through
+                # this embed's accessor chain (CrudlAdapter creates/loads the
+                # child via its own DAO, same as a top-level FK).
+                columns.append(Column(col_name, backend.int_type, bindable=False,
+                                      fk_target=v.type[1], fk_table=True,
+                                      embed=(embed_path if prefix else None),
+                                      child_accessor=v.name.lower(),
                                       backend=backend))
                 continue
             notes.append("-- {}.{}: nested composed -> {} in embedded {} (deferred)"
-                         .format(parent, v.name, v.type[1], child_msg.name))
+                         .format(name_prefix, v.name, v.type[1], child_msg.name))
             continue
         scalar = _scalar(v.type[0], backend)
         if scalar is None:
             notes.append("-- {}.{}: unsupported type {} (skipped)"
-                         .format(parent, v.name, v.type[0]))
+                         .format(name_prefix, v.name, v.type[0]))
             continue
         sql_type, kind = scalar
         columns.append(Column(col_name, sql_type, bindable=False, kind=kind,
-                              embed=parent, child_accessor=v.name.lower(),
+                              embed=(embed_path if prefix else None),
+                              child_accessor=v.name.lower(),
                               backend=backend))
     return columns, notes
 
@@ -273,9 +387,17 @@ def analyze(msg, types=None, backend=None):
             if v.type[0] in _KINDS:
                 notes.append("-- {}: repeated -> child table (see repeated_fields)"
                              .format(v.name))
-            elif v.type[0] == "ID" and _lookup(types, v.type[1])[0] == "table":
-                notes.append("-- {}: repeated FK -> {} link table (see "
-                             "repeated_fields)".format(v.name, v.type[1]))
+            elif v.type[0] == "ID":
+                kind, _ = _lookup(types, v.type[1])
+                if kind == "table":
+                    notes.append("-- {}: repeated FK -> {} link table (see "
+                                 "repeated_fields)".format(v.name, v.type[1]))
+                elif kind == "message":
+                    notes.append("-- {}: repeated composed -> {} child table "
+                                 "(see repeated_fields)".format(v.name, v.type[1]))
+                else:
+                    notes.append("-- {}: repeated composed -> {} (deferred)"
+                                 .format(v.name, v.type[1]))
             else:
                 notes.append("-- {}: repeated composed -> child table (deferred)"
                              .format(v.name))
@@ -297,8 +419,10 @@ def analyze(msg, types=None, backend=None):
                 continue
             if kind == "message":
                 # composed field whose target has no table: flatten its scalar/
-                # enum sub-fields into prefixed columns of this table.
-                sub_cols, sub_notes = _flatten(v.name, target_msg, types, backend)
+                # enum sub-fields (recursively, through further table-less
+                # nesting) into prefixed columns of this table.
+                sub_cols, sub_notes = _flatten(v.name, target_msg, types, backend,
+                                               embed_path=[v.name.lower()])
                 columns.extend(sub_cols)
                 notes.extend(sub_notes)
                 continue
@@ -315,7 +439,9 @@ def analyze(msg, types=None, backend=None):
         columns.append(Column(v.name, sql_type, pk=v.name.startswith("ID_"),
                               required="REQUIRED" in mods,
                               unique="UNIQUE" in mods,
-                              bindable=True, kind=kind, backend=backend))
+                              bindable=True, kind=kind,
+                              renamed_from=getattr(v, "renamedFrom", None),
+                              backend=backend))
     return columns, notes
 
 
@@ -362,8 +488,11 @@ def map_fields(msg, types=None, backend=None):
 
 def repeated_fields(msg, types=None, backend=None):
     """Repeated scalar fields of a table-bearing message, each -> a child table
-    keyed by the parent's PK with an ordinal. Repeated composed fields are
-    deferred (noted by analyze)."""
+    keyed by the parent's PK with an ordinal. A repeated composed field whose
+    target owns a table -> a link table via the child's own DAO (RepeatedField,
+    fk_target set); whose target has no table -> a child table holding one
+    column per the target's own flattened scalar/enum fields
+    (RepeatedComposedField). Repeated enums stay deferred (noted by analyze)."""
     types = types or {}
     backend = backend or get_backend()
     table = getattr(msg, "tableName", None)
@@ -378,12 +507,17 @@ def repeated_fields(msg, types=None, backend=None):
             continue
         child = "{}__{}".format(table, v.name)
         if v.type[0] == "ID":  # repeated composed field
-            kind, _ = _lookup(types, v.type[1])
+            kind, target_msg = _lookup(types, v.type[1])
             if kind == "table":
                 # 1-to-many: the link table's value is the child's primary key
                 out.append(RepeatedField(child, v.name.lower(), backend.int_type,
                                          "int64", fk_target=v.type[1]))
-            # repeated enum / repeated non-table composed -> deferred
+            elif kind == "message":
+                cols, _notes = _flatten(v.name, target_msg, types, backend,
+                                        prefix=False)
+                if cols:
+                    out.append(RepeatedComposedField(child, v.name.lower(), cols))
+            # repeated enum -> deferred
             continue
         scalar = _scalar(v.type[0], backend)
         if scalar is None:

@@ -1,5 +1,5 @@
 message queen{
-    
+
     int var;
     optional int val;
     required pagination[12] map<string,string> a;
@@ -7,3 +7,68 @@ message queen{
     required map<int,string> c;
     pagination[12] int vari;
 };
+
+// PUSH only, no PULL EVENT or STREAM, exercises the runtime per-instance
+// origin id many-to-one ZMQ senders use.
+push message courier{
+    string payload;
+};
+
+// table-less target for a repeated composed field (Database.model
+// RepeatedComposedField), a child table with one column per each parcel
+// own flattened fields, one row per repetition.
+message parcel{
+    string label;
+    int weight;
+};
+
+// exercises repeteable of a table-less composed type.
+message shipment{
+    string tag;
+    repeteable parcel cargo;
+}shipment_table;
+
+// table-less leaf, and a table-less message nesting ANOTHER table-less
+// composed field (route.start), exercising the recursive embed flatten.
+message waypoint{
+    string city;
+    int elevation;
+};
+
+message route{
+    waypoint start;
+    string label;
+};
+
+// exercises a singular composed field whose own sub-field is itself
+// composed to a table-less message (2-level embed flatten).
+message journey{
+    route path;
+    string vessel;
+}journey_table;
+
+// table-bearing leaf reached from INSIDE an embedded message below --
+// exercises a composed field nested inside a table-less embed whose own
+// target owns a table (an FK found inside an embed).
+message crew{
+    string name;
+}crew_table;
+
+// table-less; embeds a plain scalar sub-field (the already-working case)
+// alongside a composed sub-field whose own target owns a table (the gap).
+message crew_quarters{
+    string label;
+    crew skipper;
+};
+
+message outpost{
+    string commander;
+    crew_quarters berth;
+}outpost_table;
+
+// exercises non-additive migration RENAME (this field replaces an older
+// column that used to be named handle).
+message beacon_log{
+    renamed_from[handle] string label;
+    int strength;
+}beacon_log_table;

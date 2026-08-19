@@ -22,6 +22,15 @@
 
 #include "tinyxml2.h"
 
+// windows.h (pulled in transitively via Crow/asio on Windows) defines
+// GetMessage as a macro (winuser.h's GetMessageA/W dispatch) that would
+// otherwise silently rewrite Reflection::GetMessage() below into a call to a
+// member that doesn't exist. WIN32_LEAN_AND_MEAN doesn't strip winuser.h (that
+// needs the broader, riskier NOUSER), so undef the one name we actually use.
+#ifdef GetMessage
+#undef GetMessage
+#endif
+
 namespace harpia {
 namespace xml {
 namespace detail {
@@ -87,7 +96,11 @@ inline void write_message(const ::google::protobuf::Message& msg, std::string& o
     const auto* refl = msg.GetReflection();
     for (int i = 0; i < d->field_count(); ++i) {
         const auto* f = d->field(i);
-        const std::string& tag = f->name();
+        // direct-init (not `=`), and by value not reference: FieldDescriptor::name()
+        // returns const std::string& in older protobuf (<=3.21, e.g. apt's) but
+        // std::string_view in newer releases (e.g. vcpkg's) -- this compiles
+        // against both without an #ifdef.
+        const std::string tag(f->name());
         if (f->is_repeated()) {
             const int n = refl->FieldSize(msg, f);
             for (int k = 0; k < n; ++k) {
@@ -175,7 +188,8 @@ inline bool read_message(const ::tinyxml2::XMLElement* node,
 
 // message -> XML. The root element is the message type name.
 inline std::string to_xml(const ::google::protobuf::Message& msg) {
-    const std::string& root = msg.GetDescriptor()->name();
+    // see write_message's `tag` above for why this is by-value direct-init.
+    const std::string root(msg.GetDescriptor()->name());
     std::string out = "<" + root + ">";
     detail::write_message(msg, out);
     out += "</" + root + ">";
@@ -231,14 +245,14 @@ inline void collect(const ::google::protobuf::Descriptor* d,
 
 inline void write_complex_type(const ::google::protobuf::Descriptor* d,
                                std::string& out) {
-    out += "  <xs:complexType name=\"" + d->name() + "\">\n    <xs:sequence>\n";
+    out += "  <xs:complexType name=\"" + std::string(d->name()) + "\">\n    <xs:sequence>\n";
     for (int i = 0; i < d->field_count(); ++i) {
         const auto* f = d->field(i);
         const std::string type =
             (f->cpp_type() == ::google::protobuf::FieldDescriptor::CPPTYPE_MESSAGE)
-                ? f->message_type()->name()
+                ? std::string(f->message_type()->name())
                 : std::string(xsd_scalar(f->cpp_type()));
-        out += "      <xs:element name=\"" + f->name() + "\" type=\"" + type +
+        out += "      <xs:element name=\"" + std::string(f->name()) + "\" type=\"" + type +
                "\" minOccurs=\"0\"";
         if (f->is_repeated()) out += " maxOccurs=\"unbounded\"";
         out += "/>\n";
@@ -255,8 +269,8 @@ inline std::string xsd(const ::google::protobuf::Descriptor* root) {
     std::string out =
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
         "<xs:schema xmlns:xs=\"http://www.w3.org/2001/XMLSchema\">\n";
-    out += "  <xs:element name=\"" + root->name() + "\" type=\"" +
-           root->name() + "\"/>\n";
+    out += "  <xs:element name=\"" + std::string(root->name()) + "\" type=\"" +
+           std::string(root->name()) + "\"/>\n";
     for (const auto* d : order)
         detail::write_complex_type(d, out);
     out += "</xs:schema>\n";

@@ -13,7 +13,7 @@ the database layer (CRUDL) existed.
 import os
 
 from Logger.logger import logger
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different
 
 DBIO_EXT = "_dbio.h"
 
@@ -39,8 +39,7 @@ class DbIoAdapter:
                 hash=msg.md5Hash,
             )
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, DBIO_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(header)
+            write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
         self.log.print("generated {} DB import/export header(s) into {}".format(
             written, self.outDir))

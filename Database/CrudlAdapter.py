@@ -21,10 +21,10 @@ SOCI specifics baked into the generated code (see the DAO's header comment):
 import os
 
 from Logger.logger import logger
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different
 from Database.backends import get_backend
 from Database.model import (analyze, create_table_sql, type_registry,
-                            map_fields, repeated_fields)
+                            map_fields, repeated_fields, RepeatedComposedField)
 
 CRUDL_EXT = "_crudl.h"
 
@@ -65,8 +65,7 @@ class CrudlAdapter:
                 continue
             header = self._render(msg)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, CRUDL_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(header)
+            write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
         self.log.print("generated {} CRUDL DAO(s) into {}".format(
             written, self.outDir))
@@ -74,7 +73,7 @@ class CrudlAdapter:
 
     def _render(self, msg):
         columns, _ = analyze(msg, self.types, self.backend)
-        scalar = [c for c in columns if c.bindable or c.embed]
+        scalar = [c for c in columns if (c.bindable or c.embed) and not c.fk_table]
         fk_cols = [c for c in columns if c.fk_table]
         id_col = next((c for c in scalar if c.pk), None)
         non_id = [c for c in scalar if not c.pk]
@@ -131,18 +130,20 @@ class CrudlAdapter:
             i += 1
         for c in fk_cols:
             ch = self._child(c)
-            lines.append("            long long c{i} = msg.{a}().{pk}();".format(
-                i=i, a=c.accessor, pk=ch["pk"]))
+            lines.append("            long long c{i} = {g}.{pk}();".format(
+                i=i, g=c.getter("msg"), pk=ch["pk"]))
             i += 1
         return "".join(l + "\n" for l in lines)
 
-    def _value_local(self, base, i, col):
-        """A named local holding column ``col``'s value read from `msg` (for use)."""
+    def _value_local(self, base, i, col, src="msg"):
+        """A named local holding column ``col``'s value read from ``src`` (for
+        use). ``src`` defaults to "msg"; a repeated-composed field's write
+        loop passes its per-element loop variable instead."""
         if col.kind == "enum":
             return "int {b}{i} = static_cast<int>({g});".format(
-                b=base, i=i, g=col.getter("msg"))
+                b=base, i=i, g=col.getter(src))
         return "{t} {b}{i} = {g};".format(
-            t=_local_ctype(col.kind), b=base, i=i, g=col.getter("msg"))
+            t=_local_ctype(col.kind), b=base, i=i, g=col.getter(src))
 
     def _update_locals(self, non_id, fk_cols, id_col):
         lines = []
@@ -152,8 +153,8 @@ class CrudlAdapter:
             i += 1
         for c in fk_cols:
             ch = self._child(c)
-            lines.append("            long long c{i} = msg.{a}().{pk}();".format(
-                i=i, a=c.accessor, pk=ch["pk"]))
+            lines.append("            long long c{i} = {g}.{pk}();".format(
+                i=i, g=c.getter("msg"), pk=ch["pk"]))
             i += 1
         acc = id_col.accessor if id_col else "rowid"
         lines.append("            long long cid = msg.{}();".format(acc))
@@ -224,8 +225,8 @@ class CrudlAdapter:
             ch = self._child(c)
             lines.append(
                 "                if (n{i} == ::soci::i_ok && l{i}) {{ {dao} _c(db_); "
-                "_c.read(l{i}, msg->mutable_{a}()); }}".format(
-                    i=i, dao=ch["dao"], a=c.accessor))
+                "_c.read(l{i}, {p}); }}".format(
+                    i=i, dao=ch["dao"], p=c.mutable_ptr()))
         return "".join(l + "\n" for l in lines)
 
     def _fk_hooks(self, fk_cols, op):
@@ -236,13 +237,14 @@ class CrudlAdapter:
             dao = self._child(c)["dao"]
             if op == "create":
                 lines.append(
-                    "            if (msg.has_{a}()) {{ {dao} _c(db_); "
-                    "if (!_c.create(msg.{a}())) return false; }}".format(
-                        a=c.accessor, dao=dao))
+                    "            if ({h}) {{ {dao} _c(db_); "
+                    "if (!_c.create({g})) return false; }}".format(
+                        h=c.has_expr("msg"), g=c.getter("msg"), dao=dao))
             else:
                 lines.append(
-                    "            if (msg.has_{a}()) {{ {dao} _c(db_); "
-                    "_c.update(msg.{a}()); }}".format(a=c.accessor, dao=dao))
+                    "            if ({h}) {{ {dao} _c(db_); "
+                    "_c.update({g}); }}".format(
+                        h=c.has_expr("msg"), g=c.getter("msg"), dao=dao))
         return "\n".join(lines) + "\n"
 
     def _fk_includes(self, fk_cols, reps=()):
@@ -252,7 +254,7 @@ class CrudlAdapter:
             if h not in seen:
                 seen.append(h)
         for rf in reps:
-            if not rf.fk_target:
+            if not getattr(rf, "fk_target", None):
                 continue
             h = self._child_by_name(rf.fk_target)["header"]
             if h not in seen:
@@ -269,7 +271,11 @@ class CrudlAdapter:
         owner_sql = pk.sql_type if pk else self.backend.int_type
         parts = []
         for ch in children:
-            if repeated:
+            if repeated and isinstance(ch, RepeatedComposedField):
+                sql = self.backend.rep_composed_child_table(
+                    ch.child_table, owner_sql,
+                    [(c.name, c.sql_def()) for c in ch.columns])
+            elif repeated:
                 sql = self.backend.rep_child_table(
                     ch.child_table, owner_sql, ch.val_sql)
             else:
@@ -361,6 +367,9 @@ class CrudlAdapter:
         octype, oexpr = self._owner(id_col, dot=True)
         blocks = []
         for rf in reps:
+            if isinstance(rf, RepeatedComposedField):
+                blocks.append(self._rep_composed_write(rf, octype, oexpr, op))
+                continue
             L = ["            {",
                  "                {} _owner = {};".format(octype, oexpr)]
             if op == "update":
@@ -397,12 +406,81 @@ class CrudlAdapter:
             blocks.append("\n".join(L))
         return "\n".join(blocks) + "\n"
 
+    def _rep_composed_write(self, rf, octype, oexpr, op):
+        """Write loop for a RepeatedComposedField: one INSERT per element,
+        columns = the target's own flattened scalar/enum fields."""
+        L = ["            {",
+             "                {} _owner = {};".format(octype, oexpr)]
+        if op == "update":
+            L.append(
+                '                db_ << "DELETE FROM \\"{}\\" WHERE '
+                '\\"owner\\" = :o", ::soci::use(_owner);'.format(rf.child_table))
+        L += [
+            "                long long _ord = 0;",
+            "                for (const auto& rv : {}) {{".format(rf.entries("msg")),
+        ]
+        for i, c in enumerate(rf.columns):
+            L.append("                    " + self._value_local("c", i, c, src="rv"))
+        col_names = ", ".join('\\"{}\\"'.format(c.name) for c in rf.columns)
+        placeholders = ", ".join(":c{}".format(i) for i in range(len(rf.columns)))
+        uses = ", ".join("::soci::use(c{})".format(i) for i in range(len(rf.columns)))
+        L += [
+            '                    db_ << "INSERT INTO \\"{}\\" (\\"owner\\", '
+            '\\"ordinal\\", {cols}) VALUES (:o, :n, {ph})", '
+            "::soci::use(_owner), ::soci::use(_ord), {uses};".format(
+                rf.child_table, cols=col_names, ph=placeholders, uses=uses),
+            "                    ++_ord;",
+            "                }",
+            "            }",
+        ]
+        return "\n".join(L)
+
+    def _rep_composed_read(self, rf, octype, oexpr):
+        """Read loop for a RepeatedComposedField: one SELECT ordered by
+        ordinal, adding+populating one element per row."""
+        L = [
+            "                {",
+            "                    {} _owner = {};".format(octype, oexpr),
+        ]
+        for i, c in enumerate(rf.columns):
+            L.append("                    " + self._read_local(i, c.kind))
+        col_names = ", ".join('\\"{}\\"'.format(c.name) for c in rf.columns)
+        intos = ", ".join("::soci::into(l{i}, n{i})".format(i=i)
+                          for i in range(len(rf.columns)))
+        L += [
+            '                    ::soci::statement _rs = (db_.prepare << '
+            '"SELECT {cols} FROM \\"{child}\\" WHERE \\"owner\\" = :o '
+            'ORDER BY \\"ordinal\\"", ::soci::use(_owner), {intos});'.format(
+                cols=col_names, child=rf.child_table, intos=intos),
+            "                    _rs.execute();",
+            "                    while (_rs.fetch()) {",
+            "                        auto* _e = {};".format(rf.add_ptr_stmt()),
+        ]
+        for i, c in enumerate(rf.columns):
+            if c.kind == "text":
+                val = "n{i} == ::soci::i_ok ? l{i} : std::string()".format(i=i)
+            elif c.kind == "enum":
+                val = ("static_cast<::{et}>(n{i} == ::soci::i_ok ? l{i} : 0)"
+                       .format(et=c.enum_type, i=i))
+            else:
+                val = "n{i} == ::soci::i_ok ? l{i} : 0".format(i=i)
+            L.append("                        _e->set_{}({});".format(
+                c.accessor, val))
+        L += [
+            "                    }",
+            "                }",
+        ]
+        return "\n".join(L)
+
     def _rep_read(self, reps, id_col):
         if not reps:
             return ""
         octype, oexpr = self._owner(id_col, dot=False)
         blocks = []
         for rf in reps:
+            if isinstance(rf, RepeatedComposedField):
+                blocks.append(self._rep_composed_read(rf, octype, oexpr))
+                continue
             is_text = (not rf.fk_target) and rf.val_kind == "text"
             valtype = "long long" if rf.fk_target else _local_ctype(rf.val_kind)
             vdecl = ("{} _v;".format(valtype) if is_text

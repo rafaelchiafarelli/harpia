@@ -129,3 +129,64 @@ def test_pg_crudl_roundtrip(pg_generated, tmp_path):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, "PG CRUDL round-trip failed at check #{}\n{}".format(
         run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_migration_retype(pg_generated, tmp_path):
+    """migrate_<name> RETYPEs a column whose live type no longer matches the
+    current schema, against a REAL Postgres server -- the direct ALTER
+    COLUMN ... TYPE path (SQLite's rebuild-the-table path is covered by
+    test_stage8_db.py::test_migration_retype_column). beacon_log.strength is
+    INTEGER in the current schema; the table is (re)created here with it as
+    TEXT to simulate an older generated version. Table is dropped first so
+    the run is idempotent against a persistent DB."""
+    cpp_root = pg_generated
+    prog = tmp_path / "pg_migrate_retype.cpp"
+    prog.write_text(
+        '#include "migrate/beacon_log_{h}_migrate.h"\n'
+        '#include "db/beacon_log_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        '    exec("DROP TABLE IF EXISTS \\"beacon_log_table\\";");\n'
+        "    // an older generated version: strength stored as TEXT, not INTEGER\n"
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '\\"label\\" TEXT, \\"strength\\" TEXT);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"ID_{h}\\\", \\\"label\\\", "
+        "\\\"strength\\\") VALUES (1, 'north', '7');\")) return 3;\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 4;\n"
+        "    // the column's declared type is now integer\n"
+        "    std::string t; ::soci::indicator ti;\n"
+        "    db << \"SELECT data_type FROM information_schema.columns WHERE \"\n"
+        "          \"table_name = 'beacon_log_table' AND column_name = 'strength'\", ::soci::into(t, ti);\n"
+        '    if (!db.got_data() || ti != ::soci::i_ok || t != "integer") return 5;\n'
+        "    // the value survived the cast\n"
+        "    ::harpia::db::beacon_log_dao dao(db);\n"
+        "    ::beacon_log got;\n"
+        "    if (!dao.read(1, &got)) return 6;\n"
+        '    if (got.label() != "north" || got.strength() != 7) return 7;\n'
+        "    // idempotent: the type already matches, so a second call is a no-op ALTER\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 8;\n"
+        "    ::beacon_log got2;\n"
+        "    if (!dao.read(1, &got2)) return 9;\n"
+        '    if (got2.label() != "north" || got2.strength() != 7) return 10;\n'
+        "    exec(\"DROP TABLE IF EXISTS \\\"beacon_log_table\\\";\");\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    pb_cc = os.path.join(cpp_root, "protofiles", "beacon_log_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "pg_migrate_retype")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG retype migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "PG retype migration failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)

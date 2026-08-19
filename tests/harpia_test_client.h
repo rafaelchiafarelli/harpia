@@ -2,12 +2,15 @@
 // generated live-HTTP tests. Replaces cpp-httplib's ::httplib::Client on the
 // test side of the cpp-httplib -> Crow migration; Crow ships no client.
 //
-// Header-only, POSIX sockets only (no asio, no extra vendored dep) so it stays
-// trivially portable across the target boards. Speaks just enough HTTP/1.1 to
-// drive the CRUDL/SOAP endpoints: one request per connection with
-// "Connection: close", response read to EOF, status line + body parsed out.
-// Read/connect timeouts (used by the "slower server" test) map to setsockopt
-// SO_RCVTIMEO and a non-blocking connect + select.
+// Header-only (no asio, no extra vendored dep) so it stays trivially portable
+// across the target boards. Speaks just enough HTTP/1.1 to drive the CRUDL/
+// SOAP endpoints: one request per connection with "Connection: close",
+// response read to EOF, status line + body parsed out. Read/connect timeouts
+// (used by the "slower server" test) map to setsockopt SO_RCVTIMEO and a
+// non-blocking connect + select. POSIX sockets on Linux; Winsock2 on Windows
+// (thin #ifdef shims below map the handful of divergent names/types --
+// closesocket vs. close, ioctlsocket vs. fcntl(O_NONBLOCK), WSAGetLastError
+// vs. errno -- the request/response logic itself is shared).
 #ifndef HARPIA_TEST_CLIENT_H
 #define HARPIA_TEST_CLIENT_H
 
@@ -15,16 +18,59 @@
 #include <utility>
 #include <vector>
 
+#include <cstring>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "ws2_32.lib")
+using harpia_sockfd_t = SOCKET;
+using harpia_socklen_t = int;
+static constexpr harpia_sockfd_t kHarpiaInvalidSocket = INVALID_SOCKET;
+#else
 #include <arpa/inet.h>
 #include <cerrno>
-#include <cstring>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
+using harpia_sockfd_t = int;
+using harpia_socklen_t = socklen_t;
+static constexpr harpia_sockfd_t kHarpiaInvalidSocket = -1;
+#endif
 
 namespace harpia_test {
+
+#ifdef _WIN32
+// One process-wide WSAStartup/WSACleanup pair, RAII'd via a function-local
+// static so it runs exactly once no matter how many Client instances/
+// translation units include this header (each generated test is its own
+// process, so this is the whole program's socket lifetime).
+struct WinsockInit {
+    WinsockInit() {
+        WSADATA wsa;
+        WSAStartup(MAKEWORD(2, 2), &wsa);
+    }
+    ~WinsockInit() { WSACleanup(); }
+};
+inline void ensure_winsock() { static WinsockInit init; }
+
+inline void close_socket(harpia_sockfd_t fd) { ::closesocket(fd); }
+inline int last_error() { return WSAGetLastError(); }
+inline void set_nonblocking(harpia_sockfd_t fd, bool nonblocking) {
+    u_long mode = nonblocking ? 1 : 0;
+    ::ioctlsocket(fd, FIONBIO, &mode);
+}
+#else
+inline void ensure_winsock() {}
+inline void close_socket(harpia_sockfd_t fd) { ::close(fd); }
+inline int last_error() { return errno; }
+inline void set_nonblocking(harpia_sockfd_t fd, bool nonblocking) {
+    int flags = ::fcntl(fd, F_GETFL, 0);
+    ::fcntl(fd, F_SETFL, nonblocking ? (flags | O_NONBLOCK) : (flags & ~O_NONBLOCK));
+}
+#endif
 
 struct Response {
     bool ok = false;   // false on connect/send/recv failure or timeout
@@ -64,8 +110,8 @@ public:
                      const std::string& body, const std::string& content_type,
                      const Headers& extra) {
         Response r;
-        int fd = connect_();
-        if (fd < 0) return r;
+        harpia_sockfd_t fd = connect_();
+        if (fd == kHarpiaInvalidSocket) return r;
 
         std::string req = method + " " + path + " HTTP/1.1\r\n";
         req += "Host: " + host_ + ":" + std::to_string(port_) + "\r\n";
@@ -78,76 +124,89 @@ public:
         req += "\r\n";
         req += body;
 
-        if (!send_all_(fd, req)) { ::close(fd); return r; }
+        if (!send_all_(fd, req)) { close_socket(fd); return r; }
 
         std::string raw;
         char buf[4096];
         for (;;) {
-            ssize_t n = ::recv(fd, buf, sizeof buf, 0);
+            long n = ::recv(fd, buf, sizeof buf, 0);
             if (n > 0) { raw.append(buf, static_cast<size_t>(n)); continue; }
             if (n == 0) break;  // peer closed (Connection: close)
             // n < 0: timeout (EAGAIN/EWOULDBLOCK) or error -> failed request
-            ::close(fd);
+            close_socket(fd);
             return r;
         }
-        ::close(fd);
+        close_socket(fd);
         return parse_(raw);
     }
 
 private:
-    int connect_() {
-        int fd = ::socket(AF_INET, SOCK_STREAM, 0);
-        if (fd < 0) return -1;
+    harpia_sockfd_t connect_() {
+        ensure_winsock();
+        harpia_sockfd_t fd = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (fd == kHarpiaInvalidSocket) return kHarpiaInvalidSocket;
 
         sockaddr_in addr{};
         addr.sin_family = AF_INET;
         addr.sin_port = htons(static_cast<uint16_t>(port_));
         if (::inet_pton(AF_INET, host_.c_str(), &addr.sin_addr) != 1) {
-            ::close(fd);
-            return -1;
+            close_socket(fd);
+            return kHarpiaInvalidSocket;
         }
 
         if (connect_timeout_ms_ > 0) {
-            int flags = ::fcntl(fd, F_GETFL, 0);
-            ::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+            set_nonblocking(fd, true);
             int rc = ::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof addr);
-            if (rc < 0 && errno == EINPROGRESS) {
+#ifdef _WIN32
+            bool in_progress = (rc != 0 && last_error() == WSAEWOULDBLOCK);
+#else
+            bool in_progress = (rc < 0 && last_error() == EINPROGRESS);
+#endif
+            if (in_progress) {
                 fd_set wf;
                 FD_ZERO(&wf);
                 FD_SET(fd, &wf);
                 timeval tv{connect_timeout_ms_ / 1000,
                            (connect_timeout_ms_ % 1000) * 1000};
-                if (::select(fd + 1, nullptr, &wf, nullptr, &tv) <= 0) {
-                    ::close(fd);
-                    return -1;
+                if (::select(static_cast<int>(fd) + 1, nullptr, &wf, nullptr, &tv) <= 0) {
+                    close_socket(fd);
+                    return kHarpiaInvalidSocket;
                 }
                 int err = 0;
-                socklen_t len = sizeof err;
-                ::getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
-                if (err != 0) { ::close(fd); return -1; }
-            } else if (rc < 0) {
-                ::close(fd);
-                return -1;
+                harpia_socklen_t len = sizeof err;
+                ::getsockopt(fd, SOL_SOCKET, SO_ERROR,
+                             reinterpret_cast<char*>(&err), &len);
+                if (err != 0) { close_socket(fd); return kHarpiaInvalidSocket; }
+            } else if (rc != 0) {
+                close_socket(fd);
+                return kHarpiaInvalidSocket;
             }
-            ::fcntl(fd, F_SETFL, flags);  // back to blocking
+            set_nonblocking(fd, false);
         } else if (::connect(fd, reinterpret_cast<sockaddr*>(&addr),
-                             sizeof addr) < 0) {
-            ::close(fd);
-            return -1;
+                             sizeof addr) != 0) {
+            close_socket(fd);
+            return kHarpiaInvalidSocket;
         }
 
         if (read_timeout_ms_ > 0) {
+#ifdef _WIN32
+            DWORD tv = static_cast<DWORD>(read_timeout_ms_);
+            ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO,
+                         reinterpret_cast<const char*>(&tv), sizeof tv);
+#else
             timeval tv{read_timeout_ms_ / 1000,
                        (read_timeout_ms_ % 1000) * 1000};
             ::setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+#endif
         }
         return fd;
     }
 
-    static bool send_all_(int fd, const std::string& data) {
+    static bool send_all_(harpia_sockfd_t fd, const std::string& data) {
         size_t sent = 0;
         while (sent < data.size()) {
-            ssize_t n = ::send(fd, data.data() + sent, data.size() - sent, 0);
+            long n = ::send(fd, data.data() + sent,
+                             static_cast<int>(data.size() - sent), 0);
             if (n <= 0) return false;
             sent += static_cast<size_t>(n);
         }

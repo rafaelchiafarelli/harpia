@@ -10,12 +10,21 @@
 
 #include "json/%DEMO_MESSAGE%_%DEMO_HASH%_json.h"
 #include "zmq/%DEMO_MESSAGE%_%DEMO_HASH%_zmq.h"
+#ifdef HARPIA_DEMO_CURVE
+#include "harpia_zmq_curve_keys.h"
+#endif
 
 int main(int argc, char* argv[]) {
     const std::string endpoint = (argc > 1) ? argv[1] : "tcp://*:5599";
 
     ::zmq::context_t ctx{1};
+#ifdef HARPIA_DEMO_CURVE
+    harpia::zmq_transport::CurveServerKeys curve{kHarpiaZmqCurveServerSecret};
+    harpia::zmq_transport::%DEMO_MESSAGE%_receiver receiver(ctx, endpoint, curve);
+    std::cout << "[server] CURVE enabled" << std::endl;
+#else
     harpia::zmq_transport::%DEMO_MESSAGE%_receiver receiver(ctx, endpoint);
+#endif
     std::cout << "[server] %DEMO_MESSAGE% receiver bound to " << endpoint
               << ", waiting..." << std::endl;
 

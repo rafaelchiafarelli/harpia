@@ -1,6 +1,5 @@
 ##this is a file meant to be executed as the main executor
 import os
-import shutil
 from LexicalAnalizer.LexicalAnalyzer import LexicalAnalyzer
 from Logger.logger import logger
 from LexicalAnalizer.pre_lex import pre_lex
@@ -23,7 +22,8 @@ from Database.WsdlAdapter import WsdlAdapter
 from Database.GrpcServiceAdapter import GrpcServiceAdapter
 from TestAdapter.TestAdapter import TestAdapter
 from copy import deepcopy
-from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
+from Util.util import (copyCMakeFiles, copyServerClientTemplates,
+                       copyBasicProtos, chooseDemo, prune_stale_outputs)
 if __name__ == '__main__':
     log = logger(outFile=None, moduleName="main" )
     log.print("Path at terminal when executing this file")
@@ -50,9 +50,6 @@ if __name__ == '__main__':
     includeFolder = os.environ.get("HARPIA_INCLUDE_FOLDER", "./HarpiaTest/Include")
     testDestination = os.environ.get("HARPIA_OUTPUT_DIR", "./HarpiaTest/test_build")
 
-    # Clean the output dir before regenerating: a stale build with old-hash
-    # *_service.proto files makes protoc fail ("... _Service is already defined").
-    shutil.rmtree(testDestination, ignore_errors=True)
     os.makedirs(testDestination, exist_ok=True)
 
     #0. pre-process check
@@ -75,6 +72,7 @@ if __name__ == '__main__':
     mainFileLex.CommentRemover()
     mainFileLex.ImportRemover()
 
+    lastLex = mainFileLex
     for inc in listOfIncludes:
         incFilePreLex = pre_lex(folders=[localFolder], file=inc, dest=testDestination, includeFolder = includeFolder)
         incFilePreProcessorResult = incFilePreLex.process()
@@ -88,8 +86,9 @@ if __name__ == '__main__':
             exit(-1)
         analizer.CommentRemover()
         analizer.ImportRemover()
-        
-    lexicalAnalized += (analizer.getTokens())
+        lastLex = analizer
+
+    lexicalAnalized += (lastLex.getTokens())
 
     msgFactory = MessageCreator(filename=testFile,tokens=lexicalAnalized, md5Hash=rootFile.getHash())
 
@@ -98,7 +97,14 @@ if __name__ == '__main__':
         log.print(messagesErrors.__str__())
         exit(-1)
     imports = []
-    
+
+    # Regeneration is write-if-different (every adapter below), so a stale
+    # output -- a message renamed/removed since the last run, or a leftover
+    # from a previous root-file hash -- is no longer cleaned up by a blanket
+    # wipe. Remove exactly those before writing anything new.
+    prune_stale_outputs(testDestination, rootFile.getHash(),
+                        {m.name for m in msgFactory.messages})
+
     for msg in msgFactory.messages:
         fileCreator = FileCreator(message=msg,imports=imports , dest=testDestination)
         fileCreator.Process()

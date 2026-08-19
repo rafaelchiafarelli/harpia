@@ -14,8 +14,9 @@
 - Runtime quirk (important): singular **message** fields are emitted only when `HasField` is true, otherwise an absent child would round-trip as an empty *present* child (which would, e.g., make an FK adapter persist a phantom row). Singular scalars are always emitted (proto3 defaults).
 - `_WRAPPER` template and `_RUNTIME_SRC` path are resolved at import time. Runtime is copied on every `Process()` call.
 - Root element in `to_xml` is the message *type name*; XSD collects reachable message types depth-first (cycle-safe).
+- **Windows portability (verified, see `USAGE.md` §11):** every `FieldDescriptor::name()`/`Descriptor::name()` result is bound with direct-initialization (`const std::string tag(f->name())`, not `const std::string& tag = f->name()`), because newer protobuf (e.g. vcpkg's) returns `std::string_view` there where older protobuf (e.g. apt's, used by the Docker pipeline) returns `const std::string&` — direct-init compiles against both, a `=`-binding to a reference does not. Also unconditionally `#undef GetMessage` after the includes: `<windows.h>` (pulled in transitively via Crow/asio on Windows) defines `GetMessage` as a macro (`winuser.h`'s `GetMessageA`/`W`), which would otherwise silently rewrite `Reflection::GetMessage()` into a call to a member that doesn't exist.
 - md5-hash-qualified filenames (multi-root relevance, same as ProtoFile/JsonAdapter).
-- Database-backed XML functions (spec 9.3-9.6) deferred pending Stage 8.
+- Database-backed XML functions (spec 9.3-9.6) are implemented in `Database/DbIoAdapter.py` (composes `to_xml`/`from_xml` with the CRUDL DAO), not here.
 
 ## Touchpoints
 - Called by: `main.py` (step 10).

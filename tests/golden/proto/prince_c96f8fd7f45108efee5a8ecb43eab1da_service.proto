@@ -22,6 +22,10 @@ message prince_ID {
 message prince_Stream {
     int32 id = 1;
     string name = 2;
+    // pagination (spec: "pagination" field modifier): limit <= 0 means
+    // unbounded (return everything, matching pre-pagination behavior).
+    int32 offset = 3;
+    int32 limit = 4;
 }
 service prince_Service {
     rpc heartBeat(prince_HeartBeat) returns (prince_HeartBeat) {}

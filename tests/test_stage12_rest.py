@@ -124,3 +124,69 @@ def test_rest_http_crud(built):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, "REST CRUD failed at check #{}".format(
         run.returncode)
+
+
+def test_rest_list_pagination(built):
+    """GET list honors ?limit=&offset=; omitting them still returns everything
+    (pre-pagination behavior unchanged)."""
+    prog = os.path.join(built["tmp"], "rest_page.cpp")
+    with open(prog, "w") as f:
+        f.write(
+            '#include "rest/users_{h}_rest.h"\n'
+            '#include "harpia_test_client.h"\n'
+            "#include <soci/soci.h>\n"
+            "#include <soci/sqlite3/soci-sqlite3.h>\n"
+            "int main() {{\n"
+            '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+            "    harpia::db::users_dao dao(db);\n"
+            "    if (!dao.create_table()) return 2;\n"
+            "    crow::SimpleApp app;\n"
+            "    app.loglevel(crow::LogLevel::Warning);\n"
+            '    harpia::rest::register_users(app, db, "/api/v1");\n'
+            "    const int port = 18100;\n"
+            '    auto fut = app.bindaddr("127.0.0.1").port(port).multithreaded().run_async();\n'
+            "    app.wait_for_server_start();\n"
+            '    harpia_test::Client cli("127.0.0.1", port);\n'
+            '    cli.set_default_headers({{{{"X-User", "users"}}, {{"X-Pswd", "{h}"}}}});\n'
+            "    auto run = [&]() -> int {{\n"
+            "        for (int i = 1; i <= 5; ++i) {{\n"
+            "            ::users u; u.set_id_{h}(i); u.set_name(\"n\" + std::to_string(i));\n"
+            "            std::string body; ::harpia::json::to_json(u, &body);\n"
+            '            auto post = cli.Post("/api/v1/users", body, "application/json");\n'
+            "            if (!post || post.status != 201) return 3;\n"
+            "        }}\n"
+            '        auto page = cli.Get("/api/v1/users?limit=2&offset=1");\n'
+            "        if (!page || page.status != 200) return 4;\n"
+            '        if (page.body.find("\\"n2\\"") == std::string::npos ||\n'
+            '            page.body.find("\\"n3\\"") == std::string::npos) return 5;\n'
+            '        if (page.body.find("\\"n1\\"") != std::string::npos ||\n'
+            '            page.body.find("\\"n4\\"") != std::string::npos ||\n'
+            '            page.body.find("\\"n5\\"") != std::string::npos) return 6;\n'
+            '        auto all = cli.Get("/api/v1/users");\n'
+            "        if (!all || all.status != 200) return 7;\n"
+            "        for (int i = 1; i <= 5; ++i) {{\n"
+            '            if (all.body.find("\\"n" + std::to_string(i) + "\\"") == std::string::npos) return 8;\n'
+            "        }}\n"
+            "        return 0;\n"
+            "    }};\n"
+            "    const int code = run();\n"
+            "    app.stop(); fut.get();\n"
+            "    return code;\n"
+            "}}\n".format(h=HASH))
+
+    pb_cc = os.path.join(built["cpp_root"], "protofiles",
+                         "users_{}.pb.cc".format(HASH))
+    binary = os.path.join(built["tmp"], "rest_page_app")
+    tinyxml = os.path.join(TINYXML2, "tinyxml2.cpp")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", built["cpp_root"],
+         "-I", CROW, "-I", ASIO, "-I", TINYXML2, "-I", HERE,
+         *_pkgconfig("--cflags"), prog, pb_cc,
+         tinyxml, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "REST pagination program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "REST pagination failed at check #{}".format(
+        run.returncode)

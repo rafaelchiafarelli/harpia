@@ -81,6 +81,20 @@ public:
         }} catch (const std::exception&) {{ return false; }}
     }}
 
+    // Paginated list: LIMIT/OFFSET applied server-side. offset is 0-based.
+    bool list(std::vector<::{cls}>* out, long long offset, long long limit) {{
+        try {{
+{extract_locals}            ::soci::statement st = (db_.prepare << "SELECT {select_cols} FROM \"{table}\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset){extract_into});
+            st.execute();
+            while (st.fetch()) {{
+                ::{cls} row;
+                ::{cls}* msg = &row;
+{extract_set}{fk_extract}{map_read}                out->push_back(row);
+            }}
+            return true;
+        }} catch (const std::exception&) {{ return false; }}
+    }}
+
 private:
     ::soci::session& db_;
 }};

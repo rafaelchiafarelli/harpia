@@ -44,7 +44,9 @@ Add `--no-build` to generate only (skip the cmake build + ctest):
 ./run_harpia.sh HarpiaTest /tmp/my_project --no-build
 ```
 
-Both folders may live **anywhere** on disk; the output folder is cleaned first.
+Both folders may live **anywhere** on disk. The output folder is regenerated
+write-if-different (see §11) — safe to point at the same folder across runs;
+it is not wiped first.
 
 ---
 
@@ -131,6 +133,7 @@ Building blocks you can use:
 | `optional` / `required` | field presence modifiers |
 | `repeteable` | a repeated field (persisted in an ordinal child table) |
 | `pagination[N]` | a bounded-size hint on a field |
+| `renamed_from[old_name]` | this field replaced `old_name` in an earlier schema version — `migrate_<name>` renames the live column instead of dropping and re-adding it |
 | `stream` / `pull` / `push` / `event` | transport/role qualifiers on a message |
 
 > The full grammar and the semantics of each qualifier live in
@@ -151,7 +154,7 @@ my_project/
 ├── generated/cpp/
 │   ├── protofiles/         # protobuf/gRPC C++ (compiled from proto/)
 │   ├── db/                 # CRUDL data-access objects (create/read/update/remove/list)
-│   ├── migrate/            # additive schema-migration helpers
+│   ├── migrate/            # schema-migration helpers (add/rename/drop columns)
 │   ├── dbio/               # DB <-> JSON/XML bulk import/export
 │   ├── json/               # message <-> JSON adapters
 │   ├── xml/                # message <-> XML adapters (+ XSD)
@@ -249,6 +252,33 @@ Note the generated identifiers are **md5-hash-qualified** (`users_<hash>_crudl.h
 accessor `id_<hash>()`) — the hash comes from your `.harpia` input, so it changes
 when your definitions do.
 
+**Schema migration and cross-version data transforms:** each table-bearing
+message also gets a `migrate_<name>(db)` (`migrate/users_<hash>_migrate.h`)
+that brings an older live database up to the current schema — column
+rename/add/drop/retype are all handled automatically from the `.harpia`
+definition alone (see [`Database/CLAUDE.md`](Database/CLAUDE.md)). What
+harpia *can't* infer automatically is a value **derivation** — e.g. filling
+a new column from an old one, or splitting one retiring column into several
+new ones — since that requires knowing what the data *means*, not just
+where it lives. For that, `migrate_<name>` takes an optional
+`data_transform` hook:
+
+```cpp
+harpia::db::migrate_users(db, [](::soci::session& db) {
+    // runs AFTER the add step (so any new destination column already
+    // exists) and BEFORE the drop step (so an old source column being
+    // retired is still there to read) -- e.g. deriving `age` from a
+    // `birthdate` column, or splitting a retiring `full_name` into new
+    // `first_name`/`last_name` columns.
+    db << "UPDATE \"user_table\" SET \"age\" = ... WHERE \"age\" IS NULL";
+});
+```
+
+Pass nothing for today's behavior (no transform runs) — the parameter
+defaults to an empty `std::function`. Write your lambda to be idempotent
+(e.g. guard it with a `WHERE` clause, as above) since `migrate_<name>` may
+run on every application startup, not just once.
+
 ---
 
 ## 7. Other ways to run it
@@ -269,7 +299,7 @@ Override the paths with environment variables:
 |---|---|
 | `HARPIA_INPUT_FILE` | path to the root `.harpia` file |
 | `HARPIA_INCLUDE_FOLDER` | folder of importable modules |
-| `HARPIA_OUTPUT_DIR` | where to write the generated project (cleaned first) |
+| `HARPIA_OUTPUT_DIR` | where to write the generated project (write-if-different; safe to reuse across runs) |
 | `HARPIA_DB_BACKEND` | database dialect: `sqlite` (default) or `postgresql` |
 
 ---
@@ -306,10 +336,244 @@ target.
 
 ---
 
-## 9. Notes & limits
+## 9. Enabling TLS on REST/SOAP/gRPC
 
-- The output is regenerated from scratch each run — **do not hand-edit generated
-  files**; change your `.harpia` and regenerate.
+Harpia generates route registration (`RestAdapter`/`SoapAdapter`) or the service
+class (`GrpcServiceAdapter`) — it never generates the server-construction call
+(`app.port().run()`, `grpc::ServerBuilder::BuildAndStart()`). That's caller code,
+same as the `soci::session` in [§8](#8-choosing-the-database-backend) — so TLS is
+something **you** turn on where you build your own server, not a generation-time
+flag.
+
+**REST/SOAP (Crow):** the vendored `third_party/crow/crow.h` already has full SSL
+support, gated behind `CROW_ENABLE_SSL`:
+
+```cpp
+#define CROW_ENABLE_SSL     // before including crow.h anywhere in this TU
+#include "crow.h"
+...
+crow::SimpleApp app;
+harpia::rest::register_users(app, db, "/api/v1");
+app.ssl_file("server.crt", "server.key");   // must be set before .run()/.run_async()
+app.port(8443).run();
+```
+
+Link OpenSSL (`find_package(OpenSSL REQUIRED)`, `target_link_libraries(... OpenSSL::SSL
+OpenSSL::Crypto)`) and supply a cert/key — a self-signed pair is enough for
+development (`openssl req -x509 -newkey rsa:2048 -nodes -keyout server.key -out
+server.crt -days 365 -subj "/CN=localhost"`); use a CA-issued pair in production.
+
+**gRPC:** swap `grpc::InsecureServerCredentials()` for
+`grpc::SslServerCredentials(...)` where you build your `grpc::ServerBuilder` —
+`libgrpc++-dev` already ships this, no extra linking needed:
+
+```cpp
+grpc::SslServerCredentialsOptions opts;
+opts.pem_key_cert_pairs.push_back({read_file("server.key"), read_file("server.crt")});
+builder.AddListeningPort(addr, grpc::SslServerCredentials(opts));
+```
+
+**Worked example:** [`examples/consumer/`](examples/consumer/) demonstrates the
+Crow path end to end — build it with `-DUSE_TLS=ON` to see a generated CMake
+target generate a self-signed cert at configure time and serve real REST traffic
+over it (see its README).
+
+---
+
+## 10. Enabling CURVE encryption on ZMQ
+
+Unlike REST/SOAP/gRPC, ZMQ's `bind()`/`connect()` happen **inside** the
+generated sender/receiver classes themselves (`ZmqAdapter`'s
+`sender.tmpl`/`receiver.tmpl`), so "enabling encryption" here isn't a pure
+caller-side build flag the way TLS is in [§9](#9-enabling-tls-on-restsoapgrpc)
+— the generated constructors carry an extra, optional parameter for it.
+
+This is **encryption-only**: any client presenting valid CURVE crypto is
+accepted (there's no ZAP client-key allowlist), the ZMQ analogue of TLS with
+no client certificates — not mutual auth. ZMQ has no credential gate of its
+own at all today (REST/SOAP/gRPC each check an `X-User`/`X-Pswd`-equivalent;
+ZMQ doesn't), so CURVE is purely about encrypting the wire, not access
+control.
+
+Every generated sender/receiver/publisher/subscriber constructor takes a
+trailing, defaulted curve-keys struct — pass nothing and you get exactly
+today's plaintext behavior:
+
+```cpp
+// Bind side (PULL receiver / PUB publisher) -- CURVE "server" role, only
+// needs its own secret key. CURVE_SERVER accepts any client with valid crypto.
+harpia::zmq_transport::CurveServerKeys server_keys{server_secret_z85};
+harpia::zmq_transport::users_receiver receiver(ctx, endpoint, server_keys);
+
+// Connect side (PUSH sender / SUB subscriber) -- CURVE "client" role, needs
+// the peer's public key plus its own keypair.
+harpia::zmq_transport::CurveClientKeys client_keys{
+    server_public_z85, client_public_z85, client_secret_z85};
+harpia::zmq_transport::users_sender sender(ctx, endpoint, origin, client_keys);
+```
+
+Keys are Z85 text (`zmq_curve_keypair()`'s native output) — cppzmq's
+`curve_*` sockopts accept that form directly, no binary decode needed. CURVE
+is a no-op over `inproc://` (it bypasses the ZMTP wire protocol entirely);
+`tcp://` and `ipc://` both go through the real handshake.
+
+**Note on `ZMQ_LINGER`:** if a peer never completes the CURVE handshake (e.g.
+a mismatched key), a socket with an outstanding send blocks on destruction by
+default (`ZMQ_LINGER` is `-1`, "wait forever to flush"). If your code might
+construct a sender against a peer that could fail to authenticate, set
+`sender.socket().set(zmq::sockopt::linger, 0)` explicitly, or shutdown will
+hang.
+
+**Worked example:** `Assets/server_template`/`client_template` (the ZMQ demo)
+gain `-DUSE_ZMQ_CURVE=ON`. No CLI keygen tool ships with apt's
+`libzmq3-dev`, so the root `CMakeLists.txt` compiles+runs a tiny probe
+(`cmake/curve_keygen_probe.cpp`, via `try_run`) at configure time to produce
+a fresh ephemeral keypair per side, written to a generated
+`harpia_zmq_curve_keys.h` (**not** a `target_compile_definitions` string —
+Z85's alphabet includes characters like `#`/`$`/`(` that a build system's
+command-line layer, e.g. Make's `#`-starts-a-comment / `$`-is-a-variable
+handling, will silently corrupt). See `Assets/CLAUDE.md` for the mechanism.
+
+On Windows, vcpkg's `zeromq` port needs the `curve`+`sodium` features (see
+`Assets/vcpkg.json`) — not yet build-verified on Windows (see
+[§12](#12-building-on-windows)'s known-gaps note).
+
+---
+
+## 11. Notes & limits
+
+- Regeneration is **write-if-different**, not a blanket wipe: an unchanged
+  generated file keeps its original mtime, so a downstream `cmake --build`
+  can skip recompiling it — regenerating into the same output dir after a
+  no-op `.harpia` edit rebuilds close to nothing (a message rename or
+  removal has its old files pruned automatically). **Still never hand-edit
+  generated files** — change your `.harpia` and regenerate; anything you hand
+  edit gets silently overwritten (or removed, if it looks like an
+  orphan) the next time you do.
 - Exactly one root `.harpia` per input folder (imports go under `Include/`).
 - Message ids (the `ID_*` primary key) are **caller-assigned** — set them before
   `create()`; the DB does not auto-generate them.
+
+---
+
+## 12. Building on Windows
+
+Verified end to end on MSVC (Visual Studio 2022, toolset v143) + vcpkg,
+covering the ZMQ server/client transport demo and the REST/JSON demo
+(`examples/consumer`, including `-DUSE_TLS=ON`). The generator itself
+(`main.py`) still only runs via Docker/Linux — this section is about the
+**generated C++ project** compiling and running natively on Windows.
+
+### One-time setup
+
+1. Visual Studio 2022 (or Build Tools) with the "Desktop development with
+   C++" workload, and a standalone CMake ≥ 3.20.
+2. A fresh, standalone vcpkg clone (don't fight Visual Studio's bundled
+   copy — it's in "artifacts" manifest mode and awkward to drive from plain
+   CMake):
+   ```
+   git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+   C:\vcpkg\bootstrap-vcpkg.bat
+   ```
+
+### Building the generated project (server/client ZMQ demo)
+
+```
+run_harpia.sh <input_folder> <output_folder> --no-build   # generate, from WSL/Linux
+cmake -S <output_folder> -B <output_folder>\build ^
+    -A x64 -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
+cmake --build <output_folder>\build --config Release
+```
+
+`vcpkg.json` (copied into every generated project alongside its root
+`CMakeLists.txt`) declares `protobuf`, `grpc`, `zeromq` (with its `curve` +
+`sodium` features, for [§10](#10-enabling-curve-encryption-on-zmq)),
+`cppzmq`, and `soci[sqlite3]`; the CMake toolchain file drives `vcpkg install`
+automatically at configure time. Expect the first configure to take a
+while — gRPC in particular is slow to build from source on Windows.
+
+### Building `examples/consumer` (REST/JSON demo)
+
+```
+cmake -S examples\consumer -B <build_dir> -A x64 ^
+    -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake ^
+    -DHARPIA_GEN=<output_folder>
+cmake --build <build_dir> --config Release
+```
+
+Add `-DUSE_TLS=ON` the same as on Linux ([§9](#9-enabling-tls-on-restsoapgrpc))
+— the demo cert step locates vcpkg's `openssl.exe` (shipped under its
+`tools` feature, not on PATH by default) and its bundled `openssl.cnf`
+automatically.
+
+### Building the Stage 14 generated `ctest` suite
+
+```
+cmake -S <output_folder> -B <output_folder>\build ^
+    -A x64 -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake ^
+    -DHARPIA_BUILD_TESTS=ON
+cmake --build <output_folder>\build --config Release
+ctest --test-dir <output_folder>\build -C Release --output-on-failure
+```
+
+Same generated project as the ZMQ demo above, reconfigured with
+`-DHARPIA_BUILD_TESTS=ON` — `run_harpia.sh ... --no-build` already emits the
+`tests/` tree, this just also builds it.
+
+### Why the CMake files look the way they do
+
+Every `if(WIN32) ... else() ...` branch in `Assets/server_template`,
+`client_template`, `proto`, `examples/consumer`'s, and the generated
+`tests/`'s CMakeLists exists because vcpkg's packages export namespaced
+CONFIG targets (`SOCI::SOCI`, `cppzmq`, `gRPC::grpc++`) instead of the bare
+library names (`soci_core`, `zmq`) the Linux/apt path resolves by linker
+search path — the Linux branch is untouched. Four source-level fixes went
+into the generated *code* itself (not just build config), each with a
+comment at its site explaining why:
+
+- **protobuf version skew**: the pipeline's Docker protoc (apt's, an older
+  version) bakes `.pb.h`/`.pb.cc` that won't compile against whatever much
+  newer protobuf vcpkg installs. `Assets/proto/CMakeLists.txt` already
+  regenerates matching code from the raw `.proto` via vcpkg's own protoc;
+  the server/client/consumer/tests CMakeLists list that freshly-regenerated
+  directory *ahead of* the baked one on the include path so it wins (Stage
+  14's generated tests hit this same skew and needed the same fix — see
+  `TestAdapter/TestAdapter.py`'s `HARPIA_TEST_PROTO_INCLUDE_DIR`).
+- **`XmlAdapter`'s protobuf `Reflection` API** (`XmlAdapter/runtime/harpia_xml.h`):
+  newer protobuf returns `std::string_view` from `FieldDescriptor::name()`/
+  `Descriptor::name()` where older versions returned `const std::string&`;
+  fixed with direct-initialization (`const std::string x(f->name())`) that
+  compiles against both.
+- **Crow's `HTTPMethod` enum** (`Database/templates/rest.h.tmpl`/`soap.h.tmpl`):
+  Crow guards its ALL-CAPS enumerators (`GET`/`POST`/`PUT`/`DELETE`/...)
+  with a single `#ifndef DELETE`, but `<windows.h>` (pulled in by Crow's own
+  `#include <asio.hpp>`, well before Crow's enum) defines `DELETE` as a
+  generic-access-rights macro — so Crow silently falls back to TitleCase
+  members only (`Delete`/`Get`/...) and every generated
+  `crow::HTTPMethod::GET` reference stops existing. Fixed by forcing
+  `<windows.h>` in and undefining `DELETE` *before* `#include "crow.h"`
+  (its own include guard then makes Crow/asio's later re-inclusion a no-op).
+- **`tests/harpia_test_client.h`** (the REST/SOAP HTTP round-trip client the
+  Stage 14 tests use — Crow ships no client): was plain POSIX sockets only;
+  ported to a thin `#ifdef _WIN32` Winsock2 path alongside it (`closesocket`
+  vs. `close`, `ioctlsocket`/`FIONBIO` vs. `fcntl`/`O_NONBLOCK`,
+  `WSAGetLastError` vs. `errno`, `SO_RCVTIMEO` taking a `DWORD` ms value on
+  Windows vs. a `timeval` on POSIX). One process-wide `WSAStartup`/
+  `WSACleanup` pair via a function-local static. Links `ws2_32` on Windows
+  (`#pragma comment` covers MSVC; `TestAdapter.py`'s CMake also links it
+  explicitly for other toolchains).
+
+### Known gaps on Windows
+
+- Only the SQLite backend is verified; PostgreSQL-on-Windows is untested.
+- `-DUSE_ZMQ_CURVE=ON` ([§10](#10-enabling-curve-encryption-on-zmq)):
+  `Assets/vcpkg.json`'s `zeromq` dependency requests the `curve`+`sodium`
+  features so the port itself builds with CURVE support, but the keygen
+  probe / demo build with CURVE on has not been build-verified on Windows
+  yet (only on Linux/Docker) — flag this if you hit issues.
+- **Antivirus false positives**: freshly-built, unsigned, network-listening
+  executables (`server.exe` especially) can get locked or silently removed
+  by a real-time antivirus's behavioral heuristics (observed with Avast).
+  If a rebuild fails with `LNK1104: cannot open file ...exe` right after a
+  demo run, or the `.exe` has simply vanished from the build output, add an
+  exclusion for the build output folder in your antivirus and rebuild.

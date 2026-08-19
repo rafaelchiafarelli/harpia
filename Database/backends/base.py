@@ -31,6 +31,13 @@ Postgres output case-compatible; harpia already quotes everywhere.
 from abc import ABC, abstractmethod
 
 
+def _esc(sql):
+    """Escape a SQL string for embedding in a C++ string literal. Shared by
+    dialect methods (like drop_column_dynamic/retype_block) that return
+    ready-made C++ rather than a plain SQL string for the caller to escape."""
+    return sql.replace('"', '\\"')
+
+
 # The generated DAO / REST / SOAP / gRPC headers all take a `soci::session&`.
 # This type is IDENTICAL for every SOCI backend -- only the factory symbol used
 # to OPEN a session (``soci_backend_symbol``) is backend-specific. So the only
@@ -108,6 +115,15 @@ class DbBackend(ABC):
         """Child table for a repeated field: columns ``(owner, ordinal, value)``
         with ``PRIMARY KEY(owner, ordinal)``."""
 
+    @abstractmethod
+    def rep_composed_child_table(self, child: str, owner_type: str, columns,
+                                 if_not_exists: bool = True) -> str:
+        """Child table for a repeated field whose target is a table-less
+        composed message: columns ``(owner, ordinal, <one per flattened
+        field>)`` with ``PRIMARY KEY(owner, ordinal)``. ``columns`` is an
+        iterable of ``(name, sql_type)`` pairs (the target's own flattened
+        scalar/enum fields, unprefixed)."""
+
     # -- migration / introspection -------------------------------------------
     @abstractmethod
     def version_table(self) -> str:
@@ -125,8 +141,49 @@ class DbBackend(ABC):
         """Additive migration: ``ALTER TABLE ... ADD COLUMN``."""
 
     @abstractmethod
+    def rename_column(self, table: str, old: str, new: str) -> str:
+        """Non-additive migration: ``ALTER TABLE ... RENAME COLUMN``. Both
+        names are known at generation time (from the DSL's
+        ``renamed_from[<old>]`` field modifier), unlike
+        :meth:`drop_column_dynamic` below."""
+
+    @abstractmethod
+    def drop_column_dynamic(self, table: str, name_expr: str) -> str:
+        """Non-additive migration: a C++ EXPRESSION (not a complete SQL
+        literal, unlike every other method here) that concatenates a
+        RUNTIME-known column name (``name_expr``, a C++ ``std::string``
+        expression) into a ``DROP COLUMN`` statement for ``table``. The
+        dropped column's name is only known once migration runs against a
+        live database -- there is no schema history to diff against at
+        generation time, only the live table's actual columns."""
+
+    @abstractmethod
     def stamp_version(self, table: str, version: str) -> str:
         """Upsert ``(table, version)`` into ``_harpia_schema_version``."""
+
+    @abstractmethod
+    def list_column_types_sql(self, table: str) -> str:
+        """A query whose first two selected columns are (NAME, TYPE) of each
+        column the live ``table`` currently has. Read uniformly by the
+        generated migration C++ into a ``have_types`` map, to detect a column
+        whose live type no longer matches what the current schema declares
+        for that same name -- unlike a rename, a type change needs no DSL
+        marker: the name is unchanged, so a mismatch is unambiguous."""
+
+    @abstractmethod
+    def retype_column_dynamic(self, table: str, columns) -> str:
+        """Non-additive migration: C++ STATEMENTS (not a single SQL string,
+        unlike most methods here -- same "backend returns C++" precedent as
+        :meth:`drop_column_dynamic`) that bring every column in ``table`` to
+        the type the current schema declares, guarded by the runtime
+        ``have_types`` map the caller has already populated (via
+        :meth:`list_column_types_sql`) so a matching column is left alone.
+        ``columns`` is an iterable of ``(name, sql_type, column_def)``
+        triples for every column :func:`Database.model.analyze` returns
+        (``column_def`` -- the full DDL fragment from ``Column.sql_def()``
+        -- is needed only by backends whose fix requires rebuilding the
+        whole table, e.g. SQLite has no ``ALTER COLUMN ... TYPE``; ignored
+        otherwise)."""
 
     # -- convenience ----------------------------------------------------------
     def __repr__(self):

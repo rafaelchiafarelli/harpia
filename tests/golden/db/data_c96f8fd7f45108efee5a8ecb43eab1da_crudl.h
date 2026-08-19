@@ -345,6 +345,89 @@ public:
         } catch (const std::exception&) { return false; }
     }
 
+    // Paginated list: LIMIT/OFFSET applied server-side. offset is 0-based.
+    bool list(std::vector<::data>* out, long long offset, long long limit) {
+        try {
+            int l0 = 0; ::soci::indicator n0;
+            int l1 = 0; ::soci::indicator n1;
+            int l2 = 0; ::soci::indicator n2;
+            int l3 = 0; ::soci::indicator n3;
+            int l4 = 0; ::soci::indicator n4;
+            int l5 = 0; ::soci::indicator n5;
+            int l6 = 0; ::soci::indicator n6;
+            std::string l7; ::soci::indicator n7;
+            std::string l8; ::soci::indicator n8;
+            std::string l9; ::soci::indicator n9;
+            ::soci::statement st = (db_.prepare << "SELECT \"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da\" FROM \"table_data\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
+                ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6), ::soci::into(l7, n7), ::soci::into(l8, n8), ::soci::into(l9, n9));
+            st.execute();
+            while (st.fetch()) {
+                ::data row;
+                ::data* msg = &row;
+                msg->set_id_c96f8fd7f45108efee5a8ecb43eab1da(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_i(n1 == ::soci::i_ok ? l1 : 0);
+                msg->set_j(n2 == ::soci::i_ok ? l2 : 0);
+                msg->mutable_val()->set_vari(n3 == ::soci::i_ok ? l3 : 0);
+                msg->mutable_val()->set_var(n4 == ::soci::i_ok ? l4 : 0);
+                msg->mutable_val()->set_val(n5 == ::soci::i_ok ? l5 : 0);
+                msg->set_car(static_cast<::grower>(n6 == ::soci::i_ok ? l6 : 0));
+                msg->set_status_c96f8fd7f45108efee5a8ecb43eab1da(n7 == ::soci::i_ok ? l7 : std::string());
+                msg->set_error_c96f8fd7f45108efee5a8ecb43eab1da(n8 == ::soci::i_ok ? l8 : std::string());
+                msg->set_originator_c96f8fd7f45108efee5a8ecb43eab1da(n9 == ::soci::i_ok ? l9 : std::string());
+                {
+                    std::string _k; std::string _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_a\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_val()->mutable_a())[_k] = _v;
+                    }
+                }
+                {
+                    std::string _k; int _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_b\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_val()->mutable_b())[_k] = _v;
+                    }
+                }
+                {
+                    int _k; std::string _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_c\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_val()->mutable_c())[_k] = _v;
+                    }
+                }
+                {
+                    int _v = 0; ::soci::indicator _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"table_data__tags\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
+                    _rs.execute();
+                    while (_rs.fetch()) {
+                        msg->add_tags(_v);
+                    }
+                }
+                {
+                    int _v = 0; ::soci::indicator _vi;
+                    int _owner = msg->id_c96f8fd7f45108efee5a8ecb43eab1da();
+                    ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"table_data__val_scores\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
+                    _rs.execute();
+                    while (_rs.fetch()) {
+                        msg->mutable_val()->add_scores(_v);
+                    }
+                }
+                out->push_back(row);
+            }
+            return true;
+        } catch (const std::exception&) { return false; }
+    }
+
 private:
     ::soci::session& db_;
 };

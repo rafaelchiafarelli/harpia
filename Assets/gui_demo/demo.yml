@@ -1,0 +1,23 @@
+# Example GUI demo (YAML)
+
+screen:
+  id: main
+  size: [240, 320]
+  background: "#000000"
+  widgets:
+    - type: label
+      id: title
+      pos: [10,8]
+      text: "Status"
+      font: font_6x8
+      color: "#FFFFFF"
+    - type: image
+      id: logo
+      pos: [80,40]
+      src: assets/logo.png
+    - type: button
+      id: btn_ok
+      pos: [70,260]
+      size: [100,40]
+      text: "OK"
+      on_press: app_on_ok

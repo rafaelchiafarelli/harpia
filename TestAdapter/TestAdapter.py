@@ -20,8 +20,9 @@ import os
 import shutil
 
 from Logger.logger import logger
-from Util.util import loadTemplate
-from Database.model import analyze, type_registry, map_fields, repeated_fields
+from Util.util import loadTemplate, write_if_different, copy_if_different
+from Database.model import (analyze, type_registry, map_fields, repeated_fields,
+                            RepeatedComposedField)
 
 TEST_EXT = "_test.cpp"
 
@@ -64,6 +65,27 @@ def _value(col, variant):
     return "1"
 
 
+def _embed_getter(inst, col):
+    """C++ read chain for an embed-flattened column: inst.step0().step1()....
+    child_accessor(). col.embed is the (possibly multi-level) accessor chain
+    from Database.model.Column."""
+    chain = inst
+    for step in col.embed:
+        chain = "{}.{}()".format(chain, step)
+    return "{}.{}()".format(chain, col.child_accessor)
+
+
+def _embed_mutable(inst, col):
+    """C++ write chain for an embed-flattened column:
+    inst.mutable_step0()->mutable_step1()->...->set_child_accessor(value) is
+    built by the caller appending 'set_<child_accessor>(value)'; this returns
+    just the inst.mutable_step0()->mutable_step1()->...-> pointer chain."""
+    chain = "{}.mutable_{}()".format(inst, col.embed[0])
+    for step in col.embed[1:]:
+        chain = "{}->mutable_{}()".format(chain, step)
+    return chain
+
+
 def _map_key(kind, i):
     """A distinct C++ key literal for map round-trip entry ``i`` (1-based)."""
     return '"k{}"'.format(i) if kind == "text" else str(i)
@@ -98,8 +120,7 @@ class TestAdapter:
         for msg in tables:
             src = self._render(msg)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, TEST_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(src)
+            write_if_different(os.path.join(self.outDir, fileName), src)
             units.append(("{}_test".format(msg.name), fileName))
 
         if tables:
@@ -108,8 +129,8 @@ class TestAdapter:
             # message, exercising the whole stack and its failure modes.
             rep = self._pick_rep(tables)
             appFile = "app_{}{}".format(rep.md5Hash, TEST_EXT)
-            with open(os.path.join(self.outDir, appFile), "w") as out:
-                out.write(self._app_render(rep))
+            write_if_different(os.path.join(self.outDir, appFile),
+                               self._app_render(rep))
             units.append(("app_test", appFile))
 
         self._write_cmake(units)
@@ -122,7 +143,11 @@ class TestAdapter:
     def _render(self, msg):
         columns, _ = analyze(msg, self.types)
         bindable = [c for c in columns if c.bindable]
-        embed_cols = [c for c in columns if c.embed]
+        # an embed-nested FK column (fk_table) is a submessage, not a scalar
+        # value _embed_getter/_embed_mutable can set/compare -- like the
+        # repeated-FK case below, it's exercised by a dedicated host test
+        # instead (test_embedded_fk_roundtrip).
+        embed_cols = [c for c in columns if c.embed and not c.fk_table]
         pk = next((c for c in bindable if c.pk), None)
         non_pk = [c for c in bindable if not c.pk]
 
@@ -161,9 +186,11 @@ class TestAdapter:
                     "(Stage 14a)\n    return 0;")
 
         # repeated scalars round-trip here with literal values; repeated FK
-        # (1-to-many) is exercised by the host test_repeated_fk_roundtrip instead
-        # (like the singular FK), since it needs child messages.
-        reps = [rf for rf in reps if not rf.fk_target]
+        # (1-to-many) and repeated composed-to-table-less (RepeatedComposedField)
+        # are exercised by host tests instead (test_repeated_fk_roundtrip /
+        # test_repeated_composed_roundtrip), since both need dedicated fixtures.
+        reps = [rf for rf in reps if not getattr(rf, "fk_target", None)
+               and not isinstance(rf, RepeatedComposedField)]
         text_field = next((c for c in non_pk if c.kind == "text"), None)
         L = [
             '    ::soci::session db(::soci::sqlite3, ":memory:");',
@@ -177,8 +204,9 @@ class TestAdapter:
         L += ["    a.set_{}({});".format(c.accessor, _value(c, "a"))
               for c in non_pk]
         # flattened sub-fields of a non-table composed field round-trip too
-        L += ["    a.mutable_{}()->set_{}({});".format(
-              c.embed, c.child_accessor, _value(c, "a")) for c in embed_cols]
+        L += ["    {}->set_{}({});".format(
+              _embed_mutable("a", c), c.child_accessor, _value(c, "a"))
+              for c in embed_cols]
         # map<K,V> fields round-trip through their child tables (two entries each)
         for mf in maps:
             for i in (1, 2):
@@ -196,8 +224,8 @@ class TestAdapter:
         ]
         L += ["    if (got.{}() != {}) return 24;".format(c.accessor,
               _value(c, "a")) for c in non_pk]
-        L += ["    if (got.{}().{}() != {}) return 32;".format(
-              c.embed, c.child_accessor, _value(c, "a")) for c in embed_cols]
+        L += ["    if ({} != {}) return 32;".format(
+              _embed_getter("got", c), _value(c, "a")) for c in embed_cols]
         for mf in maps:
             for i in (1, 2):
                 entries = mf.entries("got")
@@ -742,18 +770,27 @@ class TestAdapter:
             for name in files:
                 src = os.path.join(_THIRD_PARTY, sub, name)
                 if os.path.exists(src):
-                    shutil.copy2(src, os.path.join(dst, name))
+                    copy_if_different(src, os.path.join(dst, name))
         # header trees (e.g. standalone asio) copied whole so the generated
-        # project stays self-contained on any target board (no system package)
+        # project stays self-contained on any target board (no system package).
+        # Walked file-by-file (not shutil.copytree, which always overwrites) so
+        # an unchanged vendored file keeps its mtime like everything else here.
         for sub in _VENDOR_TREES:
             src = os.path.join(_THIRD_PARTY, sub)
-            if os.path.isdir(src):
-                shutil.copytree(src, os.path.join(self.dest, "third_party", sub),
-                                dirs_exist_ok=True)
+            if not os.path.isdir(src):
+                continue
+            dst_root = os.path.join(self.dest, "third_party", sub)
+            for root, _dirs, files in os.walk(src):
+                rel = os.path.relpath(root, src)
+                dst_dir = dst_root if rel == "." else os.path.join(dst_root, rel)
+                os.makedirs(dst_dir, exist_ok=True)
+                for name in files:
+                    copy_if_different(os.path.join(root, name),
+                                      os.path.join(dst_dir, name))
         # the test HTTP client lives next to the generated tests (Crow has none)
         if os.path.exists(_CLIENT_HDR):
-            shutil.copy2(_CLIENT_HDR,
-                         os.path.join(self.outDir, "harpia_test_client.h"))
+            copy_if_different(_CLIENT_HDR,
+                              os.path.join(self.outDir, "harpia_test_client.h"))
 
     def _write_cmake(self, units):
         lines = [
@@ -764,8 +801,42 @@ class TestAdapter:
             "find_package(Threads)",
             "",
             "# The DB layer is emitted against SOCI (soci_core + the sqlite3",
-            "# backend); SOCI's sqlite3 backend links the system libsqlite3.",
-            "set(HARPIA_SOCI_LIBS soci_core soci_sqlite3)",
+            "# backend). apt's soci-dev has no CMake CONFIG package, only bare",
+            "# .so names findable by the linker's default search path; vcpkg's",
+            "# soci port exports SOCI::SOCI (all installed backend components).",
+            "if(WIN32)",
+            "    # SOCI::SQLite3's own link interface references the",
+            "    # SQLite3::SQLite3 imported target without importing it itself.",
+            "    # vcpkg's sqlite3 port has no CONFIG package under that name",
+            "    # (only \"unofficial-sqlite3\", target unofficial::sqlite3::sqlite3)",
+            "    # and CMake's builtin MODULE-mode FindSQLite3 doesn't reliably win",
+            "    # the search under the vcpkg toolchain, so alias it in by hand --",
+            "    # a known vcpkg soci-port quirk.",
+            "    find_package(unofficial-sqlite3 CONFIG REQUIRED)",
+            "    if(NOT TARGET SQLite3::SQLite3)",
+            "        add_library(SQLite3::SQLite3 ALIAS unofficial::sqlite3::sqlite3)",
+            "    endif()",
+            "    find_package(SOCI CONFIG REQUIRED)",
+            "    set(HARPIA_SOCI_LIBS SOCI::SOCI)",
+            "else()",
+            "    set(HARPIA_SOCI_LIBS soci_core soci_sqlite3)",
+            "endif()",
+            "",
+            "if(WIN32)",
+            "    # generated/cpp/protofiles/*.pb.h was baked by the pipeline's",
+            "    # Docker protoc (apt's, an old version) and can't compile",
+            "    # against whatever much newer protobuf vcpkg installs (Google",
+            "    # has removed/moved internal headers like map_field_inl.h",
+            "    # across major versions). proto/CMakeLists.txt already",
+            "    # regenerates matching .pb.h from the raw .proto via vcpkg's",
+            "    # own protoc into ${CMAKE_BINARY_DIR}/proto/protofiles -- list",
+            "    # that dir FIRST (same fix as Assets/server_template) so the",
+            "    # adapter headers' quoted #include \"protofiles/...pb.h\"",
+            "    # resolves there instead of the stale baked copy.",
+            "    set(HARPIA_TEST_PROTO_INCLUDE_DIR ${CMAKE_BINARY_DIR}/proto)",
+            "else()",
+            "    set(HARPIA_TEST_PROTO_INCLUDE_DIR)",
+            "endif()",
             "",
             "# Vendored tinyxml2 for the SOAP credential (access-rights) tests.",
             "add_library(harpia_tinyxml2 STATIC",
@@ -778,6 +849,7 @@ class TestAdapter:
             lines += [
                 "add_executable({} {})".format(tgt, src),
                 "target_include_directories({} PRIVATE".format(tgt),
+                "    ${HARPIA_TEST_PROTO_INCLUDE_DIR}",
                 "    ${CMAKE_SOURCE_DIR}/generated/cpp",
                 "    ${CMAKE_CURRENT_SOURCE_DIR}",
                 "    ${CMAKE_SOURCE_DIR}/third_party/crow",
@@ -785,8 +857,20 @@ class TestAdapter:
                 "target_link_libraries({} PRIVATE protofiles harpia_tinyxml2 "
                 "${{HARPIA_SOCI_LIBS}} Threads::Threads ${{CMAKE_DL_LIBS}})".format(
                     tgt),
+                "if(WIN32)",
+                "    # Crow/asio pull in <windows.h>; without these its full",
+                "    # umbrella pollutes unrelated identifiers elsewhere in the",
+                "    # same translation unit (e.g. GetMessage, min/max).",
+                "    target_compile_definitions({} PRIVATE "
+                "WIN32_LEAN_AND_MEAN NOMINMAX)".format(tgt),
+                "    # harpia_test_client.h (REST/SOAP HTTP round-trip client)",
+                "    # is Winsock2 on this platform; its own #pragma comment",
+                "    # covers MSVC, but link explicitly too for other Windows",
+                "    # toolchains (e.g. MinGW, which ignores pragma comment).",
+                "    target_link_libraries({} PRIVATE ws2_32)".format(tgt),
+                "endif()",
                 "add_test(NAME {} COMMAND {})".format(tgt, tgt),
                 "",
             ]
-        with open(os.path.join(self.outDir, "CMakeLists.txt"), "w") as out:
-            out.write("\n".join(lines))
+        write_if_different(os.path.join(self.outDir, "CMakeLists.txt"),
+                           "\n".join(lines))

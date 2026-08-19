@@ -17,11 +17,18 @@ Every sender/publisher carries an origin id and stamps it into the message's
 ORIGINATOR field before sending, so each message is attributable to the sender
 that registered it:
 
-  - one-to-* (unique publisher): the id is a COMPILE-TIME constant derived from
-    the file hash + message name (origin_id()). This is the implemented path.
-  - many-to-* (shared publisher): the id is assigned at RUNTIME by the zmq/socket
-    module; pass it to the alternate constructor. Defining the broker that hands
-    out runtime ids is future work; the entry point exists.
+  - one-to-* (unique publisher: message has PULL/EVENT/STREAM): the id is a
+    COMPILE-TIME constant derived from the file hash + message name
+    (origin_id()) -- the sender's default constructor uses it.
+  - many-to-* (shared publisher: message has only PUSH/PUSHPULL): the id is
+    assigned at RUNTIME so concurrent senders are distinguishable -- the
+    sender's default constructor calls runtime_origin_id() (pid + a
+    per-process counter + random bits; decentralized, no broker needed). The
+    explicit-origin constructor still exists for a caller with its own id
+    (e.g. a future broker), but nothing requires one.
+
+_is_one_to_many() below makes this same one-to-* vs many-to-* call that
+Message.py already makes for ORIGINATOR field naming (isOneToMany).
 
 Output: <dest>/generated/cpp/zmq/<name>_<hash>_zmq.h, including the Stage 7
 message header through the shared include root (-I <dest>/generated/cpp).
@@ -31,7 +38,7 @@ import os
 
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different
 
 ZMQ_EXT = "_zmq.h"
 
@@ -39,6 +46,26 @@ ZMQ_EXT = "_zmq.h"
 _HEADER = loadTemplate(__file__, "header.h.tmpl")
 _SENDER = loadTemplate(__file__, "sender.tmpl")
 _RECEIVER = loadTemplate(__file__, "receiver.tmpl")
+
+# CURVE (encryption-only, no ZAP allowlist) socket setup, applied before
+# bind/connect. Bind side (PULL receiver / PUB publisher) only needs its own
+# secret key; connect side (PUSH sender / SUB subscriber) needs the peer's
+# public key plus its own keypair. See CurveServerKeys/CurveClientKeys in
+# templates/header.h.tmpl. Empty key(s) -> the `if` is skipped, so a caller
+# passing nothing gets today's plaintext behavior unchanged.
+_CURVE_SERVER_APPLY = (
+    "        if (!curve.secret_key.empty()) {\n"
+    "            socket_.set(::zmq::sockopt::curve_server, true);\n"
+    "            socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);\n"
+    "        }\n"
+)
+_CURVE_CLIENT_APPLY = (
+    "        if (!curve.server_public_key.empty()) {\n"
+    "            socket_.set(::zmq::sockopt::curve_serverkey, curve.server_public_key);\n"
+    "            socket_.set(::zmq::sockopt::curve_publickey, curve.public_key);\n"
+    "            socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);\n"
+    "        }\n"
+)
 
 
 def _origin_id(md5_hash, name):
@@ -49,6 +76,16 @@ def _origin_id(md5_hash, name):
     stands in for project+file for now.)"""
     h = hashlib.md5("{}:{}".format(md5_hash, name).encode()).hexdigest()
     return str(int(h[:15], 16))
+
+
+def _is_one_to_many(mods):
+    """True for a unique-publisher message (PULL/EVENT/STREAM): its sender's
+    default id should stay the compile-time origin_id(). False means only
+    PUSH/PUSHPULL are present -- a shared, many-to-* publisher, whose default
+    id must be assigned at runtime (see runtime_origin_id() in the header
+    template) so concurrent senders are distinguishable. Mirrors the same
+    classification Message.py already uses for ORIGINATOR field naming."""
+    return bool(mods & {"PULL", "EVENT", "STREAM"})
 
 
 class ZmqAdapter:
@@ -74,10 +111,11 @@ class ZmqAdapter:
             pub_sub = bool(mods & {"EVENT", "STREAM"})
             if not (push_pull or pub_sub):
                 continue
-            header = self._render(msg, push_pull, pub_sub)
+            default_id_expr = ("origin_id()" if _is_one_to_many(mods)
+                               else "runtime_origin_id()")
+            header = self._render(msg, push_pull, pub_sub, default_id_expr)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, ZMQ_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(header)
+            write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
 
         if written == 0:
@@ -90,7 +128,7 @@ class ZmqAdapter:
             written, self.outDir))
         return None
 
-    def _render(self, msg, push_pull, pub_sub):
+    def _render(self, msg, push_pull, pub_sub, default_id_expr):
         cls = "::{}".format(msg.name)
         guard = "HARPIA_ZMQ_{}_{}".format(msg.name.upper(), msg.md5Hash)
         pb = "protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash)
@@ -108,20 +146,26 @@ class ZmqAdapter:
                         "{n}_receiver pulls.".format(n=msg.name),
                 name=msg.name, role="sender", sock="push",
                 connect="connect", verb="send",
-                cls=cls, origin_id=origin_id, stamp=stamp)
+                cls=cls, origin_id=origin_id, stamp=stamp,
+                default_id_expr=default_id_expr,
+                curve_type="CurveClientKeys", curve_apply=_CURVE_CLIENT_APPLY)
             body += _RECEIVER.format(
                 name=msg.name, role="receiver", sock="pull",
-                setup="socket_.bind(endpoint);", verb="recv", cls=cls)
+                setup="socket_.bind(endpoint);", verb="recv", cls=cls,
+                curve_type="CurveServerKeys", curve_apply=_CURVE_SERVER_APPLY)
         if pub_sub:
             body += _SENDER.format(
                 comment="// pub/sub (streaming/event): {n}_publisher publishes "
                         "(stamping origin), {n}_subscriber receives.".format(n=msg.name),
                 name=msg.name, role="publisher", sock="pub",
                 connect="bind", verb="publish",
-                cls=cls, origin_id=origin_id, stamp=stamp)
+                cls=cls, origin_id=origin_id, stamp=stamp,
+                default_id_expr=default_id_expr,
+                curve_type="CurveServerKeys", curve_apply=_CURVE_SERVER_APPLY)
             body += _RECEIVER.format(
                 name=msg.name, role="subscriber", sock="sub",
                 setup='socket_.connect(endpoint);\n'
                       '        socket_.set(::zmq::sockopt::subscribe, "");',
-                verb="receive", cls=cls)
+                verb="receive", cls=cls,
+                curve_type="CurveClientKeys", curve_apply=_CURVE_CLIENT_APPLY)
         return _HEADER.format(guard=guard, pb_header=pb, body=body)

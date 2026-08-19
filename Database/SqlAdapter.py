@@ -26,9 +26,10 @@ import os
 
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different
 from Database.backends import get_backend
-from Database.model import analyze, type_registry, map_fields, repeated_fields
+from Database.model import (analyze, type_registry, map_fields, repeated_fields,
+                            RepeatedComposedField)
 
 SQL_EXT = "_table.sql"
 
@@ -50,8 +51,7 @@ class SqlAdapter:
         for msg in self.messages:
             content = self._render(msg)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, SQL_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(content)
+            write_if_different(os.path.join(self.outDir, fileName), content)
             if not getattr(msg, "isEnum", False) and msg.tableName:
                 tables += 1
         self.log.print("generated SQL schema for {} table(s) into {}".format(
@@ -97,6 +97,20 @@ class SqlAdapter:
                             table=msg.tableName, owner=owner_sql,
                             key=mf.key_sql, val=mf.val_sql))
         for rf in reps:
+            if isinstance(rf, RepeatedComposedField):
+                cols_sql = ",\n".join(
+                    '    "{}" {}'.format(c.name, c.sql_def()) for c in rf.columns)
+                blocks.append(
+                    '-- repeated {field} -> child table "{child}" (owner -> "{table}")\n'
+                    'CREATE TABLE IF NOT EXISTS "{child}" (\n'
+                    '    "owner" {owner},\n'
+                    '    "ordinal" INTEGER,\n'
+                    '{cols},\n'
+                    '    PRIMARY KEY ("owner", "ordinal")\n'
+                    ');'.format(field=rf.field, child=rf.child_table,
+                                table=msg.tableName, owner=owner_sql,
+                                cols=cols_sql))
+                continue
             blocks.append(
                 '-- repeated {field} -> child table "{child}" (owner -> "{table}")\n'
                 'CREATE TABLE IF NOT EXISTS "{child}" (\n'

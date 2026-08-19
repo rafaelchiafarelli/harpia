@@ -85,3 +85,56 @@ def test_demo_message_crosses(demo):
     # the default sample sets the first scalar field; the value must survive
     assert "7" in out or "harpia-demo" in out, \
         "expected payload value missing from:\n" + out
+
+
+@pytest.fixture(scope="module")
+def demo_curve(tmp_path_factory):
+    """Same as `demo`, but configured with -DUSE_ZMQ_CURVE=ON -- the real
+    build path a downstream consumer would use, not just the unit-level
+    round-trip in test_stage13_zmq.py."""
+    out = tmp_path_factory.mktemp("harpia_demo_curve")
+    r = subprocess.run([sys.executable, RUNNER, str(out)],
+                       cwd=REPO_ROOT, capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+    project = os.path.join(str(out), "build")
+    cmbuild = os.path.join(str(out), "cmbuild")
+    cfg = subprocess.run(["cmake", "-S", project, "-B", cmbuild, "-DUSE_ZMQ_CURVE=ON"],
+                         capture_output=True, text=True, timeout=300)
+    assert cfg.returncode == 0, "cmake configure failed:\n" + cfg.stderr + cfg.stdout
+    bld = subprocess.run(["cmake", "--build", cmbuild, "-j", "4"],
+                         capture_output=True, text=True, timeout=600)
+    assert bld.returncode == 0, "cmake build failed:\n" + bld.stderr + bld.stdout
+    return {
+        "server": os.path.join(cmbuild, "server", "server"),
+        "client": os.path.join(cmbuild, "client", "client"),
+        "endpoint": "ipc://" + os.path.join(str(out), "demo_curve.sock"),
+    }
+
+
+def test_demo_message_crosses_with_curve(demo_curve):
+    """The generated demo, built with CURVE on, still delivers a real
+    message end to end -- proves the ephemeral keypairs the keygen probe
+    writes into harpia_zmq_curve_keys.h at configure time actually match
+    between the server and client binaries produced by the same build."""
+    server = subprocess.Popen([demo_curve["server"], demo_curve["endpoint"]],
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              text=True)
+    try:
+        time.sleep(0.5)
+        client = subprocess.run([demo_curve["client"], demo_curve["endpoint"]],
+                                capture_output=True, text=True, timeout=15)
+        assert client.returncode == 0, "client failed:\n" + client.stdout + client.stderr
+        assert "CURVE enabled" in client.stdout, \
+            "client didn't report CURVE enabled:\n" + client.stdout
+
+        out, _ = server.communicate(timeout=15)
+    finally:
+        if server.poll() is None:
+            server.kill()
+            server.communicate()
+
+    assert "CURVE enabled" in out, "server didn't report CURVE enabled:\n" + out
+    assert "received:" in out, "server never reported a message:\n" + out
+    assert "7" in out or "harpia-demo" in out, \
+        "expected payload value missing from:\n" + out

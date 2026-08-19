@@ -3,8 +3,26 @@
 #define HARPIA_REST_DATA_c96f8fd7f45108efee5a8ecb43eab1da
 
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 #include <vector>
+
+// Crow's own HTTPMethod enum guards its ALL-CAPS members (DELETE/GET/HEAD/
+// POST/PUT/...) with a single `#ifndef DELETE` around the WHOLE block -- if
+// DELETE is a macro by the time crow.h's own enum is reached, Crow silently
+// falls back to TitleCase members only (Delete/Get/Post/Put), and every
+// crow::HTTPMethod::<VERB> reference below stops existing. The trouble is
+// crow.h itself (line ~915) does `#include <asio.hpp>` long before its own
+// enum (~line 2112), and asio.hpp pulls in <windows.h> (which #defines
+// DELETE, winnt.h's generic-access-rights macro) internally -- undefining
+// DELETE before `#include "crow.h"` doesn't survive that internal
+// re-inclusion. Force <windows.h> in ourselves first and undef DELETE right
+// after: windows.h's own include guard then makes crow.h/asio's later
+// `#include <windows.h>` a no-op, so our undef sticks.
+#ifdef _WIN32
+#include <windows.h>
+#undef DELETE
+#endif
 
 #include "crow.h"
 #include "db/data_c96f8fd7f45108efee5a8ecb43eab1da_crudl.h"
@@ -13,11 +31,16 @@
 
 // RESTful CRUD for data, backed by the CRUDL DAO. Register on a
 // crow::SimpleApp with a base path (e.g. "/project/v1"); routes are then:
-//   GET    <base>/data        list
+//   GET    <base>/data        list   (?limit=&offset= to paginate)
 //   GET    <base>/data/:id    read
 //   POST   <base>/data        create   (JSON or XML body)
 //   PUT    <base>/data/:id    update   (JSON or XML body)
 //   DELETE <base>/data/:id    delete
+//
+// GET list is paginated when the request supplies ?limit= (>0), or when
+// data declares a "pagination[size]" field (its size becomes the default
+// limit); ?offset= defaults to 0. With no limit in play, list() returns
+// everything, matching pre-pagination behavior.
 //
 // Routes are registered with route_dynamic (not CROW_ROUTE): the path is built
 // from the runtime `base` argument, so it cannot be a compile-time literal. Item
@@ -76,7 +99,20 @@ inline void register_data(crow::SimpleApp& app, ::soci::session& db,
             if (!authorized_data(req)) { res.code = 401; res.end(); return; }
             ::harpia::db::data_dao dao(*dbp);
             std::vector<::data> rows;
-            if (!dao.list(&rows)) { res.code = 500; res.end(); return; }
+            // ?limit=&offset= (or the table's declared pagination[size]
+            // default) paginate the list; omitting both keeps the
+            // unpaginated behavior.
+            const char* lim_s = req.url_params.get("limit");
+            long long limit = lim_s ? std::atoll(lim_s) : 0LL;
+            bool listed;
+            if (limit > 0) {
+                const char* off_s = req.url_params.get("offset");
+                long long offset = off_s ? std::atoll(off_s) : 0;
+                listed = dao.list(&rows, offset, limit);
+            } else {
+                listed = dao.list(&rows);
+            }
+            if (!listed) { res.code = 500; res.end(); return; }
             if (wants_xml_data(req)) {
                 std::string body = "<list>";
                 for (const auto& r : rows) body += ::harpia::xml::to_xml(r);

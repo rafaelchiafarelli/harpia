@@ -18,16 +18,67 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 |-------|------|--------|
 | 0–6 | front-end: pre-process, tokenize, build messages, emit clean `.proto` | ✅ implemented |
 | 7 | run `protoc` → compilable C++ messages | ✅ implemented |
-| 8 | database / SQL (schema, CRUDL, version transforms) | ✅ CREATE TABLE schema + CRUDL DAO emitted against **SOCI** — database-agnostic: SQLite by default or PostgreSQL via `HARPIA_DB_BACKEND=postgresql` (same generated code, only the SQL dialect changes), incl. enum columns, singular FK to a table-bearing message (the child row is persisted/loaded via its own DAO), a singular composed field to a table-less message flattened into prefixed columns (`data.val.var` → column `val_var`), `map<K,V>` fields (direct or embed-nested) persisted in a child table `<table>__<path>` keyed by the parent PK (create/read/update/remove cascade), repeated scalar fields (`repeteable int tags`, direct or embed-nested like `data.val.scores`) persisted in an ordinal-keyed child table, and repeated composed fields to a table-bearing message (`repeteable vip_users members`, a 1-to-many: each child persisted/loaded via its DAO through a link table); the `repeteable` modifier now emits proto `repeated`. Schema migration / version transforms: a `migrate_<name>(db)` per table brings an older database up to the current schema (additive `ALTER TABLE`, version stamped in `_harpia_schema_version`). Repeated composed fields and non-additive (rename/drop/type-change) transforms deferred |
+| 8 | database / SQL (schema, CRUDL, version transforms) | ✅ CREATE TABLE schema + CRUDL DAO emitted against **SOCI** — database-agnostic: SQLite by default or PostgreSQL via `HARPIA_DB_BACKEND=postgresql` (same generated code, only the SQL dialect changes), incl. enum columns, singular FK to a table-bearing message (the child row is persisted/loaded via its own DAO, including one reached through a table-less embed, e.g. `outpost.berth.skipper`), a singular composed field to a table-less message flattened into prefixed columns (`data.val.var` → column `val_var`, recursively through further table-less nesting, e.g. `journey.path.start.city` → `path_start_city`), `map<K,V>` fields (direct or embed-nested) persisted in a child table `<table>__<path>` keyed by the parent PK (create/read/update/remove cascade), repeated scalar fields (`repeteable int tags`, direct or embed-nested like `data.val.scores`) persisted in an ordinal-keyed child table, repeated composed fields to a table-bearing message (`repeteable vip_users members`, a 1-to-many: each child persisted/loaded via its DAO through a link table), and repeated composed fields to a table-less message (`repeteable parcel cargo`: a child table with one column per the target's own flattened fields, no child DAO); the `repeteable` modifier now emits proto `repeated`. A table declaring a `pagination[size]` field gets a paginated `list(offset, limit)` DAO overload (see Stage 12/13). Schema migration / version transforms: a `migrate_<name>(db)` per table brings an older database up to the current schema — adds any column an older version lacks, RENAMEs a column carrying the `renamed_from[<old>]` DSL modifier, DROPs a live column the current schema no longer declares, and RETYPEs any column whose live SQL type no longer matches the current schema (detected by runtime introspection alone — no DSL modifier needed, since the column name is unchanged; Postgres uses a direct `ALTER COLUMN ... TYPE`, SQLite rebuilds the table since it has no such statement) (version stamped in `_harpia_schema_version`), plus an optional caller-supplied `data_transform` hook (`std::function<void(session&)>`, runs after add and before drop) for cross-version **value** transforms an automatic diff can't express, e.g. deriving one column from another (see `USAGE.md` §6) |
 | 9 | JSON adapter (`to_json`/`from_json` + checker) | ✅ message↔JSON + DB bulk export/import (NDJSON) |
 | 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD + DB bulk export/import |
 | 11 | SOAP | ✅ SOAP get/set/update/delete endpoint (XML over HTTP) over CRUDL (Crow + tinyxml2), gated by the Stage 5 access credential (SOAP Header `<credentials>`, 401 Fault on mismatch); WSDL 1.1 descriptor emitted per message (`wsdl/<name>_<hash>.wsdl`, document/literal SOAP binding) |
-| 12 | HTML / REST bindings | ✅ REST CRUD (GET/POST/PUT/DELETE) over CRUDL (Crow) with JSON/XML content negotiation (`Content-Type`/`Accept`, via the JSON + XML adapters), gated by the Stage 5 access credential (`X-User`/`X-Pswd` headers, 401 on mismatch) |
-| 13 | zmq/socket + gRPC access | ✅ gRPC stubs **wired to CRUDL** (per table message, a `<name>_service` impl: push→create, pullByID→read, streamSrc→list, heartBeat→echo), with the data RPCs gated by the Stage 5 credential via `x-user`/`x-pswd` call metadata (UNAUTHENTICATED on mismatch) **and** ZMQ push/pull + pub/sub, with a compile-time sender "originator" id (process.md 1.3.1.1, one-to-* case) |
+| 12 | HTML / REST bindings | ✅ REST CRUD (GET/POST/PUT/DELETE) over CRUDL (Crow) with JSON/XML content negotiation (`Content-Type`/`Accept`, via the JSON + XML adapters), gated by the Stage 5 access credential (`X-User`/`X-Pswd` headers, 401 on mismatch); GET-list is paginated via `?limit=&offset=` (defaulting to the table's declared `pagination[size]` when present) |
+| 13 | zmq/socket + gRPC access | ✅ gRPC stubs **wired to CRUDL** (per table message, a `<name>_service` impl: push→create, pullByID→read, streamSrc→list [paginated via the request's `offset`/`limit` fields when `limit>0`], heartBeat→echo), with the data RPCs gated by the Stage 5 credential via `x-user`/`x-pswd` call metadata (UNAUTHENTICATED on mismatch) **and** ZMQ push/pull + pub/sub, with a sender "originator" id (process.md 1.3.1.1): a compile-time constant for a unique publisher (`pull`/`event`/`stream`), or a runtime-unique id (pid + counter + random, no broker needed) for a shared publisher (`push`/`pushpull`); every ZMQ sender/receiver/publisher/subscriber constructor also takes an optional CURVE encryption keys parameter (default-disabled, `USAGE.md` §10) |
 | 14 | generated-code unit tests | ✅ per-message C++ unit tests + one app-level test as an opt-in CTest target (`-DHARPIA_BUILD_TESTS=ON`): simple field access + CRUDL round-trip (14.1/14.2), SOAP access-rights credential gate (14.3), access-modifier constraint enforcement (14.4), JSON (14.5) + XML (14.6) parser round-trips, live REST JSON-CRUD (14.7/14.10) and SOAP-over-HTTP (14.8/14.9) HTTP APIs, and an application-level all-good/crash/slower/non-parseable suite (14.11–14.14) |
 
 The generated project builds with its own CMake and ships a runnable
 client/server demo (ZMQ). See `tests/` for what is verified end to end.
+
+### Known gaps
+
+Within the pipeline above (stages 0–14, C++ only):
+- The "continuable process" gap in `harpia.architecture.md` has two halves:
+  regeneration being wasteful (redoing unchanged work) is **done** —
+  regeneration is write-if-different with stale-output pruning (see
+  `Util.util.write_if_different`/`prune_stale_outputs`, `USAGE.md` §11), so
+  an unchanged file keeps its mtime and a downstream `cmake --build` skips
+  recompiling it. True interrupt/crash recovery (resume a *killed mid-run*
+  generate, not just skip a no-op regenerate) is the sha256-registry/marker
+  machinery the doc describes — still explicitly aspirational, not started.
+
+Beyond the pipeline (the "## objective:"-onward spec section below is the
+design vision, not current status):
+- No YAML serialization (JSON and XML adapters exist; spec calls for
+  YAML-style `toString` too).
+- No Doxygen generation for the emitted C++.
+- REST/SOAP (Crow's `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC
+  (`grpc::SslServerCredentials`) are TLS-capable and documented (`USAGE.md`
+  §9); harpia never generated their server-construction code to begin with
+  (that's caller-owned), so enabling TLS is a caller-side build flag, not a
+  generator change — demonstrated in `examples/consumer -DUSE_TLS=ON`. ZMQ
+  now has **CURVE encryption** (encryption-only, no ZAP client-key
+  allowlist — apt's libzmq is libsodium-backed and CURVE-capable, confirmed
+  via `zmq_has("curve")`), a real generated-code change (not just a build
+  flag, unlike TLS above) since ZMQ's `bind`/`connect` happen inside the
+  generated sender/receiver classes themselves — see `USAGE.md` §10. ZMQ
+  still has no credential gate of its own (unlike REST/SOAP/gRPC's
+  `X-User`/`X-Pswd`), so this is encryption only, not access control.
+  Windows' vcpkg `zeromq` port has the `curve`+`sodium` features requested
+  but is not yet build-verified there (Linux/Docker only so far).
+- No multi-tier RBAC — every credential-gated surface checks a single flat
+  `X-User`/`X-Pswd`-style secret, not the admin/main/guest roles the spec
+  describes.
+- C++ is the only generation target (spec envisions Node/Rust/Python/Java).
+- **Windows as a generated-code target** — the generator (`main.py`) still
+  only runs via Docker/Linux, but the *generated* C++ project now builds
+  and runs natively on Windows (MSVC + vcpkg), verified for the ZMQ
+  server/client demo, the REST/JSON demo (`examples/consumer`, including
+  `-DUSE_TLS=ON`), and the Stage 14 generated `ctest` suite (`10/10`
+  passing, including its REST/SOAP HTTP test client now ported to
+  Winsock2) — see `USAGE.md` §12. Not yet covered: the PostgreSQL backend
+  on Windows, and `-DUSE_ZMQ_CURVE=ON` (vcpkg feature added, build
+  unverified).
+- No compliance profile for regulated (e.g. medical-device) deployments —
+  no `ComplianceContext`, no PHI field tagging, no message-level
+  criticality classification, no key management/mTLS/RBAC/audit-trail
+  generation. Not started; scoped as a large, multi-session plan at
+  `plans/medical_devices/` (see `plans/medical_devices/schedule/
+  foundation.md` for the dependency graph across sessions).
 
 **Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the
 consumer's guide (generate, the `.harpia` language by example, what gets
@@ -97,6 +148,7 @@ script sets: `HARPIA_INPUT_FILE`, `HARPIA_INCLUDE_FOLDER`, `HARPIA_OUTPUT_DIR`.
 | `third_party/` | vendored third-party source (tinyxml2, SQLite, Crow + standalone asio) |
 | `tests/` | golden snapshots + per-stage compile/run tests (see `tests/README.md`) |
 | `HarpiaTest/` | the sample `test.harpia` and its includes |
+| `plans/` | scoping docs for larger, not-yet-started or in-progress work (multi-language targets, Postgres migration, `medical_devices/` — a multi-session plan for a medical-device-compliance profile: PHI field tagging, message-level criticality, key management, mTLS/RBAC, audit) — not part of the pipeline itself |
 
 ## objective:
 Create a generalized interface for processes and threads to share data among themselves, database and web that has gRPC, ORM, RESTFull, SOAP, CRUDL, multi-project, multi-language and a  multi-thread library to exchange data.

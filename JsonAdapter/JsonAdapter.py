@@ -17,14 +17,15 @@ adapters only *compile* once Stage 7 has produced the .pb.h headers (done inside
 the harpia Docker image).
 
 The database-backed JSON functions in the spec (export/import to/from the
-database, 8.3-8.6) are intentionally deferred: they depend on Stage 8 (database
-access), which is not implemented yet.
+database, 8.3-8.6) are implemented in Database/DbIoAdapter.py, which composes
+this module's to_json/from_json with the Stage 8 CRUDL DAO rather than
+duplicating that logic here.
 """
 import os
 
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different
 
 JSON_EXT = "_json.h"
 
@@ -48,8 +49,7 @@ class JsonAdapter:
                 continue
             header = self._render(msg)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, JSON_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(header)
+            write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
 
         if written == 0:

@@ -2,12 +2,16 @@
 class {name}_{role} {{
 public:
     {name}_{role}(::zmq::context_t& ctx, const std::string& endpoint)
-        : {name}_{role}(ctx, endpoint, origin_id()) {{}}
-    // many-to-*: the zmq/socket module assigns the sender id at runtime
+        : {name}_{role}(ctx, endpoint, {default_id_expr}) {{}}
+    // explicit-origin constructor: pass any externally-sourced id (e.g. if a
+    // future broker hands one out); the default constructor above already
+    // supplies a runtime-unique id for many-to-* senders on its own. The
+    // trailing curve keys default to disabled (empty), so callers who don't
+    // pass any get today's plaintext behavior unchanged.
     {name}_{role}(::zmq::context_t& ctx, const std::string& endpoint,
-                  const std::string& origin)
+                  const std::string& origin, {curve_type} curve = {curve_type}())
         : origin_(origin), socket_(ctx, ::zmq::socket_type::{sock}) {{
-        socket_.{connect}(endpoint);
+{curve_apply}        socket_.{connect}(endpoint);
     }}
     // compile-time unique sender number (one-to-*): hash(file)+message
     static const std::string& origin_id() {{

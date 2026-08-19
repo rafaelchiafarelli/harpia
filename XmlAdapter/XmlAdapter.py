@@ -12,15 +12,16 @@ Unlike JSON, protobuf has no built-in XML, so the runtime walks the message via
 the protobuf descriptor/reflection API (handling nested messages, repeated
 fields, enums and maps generically) and uses the vendored tinyxml2 for parsing.
 
-The database-backed XML functions in the spec (9.3-9.6) are deferred until
-Stage 8 (database access) exists.
+The database-backed XML functions in the spec (9.3-9.6) are implemented in
+Database/DbIoAdapter.py, which composes this module's to_xml/from_xml with the
+Stage 8 CRUDL DAO rather than duplicating that logic here.
 """
 import os
 import shutil
 
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different, copy_if_different
 
 XML_EXT = "_xml.h"
 RUNTIME = "harpia_xml.h"
@@ -40,7 +41,7 @@ class XmlAdapter:
     def Process(self):
         os.makedirs(self.outDir, exist_ok=True)
         # ship the generic runtime alongside the wrappers
-        shutil.copy2(_RUNTIME_SRC, os.path.join(self.outDir, RUNTIME))
+        copy_if_different(_RUNTIME_SRC, os.path.join(self.outDir, RUNTIME))
 
         written = 0
         for msg in self.messages:
@@ -48,8 +49,7 @@ class XmlAdapter:
                 continue
             header = self._render(msg)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, XML_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(header)
+            write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
 
         if written == 0:

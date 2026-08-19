@@ -16,7 +16,7 @@ generation is deferred.
 import os
 
 from Logger.logger import logger
-from Util.util import loadTemplate
+from Util.util import loadTemplate, write_if_different
 
 SOAP_EXT = "_soap.h"
 
@@ -42,8 +42,7 @@ class SoapAdapter:
                 hash=msg.md5Hash,
             )
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, SOAP_EXT)
-            with open(os.path.join(self.outDir, fileName), "w") as out:
-                out.write(header)
+            write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
         self.log.print("generated {} SOAP endpoint(s) into {}".format(
             written, self.outDir))

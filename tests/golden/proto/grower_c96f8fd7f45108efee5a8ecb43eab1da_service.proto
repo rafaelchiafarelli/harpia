@@ -22,6 +22,10 @@ message grower_ID {
 message grower_Stream {
     int32 id = 1;
     string name = 2;
+    // pagination (spec: "pagination" field modifier): limit <= 0 means
+    // unbounded (return everything, matching pre-pagination behavior).
+    int32 offset = 3;
+    int32 limit = 4;
 }
 service grower_Service {
     rpc heartBeat(grower_HeartBeat) returns (grower_HeartBeat) {}

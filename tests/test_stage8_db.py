@@ -137,6 +137,54 @@ def test_crudl_roundtrip(generated, sqlite_obj, tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="CRUDL pagination needs protoc + protobuf")
+def test_crudl_pagination(generated, sqlite_obj, tmp_path):
+    """The paginated list(offset, limit) overload returns the right subset in
+    insertion order, and an unpaginated list() still returns everything."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "pagination.cpp"
+    prog.write_text(
+        '#include "db/users_{h}_crudl.h"\n'
+        '#include <soci/soci.h>\n'
+        '#include <soci/sqlite3/soci-sqlite3.h>\n'
+        "#include <vector>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    harpia::db::users_dao dao(db);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        "    for (int i = 1; i <= 5; ++i) {{\n"
+        "        ::users u; u.set_id_{h}(i); u.set_name(\"n\" + std::to_string(i));\n"
+        "        if (!dao.create(u)) return 3;\n"
+        "    }}\n"
+        "    std::vector<::users> page;\n"
+        "    if (!dao.list(&page, 1, 2) || page.size() != 2) return 4;\n"
+        '    if (page[0].name() != "n2" || page[1].name() != "n3") return 5;\n'
+        "    std::vector<::users> last;\n"
+        "    if (!dao.list(&last, 4, 2) || last.size() != 1) return 6;\n"
+        '    if (last[0].name() != "n5") return 7;\n'
+        "    std::vector<::users> all;\n"
+        "    if (!dao.list(&all) || all.size() != 5) return 8;\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb_cc = os.path.join(cpp_root, "protofiles", "users_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "pagination")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=120)
+    assert c.returncode == 0, "pagination program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "pagination round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="migration needs protoc + protobuf")
 def test_migration_additive(generated, sqlite_obj, tmp_path):
     """migrate_<name> brings an older table (missing columns) up to the current
@@ -187,6 +235,212 @@ def test_migration_additive(generated, sqlite_obj, tmp_path):
     assert c.returncode == 0, "migration program failed to build:\n" + c.stderr
     run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
     assert run.returncode == 0, "migration failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_drop_and_rename(generated, sqlite_obj, tmp_path):
+    """migrate_<name> RENAMEs a column carrying renamed_from[<old>] (data
+    survives, beacon_log.label <- an older "handle" column) and DROPs a live
+    column the current schema no longer declares ("legacy_note"), and a
+    second call is idempotent."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "migrate_nonadditive.cpp"
+    prog.write_text(
+        '#include "migrate/beacon_log_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        "    // an older generated version: the field under its old name, plus\n"
+        "    // a stray column the current schema no longer declares\n"
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '\\"handle\\" TEXT, \\"strength\\" INTEGER, \\"legacy_note\\" TEXT);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"ID_{h}\\\", \\\"handle\\\", "
+        "\\\"strength\\\", \\\"legacy_note\\\") VALUES (1, 'north', 5, 'obsolete');\")) return 3;\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 4;\n"
+        "    ::harpia::db::beacon_log_dao dao(db);\n"
+        "    // the renamed column carried its data over\n"
+        "    ::beacon_log got;\n"
+        "    if (!dao.read(1, &got)) return 5;\n"
+        '    if (got.label() != "north") return 6;\n'
+        "    if (got.strength() != 5) return 7;\n"
+        "    // the stray column is gone\n"
+        "    int seen = 0; ::soci::indicator si;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('beacon_log_table') "
+        "WHERE name = 'legacy_note'\", ::soci::into(seen, si);\n"
+        "    if (seen != 0) return 8;\n"
+        "    // idempotent: a second call does not corrupt the row or re-add legacy_note\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 9;\n"
+        "    ::beacon_log got2;\n"
+        "    if (!dao.read(1, &got2)) return 10;\n"
+        '    if (got2.label() != "north" || got2.strength() != 5) return 11;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb_cc = os.path.join(cpp_root, "protofiles", "beacon_log_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "migrate_nonadditive")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=120)
+    assert c.returncode == 0, "non-additive migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "non-additive migration failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_data_transform(generated, sqlite_obj, tmp_path):
+    """migrate_<name> takes an optional caller-supplied data_transform hook
+    (std::function<void(session&)>), run AFTER add and BEFORE drop -- proven
+    here by deriving beacon_log.label from a retiring "full_label" column
+    that the current schema doesn't declare at all: label must already exist
+    (added) and full_label must still exist (not yet dropped) when the hook
+    runs. Also proves the hook is genuinely optional (the default nullptr
+    doesn't crash) and idempotent (a second call with the same hook doesn't
+    corrupt the already-transformed value)."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "migrate_data_transform.cpp"
+    prog.write_text(
+        '#include "migrate/beacon_log_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        "    // an older generated version: the data lives under a column\n"
+        "    // (\"full_label\") the current schema doesn't declare at all --\n"
+        "    // no renamed_from marker applies here, only a value derivation.\n"
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '\\"full_label\\" TEXT, \\"strength\\" INTEGER);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"ID_{h}\\\", \\\"full_label\\\", "
+        "\\\"strength\\\") VALUES (1, 'north-station', 5);\")) return 3;\n"
+        "    // the hook: copy the old column into the new one. Guarded so a\n"
+        "    // second run is a no-op -- callers are responsible for their own\n"
+        "    // idempotency, same as migrate_beacon_log itself may run on every startup.\n"
+        "    auto transform = [](::soci::session& db) {{\n"
+        "        db << \"UPDATE \\\"beacon_log_table\\\" SET \\\"label\\\" = \\\"full_label\\\" \"\n"
+        "              \"WHERE \\\"label\\\" IS NULL OR \\\"label\\\" = ''\";\n"
+        "    }};\n"
+        "    if (!::harpia::db::migrate_beacon_log(db, transform)) return 4;\n"
+        "    ::harpia::db::beacon_log_dao dao(db);\n"
+        "    // label was added (by the add step) and then derived (by the hook)\n"
+        "    // from full_label, which was still present when the hook ran\n"
+        "    ::beacon_log got;\n"
+        "    if (!dao.read(1, &got)) return 5;\n"
+        '    if (got.label() != "north-station") return 6;\n'
+        "    if (got.strength() != 5) return 7;\n"
+        "    // full_label is gone -- the hook ran BEFORE drop, not after, so\n"
+        "    // this only proves drop still ran, not that the hook read it late\n"
+        "    int seen = 0; ::soci::indicator si;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('beacon_log_table') "
+        "WHERE name = 'full_label'\", ::soci::into(seen, si);\n"
+        "    if (seen != 0) return 8;\n"
+        "    // the hook is genuinely optional: a second row, migrated with NO\n"
+        "    // hook argument at all, must not crash (std::bad_function_call on\n"
+        "    // an empty std::function) and must leave that row untouched\n"
+        '    ::beacon_log b; b.set_id_{h}(2); b.set_label("untouched"); b.set_strength(9);\n'
+        "    if (!dao.create(b)) return 9;\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 10;\n"
+        "    ::beacon_log got2;\n"
+        "    if (!dao.read(2, &got2)) return 11;\n"
+        '    if (got2.label() != "untouched" || got2.strength() != 9) return 12;\n'
+        "    // idempotent: calling with the same hook again does not corrupt\n"
+        "    // the already-transformed row (the hook's own WHERE guard is now\n"
+        "    // false for it)\n"
+        "    if (!::harpia::db::migrate_beacon_log(db, transform)) return 13;\n"
+        "    ::beacon_log got3;\n"
+        "    if (!dao.read(1, &got3)) return 14;\n"
+        '    if (got3.label() != "north-station") return 15;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb_cc = os.path.join(cpp_root, "protofiles", "beacon_log_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "migrate_data_transform")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=120)
+    assert c.returncode == 0, "data-transform migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "data-transform migration failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_retype_column(generated, sqlite_obj, tmp_path):
+    """migrate_<name> RETYPEs a column whose live SQL type no longer matches
+    the current schema (beacon_log.strength: an older TEXT column, current
+    schema is INTEGER) -- detected purely by runtime introspection, no DSL
+    marker needed, since (unlike rename) the name is unchanged. SQLite has no
+    ALTER COLUMN TYPE, so this exercises the create/copy(with CAST)/drop/
+    rename table-rebuild path; data survives via CAST, and a second call is
+    idempotent (no rebuild, since the type already matches)."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "migrate_retype.cpp"
+    prog.write_text(
+        '#include "migrate/beacon_log_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        "    // an older generated version: strength stored as TEXT, not INTEGER\n"
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '\\"label\\" TEXT, \\"strength\\" TEXT);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"ID_{h}\\\", \\\"label\\\", "
+        "\\\"strength\\\") VALUES (1, 'north', '7');\")) return 3;\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 4;\n"
+        "    // the column's declared type is now INTEGER\n"
+        "    int seen = 0; ::soci::indicator si;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('beacon_log_table') "
+        "WHERE name = 'strength' AND type = 'INTEGER'\", ::soci::into(seen, si);\n"
+        "    if (seen != 1) return 5;\n"
+        "    // the value survived the CAST\n"
+        "    ::harpia::db::beacon_log_dao dao(db);\n"
+        "    ::beacon_log got;\n"
+        "    if (!dao.read(1, &got)) return 6;\n"
+        '    if (got.label() != "north" || got.strength() != 7) return 7;\n'
+        "    // idempotent: the type already matches, so a second call does not rebuild\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 8;\n"
+        "    ::beacon_log got2;\n"
+        "    if (!dao.read(1, &got2)) return 9;\n"
+        '    if (got2.label() != "north" || got2.strength() != 7) return 10;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb_cc = os.path.join(cpp_root, "protofiles", "beacon_log_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "migrate_retype")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=120)
+    assert c.returncode == 0, "retype migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "retype migration failed at check #{}".format(
         run.returncode)
 
 
@@ -290,6 +544,170 @@ def test_repeated_fk_roundtrip(generated, sqlite_obj, tmp_path):
     assert c.returncode == 0, "repeated-FK program failed to build:\n" + c.stderr
     run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
     assert run.returncode == 0, "repeated-FK round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="repeated-composed round-trip needs protoc + protobuf")
+def test_repeated_composed_roundtrip(generated, sqlite_obj, tmp_path):
+    """A repeated composed field whose target has no table of its own
+    (shipment.cargo -> parcel, table-less) persists one child-table row per
+    element (one column per parcel's own flattened fields) and reloads them
+    in order on read -- no child DAO involved, unlike the repeated-FK case."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    proto_dir = os.path.join(cpp_root, "protofiles")
+
+    prog = tmp_path / "repcomposed.cpp"
+    prog.write_text(
+        '#include "db/shipment_{h}_crudl.h"\n'
+        '#include <soci/soci.h>\n'
+        '#include <soci/sqlite3/soci-sqlite3.h>\n'
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    harpia::db::shipment_dao dao(db);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        '    ::shipment s; s.set_id_{h}(1); s.set_tag("crate");\n'
+        "    auto* p1 = s.add_cargo();\n"
+        '    p1->set_label("books"); p1->set_weight(3);\n'
+        "    auto* p2 = s.add_cargo();\n"
+        '    p2->set_label("tools"); p2->set_weight(7);\n'
+        "    if (!dao.create(s)) return 3;\n"
+        "    ::shipment got;\n"
+        "    if (!dao.read(1, &got)) return 4;\n"
+        "    if (got.cargo_size() != 2) return 5;\n"
+        "    // order preserved by the child table's ordinal\n"
+        '    if (got.cargo(0).label() != "books" || got.cargo(0).weight() != 3) return 6;\n'
+        '    if (got.cargo(1).label() != "tools" || got.cargo(1).weight() != 7) return 7;\n'
+        "    // update replaces the child rows (delete-then-reinsert)\n"
+        "    ::shipment s2 = s; s2.clear_cargo();\n"
+        "    auto* p3 = s2.add_cargo();\n"
+        '    p3->set_label("solo"); p3->set_weight(1);\n'
+        "    if (!dao.update(s2)) return 8;\n"
+        "    ::shipment got2; if (!dao.read(1, &got2)) return 9;\n"
+        '    if (got2.cargo_size() != 1 || got2.cargo(0).label() != "solo") return 10;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb = [os.path.join(proto_dir, "shipment_{}.pb.cc".format(HASH)),
+          os.path.join(proto_dir, "parcel_{}.pb.cc".format(HASH))]
+    binary = str(tmp_path / "repcomposed")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), *pb, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "repeated-composed program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "repeated-composed round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="nested-embed round-trip needs protoc + protobuf")
+def test_nested_embed_roundtrip(generated, sqlite_obj, tmp_path):
+    """A singular composed field whose own sub-field is itself composed to a
+    table-less message (journey.path -> route, route.start -> waypoint)
+    flattens both levels into prefixed columns (path_start_city etc.) and
+    round-trips through the plain scalar-column path -- no child table."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    proto_dir = os.path.join(cpp_root, "protofiles")
+
+    prog = tmp_path / "nestedembed.cpp"
+    prog.write_text(
+        '#include "db/journey_{h}_crudl.h"\n'
+        '#include <soci/soci.h>\n'
+        '#include <soci/sqlite3/soci-sqlite3.h>\n'
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    harpia::db::journey_dao dao(db);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        '    ::journey j; j.set_id_{h}(1); j.set_vessel("kon-tiki");\n'
+        "    auto* path = j.mutable_path();\n"
+        '    path->set_label("pacific");\n'
+        "    auto* start = path->mutable_start();\n"
+        '    start->set_city("callao"); start->set_elevation(12);\n'
+        "    if (!dao.create(j)) return 3;\n"
+        "    ::journey got;\n"
+        "    if (!dao.read(1, &got)) return 4;\n"
+        '    if (got.path().label() != "pacific") return 5;\n'
+        '    if (got.path().start().city() != "callao") return 6;\n'
+        "    if (got.path().start().elevation() != 12) return 7;\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb = [os.path.join(proto_dir, "journey_{}.pb.cc".format(HASH)),
+          os.path.join(proto_dir, "route_{}.pb.cc".format(HASH)),
+          os.path.join(proto_dir, "waypoint_{}.pb.cc".format(HASH))]
+    binary = str(tmp_path / "nestedembed")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), *pb, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "nested-embed program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "nested-embed round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="embedded-FK round-trip needs protoc + protobuf")
+def test_embedded_fk_roundtrip(generated, sqlite_obj, tmp_path):
+    """A composed field nested inside a table-less embedded message, whose OWN
+    target owns a table (outpost.berth -> crew_quarters, crew_quarters.skipper
+    -> crew), persists the child via its own DAO through the embed's accessor
+    chain and reloads it on read -- the FK-inside-an-embed gap."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    proto_dir = os.path.join(cpp_root, "protofiles")
+
+    prog = tmp_path / "embeddedfk.cpp"
+    prog.write_text(
+        '#include "db/outpost_{h}_crudl.h"\n'
+        '#include <soci/soci.h>\n'
+        '#include <soci/sqlite3/soci-sqlite3.h>\n'
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    harpia::db::outpost_dao pdao(db);\n"
+        "    harpia::db::crew_dao cdao(db);\n"
+        "    if (!pdao.create_table() || !cdao.create_table()) return 2;\n"
+        '    ::outpost o; o.set_id_{h}(1); o.set_commander("shepard");\n'
+        "    auto* berth = o.mutable_berth();\n"
+        '    berth->set_label("bay 3");\n'
+        "    auto* skipper = berth->mutable_skipper();\n"
+        '    skipper->set_id_{h}(9); skipper->set_name("anderson");\n'
+        "    if (!pdao.create(o)) return 3;\n"          # creates child + parent
+        "    ::outpost got;\n"
+        "    if (!pdao.read(1, &got)) return 4;\n"
+        '    if (got.berth().label() != "bay 3") return 5;\n'
+        "    if (!got.berth().has_skipper()) return 6;\n"
+        "    if (got.berth().skipper().id_{h}() != 9) return 7;\n"
+        '    if (got.berth().skipper().name() != "anderson") return 8;\n'
+        "    // the child row is independently present in its own table\n"
+        '    ::crew c; if (!cdao.read(9, &c) || c.name() != "anderson") return 9;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pb = [os.path.join(proto_dir, "outpost_{}.pb.cc".format(HASH)),
+          os.path.join(proto_dir, "crew_quarters_{}.pb.cc".format(HASH)),
+          os.path.join(proto_dir, "crew_{}.pb.cc".format(HASH))]
+    binary = str(tmp_path / "embeddedfk")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), *pb, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "embedded-FK program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "embedded-FK round-trip failed at check #{}".format(
         run.returncode)
 
 

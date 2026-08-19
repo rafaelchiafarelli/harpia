@@ -14,6 +14,9 @@
 #        sqlite3 backend header includes — see Database/backends/ +
 #        plans/postgres-migration.md)
 #   - cmake, g++, make                                 : compile the generated C++
+#   - libssl-dev + openssl                              : optional TLS on Crow
+#                                                      (REST/SOAP); see
+#                                                      examples/consumer -DUSE_TLS=ON
 # (Stage 10 XML uses tinyxml2, and Stages 11/12 SOAP+REST use Crow + standalone
 #  asio, all vendored in-tree under third_party/ rather than apt — so generated
 #  output stays self-contained and cross-compilable on any target board. protobuf,
@@ -43,6 +46,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         cmake \
         g++ \
         make \
+        libssl-dev \
+        openssl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /harpia

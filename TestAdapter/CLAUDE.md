@@ -48,6 +48,17 @@ Invoked from `main.py` and `tests/run_pipeline.py` after all other adapters.
 - `_vendor_deps` copies from repo `third_party/` only if present; `_write_cmake`
   compiles sqlite as C (`enable_language(C)`), links `protofiles harpia_sqlite
   harpia_tinyxml2`, adds `add_test` per unit.
+- `_write_cmake`'s emitted CMake carries the same Windows `if(WIN32)` SOCI/vcpkg
+  branch as `examples/consumer` (see `Assets/CLAUDE.md`), plus its own
+  `HARPIA_TEST_PROTO_INCLUDE_DIR` variable (same protobuf-version-skew fix as
+  server/client/consumer — lists the vcpkg-regenerated `${CMAKE_BINARY_DIR}/proto`
+  ahead of the Docker-baked `generated/cpp` on the include path) and a
+  `ws2_32` link per test target. `tests/harpia_test_client.h`, the REST/SOAP
+  HTTP round-trip test client it vendors, is Winsock2-ported alongside its
+  POSIX path (`#ifdef _WIN32`). Verified end to end on Windows (`USAGE.md`
+  §11): `10/10` ctest targets pass on native MSVC + vcpkg, including
+  `app_test` which drives a real Crow REST/SOAP round trip through the
+  ported client.
 
 ## Touchpoints
 - Called by: `main.py`, `tests/run_pipeline.py`.

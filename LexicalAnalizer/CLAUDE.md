@@ -19,6 +19,7 @@
 - Import resolution search path (in `pre_lex.__init__`): cwd, then `dirname(file)`, then the `includeFolder` arg (from `HARPIA_INCLUDE_FOLDER`).
 - Rule ordering quirk: `INT32 r'int'` precedes `INT64 r'int64'`; `int64` lexes as `int` + `64`. Type detection relies on lexeme text, not just this.
 - `MISMATCH` token → `LEXICAL_ANALYZER_ERROR`. Files must end in a newline (checked by pre_lex).
+- **Comments are tokenized like real code, not skipped as raw text:** `tokenize()` runs its one regex over the WHOLE file first (`CommentRemover()` strips comment-span tokens only afterward), so a `//`/`/* */` comment's contents must themselves be lexable — any character with no rule match (colon `:`, apostrophe `'`, `!`, `?`, `#`, `@`, `%`, `^`, `~`, backtick) hits `MISMATCH` and hard-errors the whole file, even inside a comment. Stick to letters/digits/`. , ( ) { } [ ] ; = < > + - * /` and spaces in `.harpia` comments (see the rule table above for the full accepted set).
 
 ## Touchpoints
 - Called by: `main.py`.

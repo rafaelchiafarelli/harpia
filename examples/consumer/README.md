@@ -43,10 +43,45 @@ REST server started on http://127.0.0.1:<port>/api/v1/users
 OK
 ```
 
+## Windows
+
+Verified end to end on MSVC (Visual Studio 2022) + vcpkg, including `-DUSE_TLS=ON`:
+
+```
+cmake -S examples\consumer -B build ^
+    -A x64 -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake ^
+    -DHARPIA_GEN=<output_folder>
+cmake --build build --config Release
+build\Release\consumer.exe
+```
+
+`vcpkg.json` in this folder declares the needed ports (`protobuf`, `grpc`,
+`soci[sqlite3]`, `openssl`); the toolchain file drives `vcpkg install`
+automatically. See [USAGE.md §11](../../USAGE.md#11-building-on-windows) for
+what's behind the `if(WIN32)` branches in `CMakeLists.txt` and known gaps
+(PostgreSQL and the Stage 14 test suite aren't verified there).
+
 ## Files
 - [`src/main.cpp`](src/main.cpp) — the application: open a session → DAO → JSON → REST.
 - [`CMakeLists.txt`](CMakeLists.txt) — how the generated headers, vendored Crow/asio/
   tinyxml2, protobuf and SOCI are wired into a build.
+
+## TLS
+
+Build with `-DUSE_TLS=ON` to serve the REST demo over HTTPS instead of plain
+HTTP — CMake generates a self-signed cert at configure time and Crow's
+`ssl_file()` (already in the vendored header, just gated behind
+`CROW_ENABLE_SSL`) picks it up:
+
+```sh
+cmake -S examples/consumer -B /tmp/cb_tls -DHARPIA_GEN=/tmp/gen -DUSE_TLS=ON
+cmake --build /tmp/cb_tls
+/tmp/cb_tls/consumer
+```
+
+Output is identical except the last line reads `https://127.0.0.1:<port>/api/v1/users`.
+See [USAGE.md §9](../../USAGE.md#9-enabling-tls-on-restsoapgrpc) for the gRPC
+equivalent (`grpc::SslServerCredentials`, no extra linking needed).
 
 ## Notes
 - Generated names are **md5-hash-qualified** (`users_<hash>_crudl.h`, accessor
