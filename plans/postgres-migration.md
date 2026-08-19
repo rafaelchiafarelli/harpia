@@ -1,16 +1,12 @@
 # Harpia Stage 8 Persistence: DB-agnostic via SOCI (SQLite kept, PostgreSQL added)
 
-> Planning doc. **Rev 2 (2026-07-05): strategy changed to SOCI / database-agnostic.**
-> Companion: [crow-migration.md](crow-migration.md).
+> Planning doc.
 >
-> **Supersedes Rev 1** (libpq-direct retarget). Rev 1 *replaced* SQLite with
-> PostgreSQL by rewriting the generated DAO onto the raw `libpq` C API
-> (`PQexecParams`). That is abandoned because (a) it dropped SQLite entirely and
-> so was not agnostic, and (b) its own two top risks — losing the hermetic
-> in-memory test model, and the `PQexecParams` param-lifetime rewrite — are both
-> *avoided* by generating against SOCI instead. Rev 1's grounded findings
-> (caller-assigned PK, the SQL dialect delta, the file inventory) carry over and
-> are reused below.
+> A raw `libpq`-direct retarget (rewriting the generated DAO onto
+> `PQexecParams`) was considered and rejected: it drops SQLite entirely (not
+> agnostic), loses the hermetic in-memory test model, and requires a
+> `PQexecParams` param-lifetime rewrite. Generating against SOCI instead avoids
+> all three, so that's the strategy below.
 
 ## 1. Summary
 
@@ -35,8 +31,8 @@ Two findings (confirmed by reading the code) that shrink the work:
   stays a plain `BIGINT PRIMARY KEY`, not `SERIAL`/`IDENTITY`.
 - **SOCI absorbs the C-API divergence.** The whole "prepare → bind → step →
   finalize" (SQLite) vs "paramValues[] → PQexecParams → PQgetvalue" (libpq) split
-  that dominated Rev 1 collapses into uniform SOCI calls — it is no longer a
-  per-backend concern at all.
+  that would have dominated a raw libpq port collapses into uniform SOCI calls —
+  it is no longer a per-backend concern at all.
 
 ## 2. The seam (DONE — eyeball first)
 
@@ -93,8 +89,8 @@ compiler, `dbio.h.tmpl`, `json/`, `xml/`, `proto/`, `wsdl/`, `zmq/`, `tokens.txt
 - **`SqlAdapter.py`** — consume `backend.create_table` / `map_child_table` /
   `rep_child_table`. (Adopt the canonical one-line child DDL → one-space golden
   diff, or keep pretty formatting and take only the type text from the dialect.)
-- **`CrudlAdapter.py` + `crudl.h.tmpl`** — the big one, but *smaller than Rev 1*.
-  `_bind_line`/`_extract_line`/`_bind_scalar`/`_col_decl` and the map/repeated
+- **`CrudlAdapter.py` + `crudl.h.tmpl`** — the big one, but smaller than a
+  libpq-direct port would have been. `_bind_line`/`_extract_line`/`_bind_scalar`/`_col_decl` and the map/repeated
   write/read/remove builders (26-73, 241-438) → SOCI `use()`/`into()`/`rowset`
   (uniform, dialect-free). DDL strings come from the backend. `_fk_bind`/
   `_fk_extract` → SOCI. Ctor `::sqlite3* db` → `::soci::session& db`.
@@ -103,16 +99,16 @@ compiler, `dbio.h.tmpl`, `json/`, `xml/`, `proto/`, `wsdl/`, `zmq/`, `tokens.txt
   name); `add_column`/`stamp_version`/`version_table` from the backend; ctor →
   `soci::session&`.
 
-## 5. Test-infrastructure — SOCI *keeps* the hermetic model (Rev 1's top risk, gone)
+## 5. Test-infrastructure — SOCI *keeps* the hermetic model
 
 The generated unit tests keep using **SQLite in-memory** — through SOCI
 (`soci::session s(soci::sqlite3, ":memory:")`) — so they stay hermetic,
 zero-setup and parallel-`ctest` safe, exactly as today. No live Postgres server
 is needed for the unit suite. Postgres is exercised by a **separate opt-in
 integration target** against a real server (docker-compose or an embedded
-cluster with a unique schema per test, per Rev 1 §5(a)+(b)). This is the key
-advantage of Route B: the property Rev 1 flagged as a "real regression" is
-preserved. Vendoring changes: add **SOCI core + the sqlite3 and postgresql
+cluster with a unique schema per test). This is the key advantage of Route B:
+the hermetic property a raw libpq port would have broken is preserved.
+Vendoring changes: add **SOCI core + the sqlite3 and postgresql
 backends** (+ `libpq` for the PG backend) to the toolchain image and the
 generated CMake; SQLite stays vendored (SOCI's sqlite3 backend links it).
 
@@ -123,14 +119,15 @@ Generated output stops being *fully* self-contained: it now depends on **SOCI**
 `libpq` + a running server. But because tests and the SQLite backend need no
 server, "clone and `cmake && ctest` on any box" **still works** on the SQLite
 backend — the hermetic story survives for anyone not opting into Postgres. This
-is a materially smaller portability hit than Rev 1's replace-SQLite plan.
+is a materially smaller portability hit than a full SQLite-replacement plan
+would have been.
 
 ## 7. Bonus enabled: per-table backend
 
 Because backend selection is resolved per message, the `.harpia` directive can be
 **per-table**: one generated project can put embedded/realtime tables on SQLite
-and a shared library (e.g. conboard's portable rules DB) on PostgreSQL. libpq-
-direct (Rev 1) could not do this without `#ifdef` sprawl.
+and a shared library (e.g. conboard's portable rules DB) on PostgreSQL. A
+libpq-direct port could not do this without `#ifdef` sprawl.
 
 ## 8. Branch/slice plan (each leaves harpia green on SQLite)
 

@@ -13,6 +13,7 @@ doc yet.
 | [postgres-migration.md](postgres-migration.md) | Done — SOCI + PostgreSQL backend shipped (db-agnostic slices 0-6) |
 | [multi-language-targets.md](multi-language-targets.md) | Scoped, not started — Python recommended as target #2 |
 | [medical_devices/](medical_devices/harpia_medical_master_plan.md) | Scoped, not started — compliance profile for regulated deployments |
+| [message-versioning.md](message-versioning.md) | Scoped, not started — stable wire field numbers + version handshake so mismatched-schema peers degrade instead of silently corrupting data |
 
 ## Backlog
 

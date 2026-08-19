@@ -1,6 +1,6 @@
 # Harpia → Medical-Device-Grade: Master Implementation Plan
 
-Status as of: 2026-08-17
+Status as of: 2026-08-19
 Scope: all outstanding work — both pre-existing Harpia backlog and the new
 medical-device compliance work — organized so it can be parallelized safely
 across multiple repo copies / devices / sessions without collisions.
@@ -33,15 +33,60 @@ across multiple repo copies / devices / sessions without collisions.
 
 ---
 
+## 0a. One hardened profile, not per-jurisdiction variants (decided 2026-08-19)
+
+Two decisions supersede the "compile-time strategy: one build variant per
+listed jurisdiction" language that the rest of this doc was originally
+written with (F1, F3, F5, Track O, Track C, Track N's parity diff). Read
+every per-track contract below with these corrections in mind rather than
+as originally scoped:
+
+1. **No jurisdiction fan-out in code.** FDA, EU MDR, and ANVISA converge on
+   the same underlying standards (IEC 62304, ISO 14971) for Class-C-
+   equivalent software — see `harpia_sensitive_data_design_rules.md` §6.
+   The one identified delta (EU MDR's tamper-evident audit-log requirement)
+   is simply made the universal default instead of gated behind an EU-only
+   flag. There is exactly **one** generated code path per project, never
+   one per jurisdiction. `jurisdiction[]` still exists in
+   `project.harpia.yaml`, but purely as metadata Track M reads to pick
+   which paperwork template (fda/eu_mdr/anvisa) the same evidence gets
+   stamped into — it never forks a build variant. Track N's cross-
+   jurisdiction "feature-parity diff" job is dropped entirely: with one
+   code path, there is nothing to diff.
+2. **`risk_class` sets one project-wide floor; `phi`/`critical` are opt-in
+   on top of it.** Per IEC 62304 §4.3's segregation rule: if a lower-class
+   software item isn't (or can't be proven) segregated from a higher-class
+   item sharing the same binary, the *whole* item is classified at the
+   higher class. A generated project mixing an untagged (Class A) message
+   with a `phi`/`critical` (Class C) message on the same transport/process
+   is exactly that unsegregated case. So once *any* message/field in a
+   project is tagged, `risk_class` forces the **entire generated project**
+   onto the hardened floor — mTLS/RBAC required, plaintext transport
+   refused (Track C, Track B), tamper-evident audit storage present. This
+   floor is project-wide, never per-message. `phi`/`critical` then layer
+   the genuinely opt-in, finer-grained machinery on top of that floor:
+   envelope encryption + redaction only on `phi` fields (Track A/F),
+   ordered-delivery queues only on `critical` message types (see the
+   design-rules doc's Rule 4a) — forcing an ordered-delivery queue onto
+   untagged telemetry would be pure cost against a hazard that doesn't
+   exist there.
+3. **No tags anywhere → today's Harpia, byte-for-byte.** A project with no
+   `phi`/`critical`/`risk_class` declared at all generates exactly what
+   Harpia generates today (F2's existing guarantee, unchanged). The
+   hardened floor only activates once the schema actually claims medical-
+   device-grade status.
+
+---
+
 ## 1. Foundation (serial — do this first, single session)
 
 | ID | Task | Touches | Notes |
 |---|---|---|---|
-| F1 | `ComplianceContext`: parse `project.harpia.yaml` (`jurisdiction[]`, `risk_class`, `topology`, `phi_handling`), thread it through `main.py` and every stage entry point | `main.py`, every `Stage*` entry signature | Highest blast radius in the whole plan — every later track depends on this signature existing. Fail-safe default (strictest settings) when unset/ambiguous. Plural `jurisdiction` values mean **fan-out**: one compile-time build variant per listed jurisdiction, not one instance satisfying all simultaneously (see Track O / Track C). |
+| F1 | `ComplianceContext`: parse `project.harpia.yaml` (`risk_class`, `topology`, `phi_handling`, `jurisdiction[]` — paperwork routing only), thread it through `main.py` and every stage entry point | `main.py`, every `Stage*` entry signature | Highest blast radius in the whole plan — every later track depends on this signature existing. Fail-safe default (strictest settings) when unset/ambiguous. `risk_class` is the single project-wide hardening floor — no per-jurisdiction build variants, no fan-out (see §0a). `jurisdiction[]` has zero effect on generated code; it only feeds Track M's doc-template selection. |
 | F2 | `phi` (sensitive-field) modifier in the grammar + AST | `LexicalAnalizer/`, `Message/` | Needed before DB encryption, redacted `toString`, or audit-on-access can be built. |
-| F3 | `AuditSink` interface — abstract/no-op stub only, no implementation yet | new `Compliance/` module | Real implementations happen in Track A (DB) and Track C (comm), independently, once this interface exists. Decision closed: **compile-time strategy** — separate build variant per jurisdiction (see Track O / Track C contracts) — build the stub already shaped for that. |
+| F3 | `AuditSink` interface — abstract/no-op stub only, no implementation yet | new `Compliance/` module | Real implementations happen in Track A (DB) and Track C (comm), independently, once this interface exists. One implementation per project, gated by `risk_class`, not per jurisdiction (see §0a) — build the stub already shaped for that. |
 | F4 | Golden-snapshot / regression baseline confirmed green before anything branches | `tests/` | So every track has a clean starting point to diff against. |
-| F5 | `CryptoBackend` selection point: the compile-time seam choosing which underlying crypto module gets linked per jurisdiction build (e.g. standard vs. FIPS-validated OpenSSL) | new `Crypto/backend.py` (or build-flag/CMake option) | Both Track O (key-wrap/envelope-encryption primitives) and Track C (TLS stack) must consume this, not each pick their own — prevents the two from silently drifting onto different crypto modules within the same jurisdiction build. |
+| F5 | `CryptoBackend` selection point: the compile-time seam choosing which underlying crypto module gets linked (e.g. standard vs. FIPS-validated OpenSSL) | new `Crypto/backend.py` (or build-flag/CMake option) | Both Track O (key-wrap/envelope-encryption primitives) and Track C (TLS stack) must consume this, not each pick their own — prevents the two from silently drifting onto different crypto modules. One selection per project, driven by `risk_class`/`topology`, not per jurisdiction (see §0a). |
 
 **Exit criterion:** F1–F5 merged to `main`, all existing tests green, before any track below starts.
 
@@ -68,9 +113,8 @@ are worked in the same session — split across sessions only if the
 | F | Serialization unification: add YAML pretty-print, close out the JSON/XML/YAML `toString` triad through one shared path, wire `phi` redaction into it | `JsonAdapter/`, `XmlAdapter/`, new `YamlAdapter/`, `Message/` toString templates | F2 | none |
 | I | sha256-registry / continuable-process machinery (the "largely aspirational" architecture.md system) | `Util/`, `Logger/`, `main.py` orchestration | F1 | Same session as L, run right after Foundation — both touch `main.py` orchestration and the registry's version-stamp fields. |
 | L | Versioning/git integration (per-project fork tracking) | `Util/`, `main.py` | F1 | Same session as I, immediately after. |
-| M | Process artifacts: SBOM, traceability matrix, jurisdiction-forked risk-file/doc templates (fda/eu_mdr/anvisa) | new `ComplianceReport/` module | F1 | Benefits from I landing first but doesn't hard-block on it. |
-| N | Static/fuzz analysis CI (cppcheck/clang-tidy CERT ruleset on generated output, fuzz harness for JSON/XML/SOAP parsers) | `tests/`, CI config only | none for the static/fuzz half | Pure tooling, safe anywhere, anytime. |
-| N | Feature-parity CI diff across jurisdiction build variants | `tests/`, CI config only | O, A, C (needs their compile-time variants to exist) | Activate last, once O/A and C have both produced compile-time jurisdiction variants — nothing to diff before then. |
+| M | Process artifacts: SBOM, traceability matrix, jurisdiction-selected risk-file/doc templates (fda/eu_mdr/anvisa) — same underlying evidence, different paperwork shell | new `ComplianceReport/` module | F1 | Benefits from I landing first but doesn't hard-block on it. |
+| N | Static/fuzz analysis CI (cppcheck/clang-tidy CERT ruleset on generated output, fuzz harness for JSON/XML/SOAP parsers) | `tests/`, CI config only | none | Pure tooling, safe anywhere, anytime. |
 | J | Multi-language codegen, first target language only (**Python** — see `plans/multi-language-targets.md`, don't re-derive) — reuses `protoc`/`grpc`'s native multi-language message/stub generation for Stages 0–7; only Stages 8–14 (DB/DAO, JSON/XML/SOAP/REST, ZMQ, auth, audit) need per-language emitters | new per-language emitter dirs, mirroring `Database/`, `JsonAdapter/`, etc. | F1 | none — prove the plugin-style split with one language before replicating to a second/third. Don't extrapolate Python's cost analysis to Rust/Node/Java ahead of time (rejected 2026-08-18 — see the detailed contract below). |
 
 ---
@@ -104,26 +148,19 @@ already in place, though it's not a hard blocker.
 
 ### Session 4 — Platform Infra & Expansion
 Track I → Track L (share `main.py`, must stay sequential) → Track J /
-Track M / Track N's static-analysis half, in any order (no dependencies
-among them) → **Track N's feature-parity diff last**, since it's the one
-genuine cross-session dependency in this whole plan: it needs compile-time
-jurisdiction variants from Track O/A (Session 1) and Track C (Session 2)
-to exist before it has anything to diff.
+Track M / Track N, in any order — no dependencies among them now that
+Track N no longer carries a cross-variant parity diff (§0a dropped it,
+since there's only one code path to test).
 
 ### Squaring the numbers
 Data & Keys needs two sessions at kickoff (O and H), which — together with
 Session 2 starting on Track C and Session 3 starting on Track E — accounts
 for all four sessions on day one. Session 4's work doesn't get a dedicated
 session yet: whichever of O or H finishes first should pick up a
-no-dependency Session-4 task (J, M, or N's static-analysis half) as filler
-rather than idling while it waits on the other. Once both O and H are
-merged, redirect one session to Track A → Track K; the other keeps going
-on whatever Session-4 task it picked up.
-
-**The one thing to actually watch across sessions:** don't merge/activate
-Track N's feature-parity diff job until Session 1 (Track O/A) and Session
-2 (Track C) have both reached their compile-time jurisdiction-variant
-milestone — it has nothing meaningful to compare before then.
+no-dependency Session-4 task (J, M, or N) as filler rather than idling
+while it waits on the other. Once both O and H are merged, redirect one
+session to Track A → Track K; the other keeps going on whatever Session-4
+task it picked up.
 
 ---
 
@@ -147,8 +184,9 @@ proves nothing old broke, not that the new thing works:
   note added to `ComplianceReport/` describing what changed and why, so
   Track M's traceability work has raw material to draw from later instead
   of reconstructing history after the fact.
-- For Tracks A/C/K specifically, once compile-time jurisdiction variants
-  exist: Track N's feature-parity CI diff passes across all three builds.
+- For Tracks A/C/K specifically, once the `risk_class` hardened floor is in
+  place: Track N's static/fuzz CI job passes clean against the generated
+  output.
 
 ---
 
@@ -162,16 +200,16 @@ proven — unit + integration, not just "tests pass."
 ### F1 — ComplianceContext plumbing
 - **Preconditions:** none (first thing built).
 - **Deliverables:** `Compliance/context.py` (or equivalent) defining
-  `ComplianceContext{jurisdiction[], risk_class, topology, phi_handling}`;
+  `ComplianceContext{risk_class, topology, phi_handling, jurisdiction[]}`;
   `project.harpia.yaml` parser; `main.py` and every `Stage*` entry point
   updated to receive it.
 - **Guarantees after merge:** every stage has access to the active
   compliance profile; an invalid/unknown enum value is a hard error at
   generation start, never silently ignored; missing config defaults to the
-  strictest profile with a logged warning; a plural `jurisdiction` list is
-  understood as fan-out (one compile-time variant per entry), not a
-  runtime-union requirement.
-- **Out of scope:** no jurisdiction-specific *behavior* yet — plumbing only.
+  strictest profile with a logged warning; `risk_class` drives one project-
+  wide hardened floor — never a per-jurisdiction fan-out (see §0a);
+  `jurisdiction[]` is inert for codegen, read only by Track M.
+- **Out of scope:** no `risk_class`-driven *behavior* yet — plumbing only.
 - **Tests:**
   - Unit: valid config parses correctly; missing file → strictest default;
     invalid enum value → hard error.
@@ -205,8 +243,8 @@ proven — unit + integration, not just "tests pass."
   default implementation; documented injection point for downstream tracks.
 - **Guarantees:** interface compiles and instantiates standalone; no-op
   implementation has zero side effects.
-- **Out of scope:** real jurisdiction-specific audit logic — that's built
-  compile-time-per-jurisdiction in Track O and Track C, not here.
+- **Out of scope:** real audit logic — that's built once, gated by
+  `risk_class`, in Track O and Track C, not here.
 - **Tests:**
   - Unit: `NoOpAuditSink.record()` called, asserts no side effect, no crash.
   - Integration: instantiate and inject into a dummy generated class,
@@ -221,18 +259,18 @@ proven — unit + integration, not just "tests pass."
 
 ### F5 — CryptoBackend selection point
 - **Preconditions:** F1 merged. Build alongside F3 — same shape of
-  decision (an interface stub now, real jurisdiction-driven selection once
+  decision (an interface stub now, real `risk_class`-driven selection once
   RA confirms the requirements).
 - **Deliverables:** a single compile-time seam (build flag/CMake option)
   choosing which underlying crypto module a build links against (e.g.
   standard OpenSSL vs. a FIPS-validated OpenSSL provider). Both Track O's
   envelope-encryption primitives and Track C's TLS stack consume this same
   seam — neither is allowed to independently link its own crypto module.
-- **Guarantees:** exactly one crypto module is linked per build variant;
-  Track O and Track C provably use the same one (see test below); the
-  choice made per jurisdiction is recorded as build metadata, feeding
-  Track M's SBOM (which crypto module + its validation status, e.g.
-  "FIPS 140-3 validated: yes/no," per shipped binary).
+- **Guarantees:** exactly one crypto module is linked per project; Track O
+  and Track C provably use the same one (see test below); the choice is
+  recorded as build metadata, feeding Track M's SBOM (which crypto module +
+  its validation status, e.g. "FIPS 140-3 validated: yes/no," per shipped
+  binary).
 - **Out of scope:** doesn't ship or validate the crypto modules themselves
   — just the seam. Which specific modules to support (and any FIPS/Common
   Criteria certification work) is a deliberate downstream decision, not
@@ -240,14 +278,13 @@ proven — unit + integration, not just "tests pass."
 - **Tests:**
   - Unit: build-flag selection actually changes which module gets linked
     (symbol/version check on the compiled artifact).
-  - Integration: build a variant with each supported crypto module,
-    confirm both Track O and Track C functionality work identically
-    against each (same algorithms, same outcomes, only the underlying
-    validated implementation differs).
-  - Acceptance gate: extend Track N's feature-parity CI diff to also
-    assert Track O and Track C agree on which crypto module is linked
-    within the same build — a drift here should fail the same job that
-    catches jurisdiction feature drift.
+  - Integration: build with each supported crypto module, confirm both
+    Track O and Track C functionality work identically against each (same
+    algorithms, same outcomes, only the underlying validated implementation
+    differs).
+  - Acceptance gate: a CI check asserting Track O and Track C agree on
+    which crypto module is linked within the same build — a drift here
+    should fail the build.
 
 ### O — Key management (pluggable `KeyProvider`, rotation, crypto-shredding)
 - **Preconditions:** F1, F3, F5 merged. Build this *before* Track A —
@@ -259,9 +296,10 @@ proven — unit + integration, not just "tests pass."
   own KMS/HSM already; an embedded device may have none. The library must
   not assume either. It defines the contract; the integrator supplies (or
   accepts a safe default for) the backend.
-- **Decision closed: compile-time strategy.** Each jurisdiction build gets
-  its own key-management behavior (retention, residency, audit shape)
-  compiled in, not selected at runtime — same reasoning as Track C.
+- **Decision closed: compile-time strategy.** Key-management behavior
+  (retention, residency, audit shape) is compiled in per project, not
+  selected at runtime — same reasoning as Track C. One behavior per
+  project, gated by `risk_class`, not forked per jurisdiction (§0a).
 - **Deliverables:**
   - `Crypto/KeyProvider` abstract interface: generate/retrieve the active
     key-encryption-key (KEK), fetch a KEK by version, wrap/unwrap a
@@ -394,9 +432,11 @@ proven — unit + integration, not just "tests pass."
 
 ### C — Transport (mTLS) + AuthN/AuthZ (RBAC, sessions)
 - **Preconditions:** F1, F3, F5 merged.
-- **Decision closed: compile-time strategy** — each jurisdiction build
-  compiles in its own transport/auth behavior rather than selecting it at
-  runtime (same reasoning as Track O; see F3).
+- **Decision closed: compile-time strategy** — transport/auth behavior is
+  compiled in per project rather than selected at runtime (same reasoning
+  as Track O; see F3). Once `risk_class` implies medical-device-grade, this
+  is the project-wide floor (§0a): every message gets mTLS/RBAC, not just
+  `phi`/`critical`-tagged ones.
 - **Deliverables:** mTLS on gRPC/REST/SOAP; admin/main/guest RBAC
   replacing the flat `X-User`/`X-Pswd` gate; token-based sessions with
   expiry/revocation; cert provisioning scripts in `Assets/`.
@@ -481,8 +521,10 @@ proven — unit + integration, not just "tests pass."
 - **Preconditions:** F1 merged. Benefits from, but doesn't hard-block on,
   Track I landing first.
 - **Deliverables:** `ComplianceReport/` module emitting an SBOM
-  (CycloneDX/SPDX), a traceability matrix, and jurisdiction-forked doc
-  templates (fda/eu_mdr/anvisa).
+  (CycloneDX/SPDX), a traceability matrix (one code path, one set of
+  evidence), and jurisdiction-selected doc templates (fda/eu_mdr/anvisa)
+  that stamp that same evidence into whichever paperwork shell
+  `jurisdiction[]` names.
 - **Guarantees:** SBOM validates against its schema; every
   requirement-annotated construct produces a traceability row; output
   format correctly follows the selected jurisdiction's template.
@@ -491,19 +533,15 @@ proven — unit + integration, not just "tests pass."
   - Integration: full pipeline run on `HarpiaTest`, spot-check matrix rows
     against known `phi` fields and their Track A/E tests.
   - Acceptance gate: doc output differs correctly across the three
-    jurisdiction templates for the same underlying data.
+    jurisdiction templates for the *same* underlying evidence (same SBOM,
+    same traceability matrix — only the document shell changes).
 
-### N — Static/fuzz analysis CI + feature-parity gate
-- **Preconditions:** none for the static/fuzz half. The feature-parity
-  diff job specifically needs compile-time jurisdiction variants from
-  Track O/A and Track C to exist first — activate it last.
+### N — Static/fuzz analysis CI
+- **Preconditions:** none.
 - **Deliverables:** CERT-ruleset static analysis job on generated output;
-  fuzz harness for JSON/XML/SOAP parsers; cross-variant feature-parity diff.
+  fuzz harness for JSON/XML/SOAP parsers.
 - **Guarantees:** CI fails on new static-analysis findings above an agreed
-  severity; fuzz corpus runs N iterations with no crashes; parity diff
-  fails the build if jurisdiction variants diverge outside designated
-  strategy classes (audit recording, retention, residency, crypto module
-  linkage — see F5).
+  severity; fuzz corpus runs N iterations with no crashes.
 - **Tests:** the CI jobs *are* the test — "acceptance gate" here is a clean
   (or explicitly triaged) run against the current codebase before the job
   is considered live.

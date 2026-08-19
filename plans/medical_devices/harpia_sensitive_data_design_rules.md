@@ -157,6 +157,15 @@ FDA, EU MDR, and ANVISA all converge on the same underlying standards (IEC 62304
 - **Code and architecture do not need to branch per jurisdiction.** The mitigations above (validated input at the right boundary, explicit failure modes, tamper-evident audit trail, no PHI in logs, criticality decided statically rather than from content) satisfy all three regimes simultaneously, because they derive from the same harmonized standards.
 - **What differs per jurisdiction is paperwork, not code**: which document package the hazard/risk table is filed into (DHF vs Technical Documentation vs technical dossier), who reviews it, and post-market reporting obligations if a hazard materializes in the field.
 - **One exception worth tracking:** EU MDR's cybersecurity annex (IEC 81001-5-1) is currently more prescriptive about audit-log integrity (tamper-evidence) than FDA/ANVISA. Treating tamper-evident/append-only audit storage as the default everywhere — not gated behind an EU-only flag — satisfies the strictest requirement without needing jurisdiction-specific branches. A `critical` message failing to deliver is itself exactly the kind of event that belongs in that tamper-evident trail, same as a `phi` access.
+- **Consequence for the master plan (2026-08-19):** since jurisdictions converge on the same underlying standards, code generation never forks per jurisdiction — there is one hardened profile, not one build variant per FDA/EU MDR/ANVISA. `jurisdiction[]` in `project.harpia.yaml` only selects which paperwork template Track M stamps the same evidence into. See `harpia_medical_master_plan.md` §0a for the full consequence on the Foundation/track plan.
+
+### 6a. `risk_class` is a project-wide floor; `phi`/`critical` are opt-in on top of it
+
+This is the practical answer to "what happens to an untagged message living next to a `phi`/`critical` one in the same generated project?" — decided 2026-08-19, driven by IEC 62304 §4.3's segregation rule: if a lower-class software item isn't (or can't be proven) segregated from a higher-class item sharing the same binary, the *whole* item is classified at the higher class. A generated project mixing an untagged message with a `phi`/`critical` message on the same transport/process is exactly that unsegregated case.
+
+- **`risk_class`** (project-level, from `ComplianceContext`) sets a floor for the *entire* generated project the moment it implies medical-device-grade: mTLS/RBAC required on every transport, plaintext refused, tamper-evident audit storage present — regardless of which individual messages are tagged `phi`/`critical`. This cannot be per-message; segregating it per-message is exactly the thing IEC 62304 won't credit without real proof of isolation, which Harpia's generated projects don't attempt to provide.
+- **`phi`/`critical`** stay genuinely opt-in *above* that floor, for machinery that would be pure waste if forced onto every message: envelope encryption + redaction only on `phi` fields (Rule 1), ordered-delivery queues only on `critical` message types (Rule 4a). Forcing a bounded guaranteed-delivery queue onto routine, non-critical telemetry has a real memory/complexity cost with no corresponding hazard to justify it.
+- **No tags anywhere, `risk_class` unset** → today's Harpia output, byte-for-byte (Rule F2's existing guarantee). The hardened floor only activates once a project actually claims medical-device-grade status.
 
 This is not legal/regulatory advice — confirm with actual regulatory affairs expertise before treating this section as sufficient for a real submission.
 
@@ -174,3 +183,8 @@ This is not legal/regulatory advice — confirm with actual regulatory affairs e
 
 - **"A message is more critical/protected than another" is not the same claim as "a variable is PHI."** These were being used interchangeably early in the design discussion; Rule 0 above is the correction.
 - **Content-based execution is rejected as a pattern for criticality.** Delivery-guarantee behavior must be provable from the message *type* declared in the schema, never from inspecting a value inside a message instance at runtime.
+
+## 9. Resolved this session (2026-08-19) — kept here for the record
+
+- **Jurisdiction is not a code-generation axis.** The master plan's earlier "one compile-time build variant per jurisdiction" strategy is dropped; `jurisdiction[]` now only selects Track M's paperwork template. See §6/§6a and `harpia_medical_master_plan.md` §0a.
+- **`risk_class` is a project-wide floor, `phi`/`critical` are opt-in on top of it** — not three independent, equally-weighted axes. See §6a, grounded in IEC 62304 §4.3's segregation rule.
