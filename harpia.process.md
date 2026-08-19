@@ -1,3 +1,9 @@
+> The 15-stage pipeline below is the baseline spec. A medical-device
+> compliance profile (PHI field tagging, message-level criticality,
+> key management, mTLS/RBAC, audit trails — see stages 5 and 8 below,
+> which this profile extends) is scoped separately, not yet part of this
+> baseline: see `plans/medical_devices/`.
+
 0. pre-process check (pre_lex)
     0. 0. check for non-utf8 characters
     0. 0. 1. open file and read all its contents

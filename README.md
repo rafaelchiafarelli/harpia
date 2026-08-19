@@ -73,6 +73,12 @@ design vision, not current status):
   Winsock2) — see `USAGE.md` §12. Not yet covered: the PostgreSQL backend
   on Windows, and `-DUSE_ZMQ_CURVE=ON` (vcpkg feature added, build
   unverified).
+- No compliance profile for regulated (e.g. medical-device) deployments —
+  no `ComplianceContext`, no PHI field tagging, no message-level
+  criticality classification, no key management/mTLS/RBAC/audit-trail
+  generation. Not started; scoped as a large, multi-session plan at
+  `plans/medical_devices/` (see `plans/medical_devices/schedule/
+  foundation.md` for the dependency graph across sessions).
 
 **Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the
 consumer's guide (generate, the `.harpia` language by example, what gets
@@ -142,6 +148,7 @@ script sets: `HARPIA_INPUT_FILE`, `HARPIA_INCLUDE_FOLDER`, `HARPIA_OUTPUT_DIR`.
 | `third_party/` | vendored third-party source (tinyxml2, SQLite, Crow + standalone asio) |
 | `tests/` | golden snapshots + per-stage compile/run tests (see `tests/README.md`) |
 | `HarpiaTest/` | the sample `test.harpia` and its includes |
+| `plans/` | scoping docs for larger, not-yet-started or in-progress work (multi-language targets, Postgres migration, `medical_devices/` — a multi-session plan for a medical-device-compliance profile: PHI field tagging, message-level criticality, key management, mTLS/RBAC, audit) — not part of the pipeline itself |
 
 ## objective:
 Create a generalized interface for processes and threads to share data among themselves, database and web that has gRPC, ORM, RESTFull, SOAP, CRUDL, multi-project, multi-language and a  multi-thread library to exchange data.

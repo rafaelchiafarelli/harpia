@@ -141,3 +141,29 @@ any of those three.
 5. Node/Rust/Java stay explicitly out of scope until Python validates the
    approach and the effort-per-language number is a measured fact instead of
    a guess.
+
+---
+
+## 7. Addendum (2026-08-18) — cross-referenced from the medical-device plan
+
+`plans/medical_devices/`'s Track J (session-4, and the master plan) picked
+Python back up as its "first target language" deliverable — pointed here
+rather than re-deriving the choice; read this doc's §2/§4 before touching
+that track.
+
+While scoping that plan, the question in item 5 above got asked again
+directly — "since we're already committing to a large multi-session
+effort, why not extrapolate this doc's Python analysis to Rust/Node/Java
+now too?" — and was re-affirmed as still the wrong move, for the same
+reason as item 1, made concrete: this doc's per-stage cost table (§2)
+leans on Python-specific facts (its protobuf JSON support shape, its
+descriptor/reflection API, its DB/HTTP ecosystem) that don't transfer by
+analogy to a language with a different type system or no runtime
+reflection (Rust has neither the reflection XML needs nor Python's GC;
+Node's async-everything model reshapes the DAO/CRUDL layer structurally,
+not just syntactically). Writing those languages' costs down anyway would
+produce a table that *looks* as authoritative as this one while actually
+being unverified guesses — worse than leaving them unscoped, especially
+for a plan whose other half depends on auditable, provable claims. Item 5
+stands: unscoped until Python is real and a genuine second data point
+exists to compare against.
