@@ -47,7 +47,7 @@ def built(tmp_path_factory):
                        cwd=REPO_ROOT, capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
 
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     build = os.path.join(str(out), "build")
     assert ProtoCompiler(dest=build).Process() is None, "Stage 7 failed"
 

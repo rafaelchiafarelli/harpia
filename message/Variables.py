@@ -2,7 +2,7 @@
 import copy
 import re
 from Errors.Error import Error, Types, Classes
-from Logger.logger import logger
+from logger.logger import logger
 import uuid
 class variable():
     index = -1

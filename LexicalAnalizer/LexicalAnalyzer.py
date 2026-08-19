@@ -1,5 +1,5 @@
 import re
-from Logger.logger import logger
+from logger.logger import logger
 from Errors.Error import Error, Types, Classes
 
 ## LexicalAnalyzer should only tokenize the files 

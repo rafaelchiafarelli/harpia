@@ -31,7 +31,7 @@ os.chdir(_REPO_ROOT)
 from LexicalAnalizer.LexicalAnalyzer import LexicalAnalyzer
 from LexicalAnalizer.pre_lex import pre_lex
 from LexicalAnalizer.MessageCreator import MessageCreator
-from ProtoFile.FileCreator import FileCreator
+from protoFile.FileCreator import FileCreator
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
@@ -44,7 +44,7 @@ from Database.SoapAdapter import SoapAdapter
 from Database.WsdlAdapter import WsdlAdapter
 from Database.GrpcServiceAdapter import GrpcServiceAdapter
 from TestAdapter.TestAdapter import TestAdapter
-from Util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
+from util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 
 
 def run(output_dir):

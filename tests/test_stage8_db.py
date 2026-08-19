@@ -89,7 +89,7 @@ def test_generated_schema_is_valid_sqlite(generated, sqlite_obj, tmp_path):
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="CRUDL round-trip needs protoc + protobuf")
 def test_crudl_roundtrip(generated, sqlite_obj, tmp_path):
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
 
@@ -141,7 +141,7 @@ def test_crudl_roundtrip(generated, sqlite_obj, tmp_path):
 def test_crudl_pagination(generated, sqlite_obj, tmp_path):
     """The paginated list(offset, limit) overload returns the right subset in
     insertion order, and an unpaginated list() still returns everything."""
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
 
@@ -189,7 +189,7 @@ def test_crudl_pagination(generated, sqlite_obj, tmp_path):
 def test_migration_additive(generated, sqlite_obj, tmp_path):
     """migrate_<name> brings an older table (missing columns) up to the current
     schema without losing rows, and stamps the version."""
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
 
@@ -245,7 +245,7 @@ def test_migration_drop_and_rename(generated, sqlite_obj, tmp_path):
     survives, beacon_log.label <- an older "handle" column) and DROPs a live
     column the current schema no longer declares ("legacy_note"), and a
     second call is idempotent."""
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
 
@@ -309,7 +309,7 @@ def test_migration_data_transform(generated, sqlite_obj, tmp_path):
     runs. Also proves the hook is genuinely optional (the default nullptr
     doesn't crash) and idempotent (a second call with the same hook doesn't
     corrupt the already-transformed value)."""
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
 
@@ -393,7 +393,7 @@ def test_migration_retype_column(generated, sqlite_obj, tmp_path):
     ALTER COLUMN TYPE, so this exercises the create/copy(with CAST)/drop/
     rename table-rebuild path; data survives via CAST, and a second call is
     idempotent (no rebuild, since the type already matches)."""
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
 
@@ -449,7 +449,7 @@ def test_migration_retype_column(generated, sqlite_obj, tmp_path):
 def test_fk_roundtrip(generated, sqlite_obj, tmp_path):
     """A singular composed field whose target owns a table (top_users.myUsers ->
     vip_users) persists via the child DAO and is reloaded on read."""
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     proto_dir = os.path.join(cpp_root, "protofiles")
@@ -500,7 +500,7 @@ def test_repeated_fk_roundtrip(generated, sqlite_obj, tmp_path):
     """A repeated composed field whose target owns a table (top_users.members ->
     vip_users, 1-to-many) persists each child via its DAO through a link table and
     reloads them in order on read."""
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     proto_dir = os.path.join(cpp_root, "protofiles")
@@ -554,7 +554,7 @@ def test_repeated_composed_roundtrip(generated, sqlite_obj, tmp_path):
     (shipment.cargo -> parcel, table-less) persists one child-table row per
     element (one column per parcel's own flattened fields) and reloads them
     in order on read -- no child DAO involved, unlike the repeated-FK case."""
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     proto_dir = os.path.join(cpp_root, "protofiles")
@@ -612,7 +612,7 @@ def test_nested_embed_roundtrip(generated, sqlite_obj, tmp_path):
     table-less message (journey.path -> route, route.start -> waypoint)
     flattens both levels into prefixed columns (path_start_city etc.) and
     round-trips through the plain scalar-column path -- no child table."""
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     proto_dir = os.path.join(cpp_root, "protofiles")
@@ -663,7 +663,7 @@ def test_embedded_fk_roundtrip(generated, sqlite_obj, tmp_path):
     target owns a table (outpost.berth -> crew_quarters, crew_quarters.skipper
     -> crew), persists the child via its own DAO through the embed's accessor
     chain and reloads it on read -- the FK-inside-an-embed gap."""
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     proto_dir = os.path.join(cpp_root, "protofiles")
@@ -715,7 +715,7 @@ def test_embedded_fk_roundtrip(generated, sqlite_obj, tmp_path):
                     reason="DB import/export round-trip needs protoc + protobuf")
 def test_dbio_roundtrip(generated, sqlite_obj, tmp_path):
     """Export the table to JSON and XML, import into fresh DBs, verify rows."""
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
 

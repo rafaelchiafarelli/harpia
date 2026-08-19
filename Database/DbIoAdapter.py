@@ -12,8 +12,8 @@ the database layer (CRUDL) existed.
 """
 import os
 
-from Logger.logger import logger
-from Util.util import loadTemplate, write_if_different
+from logger.logger import logger
+from util.util import loadTemplate, write_if_different
 
 DBIO_EXT = "_dbio.h"
 

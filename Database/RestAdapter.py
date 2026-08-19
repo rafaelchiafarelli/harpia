@@ -23,8 +23,8 @@ with HTTP 401 (mirrors the SOAP endpoint, which gates on <credentials>).
 """
 import os
 
-from Logger.logger import logger
-from Util.util import loadTemplate, write_if_different
+from logger.logger import logger
+from util.util import loadTemplate, write_if_different
 from Database.model import pagination_default
 
 REST_EXT = "_rest.h"

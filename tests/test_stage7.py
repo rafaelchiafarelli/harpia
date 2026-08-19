@@ -44,7 +44,7 @@ def compiled(tmp_path_factory):
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
-    from ProtoFile.ProtoCompiler import ProtoCompiler
+    from protoFile.ProtoCompiler import ProtoCompiler
     build = os.path.join(str(out), "build")
     err = ProtoCompiler(dest=build).Process()
     return build, err

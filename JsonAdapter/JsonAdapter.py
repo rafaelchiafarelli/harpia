@@ -23,9 +23,9 @@ duplicating that logic here.
 """
 import os
 
-from Logger.logger import logger
+from logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from Util.util import loadTemplate, write_if_different
+from util.util import loadTemplate, write_if_different
 
 JSON_EXT = "_json.h"
 

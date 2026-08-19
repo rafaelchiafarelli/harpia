@@ -36,9 +36,9 @@ message header through the shared include root (-I <dest>/generated/cpp).
 import hashlib
 import os
 
-from Logger.logger import logger
+from logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from Util.util import loadTemplate, write_if_different
+from util.util import loadTemplate, write_if_different
 
 ZMQ_EXT = "_zmq.h"
 

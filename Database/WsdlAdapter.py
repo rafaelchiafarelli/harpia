@@ -12,8 +12,8 @@ expanded here. This is a static sidecar (no C++), validated by the golden tests.
 """
 import os
 
-from Logger.logger import logger
-from Util.util import loadTemplate, write_if_different
+from logger.logger import logger
+from util.util import loadTemplate, write_if_different
 from Database.model import analyze, type_registry
 
 WSDL_EXT = ".wsdl"

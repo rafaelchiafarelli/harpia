@@ -1,10 +1,10 @@
 
 ##this is a container file that will have all caracteristics for the messages
 import copy
-from Message.Variables import Variables
-from Message.EnumValues import EnumValues
+from message.Variables import Variables
+from message.EnumValues import EnumValues
 from Errors.Error import Types, Classes, Error
-from Logger.logger import logger
+from logger.logger import logger
 class Message():
     log = None
     access_modifiers = None
