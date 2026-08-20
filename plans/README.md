@@ -14,6 +14,7 @@ doc yet.
 | [multi-language-targets.md](multi-language-targets.md) | Scoped, not started — Python recommended as target #2 |
 | [medical_devices/](medical_devices/harpia_medical_master_plan.md) | Scoped, not started — compliance profile for regulated deployments |
 | [message-versioning.md](message-versioning.md) | Scoped, not started — stable wire field numbers + version handshake so mismatched-schema peers degrade instead of silently corrupting data |
+| [crash-interrupt-recovery.md](crash-interrupt-recovery.md) | Done — atomic writes in `Util.util`, no registry/marker machinery needed |
 
 ## Backlog
 
@@ -23,10 +24,6 @@ what to check first) rather than a place to accumulate a durable backlog.
 Add to this list piecemeal as items get scoped or come up — no need to do it
 all at once.
 
-- **True crash/interrupt recovery** (resume a *killed mid-run* generate) —
-  the sha256-registry/marker half of `harpia.architecture.md`'s "continuable
-  process" that the write-if-different work explicitly did not attempt.
-  Still just spec text, no design started.
 - **Python as language #2** — see `multi-language-targets.md` for the scoped
   recommendation. Multi-session sized, don't start as a "quick session."
 - **Smaller/unscoped:** no YAML serialization, no Doxygen generation, no
