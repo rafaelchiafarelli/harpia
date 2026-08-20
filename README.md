@@ -70,9 +70,9 @@ design vision, not current status):
   server/client demo, the REST/JSON demo (`examples/consumer`, including
   `-DUSE_TLS=ON`), and the Stage 14 generated `ctest` suite (`10/10`
   passing, including its REST/SOAP HTTP test client now ported to
-  Winsock2) — see `USAGE.md` §12. Not yet covered: the PostgreSQL backend
-  on Windows, and `-DUSE_ZMQ_CURVE=ON` (vcpkg feature added, build
-  unverified).
+  Winsock2) — see `USAGE.md` §12. Not yet covered (both: vcpkg feature
+  added, build unverified): the PostgreSQL backend on Windows, and
+  `-DUSE_ZMQ_CURVE=ON`.
 - No compliance profile for regulated (e.g. medical-device) deployments —
   no `ComplianceContext`, no PHI field tagging, no message-level
   criticality classification, no key management/mTLS/RBAC/audit-trail

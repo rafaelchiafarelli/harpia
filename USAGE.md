@@ -334,6 +334,23 @@ harpia::db::users_dao dao(db);                // same DAO either way
 vendored in-tree — install `libsoci-dev` + the relevant backend package on the
 target.
 
+**On Windows (vcpkg — see [§12](#12-building-on-windows)):** `Assets/vcpkg.json`
+requests `soci[sqlite3,postgresql]`, so both backends are available from the same
+manifest; no separate install step. vcpkg's `soci` port exports one CONFIG
+target, `SOCI::SOCI`, that links every backend feature you installed — link it
+once, same for either backend:
+
+```
+find_package(SOCI CONFIG REQUIRED)
+target_link_libraries(your_target PRIVATE SOCI::SOCI)
+```
+
+`SOCI::SQLite3`'s own link interface references `SQLite3::SQLite3` without
+importing it, needing a hand-written alias (see the `examples/consumer`/Stage 14
+`gen_tests` CMakeLists for the pattern) — `SOCI::PostgreSQL` may need an
+analogous alias for vcpkg's `libpq` CONFIG target; this hasn't been build-
+verified on a real Windows+vcpkg setup yet (see §12's known gaps).
+
 ---
 
 ## 9. Enabling TLS on REST/SOAP/gRPC
@@ -488,9 +505,9 @@ cmake --build <output_folder>\build --config Release
 `vcpkg.json` (copied into every generated project alongside its root
 `CMakeLists.txt`) declares `protobuf`, `grpc`, `zeromq` (with its `curve` +
 `sodium` features, for [§10](#10-enabling-curve-encryption-on-zmq)),
-`cppzmq`, and `soci[sqlite3]`; the CMake toolchain file drives `vcpkg install`
-automatically at configure time. Expect the first configure to take a
-while — gRPC in particular is slow to build from source on Windows.
+`cppzmq`, and `soci[sqlite3,postgresql]`; the CMake toolchain file drives
+`vcpkg install` automatically at configure time. Expect the first configure to
+take a while — gRPC in particular is slow to build from source on Windows.
 
 ### Building `examples/consumer` (REST/JSON demo)
 
@@ -565,7 +582,14 @@ comment at its site explaining why:
 
 ### Known gaps on Windows
 
-- Only the SQLite backend is verified; PostgreSQL-on-Windows is untested.
+- `Assets/vcpkg.json` requests `soci[sqlite3,postgresql]`, so the PostgreSQL
+  backend is available from the manifest (see [§8](#8-choosing-the-database-backend)
+  for the `SOCI::SOCI` linking pattern), but a real `soci::postgresql` session
+  hasn't been build-verified on Windows yet — specifically whether vcpkg's
+  `libpq` CONFIG target needs the same kind of alias workaround the `sqlite3`
+  backend already required. Flag this if you hit issues; the SQLite backend
+  remains the only one exercised by this repo's own Windows verification
+  (`examples/consumer`, Stage 14 `ctest`).
 - `-DUSE_ZMQ_CURVE=ON` ([§10](#10-enabling-curve-encryption-on-zmq)):
   `Assets/vcpkg.json`'s `zeromq` dependency requests the `curve`+`sodium`
   features so the port itself builds with CURVE support, but the keygen
