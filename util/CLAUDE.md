@@ -20,10 +20,19 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
   changed"). Used by every adapter that emits generated C++/SQL/proto text
   (`JsonAdapter`, `XmlAdapter`, `ZmqAdapter`, every `Database/*Adapter.py`,
   `ProtoFile/FileCreator.py`, `TestAdapter/TestAdapter.py`) in place of a raw
-  `open(path,"w").write(content)`.
+  `open(path,"w").write(content)`. The actual write goes through
+  `_atomic_replace` (temp file in the same dir + `os.replace`), so a process
+  killed mid-write can never leave a truncated file at `path` — see
+  `plans/crash-interrupt-recovery.md`.
 - `copy_if_different(src, dst) -> bool` — same idea via `filecmp.cmp`, for
   the static/vendored files that are copied rather than rendered
-  (`copyCMakeFiles`, `copyBasicProtos`, `TestAdapter._vendor_deps`).
+  (`copyCMakeFiles`, `copyBasicProtos`, `TestAdapter._vendor_deps`). Also
+  routed through `_atomic_replace`.
+- `_atomic_replace(dst, populate)` (private) — crash-safety primitive behind
+  both of the above: builds new content into a same-directory temp file via
+  `populate(tmp_path)`, then `os.replace(tmp, dst)` (atomic rename). On any
+  exception the temp file is removed and the exception re-raised; `dst` is
+  untouched until the rename succeeds.
 - `prune_stale_outputs(dest, current_hash, valid_names)` — removes generated
   files left behind by a message renamed/removed since the last run, or by a
   previous run against a different root-file hash. Matches harpia's
