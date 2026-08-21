@@ -15,6 +15,7 @@ doc yet.
 | [medical_devices/](medical_devices/harpia_medical_master_plan.md) | Scoped, not started — compliance profile for regulated deployments |
 | [message-versioning.md](message-versioning.md) | Scoped, not started — stable wire field numbers + version handshake so mismatched-schema peers degrade instead of silently corrupting data |
 | [crash-interrupt-recovery.md](crash-interrupt-recovery.md) | Done — atomic writes in `Util.util`, no registry/marker machinery needed |
+| [doxygen-generation.md](doxygen-generation.md) | Scoped, not started — per-message/per-field usage docs and pitfalls emitted into the generated headers, not just cosmetic comments |
 
 ## Backlog
 
@@ -26,5 +27,5 @@ all at once.
 
 - **Python as language #2** — see `multi-language-targets.md` for the scoped
   recommendation. Multi-session sized, don't start as a "quick session."
-- **Smaller/unscoped:** no YAML serialization, no Doxygen generation, no
-  multi-tier RBAC (single flat credential everywhere).
+- **Smaller/unscoped:** no YAML serialization, no multi-tier RBAC (single
+  flat credential everywhere).

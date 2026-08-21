@@ -134,9 +134,10 @@ Point the four session files (`session-1-data-and-keys.md` through
 Two tracks had already-shipped work folded in as dated update notes
 directly in their session files rather than duplicated here — check
 Track H (`session-1-data-and-keys.md`) and Track B
-(`session-2-transport-and-access.md`) before starting either. Two smaller
-gaps with no track yet — Doxygen generation and PostgreSQL on Windows —
-are in `gaps-not-yet-tracked.md`. Track J (Session 4, multi-language) has
+(`session-2-transport-and-access.md`) before starting either. One smaller
+gap with no track yet — PostgreSQL on Windows — is in
+`gaps-not-yet-tracked.md`. Doxygen generation has its own scoping doc,
+`plans/doxygen-generation.md`. Track J (Session 4, multi-language) has
 a resolved dependency on `plans/multi-language-targets.md` — see the
 update note on that track in `session-4-platform-infra.md`.
 

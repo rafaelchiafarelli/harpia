@@ -45,7 +45,8 @@ Beyond the pipeline (the "## objective:"-onward spec section below is the
 design vision, not current status):
 - No YAML serialization (JSON and XML adapters exist; spec calls for
   YAML-style `toString` too).
-- No Doxygen generation for the emitted C++.
+- No Doxygen generation for the emitted C++ — scoped in
+  `plans/doxygen-generation.md`.
 - REST/SOAP (Crow's `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC
   (`grpc::SslServerCredentials`) are TLS-capable and documented (`USAGE.md`
   §9); harpia never generated their server-construction code to begin with

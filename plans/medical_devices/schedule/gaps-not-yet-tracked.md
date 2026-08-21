@@ -5,28 +5,9 @@ harpia `dev` @ `0757180`) against every track in `foundation.md` and
 `session-1` through `session-4`. Everything else on that list already maps
 onto an existing track (True crash/interrupt recovery → Track I; no YAML
 serialization → Track F; no multi-tier RBAC → Track C; C++-only generation
-target → Track J). These two don't have a home yet:
-
----
-
-## No Doxygen generation for the emitted C++
-
-Not covered by any track. Adjacent to, but distinct from, Track M's
-`ComplianceReport/` work (Session 4) — Track M emits *compliance*
-artifacts (SBOM, traceability matrix, jurisdiction docs) about the
-generated project; this is ordinary *API-level* source documentation for
-the generated C++ itself, unrelated to any jurisdiction/compliance
-profile.
-
-Small enough that it likely doesn't need its own lettered track — either
-fold it into whichever session has spare capacity (Session 4 is the
-natural home, alongside Track M), or pick it up as filler per Session 1's
-"if you finish 1a or 1b before the other, don't idle" rule.
-
-**Scope, if picked up:** Doxygen-style comment emission across the
-generated headers (message classes, DAO, adapters) + a Doxyfile/CMake
-target to build the docs. No dependency on `ComplianceContext`/`phi` —
-purely a documentation-quality gap, orthogonal to the compliance program.
+target → Track J). Doxygen generation is now scoped on its own —
+`plans/doxygen-generation.md` — so it's dropped from this file. This one
+still doesn't have a home yet:
 
 ---
 
