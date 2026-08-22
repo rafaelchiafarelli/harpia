@@ -347,9 +347,14 @@ target_link_libraries(your_target PRIVATE SOCI::SOCI)
 
 `SOCI::SQLite3`'s own link interface references `SQLite3::SQLite3` without
 importing it, needing a hand-written alias (see the `examples/consumer`/Stage 14
-`gen_tests` CMakeLists for the pattern) — `SOCI::PostgreSQL` may need an
-analogous alias for vcpkg's `libpq` CONFIG target; this hasn't been build-
-verified on a real Windows+vcpkg setup yet (see §12's known gaps).
+`gen_tests` CMakeLists for the pattern). `SOCI::PostgreSQL` does **not** need an
+analogous alias: vcpkg's `libpq` port ships a `vcpkg-cmake-wrapper.cmake` that
+hooks CMake's builtin MODULE-mode `find_package(PostgreSQL)` and defines
+`PostgreSQL::PostgreSQL` directly, so a plain `find_package(PostgreSQL REQUIRED)`
+before `find_package(SOCI CONFIG REQUIRED)` is enough — see
+`examples/consumer/CMakeLists.txt`'s `USE_POSTGRES` option. Build- and
+live-session-verified on Windows (MSVC + vcpkg, real `soci::postgresql`
+session against a real server) — see [§12](#12-building-on-windows).
 
 ---
 
@@ -477,7 +482,8 @@ On Windows, vcpkg's `zeromq` port needs the `curve`+`sodium` features (see
 
 Verified end to end on MSVC (Visual Studio 2022, toolset v143) + vcpkg,
 covering the ZMQ server/client transport demo and the REST/JSON demo
-(`examples/consumer`, including `-DUSE_TLS=ON`). The generator itself
+(`examples/consumer`, including `-DUSE_TLS=ON` and, against a live server,
+`-DUSE_POSTGRES=ON`). The generator itself
 (`main.py`) still only runs via Docker/Linux — this section is about the
 **generated C++ project** compiling and running natively on Windows.
 
@@ -522,6 +528,24 @@ Add `-DUSE_TLS=ON` the same as on Linux ([§9](#9-enabling-tls-on-restsoapgrpc))
 — the demo cert step locates vcpkg's `openssl.exe` (shipped under its
 `tools` feature, not on PATH by default) and its bundled `openssl.cnf`
 automatically.
+
+Add `-DUSE_POSTGRES=ON` to build against the SOCI PostgreSQL backend instead
+of SQLite (build- and live-session-verified — see [§8](#8-choosing-the-database-backend)):
+
+```
+cmake -S examples\consumer -B <build_dir> -A x64 ^
+    -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake ^
+    -DHARPIA_GEN=<output_folder_generated_with_HARPIA_DB_BACKEND=postgresql> ^
+    -DUSE_POSTGRES=ON
+cmake --build <build_dir> --config Release
+set HARPIA_PG_CONNINFO=host=localhost port=5432 dbname=harpia user=postgres password=...
+<build_dir>\Release\consumer.exe
+```
+
+`HARPIA_GEN` must point at a project generated with
+`HARPIA_DB_BACKEND=postgresql` (the CRUDL SQL is dialect-specific); the demo
+reads its connection string from `HARPIA_PG_CONNINFO` at runtime rather than
+hardcoding credentials.
 
 ### Building the Stage 14 generated `ctest` suite
 
@@ -582,14 +606,6 @@ comment at its site explaining why:
 
 ### Known gaps on Windows
 
-- `Assets/vcpkg.json` requests `soci[sqlite3,postgresql]`, so the PostgreSQL
-  backend is available from the manifest (see [§8](#8-choosing-the-database-backend)
-  for the `SOCI::SOCI` linking pattern), but a real `soci::postgresql` session
-  hasn't been build-verified on Windows yet — specifically whether vcpkg's
-  `libpq` CONFIG target needs the same kind of alias workaround the `sqlite3`
-  backend already required. Flag this if you hit issues; the SQLite backend
-  remains the only one exercised by this repo's own Windows verification
-  (`examples/consumer`, Stage 14 `ctest`).
 - `-DUSE_ZMQ_CURVE=ON` ([§10](#10-enabling-curve-encryption-on-zmq)):
   `Assets/vcpkg.json`'s `zeromq` dependency requests the `curve`+`sodium`
   features so the port itself builds with CURVE support, but the keygen
