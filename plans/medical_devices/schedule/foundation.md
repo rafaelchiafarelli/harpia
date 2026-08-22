@@ -4,6 +4,16 @@ Serial. Single session. Must merge to `main` before any other session
 (1–4) starts on any repo copy. This is the one synchronization point
 everyone else waits on.
 
+**Update (2026-08-22):** Reconciled against `harpia_medical_master_plan.md`
+§0a (decided 2026-08-19, `harpia_sensitive_data_design_rules.md` §6/§6a) —
+jurisdiction is not a code-generation axis. F1/F3/F5 below were still
+describing "one compile-time build variant per jurisdiction"; corrected
+throughout. The actual mechanism: `risk_class` is the single project-wide
+hardening floor (no per-jurisdiction fan-out); `jurisdiction[]` is inert
+for codegen, read only by Track M to pick a paperwork template. Track N's
+cross-variant feature-parity diff is dropped entirely — one code path,
+nothing to diff.
+
 ---
 
 ## Ground rules (apply to every session, not just this one)
@@ -26,11 +36,11 @@ everyone else waits on.
 
 | ID | Task | Touches | Notes |
 |---|---|---|---|
-| F1 | `ComplianceContext`: parse `project.harpia.yaml` (`jurisdiction[]`, `risk_class`, `topology`, `phi_handling`), thread it through `main.py` and every stage entry point | `main.py`, every `Stage*` entry signature | Highest blast radius in the whole plan. Fail-safe default (strictest settings) when unset/ambiguous. Plural `jurisdiction` means **fan-out**: one compile-time build variant per listed jurisdiction, not one instance satisfying all simultaneously. |
+| F1 | `ComplianceContext`: parse `project.harpia.yaml` (`risk_class`, `topology`, `phi_handling`, `jurisdiction[]` — paperwork routing only), thread it through `main.py` and every stage entry point | `main.py`, every `Stage*` entry signature | Highest blast radius in the whole plan. Fail-safe default (strictest settings) when unset/ambiguous. `risk_class` is the single project-wide hardening floor — no per-jurisdiction build variants, no fan-out (§0a). `jurisdiction[]` has zero effect on generated code; it only feeds Track M's doc-template selection. |
 | F2 | `phi` (sensitive-field) modifier in the grammar + AST | `LexicalAnalizer/`, `Message/` | Needed before DB encryption, redacted `toString`, or audit-on-access can be built. Sensitivity is a **per-field** modifier, same category as `optional`/`required`/`unique` — never a whole-message property. |
-| F3 | `AuditSink` interface — abstract/no-op stub only, no implementation yet | new `Compliance/` module | Real implementations happen in Track A (DB) and Track C (comm), independently. Decision closed: **compile-time strategy** — separate build variant per jurisdiction. Build the stub already shaped for that (strategy-pattern, not a runtime-selected composite). |
+| F3 | `AuditSink` interface — abstract/no-op stub only, no implementation yet | new `Compliance/` module | Real implementations happen in Track A (DB) and Track C (comm), independently. One implementation per project, gated by `risk_class`, not per jurisdiction (§0a). Build the stub already shaped for that. |
 | F4 | Golden-snapshot / regression baseline confirmed green before anything branches | `tests/` | Every later track's "acceptance gate" diffs against this. |
-| F5 | `CryptoBackend` selection point: compile-time seam choosing which underlying crypto module gets linked per jurisdiction build (e.g. standard vs. FIPS-validated OpenSSL) | new `Crypto/backend.py` (or build-flag/CMake option) | Both Track O (key-wrap/envelope-encryption) and Track C (TLS stack) must consume this, not each pick their own — prevents silent drift onto different crypto modules within the same jurisdiction build. |
+| F5 | `CryptoBackend` selection point: compile-time seam choosing which underlying crypto module gets linked (e.g. standard vs. FIPS-validated OpenSSL) | new `Crypto/backend.py` (or build-flag/CMake option) | Both Track O (key-wrap/envelope-encryption) and Track C (TLS stack) must consume this, not each pick their own — prevents silent drift onto different crypto modules. One selection per project, driven by `risk_class`/`topology`, not per jurisdiction (§0a). |
 
 **Exit criterion:** F1–F5 merged to `main`, all existing tests green.
 
@@ -40,15 +50,17 @@ everyone else waits on.
 
 ### F1 — ComplianceContext plumbing
 - **Deliverables:** `Compliance/context.py` defining
-  `ComplianceContext{jurisdiction[], risk_class, topology, phi_handling}`;
+  `ComplianceContext{risk_class, topology, phi_handling, jurisdiction[]}`;
   `project.harpia.yaml` parser; `main.py` and every `Stage*` entry point
   updated to receive it.
 - **Guarantees after merge:** every stage has access to the active
   compliance profile; an invalid/unknown enum value is a hard error at
   generation start, never silently ignored; missing config defaults to the
-  strictest profile with a logged warning; a plural `jurisdiction` list is
-  fan-out, not a runtime-union requirement.
-- **Out of scope:** no jurisdiction-specific *behavior* yet — plumbing only.
+  strictest profile with a logged warning; `risk_class` is the project-
+  wide hardened floor — never a per-jurisdiction fan-out (§0a);
+  `jurisdiction[]` is inert for codegen, read only by Track M.
+- **Out of scope:** no jurisdiction-specific *code behavior* — by design,
+  per §0a, there isn't any; plumbing only.
 - **Tests:**
   - Unit: valid config parses correctly; missing file → strictest default;
     invalid enum value → hard error.
@@ -77,8 +89,8 @@ everyone else waits on.
   default implementation; documented injection point for downstream tracks.
 - **Guarantees:** interface compiles and instantiates standalone; no-op
   implementation has zero side effects.
-- **Out of scope:** real jurisdiction-specific audit logic — built
-  compile-time-per-jurisdiction in Track O and Track C, not here.
+- **Out of scope:** the real, tamper-evident implementation — built once
+  per project, gated by `risk_class`, not per jurisdiction (§0a).
 - **Tests:**
   - Unit: `NoOpAuditSink.record()` called, asserts no side effect, no crash.
   - Integration: instantiate and inject into a dummy generated class,
@@ -91,21 +103,23 @@ everyone else waits on.
   this exact baseline.
 
 ### F5 — CryptoBackend selection point
-- **Deliverables:** a single compile-time seam (build flag/CMake option)
-  choosing which underlying crypto module a build links against. Both
-  Track O and Track C consume this same seam — neither independently
-  links its own crypto module.
-- **Guarantees:** exactly one crypto module is linked per build variant;
-  Track O and Track C provably use the same one; the choice made per
-  jurisdiction is recorded as build metadata for Track M's SBOM.
+- **Deliverables:** a single compile-time seam (build flag/CMake option),
+  driven by `risk_class`/`topology`, choosing which underlying crypto
+  module a build links against. Both Track O and Track C consume this
+  same seam — neither independently links its own crypto module. One
+  selection per project, never per jurisdiction (§0a).
+- **Guarantees:** exactly one crypto module is linked per project; Track O
+  and Track C provably use the same one; the choice made is recorded as
+  build metadata for Track M's SBOM.
 - **Out of scope:** doesn't ship or validate the crypto modules themselves
   — just the seam.
 - **Tests:**
   - Unit: build-flag selection actually changes which module gets linked.
-  - Integration: build a variant with each supported crypto module,
-    confirm Track O and Track C work identically against each.
-  - Acceptance gate: Track N's feature-parity CI diff asserts Track O and
-    Track C agree on which crypto module is linked within the same build.
+  - Integration: build against each supported crypto module, confirm
+    Track O and Track C work identically against each.
+  - Acceptance gate: a direct assertion that Track O and Track C agree on
+    which crypto module is linked within the same build (no cross-variant
+    diff job needed — Track N's was dropped per §0a, one code path).
 
 ---
 
@@ -160,42 +174,33 @@ Session 1                  Session 2                   Session 3                
            > parallel        then                          then                        then
  Track H  /                Track B                       Track F                     Track L
      |                                                                                    |
-     v                                                                              Track J / M /
- Track A                                                                            N-static
-  then                                                                              (parallel,
- Track K                                                                             no deps
-                                                                                      on each
-                                                                                      other or
-                                                                                      on I/L)
-     \___________________________________________+_________________________________/
-                                                   |
-                                          Track N's feature-parity
-                                          diff -- LAST, gated on
-                                          Session 1 (O/A) AND
-                                          Session 2 (C) both landing
-                                          compile-time jurisdiction
-                                          variants first
+     v                                                                              Track J / M / N
+ Track A                                                                            (parallel,
+  then                                                                              no deps on
+ Track K                                                                            each other
+                                                                                     or on I/L)
 ```
 
 **Reading it:**
 - **One hard bottleneck:** Foundation. F1 alone touches `main.py` and every
   `Stage*` entry signature — "highest blast radius in the whole plan."
   Nothing downstream starts safely before this merges.
-- **Four independent lanes after that:** Sessions 1-4 don't share files and
-  none functionally depends on another *finishing* (only on Foundation).
-  Genuinely parallelizable across separate repos/people/sessions.
+- **Four independent lanes after that, with no final convergence point.**
+  Sessions 1-4 don't share files and none functionally depends on another
+  *finishing* (only on Foundation) — genuinely parallelizable across
+  separate repos/people/sessions, start to finish. This is simpler than it
+  used to be: Track N's feature-parity diff (the old "wait for both
+  Session 1 and Session 2 to land jurisdiction variants" convergence
+  point) was dropped entirely per `harpia_medical_master_plan.md` §0a —
+  `risk_class` is one project-wide floor, not a per-jurisdiction fan-out,
+  so there are no variants left to diff.
 - **Two lanes have their own internal split:**
   - Session 1 explicitly needs two people/repos at kickoff — Track O and
     Track H share no files and have no dependency on each other; they only
     converge when Track A starts (needs both merged first).
-  - Session 4's middle stretch — Track J, Track M, and Track N's
-    static/fuzz half have no dependency on each other or on Track I/L —
-    a third internal split, if there's capacity for it.
-- **One convergence point, at the very end, not the start:** Track N's
-  feature-parity diff needs compile-time jurisdiction variants from
-  *both* Session 1 (Track O/A) and Session 2 (Track C) to exist before it
-  has anything to diff. Don't activate it early (Session 4's own file
-  already says this) — it's the one place the fan-out has to rejoin.
+  - Session 4's middle stretch — Track J, Track M, and Track N — have no
+    dependency on each other or on Track I/L, and (per the update above)
+    no dependency on Sessions 1/2 either — run in any order.
 - **Parallelism reduces calendar time, not engineering effort.** Track O
   and Track C in particular are each a substantial undertaking on their
   own (key management/envelope encryption/HSM integration; mTLS + full

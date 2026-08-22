@@ -51,9 +51,11 @@ static-analysis half) as filler until the other phase merges.
   its own KMS/HSM already; an embedded device may have none. The library
   defines the contract; the integrator supplies (or accepts a safe
   default for) the backend.
-- **Decision closed: compile-time strategy.** Each jurisdiction build
-  gets its own key-management behavior (retention, residency, audit
-  shape) compiled in, not selected at runtime.
+- **Decision closed: one implementation per project, not one per
+  jurisdiction** (`harpia_medical_master_plan.md` §0a). Key-management
+  behavior (retention, audit shape) is gated by `risk_class` — once it
+  implies medical-device-grade, this is the project-wide floor,
+  regardless of which jurisdictions are declared.
 - **Deliverables:**
   - `Crypto/KeyProvider` abstract interface: generate/retrieve the active
     key-encryption-key (KEK), fetch a KEK by version, wrap/unwrap a
@@ -184,8 +186,9 @@ static-analysis half) as filler until the other phase merges.
 - Full F4 regression baseline still passes.
 - Track A specifically: one-paragraph note added to `ComplianceReport/`
   describing what changed and why (feeds Track M later).
-- Once compile-time jurisdiction variants exist (after Track C lands in
-  Session 2): Track N's feature-parity CI diff must pass for Track A/K.
+- No cross-variant parity gate to wait on — Track N's feature-parity diff
+  was dropped entirely per `harpia_medical_master_plan.md` §0a (one
+  project-wide `risk_class` floor, not per-jurisdiction builds).
 
 ## Watch for
 

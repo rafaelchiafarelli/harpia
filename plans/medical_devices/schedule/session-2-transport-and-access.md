@@ -36,9 +36,11 @@ socket.
 
 ### Track C — Transport (mTLS) + AuthN/AuthZ (RBAC, sessions)
 - **Depends on:** F1, F3, F5.
-- **Decision closed: compile-time strategy** — each jurisdiction build
-  compiles in its own transport/auth behavior rather than selecting it at
-  runtime.
+- **Decision closed: one implementation per project, not one per
+  jurisdiction** (`harpia_medical_master_plan.md` §0a). Transport/auth
+  behavior is compiled in once, gated by `risk_class` — once it implies
+  medical-device-grade, this is the project-wide floor: every message
+  gets mTLS/RBAC, not just `phi`/`critical`-tagged ones.
 - **Deliverables:** mTLS on gRPC/REST/SOAP; admin/main/guest RBAC
   replacing the flat `X-User`/`X-Pswd` gate; token-based sessions with
   expiry/revocation; cert provisioning scripts in `Assets/`.
@@ -123,15 +125,15 @@ socket.
 - Full F4 regression baseline still passes.
 - Track C specifically: one-paragraph note added to `ComplianceReport/`
   describing what changed and why (feeds Track M later).
-- Once compile-time jurisdiction variants exist here: Track N's feature-
-  parity CI diff must pass for Track C.
+- No cross-variant parity gate to wait on — Track N's feature-parity diff
+  was dropped entirely per `harpia_medical_master_plan.md` §0a (one
+  project-wide `risk_class` floor, not per-jurisdiction builds).
 
 ## Watch for
 
-- Track C is what unblocks Track N's feature-parity CI diff (alongside
-  Track A/O from Session 1) — flag to whoever owns Session 4 as soon as
-  Track C's compile-time jurisdiction variants exist, so that job can be
-  activated.
+- Track N's feature-parity CI diff (the job this used to unblock) was
+  dropped entirely per `harpia_medical_master_plan.md` §0a — nothing to
+  flag to Session 4 on that front anymore.
 - Don't let Track C and Track B run as separate concurrent sessions even
   though they're logically independent — they were deliberately kept on
   one session so the credential model stays consistent, not because of a

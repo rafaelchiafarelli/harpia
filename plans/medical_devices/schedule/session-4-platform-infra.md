@@ -1,8 +1,15 @@
 # Session 4 — Platform Infra & Expansion
 
 Covers Track I → Track L (sequential, share files) → Track J / Track M /
-Track N's static-analysis half (any order) → Track N's feature-parity
-diff (last, cross-session dependency).
+Track N (any order, no dependency among them or on any other session).
+
+**Update (2026-08-22):** Reconciled against `harpia_medical_master_plan.md`
+§0a — jurisdiction is not a code-generation axis; `risk_class` is the
+single project-wide hardening floor, not a per-jurisdiction fan-out. Track
+N's feature-parity diff (the old cross-session convergence point this file
+used to gate on) is dropped entirely: with one code path, there's nothing
+to diff. Track N is now static/fuzz analysis only, same as Track J/M —
+genuinely no cross-session dependency left in this session.
 
 ---
 
@@ -19,19 +26,9 @@ Foundation (F1–F5) merged to `main`. Confirm before starting:
 1. **Track I**, then **Track L** immediately after, same session — both
    touch `main.py` orchestration and share the registry's version-stamp
    fields.
-2. **Track J, Track M, Track N's static/fuzz half** — no dependencies on
-   each other or on I/L, run in whatever order suits.
-3. **Track N's feature-parity diff — last, and gated on other sessions.**
-   This needs compile-time jurisdiction variants from Track O/A (Session
-   1) and Track C (Session 2) to exist before it has anything to diff.
-   Don't activate it early — check with those sessions first.
-
-**If this session starts before Sessions 1 or 2 have produced compile-time
-variants** (likely, since this session doesn't get a dedicated slot until
-one of Session 1's parallel tracks frees up — see "Squaring the numbers"
-below): work Track I → L → J/M/N-static in the meantime, and hold the
-parity-gate activation for whenever Session 1 and Session 2 signal
-they're ready.
+2. **Track J, Track M, Track N** — no dependencies on each other, on I/L,
+   or on any other session (§0a dropped Track N's old cross-session
+   parity-diff dependency) — run in whatever order suits.
 
 ### Squaring the numbers
 At kickoff, Sessions 1 (needs two concurrent sub-sessions for Track O and
@@ -78,9 +75,12 @@ picked up by the next session that frees up.
 ### Track M — Process artifacts (SBOM, traceability matrix, jurisdiction docs)
 - **Depends on:** F1. Benefits from, but doesn't hard-block on, Track I
   landing first.
+- **Note:** this is the one track where `jurisdiction[]` actually drives
+  different output — everywhere else it's inert past F1 (§0a).
 - **Deliverables:** `ComplianceReport/` module emitting an SBOM
-  (CycloneDX/SPDX), a traceability matrix, and jurisdiction-forked doc
-  templates (fda/eu_mdr/anvisa).
+  (CycloneDX/SPDX), a traceability matrix, and jurisdiction-selected doc
+  templates (fda/eu_mdr/anvisa) — same underlying evidence, different
+  paperwork shell.
 - **Guarantees:** SBOM validates against its schema; every requirement-
   annotated construct produces a traceability row; output format
   correctly follows the selected jurisdiction's template.
@@ -89,20 +89,18 @@ picked up by the next session that frees up.
   - Integration: full pipeline run on `HarpiaTest`, spot-check matrix
     rows against known `phi` fields and their Track A/E tests.
   - Acceptance gate: doc output differs correctly across the three
-    jurisdiction templates for the same underlying data.
+    jurisdiction templates for the *same* underlying evidence (same SBOM,
+    same traceability rows — only the template shell changes).
 
-### Track N — Static/fuzz analysis CI + feature-parity gate
-- **Depends on:** none for the static/fuzz half. The feature-parity diff
-  job needs compile-time jurisdiction variants from Track O/A (Session 1)
-  and Track C (Session 2) — activate last.
+### Track N — Static/fuzz analysis CI
+- **Depends on:** none. No cross-variant parity gate — that job was
+  dropped entirely per `harpia_medical_master_plan.md` §0a (one
+  project-wide `risk_class` floor, not per-jurisdiction builds, so there
+  are no build variants left to diff).
 - **Deliverables:** CERT-ruleset static analysis job on generated output;
-  fuzz harness for JSON/XML/SOAP parsers; cross-variant feature-parity
-  diff.
+  fuzz harness for JSON/XML/SOAP parsers.
 - **Guarantees:** CI fails on new static-analysis findings above an
-  agreed severity; fuzz corpus runs N iterations with no crashes; parity
-  diff fails the build if jurisdiction variants diverge outside
-  designated strategy classes (audit recording, retention, residency,
-  crypto module linkage).
+  agreed severity; fuzz corpus runs N iterations with no crashes.
 - **Tests:** the CI jobs *are* the test — "acceptance gate" is a clean
   (or explicitly triaged) run against the current codebase before the job
   is considered live.
@@ -152,7 +150,8 @@ picked up by the next session that frees up.
 
 ## Watch for
 
-- Don't merge/activate Track N's feature-parity diff job until Session 1
-  and Session 2 both confirm their compile-time jurisdiction variants
-  exist — it has nothing meaningful to compare before then, and an early
-  activation will just be a permanently-failing or meaningless CI job.
+- Nothing cross-session left to gate on here — Track N's old
+  feature-parity diff (which used to require Sessions 1 and 2 to land
+  jurisdiction build variants first) was dropped entirely per
+  `harpia_medical_master_plan.md` §0a. All of Track I/L/J/M/N is now
+  genuinely self-contained within this session.

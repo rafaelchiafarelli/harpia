@@ -5,6 +5,36 @@ Scope: all outstanding work — both pre-existing Harpia backlog and the new
 medical-device compliance work — organized so it can be parallelized safely
 across multiple repo copies / devices / sessions without collisions.
 
+**Update (2026-08-21):** Added Track P (DDS transport, ASTM F2761/OpenICE-
+class bedside device interoperability), Track Q (IEEE 11073 SDC/BICEPS
+device-interop bindings, scoping only), and Track R (HL7 FHIR façade,
+scoping only) — widens the comm layer from "harden the transports Harpia
+already emits" (Tracks B/C) to "also speak the transport/vocabulary a
+clinical-environment integrator will actually expect." See Session 5 (§3)
+and their contracts (§5). Track R corrects an earlier same-day pass that
+wrongly called FHIR "orthogonal" — its REST mechanism is exactly what
+Stage 12 already emits; the real gap is its resource vocabulary/
+terminology bindings, which is what Track R scopes. Still considered and
+deliberately deferred, not scoped: IEEE 11073 PHD (personal/wearable
+gateway — different actor, phone/BLE-side, not this library's
+footprint), MQTT and OPC UA (no medical-device-specific standard
+requires either here; revisit only if a concrete integration target
+needs one), DICOM/IHE PCD (PACS/imaging system-to-system exchange, a
+genuinely different layer from device-level IPC).
+
+**Update (2026-08-22):** Track P's DDS-Security paragraph (§5) originally
+referenced a `crypto_profile`/`transfer_policy` design drafted against a
+stale, pre-`§0a` copy of this doc in a separate uncommitted working
+session — reconciled here against the actual committed `§0a` (`risk_class`
+as the single project-wide floor, `F5` driven by `risk_class`/`topology`,
+no per-jurisdiction anything). That draft also raised whether Harpia
+should give cross-boundary data-transfer/residency restrictions (LGPD
+Art. 33, Art. 11 §4) a compile-time or runtime enforcement mechanism —
+decided (2026-08-22): **no.** Which endpoints a deployment may legally
+reach is deployment topology and legal review, not something generated
+code can know; Harpia's guarantee stops at authenticated/encrypted
+transport plus audit of `phi` access. See Track P's contract.
+
 ---
 
 ## 0. Ground rules for parallel work
@@ -109,6 +139,9 @@ are worked in the same session — split across sessions only if the
 | B | Full `stream[#]` lifecycle (setup/read/stop, timeout, dead-connection reclamation) | `ZmqAdapter/` | F1 | Same session as the other B row (above). |
 | C | mTLS transport (gRPC/REST/SOAP) | `ProtoFile/` (GrpcCompiler), `Assets/`, generated gate code | F1, F3, F5 | Same session as the other C row (below) — both rewrite the same credential-gate call sites. |
 | C | RBAC (admin/main/guest, replacing the flat `X-User`/`X-Pswd` gate) + token-based sessions + cert provisioning | `ProtoFile/`, `Assets/`, generated gate code | F1, F3, F5 | Same session as the other C row (above). |
+| P | DDS transport adapter (real-time pub/sub, ASTM F2761/OpenICE-class bedside device bus) — new `dds` transport modifier value, `DdsAdapter/` module mirroring `ZmqAdapter/`'s shape, QoS derived from the existing critical/non-critical delivery-guarantee split in `harpia_sensitive_data_design_rules.md` §4 | new `DdsAdapter/` | F1, F3, F5 | Same session as Track Q — new session (5), not the Session-2 four rows, since it's net-new module footprint rather than hardening an existing one. |
+| Q | IEEE 11073 SDC/BICEPS device-interop bindings — WS-Discovery + BICEPS participant model (MDS/VMD/Channel/Metric) layered on the existing MDPWS-compatible SOAP stack (Stage 11) | `Database/SoapAdapter.py`, `Database/WsdlAdapter.py`, new `SdcAdapter/` (scoping only this pass — see contract) | F1, F2 | Same session as Track P, after it. Scoping/design-doc deliverable only — do not treat as a green light to implement the full BICEPS state machine in one sitting. |
+| R | HL7 FHIR façade — per-resource mapping (`.harpia` message → FHIR resource type + terminology binding), new REST surface emitted alongside Stage 12's existing generic REST endpoint, not replacing it | `Database/RestAdapter.py` (reads from, doesn't modify), new `FhirAdapter/` (scoping only this pass — see contract) | F1, F2 | Same session as Track P/Q, last. Design-doc deliverable this pass, same posture as Track Q. |
 | E | Events/callbacks framework (`event[cached/not-cached]`, detached-thread callbacks) with `AuditSink` hooks at OnChange | `Logger/`, new `Callback/` module | F1, F3 | none directly, but logically depends on F3's interface shape |
 | F | Serialization unification: add YAML pretty-print, close out the JSON/XML/YAML `toString` triad through one shared path, wire `phi` redaction into it | `JsonAdapter/`, `XmlAdapter/`, new `YamlAdapter/`, `Message/` toString templates | F2 | none |
 | I | sha256-registry / continuable-process machinery (the "largely aspirational" architecture.md system) | `Util/`, `Logger/`, `main.py` orchestration | F1 | Same session as L, run right after Foundation — both touch `main.py` orchestration and the registry's version-stamp fields. |
@@ -151,6 +184,24 @@ Track I → Track L (share `main.py`, must stay sequential) → Track J /
 Track M / Track N, in any order — no dependencies among them now that
 Track N no longer carries a cross-variant parity diff (§0a dropped it,
 since there's only one code path to test).
+
+### Session 5 — Device Interoperability (new)
+Track P → Track Q → Track R. Not one of the original four sessions — added later,
+independently startable once Foundation (F1, F3, F5) is merged, same
+precondition as Session 2's Track C. Runs Track P (DDS transport) first,
+since Track Q's SOAP-based SDC work benefits from Track P's QoS/
+delivery-guarantee mapping existing as a worked precedent for how a new
+transport ties into the existing `phi`/`critical` schema-level modifiers,
+though there's no hard file dependency between the two.
+
+**Why this didn't fold into Session 2:** Track P/Q are net-new module
+footprints (`DdsAdapter/`, `SdcAdapter/`), not hardening of an existing
+one — Session 2's "keep C and B together so the credential model stays
+consistent" rationale doesn't transfer, since Track P/Q don't touch the
+gRPC/REST/SOAP credential gate Track C establishes. If Session 2 finishes
+early, its session can pick up Track P as a next task rather than opening
+a strictly separate fifth session — but keep P → Q sequential regardless
+of which session executes them.
 
 ### Squaring the numbers
 Data & Keys needs two sessions at kickoff (O and H), which — together with
@@ -452,6 +503,241 @@ proven — unit + integration, not just "tests pass."
     confirm 401 with no cert, 403 with wrong role, 200 with correct role.
   - Acceptance gate: existing HTTP tests (14.7–14.10) updated to run over
     TLS and still pass.
+
+### P — DDS transport adapter (ASTM F2761/OpenICE-class bedside bus)
+- **Preconditions:** F1, F3, F5 merged.
+- **Why DDS, specifically:** ASTM F2761 (the ICE — Integrated Clinical
+  Environment — standard) and its reference implementation, OpenICE, use
+  OMG DDS as the interconnect for bedside device coordination (ventilator,
+  infusion pump, patient monitor, etc. on one clinical network). Neither
+  gRPC (Track C) nor ZMQ (Track B) is what a clinical-environment
+  integrator building to that architecture will expect on the wire — DDS's
+  data-centric, QoS-driven pub/sub model, not request/response, is the
+  actual interoperability target here. This track doesn't replace ZMQ or
+  gRPC; it's a third selectable transport for messages that need to cross
+  into an ICE-class bus.
+- **Grammar:** a new `dds` transport-modifier value, composable the same
+  way `push`/`pull`/`event`/`stream` are today (§ process.md's access-
+  modifier system) — a message picks `dds` when it needs to be published
+  onto/read from a DDS bus, independent of whether it's also reachable via
+  ZMQ or gRPC.
+- **QoS mapping is not a new design decision — it's already implied by
+  existing rules.** `harpia_sensitive_data_design_rules.md` §4 already
+  splits delivery guarantee into two categories per message *type*
+  (ordered/complete vs. latest-value-only), chosen at the schema level,
+  never inferred at runtime. That split maps directly onto DDS QoS
+  policies:
+  - **4a (ordered/complete, `critical`-style)** → `RELIABILITY=RELIABLE`,
+    `HISTORY=KEEP_ALL` (bounded by the same queue-depth reasoning §4a
+    already specifies — DDS's `resource_limits` is the mechanism, not a
+    new concept), `DURABILITY=TRANSIENT_LOCAL` if late-joining subscribers
+    need catch-up (open question, same status as §4a's own open items —
+    decide per use case, don't default it on).
+  - **4b (latest-value-only)** → `RELIABILITY=BEST_EFFORT`,
+    `HISTORY=KEEP_LAST(1)` — this is DDS's native double-buffer-mailbox
+    equivalent to §4b's mechanism, not an approximation of it.
+  - **Deadline QoS** (DDS can detect a publisher missing its expected
+    period) is a genuinely new capability beyond what §4 currently
+    specifies — flag as an **open question for this track**, not a
+    decision made here: does a periodic vitals stream (e.g. heart rate)
+    want a schema-level `deadline[ms]` modifier that DDS enforces and
+    `AuditSink` records a violation of? Don't invent the modifier name or
+    semantics without a domain-expert pass, same caution
+    `harpia_sensitive_data_design_rules.md` uses for its own open items.
+- **DDS Security parity with Track B/C:** the OMG DDS-Security spec
+  (authentication, access-control, and encryption plugins) is this
+  track's analogue of Track C's mTLS and Track B's CURVE — compiled in via
+  the F5 `CryptoBackend` seam, one selection per project driven by
+  `risk_class`/`topology`, not per jurisdiction (§0a). Plaintext/
+  unauthenticated DDS refused by default when the compliance profile
+  requires it, same rule as Track B/C. **Out of scope, by decision, not an
+  open item:** LGPD Art. 33 (international transfer) and Art. 11 §4 (no
+  sharing sensitive health data between controllers for economic
+  advantage) constrain where a `phi`-tagged message is allowed to go once
+  it leaves the device's own custody — but *which* endpoints a deployment
+  may reach is a network-topology/deployment-configuration fact, not
+  something Harpia's generated code can know or enforce at compile time or
+  runtime. Harpia guarantees the transport is authenticated/encrypted and
+  the `phi` access is audited (this contract, Track A/E's pattern); it
+  does not and will not police the legal status of the recipient on the
+  other end of a DDS subscription, a gRPC peer, or a FHIR client. That
+  determination belongs to the integrator's deployment topology and legal
+  review, not to a schema-level modifier or a generated runtime check.
+- **Deliverables:** new `DdsAdapter/` module (mirrors `ZmqAdapter/`'s
+  shape: `DdsAdapter.py` filtering messages by the `dds` modifier,
+  `templates/` for publisher/subscriber/QoS-profile fragments); a vendored
+  or `third_party/`-linked DDS implementation (e.g. Eclipse Cyclone DDS —
+  exact vendor TBD, prove the interface is real before picking one,
+  same posture as Track O's KMS reference adapter); DDS-Security wiring
+  consuming F5; `dds` grammar support in `LexicalAnalizer/`/`Message/`.
+- **Guarantees:** a message tagged `dds` + non-`critical` gets
+  `BEST_EFFORT`/`KEEP_LAST(1)` QoS; a message tagged `dds` + `critical`
+  gets `RELIABLE`/`KEEP_ALL` QoS with the same overflow-rotation-not-drop
+  behavior §4a mandates for its ZMQ/queue equivalent; a `phi` field
+  crossing the DDS transport triggers the same `AuditSink` call pattern
+  Track A/E already establish for DB and event delivery — the transport
+  changes, the audit obligation doesn't.
+- **Out of scope:** the full BICEPS/MDPWS device-interop semantic layer —
+  that's Track Q. This track is transport/QoS only, same boundary Track B
+  keeps against Track C.
+- **Tests:**
+  - Unit: `critical`/non-`critical` messages map to the correct QoS
+    profile; `dds` composes correctly with `phi`, `optional`, `repeteable`
+    per existing modifier-composition tests.
+  - Integration: a client/server DDS demo (mirroring the existing ZMQ
+    demo in `tests/test_demo.py`) — publish a `critical` and a
+    non-`critical` message, confirm delivery semantics differ as
+    specified (drop/overwrite vs. queue-and-retry) under a simulated
+    transient network gap.
+  - Integration: `phi` field over DDS emits exactly one `AuditSink`
+    record per publish, matching Track A/E's pattern.
+  - Acceptance gate: existing ZMQ/gRPC demo tests unaffected — `dds` is
+    additive, not a replacement for either.
+
+### Q — IEEE 11073 SDC/BICEPS device-interop bindings (scoping only)
+- **Preconditions:** F1, F2 merged. Same session as Track P, after it.
+- **Explicitly scoped as a design/scoping deliverable this pass, not a
+  full implementation** — same posture the master plan already takes with
+  Track J (multi-language codegen): prove the seam is real with a
+  concrete design before committing to build the whole thing. IEEE 11073
+  SDC (ISO/IEEE 11073-10700 series: BICEPS + MDPWS) is a substantially
+  larger semantic lift than Track P's transport/QoS work — it defines a
+  whole participant/data model (MDS → VMD → Channel → Metric/Alert/
+  Context hierarchy), not just a wire protocol.
+- **Why this leans on Track C's Stage 11 SOAP work rather than starting
+  cold:** MDPWS (the SDC transport binding) is SOAP-over-HTTP with
+  WS-Discovery for zero-config peer discovery. Harpia's generator already
+  emits WSDL + SOAP endpoints (`Database/SoapAdapter.py`,
+  `Database/WsdlAdapter.py`, Stage 11) gated by the same credential model
+  Track C is hardening. The realistic scope for this track is: (a) add a
+  WS-Discovery probe/resolve responder (UDP multicast, not currently
+  emitted anywhere in the pipeline) alongside the existing SOAP endpoint,
+  and (b) design — not yet implement — how a `.harpia` message maps onto
+  BICEPS's Metric/Alert/Context categories.
+- **Open question this track exists to answer, not assume:** whether the
+  existing access-modifier vocabulary (`stream`, `event[cached/not-
+  cached]`, `pull`, `push`, `pushpull`) maps cleanly onto BICEPS's
+  Metric/Alert/Context split, or whether that forces a new modifier
+  the way `phi`/`critical` were added for their own concerns. A first
+  guess — `event`-modified messages ≈ BICEPS Metric reports (periodic
+  value + validity state), `critical event` ≈ Alert (matches Track P's
+  QoS treatment naturally), and something not yet in the grammar ≈
+  Context (rarely-changing patient/location association) — is a
+  **hypothesis to validate with a domain-expert/regulatory-affairs
+  pass**, not a decision made by this contract. Do not lock grammar
+  changes from this guess without that validation, per the same
+  discipline `harpia_sensitive_data_design_rules.md` §7 already applies
+  to its own open items.
+- **Deliverables (this pass):** a written design doc (new
+  `plans/medical_devices/sdc_biceps_design.md`, follow-on to this
+  contract) covering the Metric/Alert/Context mapping question above; a
+  working WS-Discovery probe/resolve responder as a standalone,
+  demonstrable piece (independent of the mapping question, since
+  discovery doesn't require the data-model decision to be settled first).
+- **Out of scope this pass:** the full BICEPS state machine, MDS/VMD/
+  Channel participant model implementation, and any SDC-specific
+  `SdcAdapter/` code generation beyond the WS-Discovery responder — these
+  become their own follow-on track(s) once the design doc's open question
+  is resolved.
+- **Tests:**
+  - Unit: WS-Discovery probe/resolve responder answers a multicast probe
+    correctly (matches the participant's declared type/scope).
+  - Integration: a generic SDC-aware client (or a minimal test harness
+    mimicking one) discovers a Harpia-generated endpoint via WS-Discovery
+    and successfully opens the existing SOAP/MDPWS-compatible connection.
+  - Acceptance gate: existing Stage 11 SOAP tests (14.8/14.9) unaffected —
+    WS-Discovery is additive to the existing SOAP endpoint, not a
+    replacement for it.
+
+### R — HL7 FHIR façade (scoping only)
+- **Preconditions:** F1, F2 merged. Same session as Track P/Q, last —
+  benefits from Track Q's mapping-question precedent (schema field →
+  external standard vocabulary) but has no file dependency on it.
+- **Corrected framing (2026-08-21):** an earlier pass dismissed FHIR as
+  "orthogonal — system-to-system, not device IPC." That's wrong on the
+  mechanism: FHIR's RESTful convention (verbs, JSON/XML, content
+  negotiation) is exactly what Stage 12 already emits. The actual gap is
+  FHIR's **fixed resource vocabulary and terminology bindings**
+  (`Patient`, `Observation`, `DeviceMetric`, fields coded against
+  LOINC/SNOMED/UCUM rather than free-form) — nothing a schema-driven
+  generator produces automatically, since `.harpia` intentionally lets
+  the author define arbitrary message shapes.
+- **Design doc (2026-08-21, full scoping conversation captured):**
+  `plans/medical_devices/fhir_mapping_design.md`. Decisions settled
+  enough to build against, and open questions still needing resolution,
+  are both in that doc — summary below, don't duplicate detail here.
+- **What this track actually is:** a translation façade sitting beside
+  the existing adapters, never touching `ProtoFile/FileCreator.py`,
+  `ProtoCompiler.py`, or `GrpcCompiler.py` — same relationship
+  `JsonAdapter`/`SoapAdapter.py`/`RestAdapter.py` already have to the
+  compiled message. A `.harpia` author opts a message into a FHIR
+  resource mapping (two-level: message → resource type, field → element
+  — explicit only, **never inferred from field name/type**, same
+  discipline as `phi`/`critical`); the generator emits a second,
+  FHIR-conformant REST endpoint alongside the existing generic one
+  (Stage 12/`RestAdapter.py` read from, not modified).
+- **Settled design points (see design doc for full reasoning):**
+  - Generated code is complete for declared mappings, never a stub —
+    same guarantee `to_json`/`from_json` already give. Unmapped fields
+    are either omitted (valid FHIR) or carried as a Harpia-namespaced
+    `extension` — never fabricated.
+  - FHIR is a full two-way REST CRUD surface, not one-directional. Two
+    consequences: (a) Harpia must generate a `CapabilityStatement`
+    listing only the resource types actually mapped — never implying
+    support for the full ~150-type catalog; (b) **read access needs the
+    same RBAC/audit gating Track C puts on writes** — a `phi`-tagged
+    `GET` is processing too, not a lesser case.
+  - Composite `critical` messages spanning multiple resources use
+    FHIR's native `Reference`/`Bundle` mechanisms — a per-message
+    judgment call by the schema author, not a Harpia default.
+  - Cross-message PHI identity (e.g. two `critical` messages both
+    carrying `patient_id`) is **never linked by name match** — that's
+    the same forbidden inference as auto-detecting mapping from field
+    names. Requires an explicit identity-tag declaration, resolved via
+    FHIR's `identifier` (system+value) element and the target server's
+    own conditional-create/match — Harpia's generator stays stateless
+    per message compile.
+  - LGPD (Brazil): no resource type conflicts with LGPD outright: this is a
+    legal-basis-and-recipient question (Art. 11, closed exception list,
+    §4's anti-sharing-for-economic-advantage clause), not a schema
+    question. Each resource mapping will need an explicit legal-basis +
+    recipient declaration once the grammar is designed — not legal
+    advice, needs counsel/DPO sign-off.
+- **Deliverables (this pass, scoping only — same posture as Track Q):**
+  - `plans/medical_devices/fhir_mapping_design.md` — done, captures the
+    above; grammar syntax itself still not committed (see open
+    questions).
+  - A worked example: one existing message type (e.g. the
+    `HeartRateReading` example from `harpia_sensitive_data_design_rules.md`)
+    mapped by hand to a FHIR `Observation` with a real LOINC code, to
+    prove the mapping is expressible before generalizing it into a
+    grammar feature. **Not yet done — next concrete step.**
+- **Open questions (full list + rationale in the design doc §"Open
+  questions"):** terminology-code binding static-vs-dynamic; resource
+  scope for first pass (`Patient`/`MedicationRequest` in or out);
+  `meta.security` vs. custom extension for `phi`/legal-basis metadata;
+  `modifierExtension` criteria; composition default (if any); `identifier
+  .system` minting scope (project/deployment/org — get this wrong and
+  two Harpia deployments could collide, recreating the exact problem the
+  mechanism exists to prevent); legal-basis/recipient declaration
+  grammar (needs LGPD counsel before syntax is locked); whether Track
+  C's three-role RBAC is granular enough for per-resource FHIR read
+  gating.
+- **Out of scope this pass:** any generated `FhirAdapter/` code, `Bundle`/
+  transaction semantics, FHIR search-parameter query support, the
+  `CapabilityStatement` endpoint itself, full implementation-guide/
+  profile conformance certification, the `identifier` mechanism's actual
+  DSL syntax — all follow-on work once the design doc's open questions
+  are resolved, same discipline as Track Q.
+- **Tests:**
+  - Integration (design-validation, not generated code): the hand-mapped
+    `Observation` example validates against HL7's published FHIR
+    resource schema (e.g. via a public FHIR validator) — proves the
+    target shape is reachable from Harpia's data model at all, before
+    any codegen is built.
+  - Acceptance gate: none yet — this pass produces a doc + one manual
+    example, not shipped code; the real acceptance gate belongs to the
+    follow-on implementation track.
 
 ### E — Events/callbacks
 - **Preconditions:** F1, F3 merged.
