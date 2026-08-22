@@ -1,10 +1,10 @@
 # Multi-language generation targets (Node/Rust/Python/Java)
 
 > Scoping doc, not a build plan. Written 2026-08-11 after discussing README's
-> "Beyond the pipeline" gap #5 ("C++ is the only generation target"). Companion:
-> [postgres-migration.md](postgres-migration.md) — the `DbBackend` seam that
-> abstraction extracted is the closest precedent in this codebase for "one
-> concern, N interchangeable implementations," and its lesson (don't design the
+> "Beyond the pipeline" gap #5 ("C++ is the only generation target"). The
+> closest precedent in this codebase for "one concern, N interchangeable
+> implementations" is the `DbBackend` seam the Postgres-backend effort
+> extracted (shipped, `Database/backends/`) — its lesson (don't design the
 > seam until you have 2 concrete cases to compare) directly informs the
 > recommendation below.
 
@@ -23,7 +23,7 @@ of harpia's stages don't just need a new template — they need a different
 and build Python fully, on its own, across several sessions; extract a
 shared IR/emission seam only after Python's concrete shape exists to compare
 against C++'s** (exactly how `Database/backends/` wasn't designed until
-Postgres was a real second case — see `postgres-migration.md` §"Route B").
+Postgres was a real second case).
 
 ## 2. Per-stage: what's already language-agnostic vs. what's genuinely per-language
 
@@ -50,10 +50,10 @@ runtime library that doesn't exist outside C++.
 
 ## 3. Why not build the abstraction first
 
-`postgres-migration.md` only trusted the `DbBackend` interface once Postgres
-gave it a second, concrete, *already-understood* dialect to diff against
-SQLite (§3 of that doc is a literal side-by-side table). Guessing the right
-"any-language back end" interface from ONE data point (C++) risks baking in
+The Postgres-backend effort only trusted the `DbBackend` interface once
+Postgres gave it a second, concrete, *already-understood* dialect to diff
+against SQLite. Guessing the right "any-language back end" interface from
+ONE data point (C++) risks baking in
 C++-shaped assumptions (e.g. "emit a header file," "template returns raw
 source text via `str.format`," "no package manager") that Python's actual
 shape might not fit at all (Python has no header/impl split; templates would
@@ -107,8 +107,8 @@ lines, one afternoon. A full Python target touches the equivalent of *every
 module in the repo* (front-end reuse aside), each needing its own new
 library integration, its own test suite, its own golden-file-equivalent
 verification story. Realistic sizing: comparable to (or larger than) the
-whole Postgres-backend effort (`postgres-migration.md`'s 8-slice branch
-plan), because Postgres only had to swap a SQL dialect behind an interface
+whole Postgres-backend effort (an 8-slice branch plan), because Postgres
+only had to swap a SQL dialect behind an interface
 that already assumed "C++, SOCI, header-only" — a Python target can't assume
 any of those three.
 
@@ -120,8 +120,8 @@ any of those three.
    is to extract seams *after* a second concrete case exists, not
    speculatively.
 2. **Pick Python as the second target**, for the reasons in §4.
-3. **Scope it as its own multi-session epic**, sliced the way
-   `postgres-migration.md` sliced Postgres (§8 there): each slice lands
+3. **Scope it as its own multi-session epic**, sliced the way the
+   Postgres-backend effort sliced Postgres: each slice lands
    independently, leaves the C++ path untouched and green, and is verified
    against its own equivalent of a golden-file suite before the next slice
    starts. A first-pass slice order, mirroring the dependency order already

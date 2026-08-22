@@ -125,7 +125,7 @@ for this doc's two open decisions:
 3. DB/CRUDL/migration — biggest slice, reuses `Database/model.py`'s IR
    directly, SQLite (`org.xerial:sqlite-jdbc`) first, Postgres
    (`org.postgresql:postgresql`) later, same order the C++ Postgres backend
-   itself shipped in (`postgres-migration.md`).
+   itself shipped in.
 4. XML runtime (`javax.xml`-based, no vendored dependency).
 5. REST/SOAP (`com.sun.net.httpserver.HttpServer`, hand-rolled SOAP envelope
    over the new XML runtime).
@@ -196,7 +196,7 @@ CURVE-on-JeroMQ) live.
 
 1. Confirm §4's two open decisions before writing any code — they change
    the shape of multiple slices, not just one line each.
-2. Slice per §6, same discipline as `postgres-migration.md`'s branch plan:
+2. Slice per §6, same discipline as the C++ Postgres backend's branch plan:
    each slice lands independently, leaves C++ untouched and green, verified
    against its own equivalent of the golden-file suite before the next slice
    starts.

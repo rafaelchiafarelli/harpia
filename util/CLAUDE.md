@@ -22,8 +22,7 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
   `ProtoFile/FileCreator.py`, `TestAdapter/TestAdapter.py`) in place of a raw
   `open(path,"w").write(content)`. The actual write goes through
   `_atomic_replace` (temp file in the same dir + `os.replace`), so a process
-  killed mid-write can never leave a truncated file at `path` — see
-  `plans/crash-interrupt-recovery.md`.
+  killed mid-write can never leave a truncated file at `path`.
 - `copy_if_different(src, dst) -> bool` — same idea via `filecmp.cmp`, for
   the static/vendored files that are copied rather than rendered
   (`copyCMakeFiles`, `copyBasicProtos`, `TestAdapter._vendor_deps`). Also

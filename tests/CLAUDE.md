@@ -66,10 +66,10 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   is pruned. Uses a tiny inline two-file fixture, not the shared
   `HarpiaTest/Include` ones, so it doesn't touch the pinned `HASH` below.
 - `test_atomic_write.py` — crash-safety of `write_if_different`/
-  `copy_if_different` (see `plans/crash-interrupt-recovery.md`): simulates a
-  kill between the temp-file write and the atomic rename (`os.replace`
-  monkeypatched to raise) and asserts the destination is left exactly as it
-  was, with no leftover temp file. Pure Python.
+  `copy_if_different`: simulates a kill between the temp-file write and the
+  atomic rename (`os.replace` monkeypatched to raise) and asserts the
+  destination is left exactly as it was, with no leftover temp file. Pure
+  Python.
 - `test_demo.py` — end-to-end: build generated project with its own CMake, run
   client→server. (cmake, protoc, grpc_cpp_plugin, g++, libzmq) Also builds and
   runs it a second time with `-DUSE_ZMQ_CURVE=ON` (over `ipc://`, which -- like

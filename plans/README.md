@@ -10,13 +10,17 @@ doc yet.
 
 | Doc | Status |
 |---|---|
-| [postgres-migration.md](postgres-migration.md) | Done — SOCI + PostgreSQL backend shipped (db-agnostic slices 0-6); Windows build/live-session verified 2026-08-22 |
 | [multi-language-targets.md](multi-language-targets.md) | Scoped, not started — Python recommended as target #2 *in the abstract*; superseded in practice by `java-target.md`, see its §8 addendum |
 | [java-target.md](java-target.md) | Scoped, not started — Java picked ahead of Python for a concrete reason (existing Android fleet); full symmetric target, Android is the consumer of a subset (see its §7) |
 | [medical_devices/](medical_devices/harpia_medical_master_plan.md) | Scoped, not started — compliance profile for regulated deployments |
 | [message-versioning.md](message-versioning.md) | Scoped, not started — stable wire field numbers + version handshake so mismatched-schema peers degrade instead of silently corrupting data |
-| [crash-interrupt-recovery.md](crash-interrupt-recovery.md) | Done — atomic writes in `Util.util`, no registry/marker machinery needed |
 | [doxygen-generation.md](doxygen-generation.md) | Scoped, not started — per-message/per-field usage docs and pitfalls emitted into the generated headers, not just cosmetic comments |
+
+Finished plans are removed from this index once done — the shipped
+behavior is documented in the code's own `CLAUDE.md`/architecture docs,
+not preserved here. (Postgres backend and crash/interrupt recovery were
+both here; both shipped and are now covered by `Database/CLAUDE.md` /
+`util/CLAUDE.md` and `harpia.architecture.md` respectively.)
 
 ## Backlog
 

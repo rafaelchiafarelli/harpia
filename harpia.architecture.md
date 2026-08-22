@@ -4,9 +4,9 @@
 > build/test commands, and the repository layout, see README.md ("Current
 > status"). Stages 7–13 are implemented today. The "continued" section below
 > describes the *original* sha256-registry/marker design for crash/interrupt
-> recovery -- that design was superseded, not implemented: see
-> `plans/crash-interrupt-recovery.md` for the strategy actually shipped
-> (atomic content-compared writes, no registry) and why it replaces this.
+> recovery -- that design was superseded, not implemented: the strategy
+> actually shipped is atomic content-compared writes, no registry -- see the
+> note inline below for why it replaces this.
 
 must be able to be altered afterwards, considering what can be diferentiated:
   more tokens (added functionality), more output types (HTML,react-js, etc)
@@ -18,9 +18,9 @@ logs separated by pertinence
   each part of the process have its own file. They all use the same log system, but, have their own file
   in debug mode all intermediary files are kept
 it must be able to be "continued". This means that, if it stop or failed for any reason, it must be able to be continued.
-  **Superseded by `plans/crash-interrupt-recovery.md`.** The original idea
-  (kept below for history) was per-stage start/finish markers plus a dual
-  sha256 registry. What's actually built instead: every generated file is
+  **Superseded (shipped 2026-08-19).** The original idea (kept below for
+  history) was per-stage start/finish markers plus a dual sha256 registry.
+  What's actually built instead: every generated file is
   written via `Util.util.write_if_different`/`copy_if_different`, which
   compare full file content (not a marker or a timestamp) and write through
   an atomic same-directory temp-file + `os.replace`. A killed-and-rerun
