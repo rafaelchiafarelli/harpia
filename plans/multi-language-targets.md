@@ -167,3 +167,19 @@ being unverified guesses — worse than leaving them unscoped, especially
 for a plan whose other half depends on auditable, provable claims. Item 5
 stands: unscoped until Python is real and a genuine second data point
 exists to compare against.
+
+## 8. Addendum (2026-08-22) — Java picked as the actual second target, ahead of Python
+
+Item 5 held until a concrete business reason overrode it: an existing fleet
+of Android devices/apps that want to consume harpia-generated Java code
+today, not after a Python target lands. This is **not** a re-litigation of
+§4's "why Python over Java" reasoning — that reasoning is about which
+language is cheapest to port *in the abstract*; it says nothing about which
+language someone actually needs *now*. See
+[java-target.md](java-target.md), scoped with the same per-stage-table
+discipline this doc used (re-grounded in the real adapter code, not
+extrapolated from this doc's Python row by analogy — the thing §7 above
+warned not to do for Rust/Node applies just as much to Java, so
+`java-target.md` re-derives its own table rather than reusing this one's).
+Python is still next after Java, not dropped — §5 item 5's reasoning for
+deferring a *third* language stands unchanged.
