@@ -25,7 +25,8 @@ from util.util import copy_tree_if_different
 
 
 class ProtoCompiler:
-    def __init__(self, dest) -> None:
+    def __init__(self, dest, compliance=None) -> None:
+        self.compliance = compliance
         self.dest = dest
         self.protoRoot = os.path.join(dest, "proto")
         self.protoFilesDir = os.path.join(self.protoRoot, "protofiles")

@@ -7,7 +7,8 @@ MESSAGE_EXT = ".message"
 VARIABLES_EXT = ".variables"
 
 class FileCreator():
-    def __init__(self, message, imports, dest) -> None:
+    def __init__(self, message, imports, dest, compliance=None) -> None:
+        self.compliance = compliance
         self.message = message
         self.fileName = "{}_{}.proto".format(message.name,message.md5Hash)
         self.gRPCfileName = "{}_{}_service.proto".format(message.name,message.md5Hash)

@@ -26,7 +26,8 @@ _XSD = {"int": "int", "int64": "long", "double": "double",
 
 
 class WsdlAdapter:
-    def __init__(self, messages, dest) -> None:
+    def __init__(self, messages, dest, compliance=None) -> None:
+        self.compliance = compliance
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "wsdl")

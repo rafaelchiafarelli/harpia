@@ -22,7 +22,12 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   capability/, xml/, db/, migrate/, dbio/, rest/, soap/, wsdl/, gen_tests/,
   sidecars/) into an output
   dir for snapshotting. `python3 tests/run_pipeline.py <output_dir>`. **rmtrees
-  `<output_dir>/build` on every run.**
+  `<output_dir>/build` on every run.** Also loads a `ComplianceContext` (via
+  `Compliance.context.load_compliance_context`, honoring
+  `HARPIA_COMPLIANCE_CONFIG` same as `main.py`) and threads it into every
+  stage constructor, recording a per-stage `instance.compliance is
+  compliance` check into `compliance_smoke.txt` -- `test_compliance.py`'s
+  integration test reads this back.
 - `run_frontend.py` — runs only the front-end (pre_lex → lexer → MessageCreator)
   on one file and prints `RESULT PRELEX/LEX/MSG <ErrorType>` or `RESULT OK`.
   `python3 tests/run_frontend.py <file> <dest>`.
@@ -35,6 +40,16 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   Python only. Honors `HARPIA_UPDATE_GOLDEN=1` to rewrite snapshots.
 - `test_frontend.py` — front-end error paths return the right `Error` type.
   Python only.
+- `test_compliance.py` — Foundation F1's `Compliance/context.py`: missing
+  config / omitted field falls back to the strictest profile per-field; a
+  fully-specified config parses; an unknown/invalid enum value or a
+  malformed `jurisdiction` list is a hard `ComplianceConfigError`, never
+  silently defaulted; `HARPIA_COMPLIANCE_CONFIG` env override. Integration:
+  runs the real pipeline (`run_pipeline.py`, with a compliance config
+  present) and reads back `compliance_smoke.txt` (a per-stage marker
+  `run_pipeline.py` emits recording `instance.compliance is <the loaded
+  ComplianceContext>` for every stage constructed) to confirm the exact
+  object reached every one, not just a default. Pure Python.
 - `test_stage7.py` — protoc emits/compiles `.pb.{h,cc}`. (protoc, g++)
 - `test_stage8_db.py` — SQL schema, CRUDL round-trip, FK, repeated-FK link table,
   map<K,V>, repeated scalar, migration, DB↔JSON/XML. (cc + g++, some protoc)
@@ -178,5 +193,6 @@ Do not hand-edit — regenerate via `HARPIA_UPDATE_GOLDEN=1` and review the diff
 
 ## Touchpoints
 - Depends on: the whole generator (all adapters + front-end), `HarpiaTest/`
-  fixtures, repo `third_party/` (vendored sqlite/tinyxml2/crow/asio), and the
-  HTTP test client `tests/harpia_test_client.h`.
+  fixtures, repo `third_party/` (vendored sqlite/tinyxml2/crow/asio), the
+  HTTP test client `tests/harpia_test_client.h`, and `Compliance.context`
+  (Foundation F1).

@@ -89,7 +89,8 @@ def _is_one_to_many(mods):
 
 
 class ZmqAdapter:
-    def __init__(self, messages, dest) -> None:
+    def __init__(self, messages, dest, compliance=None) -> None:
+        self.compliance = compliance
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "zmq")

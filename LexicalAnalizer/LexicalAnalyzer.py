@@ -8,7 +8,8 @@ class LexicalAnalyzer:
     # Token row
     lin_num = 1
     tokens = []
-    def __init__(self) -> None:
+    def __init__(self, compliance=None) -> None:
+        self.compliance = compliance
         self.name = "empty"
         self.rules = [
             ('IMPORT', r'import'),

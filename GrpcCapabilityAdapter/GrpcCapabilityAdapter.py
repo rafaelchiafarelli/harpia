@@ -29,7 +29,8 @@ _RUNTIME_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 
 
 class GrpcCapabilityAdapter:
-    def __init__(self, messages, dest, rootHash) -> None:
+    def __init__(self, messages, dest, rootHash, compliance=None) -> None:
+        self.compliance = compliance
         self.messages = messages
         self.dest = dest
         self.rootHash = rootHash

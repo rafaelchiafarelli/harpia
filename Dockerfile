@@ -3,6 +3,8 @@
 # Everything the pipeline needs to go from .harpia -> .proto -> compilable C++
 # lives in this image, so nothing has to be installed on the host:
 #   - Python 3.12 (Ubuntu 24.04 default) + pytest      : run the pipeline & golden tests
+#   - python3-yaml                                     : Compliance/context.py's
+#                                                      project.harpia.yaml parser (F1)
 #   - protobuf-compiler (protoc) + libprotobuf-dev     : Stage 7, .proto -> C++
 #   - protobuf-compiler-grpc + libgrpc++-dev           : Stage 13 gRPC stubs
 #   - libzmq3-dev + cppzmq-dev                         : Stage 13 ZMQ transport
@@ -31,6 +33,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 \
         python3-pytest \
+        python3-yaml \
         protobuf-compiler \
         libprotobuf-dev \
         protobuf-compiler-grpc \

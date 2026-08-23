@@ -34,7 +34,8 @@ _TEMPLATE = loadTemplate(__file__, "adapter.h.tmpl")
 
 
 class JsonAdapter:
-    def __init__(self, messages, dest) -> None:
+    def __init__(self, messages, dest, compliance=None) -> None:
+        self.compliance = compliance
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "json")

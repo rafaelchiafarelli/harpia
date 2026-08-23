@@ -34,7 +34,8 @@ class Variables():
     tokens = None
     isOneToMany = None
     dependencies = None
-    def __init__(self,filename, tok,composedVariables,md5Hash,isOneToMany) -> None:
+    def __init__(self,filename, tok,composedVariables,md5Hash,isOneToMany, compliance=None) -> None:
+        self.compliance = compliance
         self.tokens = copy.deepcopy(tok)
         self.file = filename
         self.md5Hash = md5Hash

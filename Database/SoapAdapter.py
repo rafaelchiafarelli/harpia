@@ -24,7 +24,8 @@ _SOAP = loadTemplate(__file__, "soap.h.tmpl")
 
 
 class SoapAdapter:
-    def __init__(self, messages, dest) -> None:
+    def __init__(self, messages, dest, compliance=None) -> None:
+        self.compliance = compliance
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "soap")

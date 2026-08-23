@@ -17,8 +17,9 @@ class Message():
     md5Hash = None
     dependency = None
     isEnum = False
-    def __init__(self, fileName,availableMessages, md5Hash) -> None:
+    def __init__(self, fileName,availableMessages, md5Hash, compliance=None) -> None:
 
+        self.compliance = compliance
         self.file = fileName
         self.availableMessages = availableMessages
         self.variables = []
@@ -86,10 +87,11 @@ class Message():
                 if isEnum == False:
                     endOfVariables = j-1
                     v = Variables(filename=self.file,
-                                tok=tokens[startOfVariables:endOfVariables], 
+                                tok=tokens[startOfVariables:endOfVariables],
                                 composedVariables= self.availableMessages,
                                 md5Hash=self.md5Hash,
-                                isOneToMany=isOneToMany)
+                                isOneToMany=isOneToMany,
+                                compliance=self.compliance)
                     ret = v.Process()
                     if ret != None:
                         return ret
@@ -105,10 +107,11 @@ class Message():
                     endOfVariables = j-1
                     
                     v = EnumValues(filename=self.file,
-                                tok=tokens[startOfVariables:endOfVariables], 
+                                tok=tokens[startOfVariables:endOfVariables],
                                 composedVariables= self.availableMessages,
                                 md5Hash=self.md5Hash,
-                                isOneToMany=isOneToMany)
+                                isOneToMany=isOneToMany,
+                                compliance=self.compliance)
                     ret = v.Process()
                     if ret != None:
                         return ret

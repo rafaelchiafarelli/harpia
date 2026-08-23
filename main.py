@@ -27,6 +27,7 @@ from TestAdapter.TestAdapter import TestAdapter
 from copy import deepcopy
 from util.util import (copyCMakeFiles, copyServerClientTemplates,
                        copyBasicProtos, chooseDemo, prune_stale_outputs)
+from Compliance.context import load_compliance_context, ComplianceConfigError
 if __name__ == '__main__':
     log = logger(outFile=None, moduleName="main" )
     log.print("Path at terminal when executing this file")
@@ -55,8 +56,18 @@ if __name__ == '__main__':
 
     os.makedirs(testDestination, exist_ok=True)
 
+    #-1. load the project-wide compliance profile (Foundation F1). An invalid/
+    # unknown value in project.harpia.yaml is a hard error at generation
+    # start; a missing file or an omitted field falls back to the strictest
+    # profile instead (see Compliance/context.py).
+    try:
+        complianceContext = load_compliance_context()
+    except ComplianceConfigError as e:
+        log.print(str(e))
+        exit(-1)
+
     #0. pre-process check
-    rootFile = pre_lex(folders=[localFolder], file=testFile, dest=testDestination, includeFolder = includeFolder)
+    rootFile = pre_lex(folders=[localFolder], file=testFile, dest=testDestination, includeFolder = includeFolder, compliance=complianceContext)
     preProcessorResult = rootFile.process()
 
     if preProcessorResult is not None: ##no error detected
@@ -66,7 +77,7 @@ if __name__ == '__main__':
     log.print("{}".format(listOfIncludes))
     fileCounter = 0    
     lexicalAnalized = []
-    mainFileLex = LexicalAnalyzer()
+    mainFileLex = LexicalAnalyzer(compliance=complianceContext)
     mainFileAnalizedError = mainFileLex.process(testFile)
     if mainFileAnalizedError is not None:
         log.print("error in lexical analyzer for the main file")
@@ -77,12 +88,12 @@ if __name__ == '__main__':
 
     lastLex = mainFileLex
     for inc in listOfIncludes:
-        incFilePreLex = pre_lex(folders=[localFolder], file=inc, dest=testDestination, includeFolder = includeFolder)
+        incFilePreLex = pre_lex(folders=[localFolder], file=inc, dest=testDestination, includeFolder = includeFolder, compliance=complianceContext)
         incFilePreProcessorResult = incFilePreLex.process()
         if incFilePreProcessorResult is not None:
             log.print(incFilePreProcessorResult.__str__())
             exit(-1)
-        analizer = LexicalAnalyzer()
+        analizer = LexicalAnalyzer(compliance=complianceContext)
         analizerError = analizer.process(inc)
         if analizerError is not None:
             log.print("error in lexical analyzer")
@@ -93,7 +104,7 @@ if __name__ == '__main__':
 
     lexicalAnalized += (lastLex.getTokens())
 
-    msgFactory = MessageCreator(filename=testFile,tokens=lexicalAnalized, md5Hash=rootFile.getHash())
+    msgFactory = MessageCreator(filename=testFile,tokens=lexicalAnalized, md5Hash=rootFile.getHash(), compliance=complianceContext)
 
     messagesErrors = msgFactory.CreateMessages(beginToken=0)
     if messagesErrors != None:
@@ -109,7 +120,7 @@ if __name__ == '__main__':
                         {m.name for m in msgFactory.messages})
 
     for msg in msgFactory.messages:
-        fileCreator = FileCreator(message=msg,imports=imports , dest=testDestination)
+        fileCreator = FileCreator(message=msg,imports=imports , dest=testDestination, compliance=complianceContext)
         fileCreator.Process()
         fileCreator.save()
         #log.print(msgFactory.__str__())
@@ -119,48 +130,50 @@ if __name__ == '__main__':
     copyCMakeFiles(src="./Assets", dest=testDestination)
 
     #7. compile the emitted .proto into C++ (requires protoc; provided by Docker)
-    protoCompileError = ProtoCompiler(dest=testDestination).Process()
+    protoCompileError = ProtoCompiler(dest=testDestination, compliance=complianceContext).Process()
     if protoCompileError is not None:
         #non-fatal: protoc may be absent on the host, the earlier stages still ran
         log.print(protoCompileError.__str__())
 
     #9. generate the JSON adapters (header-only C++ over the protobuf messages)
-    jsonAdapterError = JsonAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    jsonAdapterError = JsonAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if jsonAdapterError is not None:
         log.print(jsonAdapterError.__str__())
 
     #13. generate the gRPC client/server stubs from the *_service.proto files
-    grpcError = GrpcCompiler(dest=testDestination).Process()
+    grpcError = GrpcCompiler(dest=testDestination, compliance=complianceContext).Process()
     if grpcError is not None:
         #non-fatal: protoc / grpc_cpp_plugin may be absent on the host
         log.print(grpcError.__str__())
 
     #13 (zmq). generate the ZMQ/socket transport for push/pull + event/stream messages
-    zmqError = ZmqAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    zmqError = ZmqAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if zmqError is not None:
         log.print(zmqError.__str__())
 
     #13 (zmq capability handshake). advertise this project's message-type set
     zmqCapError = ZmqCapabilityAdapter(messages=msgFactory.messages,
                                        dest=testDestination,
-                                       rootHash=rootFile.getHash()).Process()
+                                       rootHash=rootFile.getHash(),
+                                       compliance=complianceContext).Process()
     if zmqCapError is not None:
         log.print(zmqCapError.__str__())
 
     #13 (grpc impl). wire the generated gRPC service to CRUDL (per table message)
-    grpcSvcError = GrpcServiceAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    grpcSvcError = GrpcServiceAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if grpcSvcError is not None:
         log.print(grpcSvcError.__str__())
 
     #13 (grpc capability handshake). advertise this project's message-type set
     grpcCapError = GrpcCapabilityAdapter(messages=msgFactory.messages,
                                          dest=testDestination,
-                                         rootHash=rootFile.getHash()).Process()
+                                         rootHash=rootFile.getHash(),
+                                         compliance=complianceContext).Process()
     if grpcCapError is not None:
         log.print(grpcCapError.__str__())
 
     #10. generate the XML adapters (reflection-based runtime + per-message wrappers)
-    xmlError = XmlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    xmlError = XmlAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if xmlError is not None:
         log.print(xmlError.__str__())
 
@@ -174,40 +187,40 @@ if __name__ == '__main__':
 
     #8. generate the SQL schema (supersedes the FileCreator stub)
     sqlError = SqlAdapter(messages=msgFactory.messages, dest=testDestination,
-                          backend=dbBackend).Process()
+                          backend=dbBackend, compliance=complianceContext).Process()
     if sqlError is not None:
         log.print(sqlError.__str__())
 
     #8 (crudl). generate the CRUDL data-access objects (SOCI)
     crudlError = CrudlAdapter(messages=msgFactory.messages, dest=testDestination,
-                              backend=dbBackend).Process()
+                              backend=dbBackend, compliance=complianceContext).Process()
     if crudlError is not None:
         log.print(crudlError.__str__())
 
     #8 (migrate). generate schema-migration / version-transform functions
     migrateError = MigrationAdapter(messages=msgFactory.messages,
                                     dest=testDestination,
-                                    backend=dbBackend).Process()
+                                    backend=dbBackend, compliance=complianceContext).Process()
     if migrateError is not None:
         log.print(migrateError.__str__())
 
     #8 (dbio). generate DB <-> JSON/XML bulk import/export (composes CRUDL + adapters)
-    dbioError = DbIoAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    dbioError = DbIoAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if dbioError is not None:
         log.print(dbioError.__str__())
 
     #12. generate the REST bindings (HTTP CRUD over CRUDL + JSON)
-    restError = RestAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    restError = RestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if restError is not None:
         log.print(restError.__str__())
 
     #11. generate the SOAP endpoints (XML over HTTP, get/set over CRUDL)
-    soapError = SoapAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    soapError = SoapAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if soapError is not None:
         log.print(soapError.__str__())
 
     #11 (WSDL). generate the WSDL descriptor for the SOAP service
-    wsdlError = WsdlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    wsdlError = WsdlAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if wsdlError is not None:
         log.print(wsdlError.__str__())
 
@@ -215,12 +228,13 @@ if __name__ == '__main__':
     # register routes on the same crow::SimpleApp in a real deployment.
     httpCapError = HttpCapabilityAdapter(messages=msgFactory.messages,
                                          dest=testDestination,
-                                         rootHash=rootFile.getHash()).Process()
+                                         rootHash=rootFile.getHash(),
+                                         compliance=complianceContext).Process()
     if httpCapError is not None:
         log.print(httpCapError.__str__())
 
     #14. generate the unit tests for the generated code (opt-in CTest target)
-    testError = TestAdapter(messages=msgFactory.messages, dest=testDestination).Process()
+    testError = TestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if testError is not None:
         log.print(testError.__str__())
 

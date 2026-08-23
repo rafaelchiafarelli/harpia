@@ -7,7 +7,8 @@ import shutil
 import hashlib
 
 class pre_lex:
-    def __init__(self, folders, file,dest, includeFolder):
+    def __init__(self, folders, file,dest, includeFolder, compliance=None):
+        self.compliance = compliance
         self.log = logger(outFile=None, moduleName="pre-lexical")
         self.folders = folders
         self.file = file
