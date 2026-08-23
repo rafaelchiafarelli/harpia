@@ -5,21 +5,17 @@ feature/perf gaps. `initiatives/README.md` is the backlog/scoping-doc index —
 open items that used to accumulate in this file now live there instead;
 this file stays a short handoff note, not an archive.
 
-## Open: `third_party/asio` vendoring gap
+## Resolved 2026-08-23: `third_party/asio` vendoring gap
 
-Discovered while verifying the capability handshake's REST/SOAP slice
-(message-versioning, shipped 2026-08-22/23 — see `message/CLAUDE.md`,
-`Capability/CLAUDE.md`, and the three `*CapabilityAdapter/CLAUDE.md`
-files for what shipped, since the plan doc itself is gone):
-`third_party/asio` is missing `asio/detail/bind_handler.hpp`. Anything
-that `#include`s `crow.h` (which pulls in `asio.hpp`) fails to compile in
-the harpia Docker image as a result. Confirmed **pre-existing** (via
-`git stash` against a clean checkout, before that week's work started)
-and unrelated to message-versioning. Currently blocks:
-`test_stage11_soap.py`, `test_stage12_rest.py` (both),
-`test_consumer_example.py` (both), `test_stage14.py` (both), and the two
-Crow-server cases in `test_message_versioning_capability_http.py`. Worth
-a dedicated session: figure out how `third_party/asio` was originally
-vendored (a single-file omission from a real standalone-asio release,
-most likely) and re-vendor it properly. Fixing it would turn 9 currently-
-red tests green with no other code changes needed.
+Was: `third_party/asio` missing `asio/detail/bind_handler.hpp`, breaking
+anything that `#include`s `crow.h` in the Docker image (9 tests red:
+`test_stage11_soap.py`, `test_stage12_rest.py`, `test_consumer_example.py`,
+`test_stage14.py`, and two Crow-server cases in
+`test_message_versioning_capability_http.py`). Diffing the vendored tree
+against the pinned upstream tag (`asio-1-30-2`, per
+`third_party/asio/VENDORED.md`) showed 5 missing headers, not just the one
+found earlier: `asio/bind_allocator.hpp`, `asio/bind_cancellation_slot.hpp`,
+`asio/bind_executor.hpp`, `asio/bind_immediate_executor.hpp`, and
+`asio/detail/bind_handler.hpp`. Re-vendored all five from the same tag;
+confirmed in the real Docker toolchain that all 9 tests now pass and the
+full suite shows no regressions (158 passed, 2 opt-in-skipped).

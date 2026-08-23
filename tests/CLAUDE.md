@@ -157,14 +157,12 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   handshake (shared: both ride the same `crow::SimpleApp`): a real Crow
   server's `GET /capabilities` route answers `negotiate()` correctly; a real
   server with other routes but no `/capabilities` (legacy peer) and an
-  unreachable host both resolve to the named legacy-peer outcome. The two
-  Crow-server cases currently FAIL in this Docker image for the same
-  pre-existing, unrelated reason as `test_stage11_soap.py`/
-  `test_stage12_rest.py` (`third_party/asio` is missing
-  `asio/detail/bind_handler.hpp`) -- the third case (`negotiate()` against
-  an unreachable host, no Crow involved) passes, and the Crow-dependent
-  logic was separately verified against a local `crow.h` stub isolating it
-  from the asio gap; see `HttpCapabilityAdapter/CLAUDE.md`. (protoc, g++, cc)
+  unreachable host both resolve to the named legacy-peer outcome. All three
+  cases pass. The two Crow-server cases used to fail here for a
+  pre-existing, unrelated reason (`third_party/asio` was missing several
+  headers, breaking anything that `#include`s `crow.h`) -- resolved
+  2026-08-23 by re-vendoring the missing headers, see `NEXT_SESSION.md`'s
+  resolved note and `HttpCapabilityAdapter/CLAUDE.md`. (protoc, g++, cc)
 - `test_message_versioning_capability_zmq.py` — §5's ZMQ capability
   handshake: a real REQ/REP round trip (`capabilities_responder` +
   `negotiate()`) over `inproc://`; a real `tcp://` port with nothing
@@ -240,18 +238,16 @@ Do not hand-edit — regenerate via `HARPIA_UPDATE_GOLDEN=1` and review the diff
   yours; don't pass `-it` in non-interactive/CI contexts.
 - `run_pipeline.py` rmtrees its `build/` subdir each run — never point it at a dir
   whose `build/` you want to keep.
-- **Pre-existing, unrelated known-failing group (7 tests as of 2026-08-22,
-  9 as of 2026-08-23 once `test_message_versioning_capability_http.py`'s two
-  Crow-server cases joined it):** `test_consumer_example.py` (both),
-  `test_stage11_soap.py`, `test_stage12_rest.py` (both), `test_stage14.py`
-  (both), and the two Crow-dependent cases in
-  `test_message_versioning_capability_http.py` all fail in this Docker
-  image because `third_party/asio` is missing
-  `asio/detail/bind_handler.hpp` -- anything that `#include`s `crow.h`
-  (which pulls in `asio.hpp`) fails to compile. Confirmed pre-existing via
-  `git stash` against a clean checkout, not caused by message-versioning
-  work. A real, separate fix (out of message-versioning's scope) would
-  properly re-vendor `third_party/asio`.
+- **Resolved 2026-08-23 (Foundation thread-0 session): the `third_party/asio`
+  vendoring gap that used to fail 9 tests here** (`test_consumer_example.py`,
+  `test_stage11_soap.py`, `test_stage12_rest.py`, `test_stage14.py`, and two
+  Crow-dependent cases in `test_message_versioning_capability_http.py` --
+  anything that `#include`s `crow.h`, which pulls in `asio.hpp`, failed to
+  compile) is fixed: 5 headers were missing from the vendored tree relative
+  to its pinned upstream tag, not just `asio/detail/bind_handler.hpp` as
+  first thought. Re-vendored from the same tag; see `NEXT_SESSION.md`'s
+  resolved note for the full file list. All 9 pass now, full suite shows no
+  regressions.
 
 ## Touchpoints
 - Depends on: the whole generator (all adapters + front-end), `HarpiaTest/`
