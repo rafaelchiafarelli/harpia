@@ -68,6 +68,15 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   the modifier itself and is line-for-line identical to the same field
   without `phi` (flag only -- no encryption/redaction/audit logic lands
   with this token). Pure Python.
+- `test_audit_sink.py` — Foundation F3's `Compliance/runtime/harpia_audit_sink.h`
+  (hand-written C++, not Python -- unlike F1, this interface is injected
+  into *generated* code by later tracks). Compiles/runs small standalone
+  programs directly against the header (no generated project needed):
+  `NoOpAuditSink.record()` has no side effect and doesn't crash, works
+  through an `AuditSink&` base-class reference, `default_audit_sink()`
+  returns the same shared instance every call, and a dummy generated-shaped
+  class can take `AuditSink&` (defaulted or explicit) in its constructor
+  and call `record()` without the sensitive value ever reaching it. (g++)
 - `test_stage7.py` — protoc emits/compiles `.pb.{h,cc}`. (protoc, g++)
 - `test_stage8_db.py` — SQL schema, CRUDL round-trip, FK, repeated-FK link table,
   map<K,V>, repeated scalar, migration, DB↔JSON/XML. (cc + g++, some protoc)
