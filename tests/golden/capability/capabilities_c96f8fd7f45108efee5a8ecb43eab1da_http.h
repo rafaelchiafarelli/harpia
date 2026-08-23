@@ -59,6 +59,7 @@ inline void register_capabilities(crow::SimpleApp& app, const std::string& base)
             "king",
             "outpost",
             "parcel",
+            "patient_vitals",
             "pope",
             "prince",
             "queen",

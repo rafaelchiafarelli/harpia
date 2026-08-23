@@ -237,6 +237,27 @@ if(WIN32)
 endif()
 add_test(NAME beacon_log_test COMMAND beacon_log_test)
 
+add_executable(patient_vitals_test patient_vitals_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+target_include_directories(patient_vitals_test PRIVATE
+    ${HARPIA_TEST_PROTO_INCLUDE_DIR}
+    ${CMAKE_SOURCE_DIR}/generated/cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/third_party/crow
+    ${CMAKE_SOURCE_DIR}/third_party/asio)
+target_link_libraries(patient_vitals_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(patient_vitals_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    # harpia_test_client.h (REST/SOAP HTTP round-trip client)
+    # is Winsock2 on this platform; its own #pragma comment
+    # covers MSVC, but link explicitly too for other Windows
+    # toolchains (e.g. MinGW, which ignores pragma comment).
+    target_link_libraries(patient_vitals_test PRIVATE ws2_32)
+endif()
+add_test(NAME patient_vitals_test COMMAND patient_vitals_test)
+
 add_executable(app_test app_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
 target_include_directories(app_test PRIVATE
     ${HARPIA_TEST_PROTO_INCLUDE_DIR}

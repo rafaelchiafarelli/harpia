@@ -41,6 +41,7 @@ public:
         "king",
         "outpost",
         "parcel",
+        "patient_vitals",
         "pope",
         "prince",
         "queen",
