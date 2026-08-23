@@ -15,6 +15,7 @@ class variable():
     modifiers = None
     constant = None
     renamedFrom = None
+    is_phi = False
     def __init__(self) -> None:
         self.modifiers = []
 
@@ -82,6 +83,10 @@ class Variables():
                         # separately as a memory hint.
                         var.modifiers.append(t)
                         var.repeteableSize = repeteable
+                    if t[0] == 'PHI':
+                        firstID = i
+                        var.modifiers.append(t)
+                        var.is_phi = True
                     if t[0] == 'OPTIONAL':
                         firstID = i
                         var.modifiers.append(t)

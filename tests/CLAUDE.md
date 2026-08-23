@@ -31,9 +31,19 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `run_frontend.py` — runs only the front-end (pre_lex → lexer → MessageCreator)
   on one file and prints `RESULT PRELEX/LEX/MSG <ErrorType>` or `RESULT OK`.
   `python3 tests/run_frontend.py <file> <dest>`.
-- Both run in a **fresh process** because `LexicalAnalyzer` accumulates tokens in
-  class-level state — a clean interpreter per run is required. Tests invoke them
-  via `subprocess`.
+- `run_phi_check.py` — front-end + `FileCreator` (Stages 0-6) on one file;
+  prints one `PHI_CHECK_RESULT <json>` line: `{"error": ..., "fields":
+  [{"message","field","is_phi"}, ...], "proto": "<concatenated .proto
+  text>"}`. Used by `test_phi_modifier.py` (Foundation F2) to inspect
+  `variable.is_phi` and confirm the emitted `.proto` is unaffected by it.
+  Unlike `run_frontend.py`, does NOT `chdir` into the fixture's folder --
+  `FileCreator.Process()` needs repo-root-relative `./Assets/...` to
+  resolve its service-proto template, so it stays at the repo root and
+  passes `pre_lex` an absolute file path instead (accepted as-is by
+  `isFileInFolders`). `python3 tests/run_phi_check.py <file> <dest>`.
+- All three run in a **fresh process** because `LexicalAnalyzer` accumulates
+  tokens in class-level state — a clean interpreter per run is required.
+  Tests invoke them via `subprocess`.
 
 ## Test files
 - `test_golden.py` — snapshots every intermediate artifact vs `tests/golden/`.
@@ -50,6 +60,14 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `run_pipeline.py` emits recording `instance.compliance is <the loaded
   ComplianceContext>` for every stage constructed) to confirm the exact
   object reached every one, not just a default. Pure Python.
+- `test_phi_modifier.py` — Foundation F2's `phi` field modifier: parses
+  with/without `phi`, alone and combined with every other modifier
+  (`optional`/`required`/`unique`/`repeteable`, modifier order, a composed-
+  type field), confirming `variable.is_phi` via `run_phi_check.py`.
+  Integration: the emitted `.proto` for a `phi` field contains no trace of
+  the modifier itself and is line-for-line identical to the same field
+  without `phi` (flag only -- no encryption/redaction/audit logic lands
+  with this token). Pure Python.
 - `test_stage7.py` — protoc emits/compiles `.pb.{h,cc}`. (protoc, g++)
 - `test_stage8_db.py` — SQL schema, CRUDL round-trip, FK, repeated-FK link table,
   map<K,V>, repeated scalar, migration, DB↔JSON/XML. (cc + g++, some protoc)
