@@ -27,7 +27,11 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `HARPIA_COMPLIANCE_CONFIG` same as `main.py`) and threads it into every
   stage constructor, recording a per-stage `instance.compliance is
   compliance` check into `compliance_smoke.txt` -- `test_compliance.py`'s
-  integration test reads this back.
+  integration test reads this back. Also resolves a `CryptoBackend` (F5,
+  `Crypto.backend.get_backend`, honoring `HARPIA_CRYPTO_BACKEND` same as
+  `main.py`) and writes it to `<build_dir>/build_metadata/crypto_backend.json`
+  via `write_build_metadata` -- not collected into any snapshotted
+  subdirectory, so it can't drift the golden tests.
 - `run_frontend.py` — runs only the front-end (pre_lex → lexer → MessageCreator)
   on one file and prints `RESULT PRELEX/LEX/MSG <ErrorType>` or `RESULT OK`.
   `python3 tests/run_frontend.py <file> <dest>`.
@@ -77,6 +81,16 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   returns the same shared instance every call, and a dummy generated-shaped
   class can take `AuditSink&` (defaulted or explicit) in its constructor
   and call `record()` without the sensitive value ever reaching it. (g++)
+- `test_crypto_backend.py` — Foundation F5's `Crypto/backend.py`
+  `CryptoBackend` selection point: explicit name / alias resolution /
+  unknown-name hard error (same shape as `Database.backends.get_backend`);
+  `risk_class == CLASS_C` or `topology == CLOUD_CONNECTED` defaults to the
+  FIPS backend, an explicit name overrides that default; `get_backend()`
+  returns the identical singleton across calls (the acceptance-gate proof
+  that Track O and Track C, once built, would provably share one crypto
+  module); `write_build_metadata()` produces a valid
+  `build_metadata/crypto_backend.json` sidecar and is write-if-different
+  (stable mtime when unchanged). Pure Python.
 - `test_stage7.py` — protoc emits/compiles `.pb.{h,cc}`. (protoc, g++)
 - `test_stage8_db.py` — SQL schema, CRUDL round-trip, FK, repeated-FK link table,
   map<K,V>, repeated scalar, migration, DB↔JSON/XML. (cc + g++, some protoc)

@@ -28,6 +28,7 @@ from copy import deepcopy
 from util.util import (copyCMakeFiles, copyServerClientTemplates,
                        copyBasicProtos, chooseDemo, prune_stale_outputs)
 from Compliance.context import load_compliance_context, ComplianceConfigError
+from Crypto.backend import get_backend as get_crypto_backend, write_build_metadata as write_crypto_build_metadata
 if __name__ == '__main__':
     log = logger(outFile=None, moduleName="main" )
     log.print("Path at terminal when executing this file")
@@ -65,6 +66,16 @@ if __name__ == '__main__':
     except ComplianceConfigError as e:
         log.print(str(e))
         exit(-1)
+
+    #-1 (crypto). pick the crypto module a build would link against (Foundation
+    # F5). Neither Track O (key-wrap/envelope-encryption) nor Track C (TLS
+    # stack) exist in this repo yet, so nothing consumes this beyond the log
+    # line + build-metadata sidecar below -- it's the seam, not the real thing.
+    cryptoBackend = get_crypto_backend(os.environ.get("HARPIA_CRYPTO_BACKEND"),
+                                       compliance=complianceContext)
+    log.print("Crypto backend: {} (fips:{})".format(
+        cryptoBackend.name, cryptoBackend.fips))
+    write_crypto_build_metadata(cryptoBackend, testDestination)
 
     #0. pre-process check
     rootFile = pre_lex(folders=[localFolder], file=testFile, dest=testDestination, includeFolder = includeFolder, compliance=complianceContext)

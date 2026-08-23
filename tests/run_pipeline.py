@@ -49,6 +49,7 @@ from ZmqCapabilityAdapter.ZmqCapabilityAdapter import ZmqCapabilityAdapter
 from TestAdapter.TestAdapter import TestAdapter
 from util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 from Compliance.context import load_compliance_context
+from Crypto.backend import get_backend as get_crypto_backend, write_build_metadata as write_crypto_build_metadata
 
 
 def run(output_dir):
@@ -63,6 +64,13 @@ def run(output_dir):
 
     # -1. load the project-wide compliance profile (Foundation F1), same as main.py.
     compliance = load_compliance_context()
+
+    # -1 (crypto). pick the crypto module a build would link against (F5),
+    # same as main.py; record it as build metadata under build_dir.
+    crypto_backend = get_crypto_backend(os.environ.get("HARPIA_CRYPTO_BACKEND"),
+                                        compliance=compliance)
+    write_crypto_build_metadata(crypto_backend, build_dir)
+
     # per-stage smoke marker (F1 integration test): every stage instance below
     # is checked here for `.compliance is compliance` and the result dumped to
     # compliance_smoke.txt, so test_compliance.py can assert the object -- not
