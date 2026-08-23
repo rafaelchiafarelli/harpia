@@ -20,6 +20,9 @@ from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
 from Database.WsdlAdapter import WsdlAdapter
 from Database.GrpcServiceAdapter import GrpcServiceAdapter
+from GrpcCapabilityAdapter.GrpcCapabilityAdapter import GrpcCapabilityAdapter
+from HttpCapabilityAdapter.HttpCapabilityAdapter import HttpCapabilityAdapter
+from ZmqCapabilityAdapter.ZmqCapabilityAdapter import ZmqCapabilityAdapter
 from TestAdapter.TestAdapter import TestAdapter
 from copy import deepcopy
 from util.util import (copyCMakeFiles, copyServerClientTemplates,
@@ -137,10 +140,24 @@ if __name__ == '__main__':
     if zmqError is not None:
         log.print(zmqError.__str__())
 
+    #13 (zmq capability handshake). advertise this project's message-type set
+    zmqCapError = ZmqCapabilityAdapter(messages=msgFactory.messages,
+                                       dest=testDestination,
+                                       rootHash=rootFile.getHash()).Process()
+    if zmqCapError is not None:
+        log.print(zmqCapError.__str__())
+
     #13 (grpc impl). wire the generated gRPC service to CRUDL (per table message)
     grpcSvcError = GrpcServiceAdapter(messages=msgFactory.messages, dest=testDestination).Process()
     if grpcSvcError is not None:
         log.print(grpcSvcError.__str__())
+
+    #13 (grpc capability handshake). advertise this project's message-type set
+    grpcCapError = GrpcCapabilityAdapter(messages=msgFactory.messages,
+                                         dest=testDestination,
+                                         rootHash=rootFile.getHash()).Process()
+    if grpcCapError is not None:
+        log.print(grpcCapError.__str__())
 
     #10. generate the XML adapters (reflection-based runtime + per-message wrappers)
     xmlError = XmlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
@@ -193,6 +210,14 @@ if __name__ == '__main__':
     wsdlError = WsdlAdapter(messages=msgFactory.messages, dest=testDestination).Process()
     if wsdlError is not None:
         log.print(wsdlError.__str__())
+
+    #11/12 (http capability handshake). shared by REST and SOAP -- both
+    # register routes on the same crow::SimpleApp in a real deployment.
+    httpCapError = HttpCapabilityAdapter(messages=msgFactory.messages,
+                                         dest=testDestination,
+                                         rootHash=rootFile.getHash()).Process()
+    if httpCapError is not None:
+        log.print(httpCapError.__str__())
 
     #14. generate the unit tests for the generated code (opt-in CTest target)
     testError = TestAdapter(messages=msgFactory.messages, dest=testDestination).Process()

@@ -13,7 +13,7 @@ doc yet.
 | [multi-language-targets.md](multi-language-targets.md) | Scoped, not started — Python recommended as target #2 *in the abstract*; superseded in practice by `java-target.md`, see its §8 addendum |
 | [java-target.md](java-target.md) | Scoped, not started — Java picked ahead of Python for a concrete reason (existing Android fleet); full symmetric target, Android is the consumer of a subset (see its §7) |
 | [medical_devices/](medical_devices/harpia_medical_master_plan.md) | Scoped, not started — compliance profile for regulated deployments |
-| [message-versioning.md](message-versioning.md) | Scoped, not started — stable wire field numbers + version handshake so mismatched-schema peers degrade instead of silently corrupting data |
+| [message-versioning.md](message-versioning.md) | **Shipped 2026-08-22/23** — stable wire field numbers, JSON/XML parse-boundary hardening, and a capability handshake across all four transports (gRPC/REST/SOAP/ZMQ) so mismatched-schema peers degrade instead of silently corrupting data. Kept here (not yet moved to "finished") pending its own two open questions (§9) and an unrelated `third_party/asio` vendoring gap the work surfaced (see the doc's §13) |
 | [doxygen-generation.md](doxygen-generation.md) | Scoped, not started — per-message/per-field usage docs and pitfalls emitted into the generated headers, not just cosmetic comments |
 
 Finished plans are removed from this index once done — the shipped

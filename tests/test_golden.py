@@ -11,6 +11,8 @@ committed snapshots in tests/golden/:
   - zmq/*.h          every emitted ZMQ transport (Stage 13 zmq)
   - xml/*.h          every emitted XML adapter wrapper (Stage 10)
   - db/*.h           every emitted CRUDL DAO (Stage 8)
+  - capability/*.h   the whole-project gRPC capability advertisement (Stage 13,
+                     S5 message-versioning handshake)
   - dbio/*.h         every emitted DB import/export header (Stage 8)
   - rest/*.h         every emitted REST binding header (Stage 12)
   - soap/*.h         every emitted SOAP endpoint header (Stage 11)
@@ -272,6 +274,24 @@ def test_grpc_service_impls(artifacts):
     assert produced == expected, "set of generated gRPC service impls changed"
     for rel in produced:
         _check(os.path.join(produced_dir, rel), os.path.join("grpc", rel))
+
+
+def test_capability_advertisement(artifacts):
+    produced_dir = os.path.join(artifacts, "capability")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "capability")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel), os.path.join("capability", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "capability"))
+    assert produced == expected, "set of generated capability advertisements changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("capability", rel))
 
 
 def test_wsdl(artifacts):

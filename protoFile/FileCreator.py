@@ -78,9 +78,23 @@ class FileCreator():
                         protoData+="map<{}, {}> {} = {};\n".format(
                             keyType, valType, v.name, v.index)
                     else:
-                        prefix = ("repeated " if any(
-                            m[0] == 'REPETEABLE' for m in (v.modifiers or []))
-                            else "")
+                        mods = v.modifiers or []
+                        isRepeated = any(m[0] == 'REPETEABLE' for m in mods)
+                        if isRepeated:
+                            # proto3 forbids "optional repeated" -- repeated
+                            # already has its own presence signal (an empty
+                            # list), so REPETEABLE wins over OPTIONAL here.
+                            prefix = "repeated "
+                        elif any(m[0] == 'OPTIONAL' for m in mods):
+                            # emits proto3's `optional` keyword, giving the
+                            # field real explicit-presence tracking (a
+                            # generated has_<field>() distinct from the
+                            # zero-value default) instead of Harpia's
+                            # OPTIONAL modifier being a no-op past the lexer
+                            # -- see plans/message-versioning.md S4.
+                            prefix = "optional "
+                        else:
+                            prefix = ""
                         protoData+="{}{} {} = {};\n".format(
                             prefix, self.protoType(v.type), v.name, v.index)
                     if len(v.modifiers) != 0:

@@ -18,8 +18,9 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 
 ## Harnesses (standalone, driven in a fresh subprocess)
 - `run_pipeline.py` — mirrors `main.py`'s full orchestration, then dumps the
-  intermediate artifacts (tokens, messages, proto/, json/, zmq/, grpc/, xml/,
-  db/, migrate/, dbio/, rest/, soap/, wsdl/, gen_tests/, sidecars/) into an output
+  intermediate artifacts (tokens, messages, proto/, json/, zmq/, grpc/,
+  capability/, xml/, db/, migrate/, dbio/, rest/, soap/, wsdl/, gen_tests/,
+  sidecars/) into an output
   dir for snapshotting. `python3 tests/run_pipeline.py <output_dir>`. **rmtrees
   `<output_dir>/build` on every run.**
 - `run_frontend.py` — runs only the front-end (pre_lex → lexer → MessageCreator)
@@ -42,6 +43,57 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `test_stage11_soap.py` — SOAP-over-HTTP endpoint (credential gate).
 - `test_stage12_rest.py` — REST HTTP CRUD, credential-gated.
 - `test_stage13.py` — gRPC services compile, CRUDL-backed impl, metadata auth.
+- `test_fieldmap.py` — message-versioning §3 unit tests: `message.FieldMap.freeze`
+  driven directly (no lexer) — first-generation freeze, reorder/insert
+  stability, delete-retires-number, rename-keeps-number, unresolvable-rename
+  falls back (mirrors `Database/MigrationAdapter`'s conditional RENAME),
+  hidden-field (`ID_`/`STATUS_`/`ERROR_`/`ORIGINATOR`) stability across an
+  md5 hash change, reserved-number-reuse hard error, sidecar path shape.
+  Pure Python.
+- `test_fieldmap_frontend.py` — the same §3 reorder/delete properties but
+  through the real front-end pipeline (`run_frontend.py`, fresh subprocess
+  per generation), confirming `message/Message.py`'s wiring actually calls
+  `FieldMap.freeze`, not just the module in isolation. Pure Python.
+- `test_message_versioning_wire.py` — §3's integration test: two real
+  generations of one root `.harpia` file (same schema_registry sidecar),
+  the second reordering fields and adding one; compiles gen1's protobuf
+  class into a "writer" program and gen2's into a separate "reader",
+  proving a real serialized message survives the reorder. (protoc, g++)
+- `test_message_versioning_parse_boundary.py` — §4: JSON tolerates an
+  unrecognized key (`ignore_unknown_fields`); an `optional`-tagged field's
+  `has_<field>()` distinguishes "never set" from "explicitly set to the
+  zero value" through both the protobuf binary and XML round trip (the
+  latter proving the `harpia_xml.h` `has_presence()` fix specifically); a
+  newer schema's added field, written by a "new" binary, parses cleanly on
+  an "old" binary that never heard of it (inverse direction of
+  `test_message_versioning_wire.py`). (protoc, g++)
+- `test_message_versioning_capability.py` — §5's gRPC capability handshake:
+  `harpia::capability::negotiate()` gets a real server's advertised
+  message-type set over an in-process channel; a peer with other services
+  registered but not `capabilities_service` (a genuine pre-feature legacy
+  peer) resolves to the named "legacy peer" outcome, not a hang;
+  `harpia::capability::Dispatcher` (shared, transport-agnostic -- tested
+  once here, not per transport) routes a covered type to its handler and
+  falls back (never silently) for an uncovered type or a covered type with
+  no registered handler. (protoc, grpc_cpp_plugin, g++)
+- `test_message_versioning_capability_http.py` — §5's REST/SOAP capability
+  handshake (shared: both ride the same `crow::SimpleApp`): a real Crow
+  server's `GET /capabilities` route answers `negotiate()` correctly; a real
+  server with other routes but no `/capabilities` (legacy peer) and an
+  unreachable host both resolve to the named legacy-peer outcome. The two
+  Crow-server cases currently FAIL in this Docker image for the same
+  pre-existing, unrelated reason as `test_stage11_soap.py`/
+  `test_stage12_rest.py` (`third_party/asio` is missing
+  `asio/detail/bind_handler.hpp`) -- the third case (`negotiate()` against
+  an unreachable host, no Crow involved) passes, and the Crow-dependent
+  logic was separately verified against a local `crow.h` stub isolating it
+  from the asio gap; see `HttpCapabilityAdapter/CLAUDE.md`. (protoc, g++, cc)
+- `test_message_versioning_capability_zmq.py` — §5's ZMQ capability
+  handshake: a real REQ/REP round trip (`capabilities_responder` +
+  `negotiate()`) over `inproc://`; a real `tcp://` port with nothing
+  listening resolves to the named legacy-peer outcome within the deadline,
+  not a hang. No `crow.h`/asio dependency, so unaffected by the gap above --
+  both tests pass. (protoc, g++, libzmq, cppzmq)
 - `test_stage13_zmq.py` — ZMQ PUSH/PULL round-trip over a real socket, plus a
   CURVE round-trip over real `tcp://` (matching keys succeed, a wrong server
   public key times out -- CURVE is a no-op over `inproc`, which the other
@@ -97,7 +149,8 @@ filenames.)
 
 ## Golden snapshots (tests/golden/)
 Committed reference output keyed by the input hash. Files: `tokens.txt`,
-`messages.txt`; dirs: `proto/`, `json/`, `zmq/`, `grpc/`, `xml/`, `db/`,
+`messages.txt`; dirs: `proto/`, `json/`, `zmq/`, `grpc/`, `capability/`
+(whole-project gRPC/HTTP/ZMQ capability advertisements, S5), `xml/`, `db/`,
 `migrate/`, `dbio/`, `rest/`, `soap/`, `wsdl/`, `gen_tests/` (generated unit tests
 + CTest CMakeLists), `sidecars/` (per-message SQL schema + modifier/access/pswd
 flag files, subdirs `database/ modifier/ access_modifier/ database_access/`).
@@ -110,6 +163,18 @@ Do not hand-edit — regenerate via `HARPIA_UPDATE_GOLDEN=1` and review the diff
   yours; don't pass `-it` in non-interactive/CI contexts.
 - `run_pipeline.py` rmtrees its `build/` subdir each run — never point it at a dir
   whose `build/` you want to keep.
+- **Pre-existing, unrelated known-failing group (7 tests as of 2026-08-22,
+  9 as of 2026-08-23 once `test_message_versioning_capability_http.py`'s two
+  Crow-server cases joined it):** `test_consumer_example.py` (both),
+  `test_stage11_soap.py`, `test_stage12_rest.py` (both), `test_stage14.py`
+  (both), and the two Crow-dependent cases in
+  `test_message_versioning_capability_http.py` all fail in this Docker
+  image because `third_party/asio` is missing
+  `asio/detail/bind_handler.hpp` -- anything that `#include`s `crow.h`
+  (which pulls in `asio.hpp`) fails to compile. Confirmed pre-existing via
+  `git stash` against a clean checkout, not caused by message-versioning
+  work. A real, separate fix (out of message-versioning's scope) would
+  properly re-vendor `third_party/asio`.
 
 ## Touchpoints
 - Depends on: the whole generator (all adapters + front-end), `HarpiaTest/`

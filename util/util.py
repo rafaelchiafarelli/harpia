@@ -18,8 +18,11 @@ _DEMO_SCALARS = {"STRING", "INT32", "INT64", "FLOAT"}
 # in the output tree (CMakeLists.txt, vendored third_party/, ...).
 _NAME_HASH_RE = re.compile(r'^([A-Za-z_]\w*)_([0-9a-f]{32})')
 # Non-message-keyed but still hash-qualified filenames that must never be
-# treated as orphans -- TestAdapter's single app-level test (app_<hash>_test.cpp).
-_ALWAYS_VALID_BASENAMES = {"app"}
+# treated as orphans -- TestAdapter's single app-level test (app_<hash>_test.cpp)
+# and GrpcCapabilityAdapter's single whole-project capability advertisement
+# (capabilities_<hash>_grpc.h, hash-qualified by the ROOT file's hash like
+# every other Stage 13 output, but not keyed to any one message name).
+_ALWAYS_VALID_BASENAMES = {"app", "capabilities"}
 
 
 def chooseDemo(messages):
@@ -295,6 +298,9 @@ def loadTemplate(callerFile, name):
 def copyBasicProtos(src, dest):
     errorProto = os.path.join(src, "errorCode.proto")
     heartBeatProto = os.path.join(src, "heartBeat.proto")
+    capabilitiesProto = os.path.join(src, "capabilities_service.proto")
     destination = os.path.join(dest,"proto","protofiles")
     copy_if_different(errorProto, os.path.join(destination, "errorCode.proto"))
     copy_if_different(heartBeatProto, os.path.join(destination, "heartBeat.proto"))
+    copy_if_different(capabilitiesProto,
+                      os.path.join(destination, "capabilities_service.proto"))

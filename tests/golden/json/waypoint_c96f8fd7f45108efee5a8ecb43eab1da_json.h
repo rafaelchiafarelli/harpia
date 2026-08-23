@@ -14,15 +14,22 @@ inline bool to_json(const ::waypoint& msg, std::string* out) {
     return ::google::protobuf::util::MessageToJsonString(msg, out).ok();
 }
 
-// JSON -> message
+// JSON -> message. Ignores keys the schema doesn't recognize (a newer peer's
+// added field) so parsing degrades the way proto3 binary/XML already do,
+// rather than hard-erroring on exactly the case forward-compatibility exists
+// for -- see plans/message-versioning.md S4.
 inline bool from_json(const std::string& in, ::waypoint* msg) {
-    return ::google::protobuf::util::JsonStringToMessage(in, msg).ok();
+    ::google::protobuf::util::JsonParseOptions opts;
+    opts.ignore_unknown_fields = true;
+    return ::google::protobuf::util::JsonStringToMessage(in, msg, opts).ok();
 }
 
-// is the JSON a valid waypoint message?
+// is the JSON a valid waypoint message? (same unknown-field tolerance as from_json)
 inline bool is_valid_json(const std::string& in) {
     ::waypoint probe;
-    return ::google::protobuf::util::JsonStringToMessage(in, &probe).ok();
+    ::google::protobuf::util::JsonParseOptions opts;
+    opts.ignore_unknown_fields = true;
+    return ::google::protobuf::util::JsonStringToMessage(in, &probe, opts).ok();
 }
 
 }  // namespace json

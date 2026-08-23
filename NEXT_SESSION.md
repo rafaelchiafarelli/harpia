@@ -5,38 +5,41 @@ feature/perf gaps. `plans/README.md` is the backlog/scoping-doc index —
 open items that used to accumulate in this file now live there instead;
 this file stays a short handoff note, not an archive.
 
-## This session: main/dev reconciliation + a real breakage found and fixed
+## message-versioning: all real work shipped (2026-08-22/23)
 
-`main` and `dev` had diverged at the git-history level (unrelated commit
-hashes after an earlier rewrite) without diverging at the content level —
-`dev` was a strict superset of `main`. Reconciled by pointing `main` at
-`dev`'s tree via an explicit two-parent merge commit (`git commit-tree`),
-not a content-by-content conflict resolution — a plain
-`git merge --allow-unrelated-histories` produced ~100 spurious add/add
-conflicts that weren't real contradictions.
+`plans/message-versioning.md` §3 (Foundation), §4 (Parse-boundary
+hardening), and §5 (capability handshake, all four transports — gRPC,
+REST/SOAP, ZMQ) are done. §6 is a cross-reference note, not a task. §9's
+open questions are both now resolved/updated in place — there is nothing
+left to do in this plan except the separate item below. Read
+`plans/message-versioning.md` §10–§13 if picking this back up, for the
+full "what shipped and why" record, including one real correction found
+mid-work: §5's original text assumed a REST/SOAP session mechanism and a
+ZMQ stream-setup phase ("Track B"/"Track C") that turned out not to exist
+in the actual codebase — only in the separate, unstarted
+`plans/medical_devices/` compliance plan. Built standalone alternatives
+instead (§13).
 
-While verifying the environment on a fresh (WSL2/ext4, case-sensitive)
-checkout, found `main.py` genuinely broken:
-`Logger`/`Message`/`ProtoFile`/`Util` were renamed lowercase at the
-directory level, but the import statements across 33 files were never
-updated to match. It went unnoticed because it was last verified on a
-case-insensitive filesystem, where the mismatch is invisible. Fixed all 33
-files; `setup-env.sh` now runs a case-sensitivity import check on `main.py`
-so this can't silently reoccur. Full pytest suite: 39 passed, 42 skipped
-(Docker toolchain not available on this host — see `[[env-wsl-docker]]`
-memory).
+## Separate, unrelated finding worth its own session: `third_party/asio` vendoring gap
 
-## Reminder for whoever picks this up
+Discovered while verifying the capability handshake's REST/SOAP slice:
+`third_party/asio` is missing `asio/detail/bind_handler.hpp`. Anything
+that `#include`s `crow.h` (which pulls in `asio.hpp`) fails to compile in
+the harpia Docker image as a result. Confirmed **pre-existing** (via
+`git stash` against a clean checkout, before any message-versioning work
+started this week) and unrelated to that plan. Currently blocks:
+`test_stage11_soap.py`, `test_stage12_rest.py` (both), `test_consumer_example.py`
+(both), `test_stage14.py` (both), and the two Crow-server cases in the new
+`test_message_versioning_capability_http.py`. Not fixed as part of
+message-versioning (out of scope, deliberately) — worth a dedicated
+session: figure out how `third_party/asio` was originally vendored (a
+single-file omission from a real standalone-asio release, most likely)
+and re-vendor it properly. Fixing it would turn 9 currently-red tests
+green with no other code changes needed.
 
-`git log --oneline origin/dev..dev` to check nothing's local-only (should
-be empty). `main` and `dev` should currently have identical trees — verify
-with `git diff main dev --stat` (expect empty) before assuming either one
-needs the other's work.
+## Session-management note
 
-`[[harpia-dev-workflow]]` memory has the test/golden-file workflow;
-`[[harpia-project-status]]` memory has the full session-by-session history.
-`[[harpia-git-case-insensitive-gotcha]]` matters again for any commit
-touching `logger/`, `message/`, `protoFile/`, or `util/` — verify with
-`git diff --stat HEAD` after committing, not just `git status`, and prefer
-running `setup-env.sh`'s import check on a genuinely case-sensitive
-filesystem before trusting a rename like this is complete.
+This file no longer describes an active handoff — §3 through all of §5
+shipped in one continuous conversation (not handed off between sessions).
+Whoever picks up either item above should still read the relevant plan
+doc in full first, the same as any fresh start would.

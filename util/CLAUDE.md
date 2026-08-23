@@ -37,8 +37,9 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
   previous run against a different root-file hash. Matches harpia's
   `<name>_<hash>...` filename convention (`_NAME_HASH_RE`) so it never
   touches anything that doesn't look generated (CMakeLists.txt, vendored
-  `third_party/`, ...); `_ALWAYS_VALID_BASENAMES` allowlists the one
-  non-message-keyed exception (`TestAdapter`'s `app_<hash>_test.cpp`).
+  `third_party/`, ...); `_ALWAYS_VALID_BASENAMES` allowlists the
+  non-message-keyed exceptions (`TestAdapter`'s `app_<hash>_test.cpp`,
+  `GrpcCapabilityAdapter`'s whole-project `capabilities_<hash>_grpc.h`).
   Called once by `main.py`, right after messages are parsed and before
   anything is written, replacing the old blanket `shutil.rmtree(dest)`.
 - `chooseDemo(messages)` — picks the message that drives the end-to-end demo:
@@ -61,8 +62,9 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
   compiles.
 - `_emitTemplate(srcPath, destPath, demo)` (private) — does the `%KEY%` replace,
   or the stub if `demo is None`.
-- `copyBasicProtos(src, dest)` — copies the always-needed `errorCode.proto` and
-  `heartBeat.proto` into `dest/proto/protofiles`.
+- `copyBasicProtos(src, dest)` — copies the always-needed `errorCode.proto`,
+  `heartBeat.proto`, and `capabilities_service.proto` (S5 capability
+  handshake's fixed wire contract) into `dest/proto/protofiles`.
 - `loadTemplate(callerFile, name)` — reads a code-gen template from the
   `templates/` dir next to the *calling* module (`os.path.dirname(callerFile)`).
   Templates use `str.format` placeholders; C++ braces must be escaped `{{ }}`.

@@ -3,6 +3,7 @@
 import copy
 from message.Variables import Variables
 from message.EnumValues import EnumValues
+from message.FieldMap import freeze as freezeFieldNumbers
 from Errors.Error import Types, Classes, Error
 from logger.logger import logger
 class Message():
@@ -95,6 +96,9 @@ class Message():
                     if v.dependencies != None:
                         self.dependency = v.dependencies
                     self.variables = v.get()
+                    freezeErr = freezeFieldNumbers(self.variables, self.file, self.name)
+                    if freezeErr != None:
+                        return freezeErr
                     rBracePosition = j
 
                 else:

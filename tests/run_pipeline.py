@@ -43,6 +43,9 @@ from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
 from Database.WsdlAdapter import WsdlAdapter
 from Database.GrpcServiceAdapter import GrpcServiceAdapter
+from GrpcCapabilityAdapter.GrpcCapabilityAdapter import GrpcCapabilityAdapter
+from HttpCapabilityAdapter.HttpCapabilityAdapter import HttpCapabilityAdapter
+from ZmqCapabilityAdapter.ZmqCapabilityAdapter import ZmqCapabilityAdapter
 from TestAdapter.TestAdapter import TestAdapter
 from util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
 
@@ -114,8 +117,16 @@ def run(output_dir):
     # 13 (zmq). ZMQ/socket transport for push/pull + event/stream messages
     ZmqAdapter(messages=msg_factory.messages, dest=build_dir).Process()
 
+    # 13 (zmq capability handshake). advertise this project's message-type set
+    ZmqCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
+                         rootHash=root_file.getHash()).Process()
+
     # 13 (grpc impl). concrete gRPC service wired to CRUDL (per table message)
     GrpcServiceAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+
+    # 13 (grpc capability handshake). advertise this project's message-type set
+    GrpcCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
+                          rootHash=root_file.getHash()).Process()
 
     # 10. XML adapters (reflection runtime + per-message wrappers)
     XmlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
@@ -135,6 +146,10 @@ def run(output_dir):
     # 11 (WSDL). WSDL descriptor for the SOAP service
     WsdlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
 
+    # 11/12 (http capability handshake). shared by REST and SOAP
+    HttpCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
+                          rootHash=root_file.getHash()).Process()
+
     # 14. generated unit tests (opt-in CTest target over CRUDL + messages)
     TestAdapter(messages=msg_factory.messages, dest=build_dir).Process()
 
@@ -145,6 +160,7 @@ def run(output_dir):
     _collect_json(build_dir, os.path.join(output_dir, "json"))
     _collect_zmq(build_dir, os.path.join(output_dir, "zmq"))
     _collect_grpc(build_dir, os.path.join(output_dir, "grpc"))
+    _collect_capability(build_dir, os.path.join(output_dir, "capability"))
     _collect_xml(build_dir, os.path.join(output_dir, "xml"))
     _collect_crudl(build_dir, os.path.join(output_dir, "db"))
     _collect_migrate(build_dir, os.path.join(output_dir, "migrate"))
@@ -287,6 +303,22 @@ def _collect_grpc(build_dir, dest):
         return
     for name in sorted(os.listdir(src)):
         if name.endswith(".h"):
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_capability(build_dir, dest):
+    # the generated capability advertisements only (capabilities_<hash>_*.h);
+    # everything named harpia_*.h is a static runtime copy (lives in the repo
+    # under {Grpc,Http,Zmq}CapabilityAdapter/runtime and Capability/runtime,
+    # no need to re-snapshot the copies -- same convention as _collect_xml).
+    src = os.path.join(build_dir, "generated", "cpp", "capability")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.startswith("capabilities_") and name.endswith(".h"):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 

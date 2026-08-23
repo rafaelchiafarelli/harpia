@@ -2,7 +2,7 @@ syntax = "proto3";
 message queen {
 int32 ID_c96f8fd7f45108efee5a8ecb43eab1da = 1;
 int32 var = 2;
-int32 val = 3;
+optional int32 val = 3;
 map<string, string> a = 4;
 map<string, int32> b = 5;
 map<int32, string> c = 6;

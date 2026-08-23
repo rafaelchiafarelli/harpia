@@ -6,7 +6,7 @@
 
 ## Files
 - `JsonAdapter.py` — `Process()` makes the out dir, loops messages, renders and writes one header each; returns `NOTHING_TO_REPORT` error if nothing written. `_render()` formats the template with: `guard=HARPIA_JSON_<NAME_UPPER>_<hash>`, `pb_header=protofiles/<name>_<hash>.pb.h`, `cls=::<name>`, `name`.
-- `templates/adapter.h.tmpl` — the C++ header text (Python `str.format` placeholders). Provides `to_json(msg, *out)`, `from_json(in, *msg)`, `is_valid_json(in)`.
+- `templates/adapter.h.tmpl` — the C++ header text (Python `str.format` placeholders). Provides `to_json(msg, *out)`, `from_json(in, *msg)`, `is_valid_json(in)`. `from_json`/`is_valid_json` pass `JsonParseOptions{{ignore_unknown_fields = true}}` to `JsonStringToMessage` (plain single-arg `JsonStringToMessage` defaults that to `false`) so a JSON payload carrying a key this schema doesn't recognize (a newer peer's added field) still parses, matching proto3 binary/XML's own tolerant-unknown-field behavior — see `plans/message-versioning.md` §4.
 
 ## Key facts / gotchas
 - Template is loaded ONCE at import time via `loadTemplate(__file__, "adapter.h.tmpl")` (module-level constant `_TEMPLATE`).
