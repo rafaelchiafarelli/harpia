@@ -23,7 +23,7 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 | 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD + DB bulk export/import |
 | 11 | SOAP | ✅ SOAP get/set/update/delete endpoint (XML over HTTP) over CRUDL (Crow + tinyxml2), gated by the Stage 5 access credential (SOAP Header `<credentials>`, 401 Fault on mismatch); WSDL 1.1 descriptor emitted per message (`wsdl/<name>_<hash>.wsdl`, document/literal SOAP binding) |
 | 12 | HTML / REST bindings | ✅ REST CRUD (GET/POST/PUT/DELETE) over CRUDL (Crow) with JSON/XML content negotiation (`Content-Type`/`Accept`, via the JSON + XML adapters), gated by the Stage 5 access credential (`X-User`/`X-Pswd` headers, 401 on mismatch); GET-list is paginated via `?limit=&offset=` (defaulting to the table's declared `pagination[size]` when present) |
-| 13 | zmq/socket + gRPC access | ✅ gRPC stubs **wired to CRUDL** (per table message, a `<name>_service` impl: push→create, pullByID→read, streamSrc→list [paginated via the request's `offset`/`limit` fields when `limit>0`], heartBeat→echo), with the data RPCs gated by the Stage 5 credential via `x-user`/`x-pswd` call metadata (UNAUTHENTICATED on mismatch) **and** ZMQ push/pull + pub/sub, with a sender "originator" id (process.md 1.3.1.1): a compile-time constant for a unique publisher (`pull`/`event`/`stream`), or a runtime-unique id (pid + counter + random, no broker needed) for a shared publisher (`push`/`pushpull`); every ZMQ sender/receiver/publisher/subscriber constructor also takes an optional CURVE encryption keys parameter (default-disabled, `USAGE.md` §10). **Capability handshake** (`plans/message-versioning.md` §5, all four transports): one whole-project capability advertisement per generated peer per transport (`capabilities_service` for gRPC, a shared `GET <base>/capabilities` route for REST/SOAP, a REQ/REP exchange for ZMQ — all three carrying the same `capabilities_Request`/`capabilities_Response` wire messages) lists every message-type name the peer knows about; each transport's hand-written `negotiate()` runtime queries a peer's set with a real deadline (a peer that predates this feature, or never answers in time, resolves to a named "legacy peer" outcome, not a hang), and the shared `harpia::capability::Dispatcher` routes a message type to a registered handler when the peer's set covers it or to a mandatory fallback otherwise — never a silent no-op. |
+| 13 | zmq/socket + gRPC access | ✅ gRPC stubs **wired to CRUDL** (per table message, a `<name>_service` impl: push→create, pullByID→read, streamSrc→list [paginated via the request's `offset`/`limit` fields when `limit>0`], heartBeat→echo), with the data RPCs gated by the Stage 5 credential via `x-user`/`x-pswd` call metadata (UNAUTHENTICATED on mismatch) **and** ZMQ push/pull + pub/sub, with a sender "originator" id (process.md 1.3.1.1): a compile-time constant for a unique publisher (`pull`/`event`/`stream`), or a runtime-unique id (pid + counter + random, no broker needed) for a shared publisher (`push`/`pushpull`); every ZMQ sender/receiver/publisher/subscriber constructor also takes an optional CURVE encryption keys parameter (default-disabled, `USAGE.md` §10). **Capability handshake** (message-versioning effort, shipped 2026-08-23, all four transports — see `Capability/CLAUDE.md`): one whole-project capability advertisement per generated peer per transport (`capabilities_service` for gRPC, a shared `GET <base>/capabilities` route for REST/SOAP, a REQ/REP exchange for ZMQ — all three carrying the same `capabilities_Request`/`capabilities_Response` wire messages) lists every message-type name the peer knows about; each transport's hand-written `negotiate()` runtime queries a peer's set with a real deadline (a peer that predates this feature, or never answers in time, resolves to a named "legacy peer" outcome, not a hang), and the shared `harpia::capability::Dispatcher` routes a message type to a registered handler when the peer's set covers it or to a mandatory fallback otherwise — never a silent no-op. |
 | 14 | generated-code unit tests | ✅ per-message C++ unit tests + one app-level test as an opt-in CTest target (`-DHARPIA_BUILD_TESTS=ON`): simple field access + CRUDL round-trip (14.1/14.2), SOAP access-rights credential gate (14.3), access-modifier constraint enforcement (14.4), JSON (14.5) + XML (14.6) parser round-trips, live REST JSON-CRUD (14.7/14.10) and SOAP-over-HTTP (14.8/14.9) HTTP APIs, and an application-level all-good/crash/slower/non-parseable suite (14.11–14.14) |
 
 The generated project builds with its own CMake and ships a runnable
@@ -32,21 +32,37 @@ client/server demo (ZMQ). See `tests/` for what is verified end to end.
 ### Known gaps
 
 Within the pipeline above (stages 0–14, C++ only):
-- The "continuable process" gap in `harpia.architecture.md` has two halves:
-  regeneration being wasteful (redoing unchanged work) is **done** —
-  regeneration is write-if-different with stale-output pruning (see
-  `Util.util.write_if_different`/`prune_stale_outputs`, `USAGE.md` §11), so
-  an unchanged file keeps its mtime and a downstream `cmake --build` skips
-  recompiling it. True interrupt/crash recovery (resume a *killed mid-run*
-  generate, not just skip a no-op regenerate) is the sha256-registry/marker
-  machinery the doc describes — still explicitly aspirational, not started.
+- **Corrected 2026-08-23** (this bullet previously called the second half
+  below "still aspirational, not started" — that was stale; both halves
+  shipped 2026-08-19, see `harpia.architecture.md`'s inline note for the
+  full history). The "continuable process" gap had two halves:
+  regeneration being wasteful (redoing unchanged work), and true
+  interrupt/crash recovery (resuming a *killed mid-run* generate, not
+  just skipping a no-op regenerate). Both are closed by the same
+  mechanism, not two separate ones: every generated file goes through
+  `Util.util.write_if_different`/`copy_if_different` (content-compared,
+  atomic same-directory temp-file + `os.replace`), plus
+  `prune_stale_outputs` for renamed/removed messages — see `USAGE.md`
+  §11, `util/CLAUDE.md`. An unchanged file keeps its mtime (a downstream
+  `cmake --build` skips recompiling it — the wasteful-regen half); a
+  process killed mid-write can never leave a truncated file, and rerunning
+  the whole generate after a kill just reproduces the same content for
+  already-correct files and completes the rest — no separate resume logic
+  needed (the crash-recovery half). The original design (a dual sha256
+  registry + start/finish markers, `harpia_medical_master_plan.md`'s
+  Track I) was deliberately superseded by this simpler mechanism, not
+  built as originally scoped — see `harpia.architecture.md`'s note for why.
 
 Beyond the pipeline (the "## objective:"-onward spec section below is the
 design vision, not current status):
 - No YAML serialization (JSON and XML adapters exist; spec calls for
   YAML-style `toString` too).
-- No Doxygen generation for the emitted C++ — scoped in
-  `plans/doxygen-generation.md`.
+- No Doxygen generation for the emitted C++ yet — still a real gap in
+  today's output. Plumbing + ongoing discipline now folded into
+  `plans/medical_devices/schedule/foundation.md` (F6 + Ground Rule 6,
+  2026-08-23) rather than staying its own deferred track; see
+  `plans/doxygen-generation.md` for the pitfall-table reference that
+  discipline builds from.
 - REST/SOAP (Crow's `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC
   (`grpc::SslServerCredentials`) are TLS-capable and documented (`USAGE.md`
   §9); harpia never generated their server-construction code to begin with

@@ -43,7 +43,7 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `test_stage11_soap.py` — SOAP-over-HTTP endpoint (credential gate).
 - `test_stage12_rest.py` — REST HTTP CRUD, credential-gated.
 - `test_stage13.py` — gRPC services compile, CRUDL-backed impl, metadata auth.
-- `test_fieldmap.py` — message-versioning §3 unit tests: `message.FieldMap.freeze`
+- `test_fieldmap.py` — field-identity (wire-number freeze) unit tests, from the message-versioning effort: `message.FieldMap.freeze`
   driven directly (no lexer) — first-generation freeze, reorder/insert
   stability, delete-retires-number, rename-keeps-number, unresolvable-rename
   falls back (mirrors `Database/MigrationAdapter`'s conditional RENAME),

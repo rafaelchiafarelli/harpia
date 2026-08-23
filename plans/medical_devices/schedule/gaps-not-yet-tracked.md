@@ -3,11 +3,12 @@
 Added 2026-08-18, cross-referencing `README.md`'s "Known gaps" (current
 harpia `dev` @ `0757180`) against every track in `foundation.md` and
 `session-1` through `session-4`. Everything else on that list already maps
-onto an existing track (True crash/interrupt recovery → Track I; no YAML
-serialization → Track F; no multi-tier RBAC → Track C; C++-only generation
-target → Track J). Doxygen generation is now scoped on its own —
-`plans/doxygen-generation.md` — so it's dropped from this file. This one
-still doesn't have a home yet:
+onto an existing track (no YAML serialization → Track F; no multi-tier
+RBAC → Track C; C++-only generation target → Track J). Doxygen generation
+is folded into `foundation.md` (F6 + Ground Rule 6, 2026-08-23) rather
+than scoped as its own track — see that file. **True crash/interrupt
+recovery, originally mapped to Track I here, is now resolved — see
+below, not an open gap anymore.** This one still doesn't have a home yet:
 
 ---
 
@@ -37,12 +38,53 @@ full stop.)
 
 ---
 
+## True crash/interrupt recovery (Track I) — RESOLVED 2026-08-19, doc drift found and fixed 2026-08-23
+
+Was: mapped to Track I (`harpia_medical_master_plan.md`), scoped as a
+dual sha256 registry + per-file `.sha256` sidecars + start/finish markers,
+per `harpia.architecture.md`'s original spec text. Actually shipped
+2026-08-19, via a different, simpler mechanism — **not** the registry:
+every generated file already goes through
+`Util.util.write_if_different`/`copy_if_different` (content comparison,
+atomic same-directory temp-file + `os.replace`), which makes a killed
+mid-write never leave a truncated file, and makes rerunning the whole
+pipeline after a kill self-resuming for free (already-correct files
+reproduce identical content and are skipped, incomplete ones get written).
+No registry, no `.sha256` sidecars, no start/finish markers, no
+`per-process`/`main` registry files — see `harpia.architecture.md`'s
+inline "Superseded (shipped 2026-08-19)" note and `util/CLAUDE.md`.
+
+**Found 2026-08-23, while reconciling an unrelated question about this
+mechanism:** this resolution had not propagated everywhere. Three other
+docs still described crash recovery as unstarted/aspirational after it
+had shipped: `README.md`'s "Known gaps" (fixed — see that file's
+2026-08-23 correction note), this file's own opening paragraph (fixed
+above), and `harpia_medical_master_plan.md`/`session-4-platform-infra.md`
+(the latter since restructured into `thread-4-platform-infra/` — see
+below), which both still carried Track I's full original sha256-registry
+contract as a "not started" deliverable (fixed — see the 2026-08-23
+update notes on both, and `thread-4-platform-infra/README.md`'s own note
+that Track I isn't represented there at all).
+
+**Fallout from this fix — decided 2026-08-23:** Track L (versioning/git
+integration) was scoped to depend on Track I — "shares registry
+version-stamp fields" — because the original design had version metadata
+living *in* the sha256 registry. That registry doesn't exist. Track L's
+underlying feature (git fork-tracking for generated projects) is still a
+genuine, unbuilt gap — confirmed nothing exists for it in the current
+codebase. Resolved: folded into Track M's `ComplianceReport/`/SBOM output
+instead of a new mechanism. See `harpia_medical_master_plan.md` and
+`thread-4-platform-infra/track-l-versioning.md`'s Track L contracts —
+both now carry a real session breakdown (L.1/L.2).
+
+---
+
 ## Device-interop protocols considered and deferred (2026-08-21)
 
 Not gaps against a committed scope — these came up while scoping Track P
-(DDS)/Track Q (IEEE 11073 SDC) for `session-5-device-interop.md` and were
-deliberately **not** turned into tracks, with reasons, so a future session
-doesn't re-litigate them from scratch:
+(DDS)/Track Q (IEEE 11073 SDC) for what's now `thread-5-device-interop/`
+and were deliberately **not** turned into tracks, with reasons, so a
+future session doesn't re-litigate them from scratch:
 
 - **IEEE 11073 PHD (personal/wearable devices, 11073-20601)** — the
   personal-health-device gateway pattern (glucose meter/BP cuff/pulse-ox
@@ -68,7 +110,9 @@ doesn't re-litigate them from scratch:
   LOINC/SNOMED-coded fields), which nothing in the generator maps to
   today. This is a legitimate façade/translation track, not a
   non-fit — see Track R in the master plan and
-  `session-5-device-interop.md`.
+  `thread-5-device-interop/track-r-fhir-facade.md` (added 2026-08-23 —
+  the original `session-5-device-interop.md` never actually included
+  Track R despite the master plan naming it part of this session).
 
 If any of these get picked back up later, scope them the same way
 Track P/Q were: a dedicated track with its own contract in the master
@@ -78,8 +122,9 @@ plan, not folded silently into an existing one.
 
 ## ZMQ CURVE Windows build-verification
 
-This one *is* already tracked (see the 2026-08-18 update note on Track B
-in `session-2-transport-and-access.md`) — listed here only so a scan of
-this file catches it too. `Assets/vcpkg.json`'s `zeromq` dependency has
-the `curve`+`sodium` features added; the `-DUSE_ZMQ_CURVE=ON` build path
-has not been exercised on a native Windows host.
+This one *is* already tracked — now as its own session, Session B.4 in
+`thread-2-transport-and-access/track-b-zmq-lifecycle.md` — listed here
+only so a scan of this file catches it too. `Assets/vcpkg.json`'s `zeromq`
+dependency has the `curve`+`sodium` features added; the
+`-DUSE_ZMQ_CURVE=ON` build path has not been exercised on a native
+Windows host.

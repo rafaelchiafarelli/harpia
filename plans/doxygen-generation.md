@@ -1,6 +1,21 @@
 # Doxygen Generation: Teaching Consumers to Use the Generated Library, Not Just Decorating It
 
-Status: scoped, not started. Replaces the narrower framing that used to
+**Status, updated 2026-08-23: folded into
+`plans/medical_devices/schedule/foundation.md` as F6 (one-time plumbing)
+plus Ground Rule 6 (an ongoing discipline every future track follows, not
+a deferred track of its own).** This file is no longer "scoped, not
+started" waiting for its own session — the mechanical setup (§2 below) is
+F6, and §3's "comments emitted by the templates" work happens
+incrementally, one track at a time, as each track touches its own
+consumer-facing templates, per Ground Rule 6. This file now lives on as
+the **pitfall table in §4** — a living reference every track adds to when
+its own work introduces a consumer-relevant pitfall not already listed,
+so the table (and the doc-comments built from it) don't go stale. Read
+`foundation.md`'s Ground Rule 6 and F6 contract first; they're the
+current source of truth for *when*/*how* this gets built. This file keeps
+the *why* (§1) and the *what to watch for* (§4), not duplicated there.
+
+Replaces the narrower framing that used to
 live in `plans/medical_devices/schedule/gaps-not-yet-tracked.md` ("Doxygen-
 style comment emission ... + a Doxyfile/CMake target" — treated as a pure
 documentation-quality/cosmetic gap). That framing undersells the job.
@@ -26,7 +41,7 @@ and how to not misuse it" intent, short of the full usage-example-run-as-
 integration-test claim (see §5, non-goals — that's a bigger, separable
 project).
 
-## 2. The mechanical part (still small, still true)
+## 2. The mechanical part (still small, still true) — this is now Foundation's F6
 
 - A `Doxyfile` + CMake target (`doxygen` target, `add_custom_target`) to
   build HTML docs from the generated tree. Not novel — standard Doxygen/CMake
@@ -57,8 +72,15 @@ emit a doc comment block, not just the wrapper it already generates.
 
 ## 4. Known pitfalls to surface, and where they land
 
-Pulled from what's already known and documented internally — the point of
-this section is "port it", not "discover it fresh":
+**This table is now a living reference, per Ground Rule 6 — append to it,
+don't just consult it.** When a track's own session adds a
+consumer-facing template/adapter behavior a future consumer could get
+wrong, add a row here in that same session, then emit the corresponding
+doc-comment. The starting set below was pulled from what was already
+known and documented internally — the point of this section was "port
+it", not "discover it fresh," and that's still true for whatever's
+already written down in an adapter's own `CLAUDE.md` as a gotcha a
+consumer (not a harpia contributor) could hit:
 
 | Pitfall | Source of truth today | Where it should land |
 |---|---|---|
@@ -71,9 +93,8 @@ this section is "port it", not "discover it fresh":
 | Serializers are contractually crash-free; OOM returns a standardized error, not a crash | `README.md:330-332` (spec) | JSON/XML adapter class-level doc comment |
 | Filenames are `<name>_<hash>`-qualified and get pruned/regenerated when the root `.harpia` (or an import) changes | `util/CLAUDE.md` | Top-of-file note (auto-generated banner), not per-header prose |
 
-This table is a starting set, not exhaustive — anything else already
-written down in an adapter's `CLAUDE.md` as a "gotcha" that a *consumer*
-(not a harpia contributor) could actually hit belongs here too.
+(See the living-reference note above the table — this was originally
+written as a one-time starting set; per Ground Rule 6 it isn't anymore.)
 
 ## 5. Non-goals
 
@@ -92,12 +113,15 @@ written down in an adapter's `CLAUDE.md` as a "gotcha" that a *consumer*
 
 ## 6. Verification
 
-- A `doxygen`-gated test (skipped when the `doxygen` binary is absent, same
-  pattern as the C++-toolchain-gated tests in `tests/CLAUDE.md`) that runs
-  `doxygen` over a generated project and asserts it produces zero warnings
-  with `WARN_IF_UNDOCUMENTED = YES` — catches a template regressing back to
-  an undocumented emit.
-- At least one golden-style snapshot assertion (mirroring `test_golden.py`)
-  on a generated header's doc-comment block, so the *content* of a pitfall
-  note (e.g., the `HasField` warning) can't silently regress to generic
-  boilerplate in a later refactor without the test noticing.
+- The `doxygen`-gated zero-warnings test (skipped when the `doxygen`
+  binary is absent, same pattern as the C++-toolchain-gated tests in
+  `tests/CLAUDE.md`) is F6's job — see `foundation.md`'s F6 contract.
+  It's what makes Ground Rule 6 mechanically enforceable rather than a
+  written convention only: a track that forgets a doc-comment fails this
+  test.
+- **Per-track job, not F6's:** at least one golden-style snapshot
+  assertion (mirroring `test_golden.py`) on that track's own generated
+  header's doc-comment block, so the *content* of a pitfall note (e.g.,
+  the `HasField` warning) can't silently regress to generic boilerplate
+  in a later refactor without the test noticing. Add one alongside
+  whatever pitfall-table row (§4) the track's own session adds.

@@ -1,6 +1,6 @@
 # Capability — shared bits across the three §5 capability-handshake adapters
 
-**Pipeline role:** Not a pipeline stage of its own — a shared support module for `GrpcCapabilityAdapter/`, `HttpCapabilityAdapter/`, and `ZmqCapabilityAdapter/` (Stage 13/11/12, message-versioning `plans/message-versioning.md` §5). Factors out the two things genuinely identical across all three transport-specific slices: which message types get advertised, and the transport-agnostic client-side dispatch logic.
+**Pipeline role:** Not a pipeline stage of its own — a shared support module for `GrpcCapabilityAdapter/`, `HttpCapabilityAdapter/`, and `ZmqCapabilityAdapter/` (Stage 13/11/12, part of the message-versioning capability-handshake effort shipped 2026-08-23). Factors out the two things genuinely identical across all three transport-specific slices: which message types get advertised, and the transport-agnostic client-side dispatch logic.
 **Entry points:** `Capability.capability_common.message_type_names(messages)` (Python, generation time) and `harpia::capability::Dispatcher` (C++, copied into every generated project's `generated/cpp/capability/`).
 **Inputs → Outputs:** `capability_common.py` has no adapter of its own — it's imported by the three real adapters. `runtime/harpia_capability_dispatch.h` is copied verbatim (like `XmlAdapter/runtime/harpia_xml.h`) by all three of them into the same shared `<dest>/generated/cpp/capability/` directory.
 

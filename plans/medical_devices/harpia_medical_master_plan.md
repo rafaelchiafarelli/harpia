@@ -35,6 +35,27 @@ reach is deployment topology and legal review, not something generated
 code can know; Harpia's guarantee stops at authenticated/encrypted
 transport plus audit of `phi` access. See Track P's contract.
 
+**Update (2026-08-23):** Track I (§2, §5) is **fully superseded, not a
+Session 4 task anymore.** It was scoped to build a dual sha256 registry +
+per-file `.sha256` sidecars + start/finish markers for crash/interrupt
+recovery — that already shipped 2026-08-19, via a different, simpler
+mechanism (content-compared atomic writes via
+`Util.util.write_if_different`/`copy_if_different`, no registry at all —
+see `util/CLAUDE.md`, `harpia.architecture.md`'s inline "Superseded"
+note). This doc's own Track I contract hadn't been updated to reflect
+that until now; see the correction notes on Track I below (Track I isn't
+represented at all in the restructured
+`plans/medical_devices/schedule/thread-4-platform-infra/` — see that
+folder's README), and the full trace in
+`plans/medical_devices/schedule/gaps-not-yet-tracked.md`. **Fallout —
+decided 2026-08-23:** Track L was scoped to depend on Track I — "shares
+registry version-stamp fields" — because version metadata was meant to
+live *in* that registry. The registry doesn't exist. Resolved by folding
+Track L's version stamps into Track M's `ComplianceReport/`/SBOM output
+instead — see Track L's contract below and
+`thread-4-platform-infra/track-l-versioning.md`'s L.1/L.2 session
+breakdown.
+
 ---
 
 ## 0. Ground rules for parallel work
@@ -144,11 +165,11 @@ are worked in the same session — split across sessions only if the
 | R | HL7 FHIR façade — per-resource mapping (`.harpia` message → FHIR resource type + terminology binding), new REST surface emitted alongside Stage 12's existing generic REST endpoint, not replacing it | `Database/RestAdapter.py` (reads from, doesn't modify), new `FhirAdapter/` (scoping only this pass — see contract) | F1, F2 | Same session as Track P/Q, last. Design-doc deliverable this pass, same posture as Track Q. |
 | E | Events/callbacks framework (`event[cached/not-cached]`, detached-thread callbacks) with `AuditSink` hooks at OnChange | `Logger/`, new `Callback/` module | F1, F3 | none directly, but logically depends on F3's interface shape |
 | F | Serialization unification: add YAML pretty-print, close out the JSON/XML/YAML `toString` triad through one shared path, wire `phi` redaction into it | `JsonAdapter/`, `XmlAdapter/`, new `YamlAdapter/`, `Message/` toString templates | F2 | none |
-| I | sha256-registry / continuable-process machinery (the "largely aspirational" architecture.md system) | `Util/`, `Logger/`, `main.py` orchestration | F1 | Same session as L, run right after Foundation — both touch `main.py` orchestration and the registry's version-stamp fields. |
-| L | Versioning/git integration (per-project fork tracking) | `Util/`, `main.py` | F1 | Same session as I, immediately after. |
+| I | ~~sha256-registry / continuable-process machinery~~ **DONE, superseded — see 2026-08-23 update note above. Not a Session 4 task.** | n/a | n/a | n/a |
+| L | Versioning/git integration (per-project fork tracking) | `ComplianceReport/` (Track M's module — decided 2026-08-23, was `Util/`/`main.py`) | F1, Track M's Session M.1 | **Decided 2026-08-23: folded into Track M's `ComplianceReport/`/SBOM output instead of a new registry/sidecar (Track I doesn't exist as a task). Coordinate with Track M — L waits on M.1.** |
 | M | Process artifacts: SBOM, traceability matrix, jurisdiction-selected risk-file/doc templates (fda/eu_mdr/anvisa) — same underlying evidence, different paperwork shell | new `ComplianceReport/` module | F1 | Benefits from I landing first but doesn't hard-block on it. |
 | N | Static/fuzz analysis CI (cppcheck/clang-tidy CERT ruleset on generated output, fuzz harness for JSON/XML/SOAP parsers) | `tests/`, CI config only | none | Pure tooling, safe anywhere, anytime. |
-| J | Multi-language codegen, first target language only (**Python** — see `plans/multi-language-targets.md`, don't re-derive) — reuses `protoc`/`grpc`'s native multi-language message/stub generation for Stages 0–7; only Stages 8–14 (DB/DAO, JSON/XML/SOAP/REST, ZMQ, auth, audit) need per-language emitters | new per-language emitter dirs, mirroring `Database/`, `JsonAdapter/`, etc. | F1 | none — prove the plugin-style split with one language before replicating to a second/third. Don't extrapolate Python's cost analysis to Rust/Node/Java ahead of time (rejected 2026-08-18 — see the detailed contract below). |
+| J | Multi-language codegen (**moved 2026-08-23 to `plans/multi-language-targets/`** — not medical-devices-specific; see the detailed contract below for the pointer) | new per-language emitter dirs, mirroring `Database/`, `JsonAdapter/`, etc. | none (base build); F1 only for an optional compliance-aware layer | none — prove the plugin-style split with one language before replicating to a second/third. |
 
 ---
 
@@ -180,10 +201,12 @@ redaction hook design benefits from seeing Track E's audit-hook pattern
 already in place, though it's not a hard blocker.
 
 ### Session 4 — Platform Infra & Expansion
-Track I → Track L (share `main.py`, must stay sequential) → Track J /
-Track M / Track N, in any order — no dependencies among them now that
-Track N no longer carries a cross-variant parity diff (§0a dropped it,
-since there's only one code path to test).
+**Update (2026-08-23): Track I dropped — see the top-of-doc update note.**
+Track L (now blocked on its own open question, not on Track I — see
+Track L's contract) → Track J / Track M / Track N, in any order — no
+dependencies among them now that Track N no longer carries a
+cross-variant parity diff (§0a dropped it, since there's only one code
+path to test).
 
 ### Session 5 — Device Interoperability (new)
 Track P → Track Q → Track R. Not one of the original four sessions — added later,
@@ -662,10 +685,13 @@ proven — unit + integration, not just "tests pass."
   LOINC/SNOMED/UCUM rather than free-form) — nothing a schema-driven
   generator produces automatically, since `.harpia` intentionally lets
   the author define arbitrary message shapes.
-- **Design doc (2026-08-21, full scoping conversation captured):**
-  `plans/medical_devices/fhir_mapping_design.md`. Decisions settled
-  enough to build against, and open questions still needing resolution,
-  are both in that doc — summary below, don't duplicate detail here.
+- **Design doc (2026-08-21, full scoping conversation captured) — merged
+  2026-08-23 into**
+  `plans/medical_devices/schedule/thread-5-device-interop/track-r-fhir-facade.md`
+  (the original standalone `fhir_mapping_design.md` is deleted; that
+  thread file is now the canonical source). Decisions settled enough to
+  build against, and open questions still needing resolution, are both
+  there — summary below, don't duplicate detail here.
 - **What this track actually is:** a translation façade sitting beside
   the existing adapters, never touching `ProtoFile/FileCreator.py`,
   `ProtoCompiler.py`, or `GrpcCompiler.py` — same relationship
@@ -704,7 +730,8 @@ proven — unit + integration, not just "tests pass."
     recipient declaration once the grammar is designed — not legal
     advice, needs counsel/DPO sign-off.
 - **Deliverables (this pass, scoping only — same posture as Track Q):**
-  - `plans/medical_devices/fhir_mapping_design.md` — done, captures the
+  - The design above (merged 2026-08-23 into `track-r-fhir-facade.md`,
+    see the note at the top of this contract) — done, captures the
     above; grammar syntax itself still not committed (see open
     questions).
   - A worked example: one existing message type (e.g. the
@@ -772,28 +799,63 @@ proven — unit + integration, not just "tests pass."
   - Acceptance gate: existing JSON/XML golden snapshots (14.5/14.6)
     unchanged for non-`phi` messages.
 
-### I — sha256 registry / continuable process
-- **Preconditions:** F1 merged. Run this right after Foundation, same
-  session as Track L, before either fragments further into `main.py`.
-- **Deliverables:** unique file/folder creation interface; per-file sha256
-  + metadata registry; per-process and main registry files; resume logic.
-- **Guarantees:** an interrupted pipeline run resumes from the last
+### I — ~~sha256 registry / continuable process~~ DONE — superseded, not a task
+
+**Correction (2026-08-23):** everything below this line is the original
+scoping, kept for history — do not build it. The problem it was scoped to
+solve (interrupt/crash recovery) shipped 2026-08-19, via a mechanism that
+makes every deliverable/test below moot:
+
+- **What actually shipped, instead:** every generated file goes through
+  `Util.util.write_if_different`/`copy_if_different` — content comparison
+  (not a marker or sha256), atomic same-directory temp-file + `os.replace`.
+  A process killed mid-write never leaves a truncated file at the
+  destination; rerunning the whole pipeline after a kill reproduces
+  identical content for already-correct files (skipped, no wasted write)
+  and completes whatever didn't finish — self-resuming with no registry,
+  no `.sha256` sidecars, no start/finish markers, no per-process/main
+  registry files. See `util/CLAUDE.md` and `harpia.architecture.md`'s
+  inline "Superseded (shipped 2026-08-19)" note for the full account of
+  why the registry design was dropped in favor of this.
+- **Real fallout, not resolved by this correction:** Track L below was
+  scoped to depend on this track — "shares registry version-stamp
+  fields" — because version metadata was meant to live in the registry
+  this track would have built. That registry doesn't exist. See Track L's
+  contract for the resulting open question.
+
+Original scoping (do not build):
+- ~~**Preconditions:** F1 merged. Run this right after Foundation, same
+  session as Track L, before either fragments further into `main.py`.~~
+- ~~**Deliverables:** unique file/folder creation interface; per-file sha256
+  + metadata registry; per-process and main registry files; resume logic.~~
+- ~~**Guarantees:** an interrupted pipeline run resumes from the last
   completed stage rather than restarting; a corrupted/tampered file is
-  detected via sha256 mismatch and triggers recompute.
-- **Tests:**
-  - Unit: sha256 stored matches file; mismatch detected on corruption.
-  - Integration: kill `main.py` mid-run at a known stage, rerun, confirm it
+  detected via sha256 mismatch and triggers recompute.~~
+- ~~**Tests:**~~
+  - ~~Unit: sha256 stored matches file; mismatch detected on corruption.~~
+  - ~~Integration: kill `main.py` mid-run at a known stage, rerun, confirm it
     resumes and the final output matches a clean, uninterrupted run
-    byte-for-byte.
-  - Acceptance gate: full pipeline output unchanged vs. F4 baseline when
+    byte-for-byte.~~
+  - ~~Acceptance gate: full pipeline output unchanged vs. F4 baseline when
     run without interruption (registry machinery has zero side effects on
-    normal runs).
+    normal runs).~~
 
 ### L — Versioning/git integration
-- **Preconditions:** F1 merged; same session as Track I, immediately after
-  — shares registry version-stamp fields.
-- **Deliverables:** fork-tracking metadata; version stamps feeding the
-  registry's "associated version / calculated version" fields.
+- **Decided 2026-08-23:** this track's original deliverable was "version
+  stamps feeding the registry's 'associated version / calculated
+  version' fields" — but that registry was Track I's, and Track I never
+  got built (superseded by a different mechanism that has no registry at
+  all — see Track I's contract above). Resolved by folding version
+  stamps into Track M's `ComplianceReport/`/SBOM output instead of a new
+  mechanism — Track M already has a per-project artifact module; version
+  lineage is one more field in something it already emits. Full session
+  breakdown (L.1/L.2) in
+  `plans/medical_devices/schedule/thread-4-platform-infra/track-l-versioning.md`.
+- **Preconditions (updated):** F1 merged; Track M's Session M.1 merged
+  (the `ComplianceReport/` module must exist to extend) — replaces the
+  old "same session as Track I" coupling.
+- **Deliverables (updated):** fork-tracking metadata; version stamps
+  emitted as fields within Track M's `ComplianceReport/`/SBOM output.
 - **Guarantees:** version lineage is recoverable for any generated project;
   projects without git present degrade gracefully (no crash, no forced
   requirement).
@@ -804,8 +866,10 @@ proven — unit + integration, not just "tests pass."
   - Acceptance gate: no-git environments still generate successfully.
 
 ### M — Process artifacts (SBOM, traceability matrix, jurisdiction docs)
-- **Preconditions:** F1 merged. Benefits from, but doesn't hard-block on,
-  Track I landing first.
+- **Preconditions:** F1 merged. ~~Benefits from, but doesn't hard-block
+  on, Track I landing first.~~ **(2026-08-23: Track I doesn't exist as a
+  task anymore — see the top-of-doc update note. No dependency to
+  benefit from.)**
 - **Deliverables:** `ComplianceReport/` module emitting an SBOM
   (CycloneDX/SPDX), a traceability matrix (one code path, one set of
   evidence), and jurisdiction-selected doc templates (fda/eu_mdr/anvisa)
@@ -833,31 +897,30 @@ proven — unit + integration, not just "tests pass."
   is considered live.
 
 ### J — Multi-language codegen (first target language)
-- **Preconditions:** F1 merged (for any compliance-aware emitters).
-- **Which language:** don't re-derive this — `plans/multi-language-targets.md`
-  already did a real per-stage cost analysis (stages 0–6 + `.proto` emission
-  are free for any language, since that's inherent to using protobuf as the
-  IR; stages 8–14 are where real per-language cost lives) and recommends
-  **Python**, with the explicit warning that it's "a multi-session effort in
-  its own right, not a quick session." Read that doc before scoping this
-  track further.
-- **Deliverables:** Stage 8–14 emitters for one chosen target language,
-  reusing `protoc`/`grpc`'s native multi-language message/stub generation
-  instead of hand-rolling it.
-- **Guarantees:** generated target-language project builds and runs a
-  client/server demo mirroring the existing C++ one.
-- **Out of scope:** the second and third languages — this track exists to
-  prove the plugin-style split, not to ship all languages at once. Do
-  **not** extrapolate the Python cost analysis to Rust/Node/Java ahead of
-  time either (considered and rejected during this plan's 2026-08-18
-  scoping session — see `plans/multi-language-targets.md`'s closing note):
-  Python's per-stage costs lean on Python-specific facts (its protobuf
-  JSON support, its reflection API shape, its DB/HTTP ecosystem) that don't
-  transfer by analogy to languages with a different type system or no
-  runtime reflection. Extract the general N-language seam only after a
-  second real language exists to compare against C++ — same precedent as
-  `Database/backends/` not being designed until Postgres was a real second
-  case.
+
+**Restructured 2026-08-23: this is no longer a self-contained contract.**
+Multi-language codegen isn't medical-devices-specific work — it moved to
+its own standalone plan,
+[`plans/multi-language-targets/`](../multi-language-targets/README.md)
+(27-session breakdown, one deliverable + tests each, at
+`thread-1-java-target/track-j-java-target.md`). The original
+`plans/java-target.md` and `plans/multi-language-targets.md` files that
+used to be cited throughout this contract are **deleted** — their
+content merged into that standalone plan, not lost. See that plan's
+`README.md` §4 for the full Python→Java selection history (Java picked
+2026-08-22 over the original Python recommendation, for a concrete
+business reason: an existing Android fleet).
+
+- **Preconditions:** none from this plan for the base build
+  (see the standalone plan's own Receives section). **Conditional:** F1
+  merged, only if/when this fleet's Java target needs to be
+  compliance-aware (`risk_class`/`phi`-respecting like the C++ target) —
+  see
+  `plans/medical_devices/schedule/thread-4-platform-infra/track-j-java-target.md`
+  for that thin, not-yet-scoped layer.
+- **Deliverables/Guarantees/Out of scope:** all in the standalone plan
+  now — don't duplicate here, it will drift the same way this contract
+  itself went stale after the Python→Java pivot.
 - **Tests:**
   - Unit: each emitter produces code that compiles/type-checks in the
     target language.

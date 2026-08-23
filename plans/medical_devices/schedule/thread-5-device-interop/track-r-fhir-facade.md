@@ -1,15 +1,48 @@
-# FHIR Mapping Design — Track R
+# Track R — HL7 FHIR façade (scoping only)
 
-Status: scoping conversation captured, no grammar/code committed yet.
-This is the Track R deliverable referenced in
-`harpia_medical_master_plan.md` §5. Nothing here is implemented — every
-decision below is either a stated design rule (safe to build against) or
-an explicitly flagged open question (needs resolution before grammar is
-locked).
+**Found while restructuring (2026-08-23):** the master plan's §3 says
+Thread 5 is "Track P → Track Q → Track R," and Track R has a full scoped
+contract in the master plan §5 — but the original
+`session-5-device-interop.md` never actually included Track R at all
+(its own header said "Covers Track P... and Track Q..." only). This file
+closed that gap when it was first created; this revision merges in the
+full design doc (`fhir_mapping_design.md`, originally a separate file)
+per the 2026-08-23 decision to integrate both medical_devices design docs
+into the plan rather than leave them as separate files a reader has to
+discover — the original `plans/medical_devices/fhir_mapping_design.md`
+is deleted, this file is now the canonical source.
+
+**Corrected framing (2026-08-21, from the master plan):** an earlier pass
+dismissed FHIR as "orthogonal — system-to-system, not device IPC." That's
+wrong on the mechanism: FHIR's RESTful convention (verbs, JSON/XML,
+content negotiation) is exactly what Stage 12 already emits. The actual
+gap is FHIR's **fixed resource vocabulary and terminology bindings**
+(`Patient`, `Observation`, `DeviceMetric`, fields coded against
+LOINC/SNOMED/UCUM rather than free-form) — nothing a schema-driven
+generator produces automatically, since `.harpia` intentionally lets the
+author define arbitrary message shapes.
+
+**What this track actually is:** a translation façade sitting beside the
+existing adapters, never touching `ProtoFile/FileCreator.py`,
+`ProtoCompiler.py`, or `GrpcCompiler.py` — same relationship
+`JsonAdapter`/`SoapAdapter.py`/`RestAdapter.py` already have to the
+compiled message. A `.harpia` author opts a message into a FHIR resource
+mapping (two-level: message → resource type, field → element — explicit
+only, never inferred from field name/type, same discipline as
+`phi`/`critical`); the generator would emit a second, FHIR-conformant
+REST endpoint alongside the existing generic one (Stage 12/
+`RestAdapter.py` read from, not modified).
 
 ---
 
-## 1. Where this sits in the pipeline
+## Design doc (merged 2026-08-23 from `fhir_mapping_design.md`)
+
+Status: scoping conversation captured, no grammar/code committed yet.
+Every decision below is either a stated design rule (safe to build
+against) or an explicitly flagged open question (needs resolution before
+grammar is locked).
+
+### 1. Where this sits in the pipeline
 
 FHIR support is a **translation façade added beside the existing
 adapters, never a replacement for the `.proto`/gRPC path.**
@@ -28,7 +61,7 @@ adapters, never a replacement for the `.proto`/gRPC path.**
   REST endpoint Stage 12 already emits keeps working unchanged; FHIR is
   an additional, separate endpoint for messages that opt in.
 
-## 2. Generation contract: what's generated vs. what's declared
+### 2. Generation contract: what's generated vs. what's declared
 
 Two different things, kept separate on purpose:
 
@@ -44,14 +77,14 @@ Two different things, kept separate on purpose:
 - **Unmapped fields are omitted, never fabricated.** Consistent with
   `harpia_sensitive_data_design_rules.md` §5 — Harpia never invents a
   plausible value to make output look complete. (Superseded in part by
-  §6 below — "omitted" is now the fallback only when the author didn't
+  §5 below — "omitted" is now the fallback only when the author didn't
   also opt into the extension mechanism.)
 - **Full profile conformance (e.g. a specific implementation guide like
   US Core) is out of scope for the generator to certify** — same
   boundary Harpia already keeps around arbitrary business-rule
   validation today.
 
-## 3. Mapping grammar — two levels, explicit only
+### 3. Mapping grammar — two levels, explicit only
 
 - **Message-level annotation:** declares which FHIR resource type the
   message maps to (e.g. `HeartRateReading` → `Observation`).
@@ -66,8 +99,8 @@ Two different things, kept separate on purpose:
   constraints** — cardinality, datatype, and terminology-binding
   strength (`required`/`extensible`/`preferred`/`example`). "Expected to
   work as described" is a real conformance bar, not a suggestion — this
-  is why the acceptance test (§9) requires validating the hand-mapped
-  example against a public FHIR validator, not just "looks plausible."
+  is why R.1's test requires validating the hand-mapped example against a
+  public FHIR validator, not just "looks plausible."
 - **`critical`/`phi` don't need new FHIR-specific grammar — they map
   onto existing spec mechanisms (2026-08-21):**
   - `critical` is a delivery-guarantee/QoS concern, already fully
@@ -94,9 +127,9 @@ Two different things, kept separate on purpose:
     "break-the-glass" security label — emergency clinician override of
     normal access restriction, logged rather than blocked. Nothing in
     `phi`/`critical`/Track C's RBAC models "allow anyway, but log
-    loudly" today. Open question, not designed yet.
+    loudly" today. Open question, not designed yet (see open question 9).
 
-## 4. FHIR is two-way — this changes CapabilityStatement and read-gating
+### 4. FHIR is two-way — this changes CapabilityStatement and read-gating
 
 FHIR is a full REST CRUD surface (`GET`/`POST`/`PUT`/`DELETE`/`PATCH`
 per resource type), not a one-directional publish protocol. Two concrete
@@ -108,12 +141,12 @@ consequences for Track R:
   catalog. A querying client's discovery step has to reflect what was
   actually built, not the spec's theoretical maximum.
 - **Read access needs the same RBAC/audit gating Track C already puts on
-  writes — not a lesser bar.** Under LGPD (§7 below), reading a
+  writes — not a lesser bar.** Under LGPD (§8 below), reading a
   `phi`-tagged resource is itself an act of "processing" sensitive data,
   same legal-basis question as writing it. `GET /Observation` cannot be
   an open, ungated endpoint just because it's "only a query."
 
-## 5. Extensibility — undeclared fields get a real home, not just omission
+### 5. Extensibility — undeclared fields get a real home, not just omission
 
 FHIR's `extension` mechanism resolves the "what happens to a field with
 no standard element" question more completely than "just omit it":
@@ -132,12 +165,12 @@ no standard element" question more completely than "just omit it":
   when omitting the field could produce a clinically wrong reading, and
   only when the schema author deliberately marks it as such.
 - **`Resource.meta.security` is a candidate carrier for the `phi`/legal-
-  basis metadata** discussed in §7 — a spec-native place for a
+  basis metadata** discussed in §8 — a spec-native place for a
   confidentiality label, rather than inventing a custom extension for
   something FHIR already has a slot for. Not decided — flagged as an
   option to evaluate, not a committed design.
 
-## 6. Composition — one message may span several resources
+### 6. Composition — one message may span several resources
 
 Two native FHIR mechanisms, and the grammar needs to account for both
 rather than assuming "one message = one self-contained resource":
@@ -162,7 +195,7 @@ rather than assuming "one message = one self-contained resource":
   explicitly and wires the `Reference` between them by hand — same
   no-inference discipline as §3.
 
-## 6a. Resource scope — per-device read/write authority, not a fixed allowlist
+### 6a. Resource scope — per-device read/write authority, not a fixed allowlist
 
 **Revised (2026-08-21).** The original framing — "`Observation`/
 `DeviceMetric` in scope, `Patient`/`MedicationRequest` out" — was too
@@ -185,9 +218,9 @@ type:**
 **Design implication:** first-pass scope should not be a fixed
 resource-type allowlist at all. It should be **per-resource read/write
 authority, declared per device category**, expressed through the same
-mechanism §"Read-side RBAC" below already needs — SMART on FHIR's
-`resource-type.operation` scope granularity (e.g. a dispenser's façade
-would plausibly get `MedicationRequest.read` +
+mechanism the "read-side RBAC" open question (below) already needs —
+SMART on FHIR's `resource-type.operation` scope granularity (e.g. a
+dispenser's façade would plausibly get `MedicationRequest.read` +
 `MedicationDispense.write`/`MedicationAdministration.write`, never
 `MedicationRequest.write`).
 
@@ -195,7 +228,7 @@ would plausibly get `MedicationRequest.read` +
 identity/MRN-matching reasoning in §1 (an MPI's job, not a device's)
 doesn't change based on what kind of device is asking.
 
-## 7. Cross-message PHI identity linkage
+### 7. Cross-message PHI identity linkage
 
 **The problem:** two `critical` messages can independently declare a
 field with the same name (e.g. `patient_id`) with **zero linkage in
@@ -240,7 +273,7 @@ refer to the same real patient and each independently `POST`s a new
   human/review problem — but it removes accidental cross-project
   collision as a failure mode entirely.
 
-## 8. LGPD intersection (Brazil) — not a resource-type question
+### 8. LGPD intersection (Brazil) — not a resource-type question
 
 No FHIR resource type is itself incompatible with LGPD — the law doesn't
 ban any data structure. The constraint attaches to **legal basis and data
@@ -265,9 +298,9 @@ sign-off before commit.
   further conditions in §5. This is exactly the pattern a FHIR export
   reaching a third-party commercial system (e.g. a device vendor's cloud
   analytics platform) would trigger.
-- **§4 implication (from §4 above):** reading a `phi`-tagged FHIR
-  resource is processing too — the RBAC/audit gate applies to `GET`, not
-  only to writes.
+- **Implication (from §4 above):** reading a `phi`-tagged FHIR resource
+  is processing too — the RBAC/audit gate applies to `GET`, not only to
+  writes.
 - **Design requirement, revised (2026-08-21) — reuse spec machinery,
   don't invent parallel machinery:** FHIR already has three purpose-built
   resources for exactly this, checked directly against the spec:
@@ -291,17 +324,7 @@ sign-off before commit.
     `Observation`. State this as a known limitation in any future
     implementation, don't try to engineer around it.
 
-## 9. Tests (design-validation phase, not generated code)
-
-- The hand-mapped `Observation` example (from `HeartRateReading` in
-  `harpia_sensitive_data_design_rules.md`) validates against HL7's
-  published FHIR resource schema via a public FHIR validator — proves
-  the target shape is reachable before any codegen is built.
-- No acceptance gate yet for this pass — produces a doc + one manual
-  example; the real acceptance gate belongs to the follow-on
-  implementation track.
-
-## 10. Explicitly out of scope this pass
+### 9. Explicitly out of scope this pass
 
 - Any generated `FhirAdapter/` code.
 - `Bundle`/transaction semantics, `Reference` resolution logic.
@@ -312,14 +335,11 @@ sign-off before commit.
 - The `identifier`-based identity-linkage mechanism's actual grammar
   syntax (§7 states the mechanism, doesn't lock the DSL syntax).
 
----
+### Open questions to investigate
 
-## Open questions to investigate
-
-These are the items this doc deliberately leaves unresolved. Each needs
-a decision — domain-expert, legal, or architectural — before the
-corresponding piece of grammar gets locked in. **Resolved items are kept
-here, marked closed, so the reasoning isn't lost.**
+Each needs a decision — domain-expert, legal, or architectural — before
+the corresponding piece of grammar gets locked in. **Resolved items are
+kept here, marked closed, so the reasoning isn't lost.**
 
 1. ~~Terminology-code binding: static or dynamic?~~ **Closed
    (2026-08-21): static.** Compile-time literal, consistent with
@@ -378,13 +398,76 @@ here, marked closed, so the reasoning isn't lost.**
    Track C's three roles. Still open: how SMART scopes get generated
    from `.harpia` declarations, and how they interact with Track C's
    existing admin/main/guest model rather than replacing it outright.
-   (§4, §6a, §8)
-9. **New (2026-08-21): "break-the-glass" access override.** FHIR's
-   security-label spec defines this natively — emergency clinician
-   override of normal access restriction, logged rather than blocked.
-   No equivalent exists anywhere in Harpia today (`phi`, `critical`,
-   Track C's RBAC). Not designed at all yet — needs its own scoping
-   pass, likely alongside Track C rather than as pure Track R scope,
-   since it's a general access-control concept FHIR just happens to
-   name first. (§3)
+   (§4, §6a)
+9. **"Break-the-glass" access override.** FHIR's security-label spec
+   defines this natively — emergency clinician override of normal access
+   restriction, logged rather than blocked. No equivalent exists anywhere
+   in Harpia today (`phi`, `critical`, Track C's RBAC). Not designed at
+   all yet — needs its own scoping pass, likely alongside Track C rather
+   than as pure Track R scope, since it's a general access-control
+   concept FHIR just happens to name first. (§3)
 
+---
+
+## Receives (must be done before this track starts)
+
+- **F1, F2** from Foundation (see `../thread-5-device-interop/README.md`).
+- Nothing hard from Track P or Track Q. **Flag, not a dependency:** this
+  track benefits from Track Q's mapping-question precedent (schema field
+  → external standard vocabulary) but has no file dependency on it.
+
+## Gives (what "done" means here, consumed by whom)
+
+- This pass: a worked hand-mapped example proving the FHIR mapping is
+  expressible from Harpia's data model, before any of it becomes a
+  grammar feature. The design above is already done.
+- **Consumed by:** no current track. **Flag:** any generated `FhirAdapter/`
+  code, `Bundle`/transaction semantics, the `CapabilityStatement`
+  endpoint, and the `identifier` mechanism's DSL syntax are explicitly
+  out of scope this pass (§9 above) and become a follow-on implementation
+  track once the open questions above are resolved — that track doesn't
+  exist yet, same situation as Track Q's BICEPS follow-on.
+
+## Files this track touches
+
+- **None, this pass.** The design above is documentation, not code, and
+  the one remaining deliverable (R.1) is a hand-mapped example, not
+  generated output. `Database/RestAdapter.py` is named above as something
+  this track's *eventual* façade reads from without modifying — not
+  touched by anything scoped in this pass.
+
+---
+
+## Session R.1 — Worked example: `HeartRateReading` → FHIR `Observation`
+
+- **Depends on:** F1, F2 (Foundation), per the stated preconditions.
+- **Deliverable:** one existing message type (the `HeartRateReading`
+  example from `harpia_sensitive_data_design_rules.md`) mapped by hand to
+  a FHIR `Observation` with a real LOINC code — proving the mapping is
+  expressible before generalizing it into a grammar feature. This is the
+  one deliverable the design above flags as "not yet done — next
+  concrete step."
+- **Out of scope:** any generated `FhirAdapter/` code, grammar changes,
+  `Bundle`/transaction semantics, the `CapabilityStatement` endpoint —
+  all follow-on work once the open questions above are resolved.
+- **Tests:**
+  - Integration (design-validation, not generated code): the hand-mapped
+    `Observation` example validates against HL7's published FHIR resource
+    schema (e.g. via a public FHIR validator) — proves the target shape
+    is reachable from Harpia's data model at all, before any codegen is
+    built.
+- **Acceptance gate:** none yet — this pass produces a worked example,
+  not shipped code; the real acceptance gate belongs to the follow-on
+  implementation track.
+
+## Watch for
+
+- Don't let this session's worked example turn into grammar design or
+  codegen — its deliverable is proof-of-mapping, full stop, same
+  discipline `track-q-sdc-biceps.md` applies to its own scoping session.
+- The open questions above (LGPD counsel sign-off especially) aren't
+  resolved by this session — R.1 proves feasibility, it doesn't close
+  the open questions list.
+- Open question 9 ("break-the-glass") is flagged as "likely alongside
+  Track C rather than pure Track R scope" — if Track C (Thread 2) picks
+  this up first, update this file rather than let the two drift.
