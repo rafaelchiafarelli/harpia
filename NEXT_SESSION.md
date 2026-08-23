@@ -1,7 +1,7 @@
 # Next session
 
 `README.md`'s "Known gaps" section is the live, authoritative list of
-feature/perf gaps. `plans/README.md` is the backlog/scoping-doc index —
+feature/perf gaps. `initiatives/README.md` is the backlog/scoping-doc index —
 open items that used to accumulate in this file now live there instead;
 this file stays a short handoff note, not an archive.
 

@@ -34,8 +34,7 @@ client/server demo (ZMQ). See `tests/` for what is verified end to end.
 Within the pipeline above (stages 0–14, C++ only):
 - **Corrected 2026-08-23** (this bullet previously called the second half
   below "still aspirational, not started" — that was stale; both halves
-  shipped 2026-08-19, see `harpia.architecture.md`'s inline note for the
-  full history). The "continuable process" gap had two halves:
+  shipped 2026-08-19). The "continuable process" gap had two halves:
   regeneration being wasteful (redoing unchanged work), and true
   interrupt/crash recovery (resuming a *killed mid-run* generate, not
   just skipping a no-op regenerate). Both are closed by the same
@@ -51,7 +50,7 @@ Within the pipeline above (stages 0–14, C++ only):
   needed (the crash-recovery half). The original design (a dual sha256
   registry + start/finish markers, `harpia_medical_master_plan.md`'s
   Track I) was deliberately superseded by this simpler mechanism, not
-  built as originally scoped — see `harpia.architecture.md`'s note for why.
+  built as originally scoped.
 
 Beyond the pipeline (the "## objective:"-onward spec section below is the
 design vision, not current status):
@@ -59,9 +58,9 @@ design vision, not current status):
   YAML-style `toString` too).
 - No Doxygen generation for the emitted C++ yet — still a real gap in
   today's output. Plumbing + ongoing discipline now folded into
-  `plans/medical_devices/schedule/foundation.md` (F6 + Ground Rule 6,
+  `initiatives/medical_devices/epics/thread-0-foundation/foundation.md` (F6 + Ground Rule 6,
   2026-08-23) rather than staying its own deferred track; see
-  `plans/doxygen-generation.md` for the pitfall-table reference that
+  `initiatives/doxygen-generation/doxygen-generation.md` for the pitfall-table reference that
   discipline builds from.
 - REST/SOAP (Crow's `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC
   (`grpc::SslServerCredentials`) are TLS-capable and documented (`USAGE.md`
@@ -94,8 +93,8 @@ design vision, not current status):
   no `ComplianceContext`, no PHI field tagging, no message-level
   criticality classification, no key management/mTLS/RBAC/audit-trail
   generation. Not started; scoped as a large, multi-session plan at
-  `plans/medical_devices/` (see `plans/medical_devices/schedule/
-  foundation.md` for the dependency graph across sessions).
+  `initiatives/medical_devices/` (see `initiatives/medical_devices/epics/
+  thread-0-foundation/foundation.md` for the dependency graph across sessions).
 
 **Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the
 consumer's guide (generate, the `.harpia` language by example, what gets
@@ -165,7 +164,7 @@ script sets: `HARPIA_INPUT_FILE`, `HARPIA_INCLUDE_FOLDER`, `HARPIA_OUTPUT_DIR`.
 | `third_party/` | vendored third-party source (tinyxml2, SQLite, Crow + standalone asio) |
 | `tests/` | golden snapshots + per-stage compile/run tests (see `tests/README.md`) |
 | `HarpiaTest/` | the sample `test.harpia` and its includes |
-| `plans/` | scoping docs for larger, not-yet-started or in-progress work (multi-language targets, Postgres migration, `medical_devices/` — a multi-session plan for a medical-device-compliance profile: PHI field tagging, message-level criticality, key management, mTLS/RBAC, audit) — not part of the pipeline itself |
+| `initiatives/` | scoping docs for larger, not-yet-started or in-progress work (multi-language targets, Postgres migration, `medical_devices/` — a multi-session plan for a medical-device-compliance profile: PHI field tagging, message-level criticality, key management, mTLS/RBAC, audit) — not part of the pipeline itself |
 
 ## objective:
 Create a generalized interface for processes and threads to share data among themselves, database and web that has gRPC, ORM, RESTFull, SOAP, CRUDL, multi-project, multi-language and a  multi-thread library to exchange data.
