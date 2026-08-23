@@ -5,7 +5,7 @@
 `ComplianceContext` is threaded into every `Stage*` constructor as an
 optional `compliance=` kwarg alongside the args each already takes
 (`messages`/`dest`/etc.). This is Foundation task F1 -- see
-`initiatives/medical_devices/epics/thread-0-foundation/histories/ComplianceContext-plumbing.md`
+`initiatives/medical_devices/epics/thread-0-foundation/histories/ComplianceContext-plumbing-done.md`
 and `initiatives/medical_devices/harpia_sensitive_data_design_rules.md` §6a.
 **Plumbing only, by design:** no stage branches on these values yet (that
 starts in later tracks -- Track A/C/O/...); every constructor just stores

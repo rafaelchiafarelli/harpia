@@ -1,4 +1,14 @@
 ### F1 — ComplianceContext plumbing
+
+**Status: done (2026-08-23), on `feature/thread-0-foundation` @ 8e40813, not yet merged to `main`.**
+Implemented as `Compliance/context.py`; `main.py`/`tests/run_pipeline.py`
+and all ~24 `Stage*` constructors updated. `risk_class`/`topology`/
+`phi_handling` value sets were undecided in every planning doc up to this
+point -- resolved during implementation, see `Compliance/CLAUDE.md`'s "Key
+facts / gotchas" for the chosen enums and why. All three test layers below
+pass (unit + integration in `tests/test_compliance.py`; golden/F4 baseline
+confirmed unaffected; full Docker toolchain suite shows no new failures).
+
 - **Deliverables:** `Compliance/context.py` defining
   `ComplianceContext{risk_class, topology, phi_handling, jurisdiction[]}`;
   `project.harpia.yaml` parser; `main.py` and every `Stage*` entry point
