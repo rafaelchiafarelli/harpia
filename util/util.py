@@ -239,7 +239,17 @@ def copyCMakeFiles(src, dest):
         os.makedirs(os.path.join(dest, "client"))
     copy_if_different(clientCMakePathSrc,
                        os.path.join(dest, "client", "CMakeLists.txt"))
-    
+
+
+def copyDoxygenFiles(src, dest):
+    """Copy Assets/Doxyfile to <dest>/Doxyfile (Foundation F6). The
+    companion USAGE_EXCERPT.md mainpage is written separately by
+    Doxygen.mainpage.write_mainpage -- assembled content, not a static copy."""
+    doxyfilePathSrc = "{}/{}".format(src, "Doxyfile")
+    if not os.path.exists(dest):
+        os.makedirs(dest)
+    copy_if_different(doxyfilePathSrc, os.path.join(dest, "Doxyfile"))
+
 
 def copyServerClientTemplates(src, dest, demo=None):
     serverName = "main.cpp"

@@ -31,7 +31,10 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `Crypto.backend.get_backend`, honoring `HARPIA_CRYPTO_BACKEND` same as
   `main.py`) and writes it to `<build_dir>/build_metadata/crypto_backend.json`
   via `write_build_metadata` -- not collected into any snapshotted
-  subdirectory, so it can't drift the golden tests.
+  subdirectory, so it can't drift the golden tests. Also copies the F6
+  `Doxyfile` (`Util.util.copyDoxygenFiles`) and writes the assembled
+  mainpage (`Doxygen.mainpage.write_mainpage`) into `<build_dir>`, same as
+  `main.py`.
 - `run_frontend.py` — runs only the front-end (pre_lex → lexer → MessageCreator)
   on one file and prints `RESULT PRELEX/LEX/MSG <ErrorType>` or `RESULT OK`.
   `python3 tests/run_frontend.py <file> <dest>`.
@@ -91,6 +94,24 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   module); `write_build_metadata()` produces a valid
   `build_metadata/crypto_backend.json` sidecar and is write-if-different
   (stable mtime when unchanged). Pure Python.
+- `test_doxygen_mainpage.py` — Foundation F6's `Doxygen/mainpage.py`:
+  extracts only the requested `USAGE.md` section numbers (not their
+  neighbors), in the requested order, stopping at the next `## ` heading
+  rather than swallowing it; raises on a missing section number; against
+  the real repo `USAGE.md`, the default `(4, 6, 11)` sections extract
+  cleanly; `write_mainpage()` is write-if-different. Pure Python.
+- `test_doxygen_docs.py` — Foundation F6's `Assets/Doxyfile` + CMake
+  `doxygen` target. `Doxyfile`/`USAGE_EXCERPT.md` land in a real generated
+  project (ungated). Doxygen-gated: a tiny synthetic fixture (one
+  Doxygen-documented class, one not) proves `WARN_IF_UNDOCUMENTED=YES`
+  actually catches the gap and stays clean on the documented one --
+  deliberately NOT run against the real generated project's own headers,
+  since none of them use real Doxygen comment syntax yet (that's Ground
+  Rule 6's job, ongoing per-track, not F6's one-time plumbing -- see the
+  module's own docstring for the full reasoning). Doxygen+cmake+protoc-
+  gated: configures the real generated project and builds the `doxygen`
+  target end to end, asserting real HTML output containing the mainpage
+  content -- without asserting on warning count. (doxygen, cmake, protoc)
 - `test_stage7.py` — protoc emits/compiles `.pb.{h,cc}`. (protoc, g++)
 - `test_stage8_db.py` — SQL schema, CRUDL round-trip, FK, repeated-FK link table,
   map<K,V>, repeated scalar, migration, DB↔JSON/XML. (cc + g++, some protoc)

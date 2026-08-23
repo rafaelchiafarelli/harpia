@@ -1,0 +1,36 @@
+# harpia-generated project -- Doxygen configuration (Foundation F6).
+#
+# One-time infrastructure only: builds HTML docs from this project's own
+# generated tree. Ground Rule 6 (see harpia's Foundation plan) is what keeps
+# each generated header's own doc-comments accurate -- this file only builds
+# the machinery that displays them, it doesn't write them.
+#
+# Deliberately a small, explicit config (not the ~3000-line Doxygen default
+# template) -- every key below is one this project actually needs; anything
+# unset keeps Doxygen's own built-in default.
+
+PROJECT_NAME           = "Harpia-generated project"
+OUTPUT_DIRECTORY       = docs/doxygen
+
+# USAGE_EXCERPT.md is generated at pipeline run time (Doxygen/mainpage.py),
+# assembled from slices of harpia's own USAGE.md -- not re-authored here, so
+# USAGE.md stays the one place to keep this narrative accurate. It must also
+# appear in INPUT for USE_MDFILE_AS_MAINPAGE to pick it up.
+USE_MDFILE_AS_MAINPAGE = USAGE_EXCERPT.md
+INPUT                  = USAGE_EXCERPT.md generated/cpp client server
+RECURSIVE              = YES
+FILE_PATTERNS          = *.h *.hpp *.cpp *.md
+
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+GENERATE_MAN           = NO
+GENERATE_RTF           = NO
+
+# EXTRACT_ALL=NO + WARN_IF_UNDOCUMENTED=YES is what makes "every public
+# class/method needs a real doc-comment" (Ground Rule 6) mechanically
+# enforceable rather than just a written convention -- a track that forgets
+# one shows up as a warning here, not just at review time.
+EXTRACT_ALL            = NO
+WARN_IF_UNDOCUMENTED   = YES
+WARN_NO_PARAMDOC       = YES
+QUIET                  = YES

@@ -26,9 +26,11 @@ from ZmqCapabilityAdapter.ZmqCapabilityAdapter import ZmqCapabilityAdapter
 from TestAdapter.TestAdapter import TestAdapter
 from copy import deepcopy
 from util.util import (copyCMakeFiles, copyServerClientTemplates,
-                       copyBasicProtos, chooseDemo, prune_stale_outputs)
+                       copyBasicProtos, copyDoxygenFiles, chooseDemo,
+                       prune_stale_outputs)
 from Compliance.context import load_compliance_context, ComplianceConfigError
 from Crypto.backend import get_backend as get_crypto_backend, write_build_metadata as write_crypto_build_metadata
+from Doxygen.mainpage import write_mainpage as write_doxygen_mainpage
 if __name__ == '__main__':
     log = logger(outFile=None, moduleName="main" )
     log.print("Path at terminal when executing this file")
@@ -139,6 +141,12 @@ if __name__ == '__main__':
     copyBasicProtos(src="./Assets/proto/protofiles", dest=testDestination)
     copyServerClientTemplates(src="./Assets", dest=testDestination, demo=chooseDemo(msgFactory.messages))
     copyCMakeFiles(src="./Assets", dest=testDestination)
+
+    #6 (doxygen). Doxyfile + assembled mainpage (Foundation F6) -- one-time
+    # infrastructure; see Doxygen/mainpage.py for why the mainpage is
+    # assembled fresh every run instead of a static copy.
+    copyDoxygenFiles(src="./Assets", dest=testDestination)
+    write_doxygen_mainpage(testDestination)
 
     #7. compile the emitted .proto into C++ (requires protoc; provided by Docker)
     protoCompileError = ProtoCompiler(dest=testDestination, compliance=complianceContext).Process()

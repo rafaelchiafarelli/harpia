@@ -47,9 +47,11 @@ from GrpcCapabilityAdapter.GrpcCapabilityAdapter import GrpcCapabilityAdapter
 from HttpCapabilityAdapter.HttpCapabilityAdapter import HttpCapabilityAdapter
 from ZmqCapabilityAdapter.ZmqCapabilityAdapter import ZmqCapabilityAdapter
 from TestAdapter.TestAdapter import TestAdapter
-from util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
+from util.util import (copyCMakeFiles, copyServerClientTemplates,
+                       copyBasicProtos, copyDoxygenFiles, chooseDemo)
 from Compliance.context import load_compliance_context
 from Crypto.backend import get_backend as get_crypto_backend, write_build_metadata as write_crypto_build_metadata
+from Doxygen.mainpage import write_mainpage as write_doxygen_mainpage
 
 
 def run(output_dir):
@@ -134,6 +136,8 @@ def run(output_dir):
     copyServerClientTemplates(src="./Assets", dest=build_dir,
                               demo=chooseDemo(msg_factory.messages))
     copyCMakeFiles(src="./Assets", dest=build_dir)
+    copyDoxygenFiles(src="./Assets", dest=build_dir)
+    write_doxygen_mainpage(build_dir)
 
     # 9. JSON adapters (header-only C++ over the protobuf messages)
     _mark("JsonAdapter", JsonAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()

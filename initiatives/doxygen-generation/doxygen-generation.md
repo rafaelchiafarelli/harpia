@@ -15,6 +15,17 @@ so the table (and the doc-comments built from it) don't go stale. Read
 current source of truth for *when*/*how* this gets built. This file keeps
 the *why* (§1) and the *what to watch for* (§4), not duplicated there.
 
+**F6 shipped 2026-08-23** (`Assets/Doxyfile` + CMake `doxygen` target +
+`Doxygen/mainpage.py`'s USAGE.md §4/§6/§11 extraction), on
+`feature/thread-0-foundation`, not yet merged to `main` — see
+`initiatives/medical_devices/epics/thread-0-foundation/histories/doxygen-infrastructure-done.md`
+for the implementation notes and the one scoping decision worth knowing
+about (the "zero warnings" test is proven against a synthetic fixture, not
+against this repo's real, not-yet-Ground-Rule-6-compliant generated
+headers). §4's pitfall table below is still exactly what it was: a living
+reference for the *content* of future doc-comments, which remains
+per-track, ongoing work — F6 only built the machinery that displays them.
+
 Replaces the narrower framing that used to
 live in `initiatives/medical_devices/epics/thread-x-gaps/gaps-not-yet-tracked.md` ("Doxygen-
 style comment emission ... + a Doxyfile/CMake target" — treated as a pure

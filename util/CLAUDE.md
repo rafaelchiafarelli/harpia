@@ -65,6 +65,10 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
 - `copyBasicProtos(src, dest)` — copies the always-needed `errorCode.proto`,
   `heartBeat.proto`, and `capabilities_service.proto` (S5 capability
   handshake's fixed wire contract) into `dest/proto/protofiles`.
+- `copyDoxygenFiles(src, dest)` — copies `Assets/Doxyfile` to
+  `<dest>/Doxyfile` (Foundation F6). The companion mainpage
+  (`USAGE_EXCERPT.md`) is NOT copied by this function -- it's assembled
+  content, written separately by `Doxygen.mainpage.write_mainpage`.
 - `loadTemplate(callerFile, name)` — reads a code-gen template from the
   `templates/` dir next to the *calling* module (`os.path.dirname(callerFile)`).
   Templates use `str.format` placeholders; C++ braces must be escaped `{{ }}`.

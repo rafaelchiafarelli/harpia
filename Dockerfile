@@ -5,6 +5,10 @@
 #   - Python 3.12 (Ubuntu 24.04 default) + pytest      : run the pipeline & golden tests
 #   - python3-yaml                                     : Compliance/context.py's
 #                                                      project.harpia.yaml parser (F1)
+#   - doxygen                                          : Foundation F6's `doxygen`
+#                                                      CMake target (Assets/Doxyfile);
+#                                                      doxygen-gated tests skip
+#                                                      without it, same as protoc/g++
 #   - protobuf-compiler (protoc) + libprotobuf-dev     : Stage 7, .proto -> C++
 #   - protobuf-compiler-grpc + libgrpc++-dev           : Stage 13 gRPC stubs
 #   - libzmq3-dev + cppzmq-dev                         : Stage 13 ZMQ transport
@@ -34,6 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 \
         python3-pytest \
         python3-yaml \
+        doxygen \
         protobuf-compiler \
         libprotobuf-dev \
         protobuf-compiler-grpc \
