@@ -137,6 +137,23 @@ if __name__ == '__main__':
         fileCreator.Process()
         fileCreator.save()
         #log.print(msgFactory.__str__())
+
+    # 6 (java target selector). HARPIA_GEN_LANG picks the generation target
+    # (default cpp, unchanged pipeline below); "java" additionally stands up
+    # a Gradle project for the Java target (see initiatives/multi-language-
+    # targets/thread-1-java-target/README.md §5). Not a per-dialect registry
+    # like HARPIA_DB_BACKEND yet -- README §3 explicitly defers designing
+    # that seam until a second language actually exists; this is the plain
+    # env-var check that seam would eventually sit behind.
+    genLang = os.environ.get("HARPIA_GEN_LANG", "cpp").strip().lower()
+    if genLang == "java":
+        from GradleAdapter.GradleAdapter import GradleAdapter
+        gradleError = GradleAdapter(messages=msgFactory.messages,
+                                    dest=testDestination,
+                                    compliance=complianceContext).Process()
+        if gradleError is not None:
+            log.print(gradleError.__str__())
+
     #copy what in the Assets folder to the build folder
     copyBasicProtos(src="./Assets/proto/protofiles", dest=testDestination)
     copyServerClientTemplates(src="./Assets", dest=testDestination, demo=chooseDemo(msgFactory.messages))
