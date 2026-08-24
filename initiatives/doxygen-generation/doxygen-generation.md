@@ -1,26 +1,27 @@
 # Doxygen Generation: Teaching Consumers to Use the Generated Library, Not Just Decorating It
 
-**Status, updated 2026-08-23: folded into
-`initiatives/medical_devices/epics/thread-0-foundation/foundation.md` as F6 (one-time plumbing)
-plus Ground Rule 6 (an ongoing discipline every future track follows, not
-a deferred track of its own).** This file is no longer "scoped, not
-started" waiting for its own session — the mechanical setup (§2 below) is
-F6, and §3's "comments emitted by the templates" work happens
-incrementally, one track at a time, as each track touches its own
+**Status, updated 2026-08-23: folded into Foundation's F6 (one-time
+plumbing) plus Ground Rule 6 (an ongoing discipline every future track
+follows, not a deferred track of its own).** This file is no longer
+"scoped, not started" waiting for its own session — the mechanical setup
+(§2 below) is F6, and §3's "comments emitted by the templates" work
+happens incrementally, one track at a time, as each track touches its own
 consumer-facing templates, per Ground Rule 6. This file now lives on as
 the **pitfall table in §4** — a living reference every track adds to when
 its own work introduces a consumer-relevant pitfall not already listed,
-so the table (and the doc-comments built from it) don't go stale. Read
-`foundation.md`'s Ground Rule 6 and F6 contract first; they're the
-current source of truth for *when*/*how* this gets built. This file keeps
-the *why* (§1) and the *what to watch for* (§4), not duplicated there.
+so the table (and the doc-comments built from it) don't go stale.
+`initiatives/medical_devices/epics/handoff-document.md`'s F6 section is
+the current source of truth for what actually shipped (the Foundation
+thread itself, including Ground Rule 6's original text, was merged to
+`dev` and removed — see git history). This file keeps the *why* (§1) and
+the *what to watch for* (§4), not duplicated there.
 
-**F6 shipped 2026-08-23** (`Assets/Doxyfile` + CMake `doxygen` target +
-`Doxygen/mainpage.py`'s USAGE.md §4/§6/§11 extraction), on
-`feature/thread-0-foundation`, not yet merged to `main` — see
-`initiatives/medical_devices/epics/thread-0-foundation/histories/doxygen-infrastructure-done.md`
-for the implementation notes and the one scoping decision worth knowing
-about (the "zero warnings" test is proven against a synthetic fixture, not
+**F6 shipped and merged to `dev` 2026-08-23** (`Assets/Doxyfile` + CMake
+`doxygen` target + `Doxygen/mainpage.py`'s USAGE.md §4/§6/§11 extraction)
+— see the F6 section of
+`initiatives/medical_devices/epics/handoff-document.md` for the
+implementation notes and the one scoping decision worth knowing about (the
+"zero warnings" test is proven against a synthetic fixture, not
 against this repo's real, not-yet-Ground-Rule-6-compliant generated
 headers). §4's pitfall table below is still exactly what it was: a living
 reference for the *content* of future doc-comments, which remains

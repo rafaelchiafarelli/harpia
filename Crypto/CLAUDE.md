@@ -5,8 +5,10 @@
 "which SQL dialect", `CryptoBackend` answers "which crypto module" (e.g.
 standard vs. FIPS-validated OpenSSL). Resolved once per run (`main.py`,
 mirrored in `tests/run_pipeline.py`), logged, and persisted as build
-metadata. See
-`initiatives/medical_devices/epics/thread-0-foundation/histories/CryptoBackend-selection-point-done.md`.
+metadata. See the F5 section of
+`initiatives/medical_devices/epics/handoff-document.md` (the Foundation
+thread itself was merged to `dev` and removed; see git history for the
+original implementation write-up).
 **Neither real consumer exists in this repo yet** -- Track O (key-wrap/
 envelope-encryption) and Track C (TLS stack), the two tracks this seam
 exists to keep in sync, haven't started. F5 is the seam only, same "no

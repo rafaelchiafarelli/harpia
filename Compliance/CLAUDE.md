@@ -5,18 +5,21 @@
    Parsed once at generation start (`main.py`, mirrored in
    `tests/run_pipeline.py`); threaded into every `Stage*` constructor as an
    optional `compliance=` kwarg alongside the args each already takes
-   (`messages`/`dest`/etc.). See
-   `initiatives/medical_devices/epics/thread-0-foundation/histories/ComplianceContext-plumbing-done.md`
-   and the design-rules doc §6a. **Plumbing only, by design:** no stage
+   (`messages`/`dest`/etc.). See the F1 section of
+   `initiatives/medical_devices/epics/handoff-document.md` (the Foundation
+   thread itself was merged to `dev` and removed; see git history for the
+   original implementation write-up) and the design-rules doc §6a.
+   **Plumbing only, by design:** no stage
    branches on these values yet (that starts in later tracks -- Track
    A/C/O/...); every constructor just stores `self.compliance` and ignores
    it.
 2. **F3 — `AuditSink`** (`runtime/harpia_audit_sink.h`), hand-written C++,
    copied verbatim into a *generated project*'s output (like
    `Capability/runtime/harpia_capability_dispatch.h`) -- NOT a Python
-   abstraction. See
-   `initiatives/medical_devices/epics/thread-0-foundation/histories/AuditSink-interface-done.md`.
-   Interface + `NoOpAuditSink` stub only, no real (tamper-evident)
+   abstraction. See the F3 section of
+   `initiatives/medical_devices/epics/handoff-document.md` (the Foundation
+   thread itself was merged to `dev` and removed; see git history for the
+   original implementation write-up). Interface + `NoOpAuditSink` stub only, no real (tamper-evident)
    implementation yet -- that's Track A (DB) and Track C (transport)'s job,
    independently, once each starts.
 

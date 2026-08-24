@@ -58,8 +58,9 @@ design vision, not current status):
   YAML-style `toString` too).
 - No Doxygen generation for the emitted C++ yet — still a real gap in
   today's output. Plumbing + ongoing discipline now folded into
-  `initiatives/medical_devices/epics/thread-0-foundation/foundation.md` (F6 + Ground Rule 6,
-  2026-08-23) rather than staying its own deferred track; see
+  Foundation's F6 + Ground Rule 6 (2026-08-23, shipped and merged to `dev`;
+  see `initiatives/medical_devices/epics/handoff-document.md`) rather than
+  staying its own deferred track; see
   `initiatives/doxygen-generation/doxygen-generation.md` for the pitfall-table reference that
   discipline builds from.
 - REST/SOAP (Crow's `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC
@@ -92,9 +93,12 @@ design vision, not current status):
 - No compliance profile for regulated (e.g. medical-device) deployments —
   no `ComplianceContext`, no PHI field tagging, no message-level
   criticality classification, no key management/mTLS/RBAC/audit-trail
-  generation. Not started; scoped as a large, multi-session plan at
-  `initiatives/medical_devices/` (see `initiatives/medical_devices/epics/
-  thread-0-foundation/foundation.md` for the dependency graph across sessions).
+  generation. Foundation (F1-F6) is done and merged to `dev`; the five
+  parallel compliance threads it unblocks are not started. Scoped as a
+  large, multi-session plan at `initiatives/medical_devices/` (see
+  `harpia_medical_master_plan.md` for the dependency graph across sessions
+  and `initiatives/medical_devices/epics/handoff-document.md` for what
+  Foundation concretely shipped).
 
 **Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the
 consumer's guide (generate, the `.harpia` language by example, what gets

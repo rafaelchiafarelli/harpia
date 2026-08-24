@@ -31,8 +31,10 @@ read all the initiatives, epics and
    file that holds all 27 sessions. Should collapse: the Java work is one
    Thread (a feature of the `multi-language-targets` epic), and J.1–J.27
    are that Thread's sessions directly.
-3. **`doxygen-generation.md` was folded into `medical_devices/epics/thread-0-foundation/foundation.md`**
-   (as F6 + Ground Rule 6) instead of staying its own top-level epic. Per
+3. **`doxygen-generation.md` was folded into Foundation's F6 + Ground Rule 6**
+   (the Foundation thread itself has since shipped, merged to `dev`, and
+   been removed — see `medical_devices/epics/handoff-document.md`) instead
+   of staying its own top-level epic. Per
    the corrected model it belongs alongside `medical_devices/` and
    `multi-language-targets/` as its own plan folder, with its own
    thread/session breakdown — not absorbed into a different epic's
@@ -59,7 +61,7 @@ their 2026-08-23 shape below and need the re-parenting described above.
 |---|---|
 | [multi-language-targets/](multi-language-targets/thread-1-java-target/README.md) | **Restructured 2026-08-23** — `multi-language-targets.md` and `java-target.md` merged and deleted, replaced by a thread/session folder (same pattern as `medical_devices/epics/`). Scoped, not started. Java picked ahead of Python for a concrete reason (existing Android fleet); 27-session breakdown (one deliverable + tests each) in `thread-1-java-target/histories/track-j-java-target.md`; Android is the consumer of a subset (see `thread-1-java-target/README.md` §7) |
 | [medical_devices/](medical_devices/harpia_medical_master_plan.md) | Scoped, not started — compliance profile for regulated deployments |
-| [doxygen-generation.md](doxygen-generation/doxygen-generation.md) | **Folded into `medical_devices/epics/thread-0-foundation/foundation.md` (F6 + Ground Rule 6), 2026-08-23** — no longer a deferred track; this file now lives on as a living pitfall-table reference every track appends to as it builds. Not medical-devices-specific despite living in that plan's Foundation — the rule applies repo-wide. |
+| [doxygen-generation.md](doxygen-generation/doxygen-generation.md) | **Folded into Foundation's F6 + Ground Rule 6, 2026-08-23** — shipped and merged to `dev` (the Foundation thread itself was then removed, see `medical_devices/epics/handoff-document.md`); no longer a deferred track. This file now lives on as a living pitfall-table reference every track appends to as it builds. Not medical-devices-specific despite living in that plan's Foundation — the rule applies repo-wide. |
 
 Finished plans are removed from this index once done — the shipped
 behavior is documented in the code's own `CLAUDE.md`/architecture docs,
