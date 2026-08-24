@@ -36,4 +36,21 @@ Only top-level scalar/enum columns (`analyze()` output where `Column.embed` is `
 ## Touchpoints
 - Called by: `main.py`, gated on `HARPIA_GEN_LANG=java`, right after `JavaJsonAdapter` in the same conditional block; `JavaCrudlAdapter` additionally needs `dbBackend` (see above).
 - Depends on: `Database.model` (`type_registry`, `analyze` — NOT `map_fields`/`repeated_fields`, not called this session), `Database.backends.DbBackend` (`create_table`/`drop_table`/`column_def` — via `Column.sql_def()`), `Util.util.write_if_different`/`copy_if_different`/`loadTemplate`, `Logger.logger`, `Errors.Error`.
-- Consumed by: J.8/J.9 (Postgres) — per the shared `dbBackend` design above, wiring Postgres support should be adding the `org.postgresql:postgresql` driver dependency and nothing else in this package, since the DAO generation itself is already dialect-neutral through the same seam. Whichever future session lifts the embed/FK/map/repeated deferral owns extending `JavaCrudlAdapter`'s column filter, not a new adapter.
+- Consumed by: whichever future session lifts the embed/FK/map/repeated deferral — that's extending `JavaCrudlAdapter`'s column filter, not a new adapter.
+
+## Postgres (J.8/J.9)
+
+Confirmed exactly as predicted above: J.8's entire wiring is
+`GradleAdapter/templates/project.gradle.tmpl` gaining `implementation
+'org.postgresql:postgresql:42.7.3'` (pure Java, no native library at all,
+unlike C++'s `libpq`) — zero changes to `JavaCrudlAdapter.py` or
+`dao.java.tmpl`, because a generated DAO only ever holds a plain
+`java.sql.Connection` and reads `Column.sql_def()`/`self.backend.
+create_table()` from whichever `DbBackend` `main.py` resolved
+(`Database/backends/postgres.py`: same caller-assigned-PK convention as
+SQLite, same neutral bind kinds — only the SQL type strings differ, e.g.
+`INT64`→`BIGINT`, `FLOAT`→`DOUBLE PRECISION`). `tests/
+test_java_db_crudl_postgres.py` is opt-in (`HARPIA_PG_DSN` + gradle/JDK),
+same posture as `tests/test_stage8_pg.py` on the C++ side — parses the
+same libpq-style DSN into a JDBC URL rather than introducing a parallel
+Postgres-config mechanism.

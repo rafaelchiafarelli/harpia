@@ -35,6 +35,11 @@ dependencies {
     // transparently (no source-vendoring needed, unlike C++'s vendored
     // sqlite3).
     implementation 'org.xerial:sqlite-jdbc:3.45.1.0'
+    // DB/CRUDL, Postgres dialect (J.8) -- pure Java, no native library at
+    // all (unlike C++'s libpq). JavaCrudlAdapter's generated DAOs are
+    // already dialect-neutral (take a plain java.sql.Connection), so this
+    // is the entire J.8 wiring -- same DbBackend seam as SQLite (J.5).
+    implementation 'org.postgresql:postgresql:42.7.3'
 }
 
 // protobuf-gradle-plugin's default proto source set (src/main/proto,
