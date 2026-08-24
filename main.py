@@ -202,6 +202,16 @@ if __name__ == '__main__':
         if javaCrudlError is not None:
             log.print(javaCrudlError.__str__())
 
+        # 10 (java xml). reflection-based XML runtime (J.10 write path,
+        # J.11 read path) -- one shared class, no per-message generation,
+        # same reasoning as the JSON runtime above.
+        from JavaXmlAdapter.JavaXmlAdapter import JavaXmlAdapter
+        javaXmlError = JavaXmlAdapter(messages=msgFactory.messages,
+                                      dest=testDestination,
+                                      compliance=complianceContext).Process()
+        if javaXmlError is not None:
+            log.print(javaXmlError.__str__())
+
     #6 (doxygen). Doxyfile + assembled mainpage (Foundation F6) -- one-time
     # infrastructure; see Doxygen/mainpage.py for why the mainpage is
     # assembled fresh every run instead of a static copy.
