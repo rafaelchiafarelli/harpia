@@ -11,3 +11,16 @@
 - **Tests:**
   - Unit: credential gate accepts/rejects per the same rules as the C++
     implementation.
+
+## Implementation notes (landed 2026-08-23, together with J.13/J.14)
+
+New `JavaRestAdapter/runtime/HttpRestHelpers.java`: the credential gate
+(`authorized(exchange, user, pswd)`, parameterized rather than per-message
+closures — Java doesn't need a generated function just to close over two
+string literals) plus the routing-gap-filler `HttpServer` needs since it
+has no `:id`-style path variables (`trailingId()`, recovering collection-
+vs-item from one registered context via longest-prefix match). Full
+rationale in `JavaRestAdapter/CLAUDE.md`.
+
+Tests landed as part of `tests/test_java_rest.py` (covers J.12/J.13/J.14
+together) — see J.14's own notes for why they weren't split three ways.

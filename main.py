@@ -212,6 +212,16 @@ if __name__ == '__main__':
         if javaXmlError is not None:
             log.print(javaXmlError.__str__())
 
+        # 12 (java rest). REST CRUD over HttpServer (J.12 routing/
+        # credential-gate scaffolding, J.13 CRUDL handlers) -- reuses the
+        # JSON/XML runtimes above for content negotiation and J.6's DAOs.
+        from JavaRestAdapter.JavaRestAdapter import JavaRestAdapter
+        javaRestError = JavaRestAdapter(messages=msgFactory.messages,
+                                        dest=testDestination,
+                                        compliance=complianceContext).Process()
+        if javaRestError is not None:
+            log.print(javaRestError.__str__())
+
     #6 (doxygen). Doxyfile + assembled mainpage (Foundation F6) -- one-time
     # infrastructure; see Doxygen/mainpage.py for why the mainpage is
     # assembled fresh every run instead of a static copy.
