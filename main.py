@@ -143,6 +143,16 @@ if __name__ == '__main__':
     copyServerClientTemplates(src="./Assets", dest=testDestination, demo=chooseDemo(msgFactory.messages))
     copyCMakeFiles(src="./Assets", dest=testDestination)
 
+    #8. pick the DB dialect (SQLite default; PostgreSQL via HARPIA_DB_BACKEND).
+    # Resolved here (rather than down by the C++ Stage-8 calls below) because
+    # the Java target's DB layer (J.5/J.8) shares this exact same selector --
+    # same env var, same backend object, threaded into both targets' DAOs so
+    # neither can silently drift from the other's dialect for a given run.
+    from Database.backends import get_backend
+    dbBackend = get_backend(os.environ.get("HARPIA_DB_BACKEND"))
+    log.print("DB backend: {} (soci:{})".format(
+        dbBackend.name, dbBackend.soci_backend))
+
     # 6/13 (java target selector). HARPIA_GEN_LANG picks the generation
     # target (default cpp, unchanged pipeline below); "java" additionally
     # stands up a Gradle project for the Java target (see initiatives/multi-
@@ -171,6 +181,26 @@ if __name__ == '__main__':
                                         compliance=complianceContext).Process()
         if javaJsonError is not None:
             log.print(javaJsonError.__str__())
+
+        # 8 (java db). JDBC bind/extract runtime (J.5) + generated CRUDL DAOs
+        # (J.6) -- shares HARPIA_DB_BACKEND with the C++ target (dbBackend,
+        # resolved above); J.8 (Postgres) is then just adding the
+        # postgresql JDBC driver dependency, since this generation logic is
+        # already dialect-neutral through the same DbBackend seam.
+        from JavaDatabase.JavaDbAdapter import JavaDbAdapter
+        javaDbError = JavaDbAdapter(messages=msgFactory.messages,
+                                    dest=testDestination,
+                                    compliance=complianceContext).Process()
+        if javaDbError is not None:
+            log.print(javaDbError.__str__())
+
+        from JavaDatabase.JavaCrudlAdapter import JavaCrudlAdapter
+        javaCrudlError = JavaCrudlAdapter(messages=msgFactory.messages,
+                                          dest=testDestination,
+                                          backend=dbBackend,
+                                          compliance=complianceContext).Process()
+        if javaCrudlError is not None:
+            log.print(javaCrudlError.__str__())
 
     #6 (doxygen). Doxyfile + assembled mainpage (Foundation F6) -- one-time
     # infrastructure; see Doxygen/mainpage.py for why the mainpage is
@@ -225,14 +255,6 @@ if __name__ == '__main__':
     xmlError = XmlAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if xmlError is not None:
         log.print(xmlError.__str__())
-
-    #8. pick the DB dialect (SQLite default; PostgreSQL via HARPIA_DB_BACKEND).
-    # The generated DAO is dialect-free (SOCI); only the SQL the backend emits
-    # (types, DDL, migration introspection, version stamp) changes.
-    from Database.backends import get_backend
-    dbBackend = get_backend(os.environ.get("HARPIA_DB_BACKEND"))
-    log.print("DB backend: {} (soci:{})".format(
-        dbBackend.name, dbBackend.soci_backend))
 
     #8. generate the SQL schema (supersedes the FileCreator stub)
     sqlError = SqlAdapter(messages=msgFactory.messages, dest=testDestination,

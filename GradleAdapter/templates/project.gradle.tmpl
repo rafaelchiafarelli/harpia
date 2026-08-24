@@ -30,6 +30,11 @@ dependencies {
     // Generated stub classes reference javax.annotation.Generated, which
     // isn't on the JDK's own classpath from Java 9 onward.
     compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
+
+    // DB/CRUDL (J.5) -- pure JDBC, bundles native SQLite per-platform
+    // transparently (no source-vendoring needed, unlike C++'s vendored
+    // sqlite3).
+    implementation 'org.xerial:sqlite-jdbc:3.45.1.0'
 }
 
 // protobuf-gradle-plugin's default proto source set (src/main/proto,

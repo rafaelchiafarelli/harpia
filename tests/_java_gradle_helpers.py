@@ -14,17 +14,24 @@ SKIP_REASON = ("needs gradle+JDK (Java target -- not part of the harpia "
               "Docker image yet)")
 
 
-def generate(tmp_path, lang=None):
+def generate(tmp_path, lang=None, harpia_file=None, include_folder=None,
+            db_backend=None):
     """Run main.py into tmp_path, optionally with HARPIA_GEN_LANG=<lang>
-    (omit for the default/cpp path). Returns the output dir."""
+    (omit for the default/cpp path). Defaults to the shared HarpiaTest
+    fixture; pass harpia_file/include_folder to generate from a different
+    (e.g. inline, per-test) .harpia file instead. Returns the output dir."""
     out = str(tmp_path)
     env = dict(os.environ, HARPIA_OUTPUT_DIR=out,
-              HARPIA_INPUT_FILE="./HarpiaTest/test.harpia",
-              HARPIA_INCLUDE_FOLDER="./HarpiaTest/Include")
+              HARPIA_INPUT_FILE=harpia_file or "./HarpiaTest/test.harpia",
+              HARPIA_INCLUDE_FOLDER=include_folder or "./HarpiaTest/Include")
     if lang is not None:
         env["HARPIA_GEN_LANG"] = lang
     else:
         env.pop("HARPIA_GEN_LANG", None)
+    if db_backend is not None:
+        env["HARPIA_DB_BACKEND"] = db_backend
+    else:
+        env.pop("HARPIA_DB_BACKEND", None)
     r = subprocess.run([sys.executable, "main.py"], cwd=REPO_ROOT, env=env,
                        capture_output=True, text=True, timeout=300)
     assert r.returncode == 0, r.stdout + r.stderr
