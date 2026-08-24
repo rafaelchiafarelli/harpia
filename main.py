@@ -232,6 +232,15 @@ if __name__ == '__main__':
         if javaSoapError is not None:
             log.print(javaSoapError.__str__())
 
+        # 13 (java zmq). ZMQ transport over JeroMQ (J.18 core, no CURVE --
+        # J.19). Reuses ZmqAdapter.py's own origin-id derivation directly.
+        from JavaZmqAdapter.JavaZmqAdapter import JavaZmqAdapter
+        javaZmqError = JavaZmqAdapter(messages=msgFactory.messages,
+                                      dest=testDestination,
+                                      compliance=complianceContext).Process()
+        if javaZmqError is not None:
+            log.print(javaZmqError.__str__())
+
     #6 (doxygen). Doxyfile + assembled mainpage (Foundation F6) -- one-time
     # infrastructure; see Doxygen/mainpage.py for why the mainpage is
     # assembled fresh every run instead of a static copy.

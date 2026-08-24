@@ -40,6 +40,12 @@ dependencies {
     // already dialect-neutral (take a plain java.sql.Connection), so this
     // is the entire J.8 wiring -- same DbBackend seam as SQLite (J.5).
     implementation 'org.postgresql:postgresql:42.7.3'
+    // ZMQ transport (J.18) -- a pure-Java ZMTP reimplementation: no JNI,
+    // no native library, no per-platform build at all (genuinely simpler
+    // than C++'s cppzmq/libzmq story). CURVE support confirmed on this
+    // pinned version (J.17, see initiatives/multi-language-targets/
+    // thread-1-java-target/histories/ZMQ/confirm-JeroMQ-CURVE-support.md).
+    implementation 'org.zeromq:jeromq:0.6.0'
 }
 
 // protobuf-gradle-plugin's default proto source set (src/main/proto,
