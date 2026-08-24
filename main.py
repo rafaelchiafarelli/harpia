@@ -138,12 +138,20 @@ if __name__ == '__main__':
         fileCreator.save()
         #log.print(msgFactory.__str__())
 
-    # 6 (java target selector). HARPIA_GEN_LANG picks the generation target
-    # (default cpp, unchanged pipeline below); "java" additionally stands up
-    # a Gradle project for the Java target (see initiatives/multi-language-
-    # targets/thread-1-java-target/README.md §5). Not a per-dialect registry
-    # like HARPIA_DB_BACKEND yet -- README §3 explicitly defers designing
-    # that seam until a second language actually exists; this is the plain
+    #copy what in the Assets folder to the build folder
+    copyBasicProtos(src="./Assets/proto/protofiles", dest=testDestination)
+    copyServerClientTemplates(src="./Assets", dest=testDestination, demo=chooseDemo(msgFactory.messages))
+    copyCMakeFiles(src="./Assets", dest=testDestination)
+
+    # 6/13 (java target selector). HARPIA_GEN_LANG picks the generation
+    # target (default cpp, unchanged pipeline below); "java" additionally
+    # stands up a Gradle project for the Java target (see initiatives/multi-
+    # language-targets/thread-1-java-target/README.md §5), including gRPC
+    # stub wiring (J.3) -- run after copyBasicProtos so the framework protos
+    # (errorCode/heartBeat) it needs already exist under
+    # <dest>/proto/protofiles/. Not a per-dialect registry like
+    # HARPIA_DB_BACKEND yet -- README §3 explicitly defers designing that
+    # seam until a second language actually exists; this is the plain
     # env-var check that seam would eventually sit behind.
     genLang = os.environ.get("HARPIA_GEN_LANG", "cpp").strip().lower()
     if genLang == "java":
@@ -153,11 +161,6 @@ if __name__ == '__main__':
                                     compliance=complianceContext).Process()
         if gradleError is not None:
             log.print(gradleError.__str__())
-
-    #copy what in the Assets folder to the build folder
-    copyBasicProtos(src="./Assets/proto/protofiles", dest=testDestination)
-    copyServerClientTemplates(src="./Assets", dest=testDestination, demo=chooseDemo(msgFactory.messages))
-    copyCMakeFiles(src="./Assets", dest=testDestination)
 
     #6 (doxygen). Doxyfile + assembled mainpage (Foundation F6) -- one-time
     # infrastructure; see Doxygen/mainpage.py for why the mainpage is
