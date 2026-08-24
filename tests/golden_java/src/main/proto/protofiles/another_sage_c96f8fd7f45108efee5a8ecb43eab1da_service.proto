@@ -1,0 +1,37 @@
+syntax = "proto3";
+package frameworkProtos;
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+//standard protofile with error code and standard heartBeat messages
+import "protofiles/errorCode.proto";
+import "protofiles/heartBeat.proto";
+
+//user imports from harpia process
+import "protofiles/another_sage_c96f8fd7f45108efee5a8ecb43eab1da.proto";
+
+message another_sage_Message {
+    another_sage msg = 1;
+}
+//message for the standard functions 
+message another_sage_HeartBeat {
+    heartBeat hb = 1;
+}
+
+//message for the pullByID function
+message another_sage_ID {
+    int32 id = 1;
+}
+message another_sage_Stream {
+    int32 id = 1;
+    string name = 2;
+    // pagination (spec: "pagination" field modifier): limit <= 0 means
+    // unbounded (return everything, matching pre-pagination behavior).
+    int32 offset = 3;
+    int32 limit = 4;
+}
+service another_sage_Service {
+    rpc heartBeat(another_sage_HeartBeat) returns (another_sage_HeartBeat) {}
+    rpc streamSrc(another_sage_Stream ) returns (stream another_sage_Message) {}
+    rpc pullByID(another_sage_ID) returns (another_sage_Message) {}
+    rpc push(another_sage_Message) returns (errorCode) {}
+}

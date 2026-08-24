@@ -1,0 +1,16 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+
+message pope {
+int32 ID_c96f8fd7f45108efee5a8ecb43eab1da = 1;
+int32 xcvbnxcfg = 2;
+optional int32 xdr = 3;
+map<string, string> xcmcb = 4;
+map<string, int32> sdrz = 5;
+map<int32, string> ujk = 6;
+int32 vnfvbn = 7;
+string STATUS_c96f8fd7f45108efee5a8ecb43eab1da = 8;
+string ERROR_c96f8fd7f45108efee5a8ecb43eab1da = 9;
+string ORIGINATOR = 10;
+}
