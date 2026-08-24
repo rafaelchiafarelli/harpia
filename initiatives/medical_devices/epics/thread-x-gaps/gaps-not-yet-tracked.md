@@ -20,22 +20,43 @@ Not gaps against a committed scope — these came up while scoping Track P
 and were deliberately **not** turned into tracks, with reasons, so a
 future session doesn't re-litigate them from scratch:
 
-- **IEEE 11073 PHD (personal/wearable devices, 11073-20601)** — the
-  personal-health-device gateway pattern (glucose meter/BP cuff/pulse-ox
-  talking to a phone over BLE HDP/GATT). Different actor and different
-  footprint than anything Harpia currently touches: the gateway logic
-  lives phone/BLE-stack-side, not in a backend/process-to-process
-  library. Revisit only if a concrete integration target puts that
-  gateway role inside Harpia's scope, not preemptively.
-- **MQTT and OPC UA** — both real in adjacent (industrial/IoT,
-  telemetry-relay) contexts, but no medical-device-specific
-  interoperability standard in the ASTM F2761/IEEE 11073 family requires
-  either. Adding either without a concrete target would be speculative
-  transport surface, not a filled gap. Revisit if a specific downstream
-  integrator's requirement names one.
-- **DICOM / IHE PCD** — these are system-to-system *clinical data
-  exchange* (PACS/imaging integration), not device-level IPC. Orthogonal
-  to what Harpia generates today — a different layer of the stack.
+- **IEEE 11073 PHD (personal/wearable devices, 11073-20601)** — not to be
+  confused with Track Q's 11073 **SDC** (a sibling standard under the same
+  11073 umbrella, already built): PHD is the *personal-health-device*
+  gateway pattern (glucose meter/BP cuff/pulse-ox talking to a phone over
+  BLE HDP/GATT), a different sub-standard with a different transport (BLE,
+  not SDC's service-oriented bindings) and a different fixed binary
+  encoding (MDER) that nothing in Harpia's adapters can read or write.
+  Different actor, too: the "manager" role is phone/BLE-stack-side, and
+  Harpia has no mobile/BLE generation target at all today — this would be
+  a third, disjoint pillar (new codec + new transport + new target actor),
+  not an incremental adapter. Revisit only if a concrete integration
+  target puts that gateway role inside Harpia's scope, not preemptively.
+- **DICOM** — system-to-system *imaging* exchange (PACS, radiology
+  modalities: X-Ray/MRI/CT). Its own binary encoding plus the DICOM Upper
+  Layer Protocol (PDU-based association negotiation, DIMSE services like
+  C-STORE/C-FIND/C-MOVE) shares no code path with anything Harpia
+  generates (gRPC/REST/SOAP/ZMQ) — a real PACS server won't negotiate
+  anything else, so this is a full foreign protocol stack to build from
+  zero, not a facade over existing plumbing. Orthogonal to what Harpia
+  generates today.
+
+**IHE PCD — reclassified 2026-08-23, was incorrectly lumped in with
+DICOM above; it isn't the same kind of gap.** IHE PCD (specifically the
+DEC/PCD-01 "Communicate PCD Data" transaction) has nothing to do with
+imaging — it bridges *device* data (vitals, infusion rates, ventilator
+data) into the EHR, wrapping it in HL7 v2 (pipe-delimited segments:
+MSH/PID/OBR/OBX) typically carried over MLLP, a trivial TCP framing —
+simpler than the negotiation ZMQ/gRPC already do. That makes it a legacy-
+text sibling of Track R's FHIR façade (same use case: device/clinical
+data → EHR), not a sibling of DICOM: no new transport or foreign binary
+codec needed, just a new serializer (an HL7-v2-segment adapter, same
+shape as `JsonAdapter`/`XmlAdapter` but emitting fixed-position pipe-
+delimited segments instead of JSON/XML) plus the same kind of fixed-
+vocabulary mapping problem Track R already solves for FHIR resources.
+Still no concrete downstream consumer named yet, so still not a track
+today -- but if one is, scope it as a façade track alongside Track R, not
+folded into DICOM's "different layer of the stack" dismissal.
 
 (HL7 FHIR was originally listed here too, then revised 2026-08-21 to "no
 longer deferred" once it got its own track — removed now that it's fully
