@@ -1,6 +1,6 @@
-"""Session J.18 (initiatives/multi-language-targets/thread-1-java-target/
-histories/ZMQ/ZMQ-core.md) -- ZMQ core transport (no CURVE, J.19) for the
-Java target.
+"""Sessions J.18/J.19 (initiatives/multi-language-targets/thread-1-java-
+target/histories/ZMQ/) -- ZMQ core transport (J.18) + CURVE-secured
+variant (J.19) for the Java target.
 
 org.zeromq:jeromq (pure-Java ZMTP reimplementation -- no JNI, no native
 library, no per-platform build). Reuses ZmqAdapter.py's own
@@ -14,7 +14,11 @@ collapses what's 4 generated classes per message in C++ into one shared
 class + a thin per-message factory here) and generates
 com.harpia.generated.zmq.<name>_zmq for every message that declares a
 transport modifier (PUSH/PULL -> sender/receiver, EVENT/STREAM ->
-publisher/subscriber), same filter as the C++ target.
+publisher/subscriber), same filter as the C++ target. Each factory method
+also gets a CURVE-taking overload (J.19, HarpiaZmq.CurveKeys) -- the bind
+side (receiver/publisher) needs CurveKeys.server(...), the connect side
+(sender/subscriber) needs CurveKeys.client(...), matching the C++
+runtime's own bind-vs-connect key-role split.
 """
 import os
 
@@ -36,8 +40,24 @@ _SENDER_FACTORY = """\
             {default_id_expr}, {name}.getDefaultInstance());
     }}
 
+    // CURVE-secured (J.19): `curve` must be HarpiaZmq.CurveKeys.client(...)
+    // -- a PUSH sender connects, the connect side needs the peer's public
+    // key plus its own keypair.
+    public static HarpiaZmq.Sender newSender(ZContext ctx, String endpoint,
+            HarpiaZmq.CurveKeys curve) {{
+        return new HarpiaZmq.Sender(ctx, SocketType.PUSH, endpoint, false,
+            {default_id_expr}, {name}.getDefaultInstance(), curve);
+    }}
+
     public static HarpiaZmq.Receiver newReceiver(ZContext ctx, String endpoint) {{
         return new HarpiaZmq.Receiver(ctx, SocketType.PULL, endpoint, true, false);
+    }}
+
+    // CURVE-secured (J.19): `curve` must be HarpiaZmq.CurveKeys.server(...)
+    // -- a PULL receiver binds, the bind side only needs its own secret key.
+    public static HarpiaZmq.Receiver newReceiver(ZContext ctx, String endpoint,
+            HarpiaZmq.CurveKeys curve) {{
+        return new HarpiaZmq.Receiver(ctx, SocketType.PULL, endpoint, true, false, curve);
     }}
 
 """
@@ -48,8 +68,24 @@ _PUBSUB_FACTORY = """\
             {default_id_expr}, {name}.getDefaultInstance());
     }}
 
+    // CURVE-secured (J.19): `curve` must be HarpiaZmq.CurveKeys.server(...)
+    // -- a PUB publisher binds, the bind side only needs its own secret key.
+    public static HarpiaZmq.Sender newPublisher(ZContext ctx, String endpoint,
+            HarpiaZmq.CurveKeys curve) {{
+        return new HarpiaZmq.Sender(ctx, SocketType.PUB, endpoint, true,
+            {default_id_expr}, {name}.getDefaultInstance(), curve);
+    }}
+
     public static HarpiaZmq.Receiver newSubscriber(ZContext ctx, String endpoint) {{
         return new HarpiaZmq.Receiver(ctx, SocketType.SUB, endpoint, false, true);
+    }}
+
+    // CURVE-secured (J.19): `curve` must be HarpiaZmq.CurveKeys.client(...)
+    // -- a SUB subscriber connects, the connect side needs the peer's
+    // public key plus its own keypair.
+    public static HarpiaZmq.Receiver newSubscriber(ZContext ctx, String endpoint,
+            HarpiaZmq.CurveKeys curve) {{
+        return new HarpiaZmq.Receiver(ctx, SocketType.SUB, endpoint, false, true, curve);
     }}
 
 """

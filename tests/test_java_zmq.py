@@ -69,8 +69,9 @@ def test_push_pull_and_pubsub_message_gets_all_four_with_compiletime_origin(tmp_
     for factory in ("newSender", "newReceiver", "newPublisher", "newSubscriber"):
         assert factory in text
     # users declares pull (PULL/EVENT/STREAM present) -> one-to-*, compile-
-    # time ORIGIN_ID.
-    assert text.count("ORIGIN_ID,") == 2  # newSender + newPublisher defaults
+    # time ORIGIN_ID. Each of newSender/newPublisher has a plain overload
+    # and a CURVE-taking overload (J.19), both referencing ORIGIN_ID.
+    assert text.count("ORIGIN_ID,") == 4
     assert "HarpiaZmq.runtimeOriginId()" not in text
 
 

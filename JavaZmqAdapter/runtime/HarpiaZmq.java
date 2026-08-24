@@ -11,8 +11,16 @@
 // already made for JdbcBind/HarpiaJson/HarpiaXml, see JavaZmqAdapter/
 // CLAUDE.md.
 //
-// CURVE (J.19) is NOT implemented here -- this is J.18's plaintext-only
-// scope. See JavaZmqAdapter/CLAUDE.md.
+// CURVE (J.19): CurveKeys + the trailing-optional-parameter constructor
+// overloads below are the encryption-only (no ZAP client-key allowlist --
+// any client presenting valid CURVE crypto is accepted, the ZMQ analogue
+// of TLS with no client certs) equivalent of the C++ runtime's
+// CurveServerKeys/CurveClientKeys structs (ZmqAdapter/CLAUDE.md). Key
+// encoding confirmed against JeroMQ's public org.zeromq.ZMQ.Curve API
+// (see histories/ZMQ/confirm-JeroMQ-CURVE-support.md and this class's own
+// generateCurveKeyPair() below) -- not yet run against a real JDK in this
+// environment, same caveat as every other Java integration test in this
+// thread.
 package com.harpia.runtime.zmq;
 
 import com.google.protobuf.Descriptors.FieldDescriptor;
@@ -44,6 +52,58 @@ public final class HarpiaZmq {
         return pid + "-" + seq + "-" + Long.toHexString(rand);
     }
 
+    // A generated keypair, raw 32-byte keys (index 0 = public, index 1 =
+    // secret) -- ZMQ.Curve.generateKeyPair() returns Z85-encoded 40-char
+    // Strings; the socket-option setters (setCurvePublicKey/
+    // setCurveSecretKey/setCurveServerKey) want the raw bytes, so this
+    // decodes once here rather than leaving every caller to remember to.
+    public static byte[][] generateCurveKeyPair() {
+        ZMQ.Curve.KeyPair kp = ZMQ.Curve.generateKeyPair();
+        return new byte[][] {ZMQ.Curve.z85Decode(kp.publicKey), ZMQ.Curve.z85Decode(kp.secretKey)};
+    }
+
+    // CURVE key material for one socket. Bind side (PULL receiver / PUB
+    // publisher) only needs its own secret key -- CURVE_SERVER accepts any
+    // client with valid crypto; connect side (PUSH sender / SUB
+    // subscriber) needs the peer's public key plus its own keypair. Which
+    // one applies is decided by which factory method built this instance,
+    // not re-derived from the fields at apply time.
+    public static final class CurveKeys {
+        private final boolean server;
+        private final byte[] secretKey;
+        private final byte[] publicKey;
+        private final byte[] serverPublicKey;
+
+        private CurveKeys(boolean server, byte[] secretKey, byte[] publicKey,
+                          byte[] serverPublicKey) {
+            this.server = server;
+            this.secretKey = secretKey;
+            this.publicKey = publicKey;
+            this.serverPublicKey = serverPublicKey;
+        }
+
+        public static CurveKeys server(byte[] secretKey) {
+            return new CurveKeys(true, secretKey, null, null);
+        }
+
+        public static CurveKeys client(byte[] serverPublicKey, byte[] publicKey, byte[] secretKey) {
+            return new CurveKeys(false, secretKey, publicKey, serverPublicKey);
+        }
+
+        // Must run before bind/connect -- matches the C++ runtime's own
+        // ordering (curve options set, then socket_.{connect|bind}(...)).
+        void applyTo(ZMQ.Socket socket) {
+            if (server) {
+                socket.setCurveServer(true);
+                socket.setCurveSecretKey(secretKey);
+            } else {
+                socket.setCurveServerKey(serverPublicKey);
+                socket.setCurvePublicKey(publicKey);
+                socket.setCurveSecretKey(secretKey);
+            }
+        }
+    }
+
     // The message's ORIGINATOR field (name may carry a hash suffix -- see
     // message/FieldMap.py's front-end injection), or null if it declares
     // none. Found by name prefix, same rule ZmqAdapter.py's C++ generator
@@ -67,7 +127,17 @@ public final class HarpiaZmq {
 
         public Sender(ZContext ctx, SocketType type, String endpoint, boolean bind,
                       String origin, Message prototype) {
+            this(ctx, type, endpoint, bind, origin, prototype, null);
+        }
+
+        // Trailing curve defaults to disabled (null), so callers who don't
+        // pass one get today's plaintext behavior unchanged (J.18).
+        public Sender(ZContext ctx, SocketType type, String endpoint, boolean bind,
+                      String origin, Message prototype, CurveKeys curve) {
             this.socket = ctx.createSocket(type);
+            if (curve != null) {
+                curve.applyTo(socket);
+            }
             if (bind) {
                 socket.bind(endpoint);
             } else {
@@ -101,7 +171,17 @@ public final class HarpiaZmq {
 
         public Receiver(ZContext ctx, SocketType type, String endpoint, boolean bind,
                         boolean subscribeAll) {
+            this(ctx, type, endpoint, bind, subscribeAll, null);
+        }
+
+        // Trailing curve defaults to disabled (null), so callers who don't
+        // pass one get today's plaintext behavior unchanged (J.18).
+        public Receiver(ZContext ctx, SocketType type, String endpoint, boolean bind,
+                        boolean subscribeAll, CurveKeys curve) {
             this.socket = ctx.createSocket(type);
+            if (curve != null) {
+                curve.applyTo(socket);
+            }
             if (bind) {
                 socket.bind(endpoint);
             } else {
