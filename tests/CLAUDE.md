@@ -112,6 +112,7 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   gated: configures the real generated project and builds the `doxygen`
   target end to end, asserting real HTML output containing the mainpage
   content -- without asserting on warning count. (doxygen, cmake, protoc)
+- `test_java_proto_options.py` — session J.1 (`initiatives/multi-language-targets/thread-1-java-target`): every emitted message `.proto` carries `option java_multiple_files = true;` + `option java_package = "com.harpia.generated";`, placed before the message body; protoc still parses the emitted `.proto` cleanly. Pure Python, plus one protoc-gated syntax check.
 - `test_stage7.py` — protoc emits/compiles `.pb.{h,cc}`. (protoc, g++)
 - `test_stage8_db.py` — SQL schema, CRUDL round-trip, FK, repeated-FK link table,
   map<K,V>, repeated scalar, migration, DB↔JSON/XML. (cc + g++, some protoc)

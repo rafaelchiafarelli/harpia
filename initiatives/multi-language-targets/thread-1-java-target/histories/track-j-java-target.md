@@ -65,7 +65,12 @@ plan before anyone tried to fit it into single-sitting sessions.
 
 - J.1's codegen-timing decision and J.24's runtime-variant decision are
   the two forks `../README.md` §4 calls out as having "no single
-  obviously-correct answer" — don't default either one silently.
+  obviously-correct answer" — don't default either one silently. **J.1
+  resolved 2026-08-23: build-time codegen** (`.proto` +
+  `build.gradle`/`protobuf-gradle-plugin`, not a harpia-side
+  `protoc`/`protoc-gen-grpc-java` shell-out) — see
+  `gRPC-wiring/codegen-timing-decision.md`. J.24 (protobuf runtime variant)
+  is still open.
 - Schema-evolution/migration support for the Java DB layer is explicitly
   not scoped in J.5–J.9 — flagged there, don't assume it's implied.
 - Don't extrapolate this track's Java-specific costs to Rust/Node ahead

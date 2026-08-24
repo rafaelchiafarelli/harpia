@@ -86,6 +86,11 @@ have to re-derive that they're real forks:
    consumer's Gradle build runs codegen via `protobuf-gradle-plugin`).
    Leans toward build-time as more idiomatic for the ecosystem, but
    that's a real behavior change worth a deliberate call, not a default.
+   **Resolved 2026-08-23 (session J.1): build-time**, for the reasons
+   above plus sidestepping `protoc-gen-grpc-java` in the harpia Docker
+   image — see
+   [histories/gRPC-wiring/codegen-timing-decision.md](histories/gRPC-wiring/codegen-timing-decision.md#decision-resolved-2026-08-23)
+   for the full rationale and its consequence for J.2/J.3/J.22.
 2. **protobuf runtime variant**: full runtime (reflection-capable —
    required by both the JSON stage's `JsonFormat` and the XML stage's
    reflection walk) vs. `protobuf-javalite` (Android-oriented, smaller,

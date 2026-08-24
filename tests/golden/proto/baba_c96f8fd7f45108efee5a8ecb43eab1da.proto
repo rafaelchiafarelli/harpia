@@ -1,4 +1,7 @@
 syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+
 enum baba {
 caca = 0;
 dada = 1;

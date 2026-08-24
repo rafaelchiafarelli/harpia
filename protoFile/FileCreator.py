@@ -6,6 +6,17 @@ PROTO_EXT = ".proto"
 MESSAGE_EXT = ".message"
 VARIABLES_EXT = ".variables"
 
+# Java's protoc plugin packs every message declared in one .proto into a
+# single outer wrapper class by default. harpia's convention is already one
+# message per .proto (hash-qualified filename), so without this option the
+# Java target would nest every generated class inside a wrapper, unlike every
+# other target -- see initiatives/multi-language-targets/thread-1-java-target
+# (session J.1). Both options are standard descriptor.proto FileOptions,
+# ignored by every non-Java protoc backend, so emitting them unconditionally
+# is safe for the C++ target too. One flat package for now -- there's no
+# per-project/per-namespace concept in the emitted .proto to key off of.
+JAVA_PACKAGE = "com.harpia.generated"
+
 class FileCreator():
     def __init__(self, message, imports, dest, compliance=None) -> None:
         self.compliance = compliance
@@ -39,7 +50,9 @@ class FileCreator():
     def Process(self):
         #create the proto file
         
-        protoData = "syntax = \"proto3\";"
+        protoData = "syntax = \"proto3\";\n"
+        protoData += "option java_multiple_files = true;\n"
+        protoData += "option java_package = \"{}\";\n".format(JAVA_PACKAGE)
         for dep in self.imports:
             protoData+="import \"{}\"\n".format(dep)
         protoData+="\n"
