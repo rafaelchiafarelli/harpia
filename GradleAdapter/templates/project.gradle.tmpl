@@ -19,6 +19,8 @@ repositories {
 
 dependencies {
     implementation 'com.google.protobuf:protobuf-java:3.25.3'
+    // JsonFormat (J.4) -- keep in lockstep with protobuf-java above.
+    implementation 'com.google.protobuf:protobuf-java-util:3.25.3'
 
     // gRPC stub generation (J.3) -- runtime + codegen support for the
     // generated `<name>_ServiceGrpc` stub classes.
@@ -52,5 +54,17 @@ protobuf {
         // plugin emit nothing for a file with no `service` block), and
         // simpler than partitioning the source set by file name.
         all()*.plugins { grpc {} }
+    }
+}
+
+// A resolved runtime classpath, one line, no version-guessing -- used by
+// this repo's own gradle+JDK-gated integration tests (tests/test_java_*.py)
+// instead of hand-globbing exact jar paths out of the Gradle dependency
+// cache (which breaks the moment a pinned version above changes, or a new
+// transitive dependency enters the graph). Generically useful to any
+// consumer running a generated class ad hoc, too.
+tasks.register('harpiaRuntimeClasspath') {
+    doLast {
+        println('HARPIA_RUNTIME_CLASSPATH=' + sourceSets.main.runtimeClasspath.asPath)
     }
 }

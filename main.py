@@ -162,6 +162,16 @@ if __name__ == '__main__':
         if gradleError is not None:
             log.print(gradleError.__str__())
 
+        # 9 (java json). JSON pass-through (J.4) -- a single hand-written
+        # runtime class, not per-message generation (protobuf-java's
+        # Message/Builder interfaces already make JsonFormat generic).
+        from JavaJsonAdapter.JavaJsonAdapter import JavaJsonAdapter
+        javaJsonError = JavaJsonAdapter(messages=msgFactory.messages,
+                                        dest=testDestination,
+                                        compliance=complianceContext).Process()
+        if javaJsonError is not None:
+            log.print(javaJsonError.__str__())
+
     #6 (doxygen). Doxyfile + assembled mainpage (Foundation F6) -- one-time
     # infrastructure; see Doxygen/mainpage.py for why the mainpage is
     # assembled fresh every run instead of a static copy.

@@ -15,6 +15,10 @@ VARIABLES_EXT = ".variables"
 # ignored by every non-Java protoc backend, so emitting them unconditionally
 # is safe for the C++ target too. One flat package for now -- there's no
 # per-project/per-namespace concept in the emitted .proto to key off of.
+# Flagged, not fixed: a flat package means two messages with the SAME NAME
+# from two different root-file hashes would collide as Java classes (unlike
+# their .proto filenames, which stay hash-qualified and never collide) --
+# a latent multi-root risk, not a bug in today's single-root pipeline.
 JAVA_PACKAGE = "com.harpia.generated"
 
 class FileCreator():
