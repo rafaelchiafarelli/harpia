@@ -64,7 +64,7 @@ language's stdlib-heavy story).
 | 10 XML | Hand-written reflection-walking runtime (`runtime/harpia_xml.h`) over `tinyxml2`, since protobuf has no built-in XML | **Real, but bounded — and actually cheaper than C++ here** | protobuf-java's reflection API (`Message.getDescriptorForType()`, `Descriptors.FieldDescriptor`, `Message.getField(fd)`/`hasField(fd)`) is directly comparable in shape to what `harpia_xml.h` walks today. Unlike C++ (which had to vendor `tinyxml2` — no XML in the C++ stdlib), Java's `javax.xml`/DOM/StAX is JDK-builtin, so the new runtime needs **zero extra dependency** — a genuine win over the C++ story, not just a port. One new runtime class + one wrapper template, same shape as today. |
 | 8 DB/CRUDL/migration | SOCI-backed SQL (`Database/backends/` dialect seam + `CrudlAdapter`/`MigrationAdapter` templates) | **Real, largest piece — but the best-understood porting target** | JDBC's `PreparedStatement.setInt/setString/setLong(index, ...)` (bind) + `ResultSet.getInt/getString(column)` (extract) is a direct structural analogue of SOCI's `use()`/`into()`. `Database/model.py`'s `analyze()`/`map_fields()`/`repeated_fields()` IR is already fully language-agnostic and gets reused as-is. Drivers: `org.xerial:sqlite-jdbc` (pure JDBC, bundles native SQLite per-platform transparently — a downloaded Maven artifact, no source-vendoring needed) for SQLite; `org.postgresql:postgresql` (pure Java, **no native library at all**, unlike C++'s `libpq`) for Postgres — genuinely simpler than the C++/vcpkg story. |
 | 11/12 REST/SOAP | Crow (vendored, header-only) + tinyxml2 | **Real, and a real framework-weight decision, same shape as the gRPC fork above** | Two candidates, matching Crow's "minimal, no big framework" ethos rather than Spring (wrong shape for hand-templated route registration): `com.sun.net.httpserver.HttpServer` (JDK-builtin since Java 6, **zero dependency**) or a thin third-party layer (e.g. Javalin) for nicer routing ergonomics at the cost of one dependency. Recommend the JDK-builtin one for the same reason the XML runtime picked `javax.xml` — least new dependency surface. **SOAP is cheaper than it looks**: harpia's `SoapAdapter` doesn't use a real SOAP/WS-* stack even in C++ — it hand-rolls envelope get/set/update/delete parsing over its own XML adapter. Java's SOAP story (JAX-WS removed from the JDK since 11) doesn't matter here — port the same hand-rolled envelope logic over the new Java XML runtime, no extra dependency. |
-| 13 ZMQ | cppzmq (native, linked) | **Real, but smaller than C++'s own Windows story turned out to be** | `org.zeromq:jeromq` is a pure-Java reimplementation of the ZMTP wire protocol — **no JNI, no native library, no per-platform build** at all. Socket-pattern API is close enough to cppzmq that the origin-id scheme ports as the portable algorithm it already is. **Confirmed 2026-08-23 (session J.17): CURVE is supported**, pinned to `org.zeromq:jeromq:0.6.0` — see [histories/ZMQ/confirm-JeroMQ-CURVE-support.md](histories/ZMQ/confirm-JeroMQ-CURVE-support.md#confirmed-2026-08-23-curve-is-supported) for the full verification (continuously maintained since 0.4.1/2017, not a one-line claim) and its one caveat (web-research-based, not yet a locally-executed handshake — that's J.19's own test). |
+| 13 ZMQ | cppzmq (native, linked) | **Real, but smaller than C++'s own Windows story turned out to be** | `org.zeromq:jeromq` is a pure-Java reimplementation of the ZMTP wire protocol — **no JNI, no native library, no per-platform build** at all. Socket-pattern API is close enough to cppzmq that the origin-id scheme ports as the portable algorithm it already is. **Confirmed 2026-08-23 (session J.17): CURVE is supported**, pinned to `org.zeromq:jeromq:0.6.0` — see [`JavaZmqAdapter/CLAUDE.md`](../../../JavaZmqAdapter/CLAUDE.md) for the full verification (continuously maintained since 0.4.1/2017, not a one-line claim) and its one caveat (web-research-based, not yet a locally-executed handshake). |
 | 14 generated tests | CTest + hand-rolled C++ assertions | **Real, mechanical** | JUnit 5 is the direct analogue of CTest/pytest, runs via Gradle's `test` task. `TestAdapter.py`'s ~8 body builders each need a Java-source-emitting counterpart; they already consume `Database.model`'s language-agnostic IR directly, so the port is per-builder mechanical, not structural. |
 | Build/packaging | CMake + vendored C++ libs | **Real, different shape — but this is where the Android motivation pays off directly** | **Gradle**, not Maven — deliberately, because Gradle is what Android app modules already use. A harpia-generated Java project (or, per §7, the client-shaped subset of it) becomes a Gradle module an Android app can depend on with no build-system translation at all. |
 
@@ -103,7 +103,7 @@ have to re-derive that they're real forks:
    **Resolved 2026-08-23 (session J.1): build-time**, for the reasons
    above plus sidestepping `protoc-gen-grpc-java` in the harpia Docker
    image — see
-   [histories/gRPC-wiring/codegen-timing-decision.md](histories/gRPC-wiring/codegen-timing-decision.md#decision-resolved-2026-08-23)
+   [`GradleAdapter/CLAUDE.md`](../../../GradleAdapter/CLAUDE.md)
    for the full rationale and its consequence for J.2/J.3/J.22.
 2. **protobuf runtime variant**: full runtime (reflection-capable —
    required by both the JSON stage's `JsonFormat` and the XML stage's
@@ -119,7 +119,7 @@ have to re-derive that they're real forks:
    mitigate the DEX-size pressure that originally motivated `javalite`.
    **Caveat this decision carries plainly:** not verified against a real
    Android build (no Android SDK/emulator in this environment) — see
-   [histories/Android-consumption/protobuf-runtime-variant-decision.md](histories/Android-consumption/protobuf-runtime-variant-decision.md#decision-2026-08-23-full-protobuf-java-runtime-not-protobuf-javalite)
+   [histories/Android-consumption/protobuf-runtime-variant-decision.md](histories/Android-consumption/protobuf-runtime-variant-decision.md)
    for the full reasoning and what a real APK/DEX-count check would need
    to confirm.
 
@@ -131,9 +131,10 @@ Same shape as `HARPIA_DB_BACKEND` → `get_backend()`: thread a
 
 ## 6. Slice order
 
-See [track-j-java-target.md](histories/track-j-java-target.md) — 27 sessions,
-J.1–J.27, grouped by stage (proto/gRPC, JSON, DB×2 dialects, XML, REST,
-SOAP, ZMQ, tests+packaging, Android consumption).
+J.1–J.24 (proto/gRPC, JSON, DB×2 dialects, XML, REST, SOAP, ZMQ,
+tests+packaging) shipped — see the status header above. Only J.25–J.27
+(Android consumption verification) remain open; see
+[track-j-java-target.md](histories/track-j-java-target.md).
 
 ## 7. Android consumption — the actual motivating use case
 
@@ -199,16 +200,11 @@ JeroMQ-on-Android, CURVE-on-JeroMQ) live.
 
 ## 9. Recommendation
 
-1. Confirm §4's two open decisions before writing any code — they change
-   the shape of multiple sessions, not just one line each.
-2. Slice per §6/`track-j-java-target.md`, same discipline as the C++
-   Postgres backend's branch plan: each session lands independently,
-   leaves the C++ path untouched and green, verified against its own
-   equivalent of a golden-file suite before the next session starts.
-3. Treat §7 (Session J.10) as a real session with its own acceptance bar
-   (an actual Android build consuming the generated artifacts), not a
-   documentation afterthought tacked onto the end — it's the reason this
-   thread exists.
-4. Python is still next in line after Java — this thread's existence
+1. §4's two open decisions are resolved (see the status header above and
+   §4 itself) — nothing left to confirm before writing code.
+2. Remaining work is J.25–J.27 only: an actual Android build consuming
+   the generated artifacts (§7), not a documentation afterthought — it's
+   the reason this thread exists. See `track-j-java-target.md`.
+3. Python is still next in line after Java — this thread's existence
    doesn't mean Python no longer matters (see the 2026-08-22
    selection-history note in this file's opening paragraph).

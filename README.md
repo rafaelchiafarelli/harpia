@@ -80,7 +80,15 @@ design vision, not current status):
 - No multi-tier RBAC — every credential-gated surface checks a single flat
   `X-User`/`X-Pswd`-style secret, not the admin/main/guest roles the spec
   describes.
-- C++ is the only generation target (spec envisions Node/Rust/Python/Java).
+- **Java is a second generation target, mostly shipped** (stages 8–14
+  equivalents: DB×2 dialects, JSON, XML, REST, SOAP, ZMQ core+CURVE,
+  generated JUnit tests, Gradle packaging — real code, real Python-side
+  tests; the JDK-gated Java-side tests are written correctly-by-inspection
+  but have never run against a real JVM toolchain here). Node/Rust/Python
+  are still spec-only. One open item: Android-consumption verification
+  (message classes, gRPC client, ZMQ client) is written but unrun — no
+  Android SDK/emulator available — see
+  `initiatives/multi-language-targets/thread-1-java-target/README.md`.
 - **Windows as a generated-code target** — the generator (`main.py`) still
   only runs via Docker/Linux, but the *generated* C++ project now builds
   and runs natively on Windows (MSVC + vcpkg), verified for the ZMQ
