@@ -241,6 +241,16 @@ if __name__ == '__main__':
         if javaZmqError is not None:
             log.print(javaZmqError.__str__())
 
+        # 14 (java tests). Generated JUnit 5 tests (J.21) -- field access,
+        # JSON/XML round trip, DB CRUDL round trip, scoped to the same
+        # columns JavaCrudlAdapter (J.6) handles.
+        from JavaTestAdapter.JavaTestAdapter import JavaTestAdapter
+        javaTestError = JavaTestAdapter(messages=msgFactory.messages,
+                                        dest=testDestination,
+                                        compliance=complianceContext).Process()
+        if javaTestError is not None:
+            log.print(javaTestError.__str__())
+
     #6 (doxygen). Doxyfile + assembled mainpage (Foundation F6) -- one-time
     # infrastructure; see Doxygen/mainpage.py for why the mainpage is
     # assembled fresh every run instead of a static copy.

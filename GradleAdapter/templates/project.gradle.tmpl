@@ -46,6 +46,13 @@ dependencies {
     // pinned version (J.17, see initiatives/multi-language-targets/
     // thread-1-java-target/histories/ZMQ/confirm-JeroMQ-CURVE-support.md).
     implementation 'org.zeromq:jeromq:0.6.0'
+
+    // Generated JUnit 5 tests (J.21).
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 // protobuf-gradle-plugin's default proto source set (src/main/proto,
