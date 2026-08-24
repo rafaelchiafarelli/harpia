@@ -12,6 +12,20 @@ case (an Android client SDK, a *subset* of what this thread builds) is
 Session breakdown (27 sessions, one deliverable + tests each, sized to
 fit a single sitting): [track-j-java-target.md](histories/track-j-java-target.md).
 
+**Status as of 2026-08-23: J.1-J.24 landed** (gRPC-wiring, JSON, DB×2
+dialects, XML, REST, SOAP, ZMQ×core+CURVE, generated tests + Gradle
+packaging, and the protobuf-runtime-variant decision) — real code, real
+Python-side tests, all passing in this repo's own suite; the
+gradle+JDK-gated Java-side integration tests are written correctly-by-
+inspection but haven't executed anywhere with a JVM toolchain yet (no JDK
+in this environment or, currently, the harpia Docker image — flagged
+throughout, not silently assumed passing). **J.25-J.27 (Android
+verification) are written but genuinely unverified** — this environment
+has no Android SDK/emulator at all, a strictly bigger gap than "no JDK."
+See [`examples/android_consumer/README.md`](../../../examples/android_consumer/README.md)
+for the full verification-status picture and what running it for real
+would need.
+
 ---
 
 ## 1. What this thread targets, precisely
