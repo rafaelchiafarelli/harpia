@@ -99,6 +99,15 @@ have to re-derive that they're real forks:
    lite-generated classes at all). This directly determines whether an
    Android consumer (§7) gets the JSON/XML stages for free or has to
    hand-roll non-reflective codecs. Not resolved here — see §7.
+   **Resolved 2026-08-23 (session J.24): full runtime**, not `javalite` —
+   preserves J.4's `JsonFormat`-based JSON for Android rather than needing
+   a second, non-reflective implementation, and multidex/R8 substantially
+   mitigate the DEX-size pressure that originally motivated `javalite`.
+   **Caveat this decision carries plainly:** not verified against a real
+   Android build (no Android SDK/emulator in this environment) — see
+   [histories/Android-consumption/protobuf-runtime-variant-decision.md](histories/Android-consumption/protobuf-runtime-variant-decision.md#decision-2026-08-23-full-protobuf-java-runtime-not-protobuf-javalite)
+   for the full reasoning and what a real APK/DEX-count check would need
+   to confirm.
 
 ## 5. Selector mechanism
 

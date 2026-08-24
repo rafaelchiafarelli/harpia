@@ -69,8 +69,11 @@ plan before anyone tried to fit it into single-sitting sessions.
   resolved 2026-08-23: build-time codegen** (`.proto` +
   `build.gradle`/`protobuf-gradle-plugin`, not a harpia-side
   `protoc`/`protoc-gen-grpc-java` shell-out) — see
-  `gRPC-wiring/codegen-timing-decision.md`. J.24 (protobuf runtime variant)
-  is still open.
+  `gRPC-wiring/codegen-timing-decision.md`. **J.24 resolved 2026-08-23:
+  full protobuf-java runtime** (not `javalite`) — see
+  `Android-consumption/protobuf-runtime-variant-decision.md`, including
+  its explicit caveat that this wasn't verified against a real Android
+  build (no SDK/emulator available where it was made).
 - Schema-evolution/migration support for the Java DB layer is explicitly
   not scoped in J.5–J.9 — flagged there, don't assume it's implied.
 - Don't extrapolate this track's Java-specific costs to Rust/Node ahead
