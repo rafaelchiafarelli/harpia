@@ -222,6 +222,16 @@ if __name__ == '__main__':
         if javaRestError is not None:
             log.print(javaRestError.__str__())
 
+        # 11 (java soap). SOAP-over-HTTP envelope access (J.15 parsing,
+        # J.16 acceptance gate) -- hand-rolled, not a real SOAP/WS-* stack,
+        # same as the C++ target; reuses the XML runtime and J.6's DAOs.
+        from JavaSoapAdapter.JavaSoapAdapter import JavaSoapAdapter
+        javaSoapError = JavaSoapAdapter(messages=msgFactory.messages,
+                                        dest=testDestination,
+                                        compliance=complianceContext).Process()
+        if javaSoapError is not None:
+            log.print(javaSoapError.__str__())
+
     #6 (doxygen). Doxyfile + assembled mainpage (Foundation F6) -- one-time
     # infrastructure; see Doxygen/mainpage.py for why the mainpage is
     # assembled fresh every run instead of a static copy.
