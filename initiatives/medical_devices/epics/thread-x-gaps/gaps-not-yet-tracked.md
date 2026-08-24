@@ -1,14 +1,15 @@
 # Gaps not yet assigned to any track
 
 Added 2026-08-18, cross-referencing `README.md`'s "Known gaps" (current
-harpia `dev` @ `0757180`) against every track in `foundation.md` and
-`session-1` through `session-4`. Everything else on that list already maps
-onto an existing track (no YAML serialization → Track F; no multi-tier
-RBAC → Track C; C++-only generation target → Track J). Doxygen generation
-is folded into `foundation.md` (F6 + Ground Rule 6, 2026-08-23) rather
-than scoped as its own track — see that file. **True crash/interrupt
-recovery, originally mapped to Track I here, is now resolved — see
-below, not an open gap anymore.** This one still doesn't have a home yet:
+harpia `dev` @ `0757180`) against every track in the (since-merged and
+removed, see git history) Foundation thread and `session-1` through
+`session-4`. Everything else on that list already maps onto an existing
+track (no YAML serialization → Track F; no multi-tier RBAC → Track C;
+C++-only generation target → Track J). Doxygen generation was folded into
+Foundation's F6 + Ground Rule 6 (2026-08-23) rather than scoped as its own
+track — see `../handoff-document.md`. **True crash/interrupt recovery,
+originally mapped to Track I here, is now resolved — see below, not an
+open gap anymore.** This one still doesn't have a home yet:
 
 ---
 
@@ -35,17 +36,11 @@ future session doesn't re-litigate them from scratch:
 - **DICOM / IHE PCD** — these are system-to-system *clinical data
   exchange* (PACS/imaging integration), not device-level IPC. Orthogonal
   to what Harpia generates today — a different layer of the stack.
-- **HL7 FHIR — revised 2026-08-21, no longer deferred.** Originally
-  lumped in with DICOM/IHE PCD as "orthogonal" — that was wrong. FHIR's
-  RESTful convention (verbs, JSON/XML, content negotiation) is the same
-  *mechanism* Stage 12 already emits; the real gap is FHIR's fixed
-  resource vocabulary + terminology bindings (`Patient`, `Observation`,
-  LOINC/SNOMED-coded fields), which nothing in the generator maps to
-  today. This is a legitimate façade/translation track, not a
-  non-fit — see Track R in the master plan and
-  `thread-5-device-interop/histories/fhir-facade/track-r-fhir-facade.md` (added 2026-08-23 —
-  the original `session-5-device-interop.md` never actually included
-  Track R despite the master plan naming it part of this session).
+
+(HL7 FHIR was originally listed here too, then revised 2026-08-21 to "no
+longer deferred" once it got its own track — removed now that it's fully
+resolved: see Track R in the master plan and
+`thread-5-device-interop/histories/fhir-facade/track-r-fhir-facade.md`.)
 
 If any of these get picked back up later, scope them the same way
 Track P/Q were: a dedicated track with its own contract in the master
