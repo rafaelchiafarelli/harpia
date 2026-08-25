@@ -99,6 +99,23 @@ RUN wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -O /tmp
     && rm /tmp/gradle.zip
 ENV PATH="/opt/gradle-8.5/bin:${PATH}"
 
+# Pre-create Gradle's cache dir with sticky-bit-world-writable perms, same as
+# /tmp itself, so it's writable no matter which -u UID a container runs as.
+# docker/run.sh and run_harpia.sh mount a named volume here AND set
+# GRADLE_USER_HOME=/tmp/.gradle explicitly -- the JVM's `user.home` property
+# is resolved from the OS passwd entry for the current UID (getpwuid), NOT
+# from the HOME env var (confirmed: HOME=/tmp but `java
+# -XshowSettings:properties` still reports user.home=/home/ubuntu, the base
+# image's baked-in UID-1000 passwd entry), so Gradle's default
+# ~/.gradle would silently land outside this volume without the explicit
+# override. With it, dependency downloads (and, with the Gradle daemon left
+# on -- see tests/_java_gradle_helpers.py -- JIT-warmed daemon state) persist
+# across separate `docker run --rm` invocations, not just within one.
+# Without this, every fresh container starts from a cold Maven Central
+# cache -- previously the single biggest cost of running the Java
+# gradle+JDK-gated tests even once in a while.
+RUN mkdir -p /tmp/.gradle && chmod 1777 /tmp/.gradle
+
 # Android SDK command-line tools -> platform-tools + platform 34 + build-tools
 # 34.0.0, matching examples/android_consumer's compileSdk/AGP pin. Licenses
 # accepted non-interactively (`yes |`) since this is a throwaway build image,

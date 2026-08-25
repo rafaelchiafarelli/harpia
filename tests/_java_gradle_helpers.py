@@ -53,7 +53,12 @@ def build_and_classpath(java_root, extra_source):
         with open(path, "w") as f:
             f.write(content)
 
-    build = subprocess.run(["gradle", "--no-daemon", "build"], cwd=java_root,
+    # Daemon kept ON (not --no-daemon): ~10 test files each run their own
+    # `gradle build` from a fresh tmp_path project. A live daemon persists
+    # for the life of the container's pytest process (dies with the
+    # container on --rm, no orphaned host process), so invocation 2+ reuse
+    # an already-warm JVM instead of paying full Gradle bootstrap every time.
+    build = subprocess.run(["gradle", "build"], cwd=java_root,
                            capture_output=True, text=True, timeout=600)
     assert build.returncode == 0, "gradle build failed:\n" + build.stdout + build.stderr
 
@@ -61,7 +66,7 @@ def build_and_classpath(java_root, extra_source):
     assert jars, "gradle build produced no jar under build/libs"
 
     cp = subprocess.run(
-        ["gradle", "--no-daemon", "-q", "--console=plain", "harpiaRuntimeClasspath"],
+        ["gradle", "-q", "--console=plain", "harpiaRuntimeClasspath"],
         cwd=java_root, capture_output=True, text=True, timeout=120,
     )
     assert cp.returncode == 0, "harpiaRuntimeClasspath failed:\n" + cp.stdout + cp.stderr

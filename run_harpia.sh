@@ -106,7 +106,9 @@ docker run --rm -i \
     -v "$REPO_ROOT":/harpia -w /harpia \
     -v "$INPUT_ABS":"$C_INPUT":ro \
     -v "$OUTPUT_ABS":"$C_OUTPUT" \
+    -v harpia-gradle-cache:/tmp/.gradle \
     -e HOME=/tmp \
+    -e GRADLE_USER_HOME=/tmp/.gradle \
     -e HARPIA_INPUT_FILE="$C_INPUT/$HARPIA_NAME" \
     -e HARPIA_INCLUDE_FOLDER="$C_INPUT/$INCLUDE_SUBPATH" \
     -e HARPIA_OUTPUT_DIR="$C_OUTPUT" \

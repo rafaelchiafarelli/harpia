@@ -71,7 +71,7 @@ def test_generated_junit_suite_passes(tmp_path):
     out = generate(tmp_path, lang="java")
     java_root = os.path.join(out, "java")
 
-    result = subprocess.run(["gradle", "--no-daemon", "test"], cwd=java_root,
+    result = subprocess.run(["gradle", "test"], cwd=java_root,
                             capture_output=True, text=True, timeout=600)
     assert result.returncode == 0, "gradle test failed:\n" + result.stdout + result.stderr
 
