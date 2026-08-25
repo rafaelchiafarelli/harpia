@@ -1,0 +1,15 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+
+import "protofiles/vip_users_3ac5d8b36fc7dcfb70888145147ddfb7.proto";
+message top_users {
+int32 ID_3ac5d8b36fc7dcfb70888145147ddfb7 = 1;
+string sponsor = 2;
+string name = 3;
+vip_users myUsers = 4;
+repeated vip_users members = 5;
+string STATUS_3ac5d8b36fc7dcfb70888145147ddfb7 = 6;
+string ERROR_3ac5d8b36fc7dcfb70888145147ddfb7 = 7;
+string ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7 = 8;
+}

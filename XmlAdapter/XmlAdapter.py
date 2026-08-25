@@ -32,7 +32,8 @@ _RUNTIME_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 
 
 class XmlAdapter:
-    def __init__(self, messages, dest) -> None:
+    def __init__(self, messages, dest, compliance=None) -> None:
+        self.compliance = compliance
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "xml")

@@ -8,7 +8,8 @@ class LexicalAnalyzer:
     # Token row
     lin_num = 1
     tokens = []
-    def __init__(self) -> None:
+    def __init__(self, compliance=None) -> None:
+        self.compliance = compliance
         self.name = "empty"
         self.rules = [
             ('IMPORT', r'import'),
@@ -21,6 +22,12 @@ class LexicalAnalyzer:
             ('EVENT',r'event '),
             ('PUSHPULL',r'pushpull '),
             ('MESSAGE',r'message '),
+            # sensitive-field modifier (Foundation F2, confidentiality axis --
+            # see initiatives/medical_devices/harpia_sensitive_data_design_rules.md
+            # §0). Same category as OPTIONAL/REQUIRED/UNIQUE below: a
+            # keyword-only modifier, no value, flag only -- no encryption/
+            # redaction/audit logic lands with this token.
+            ('PHI', r'phi '),
             ("OPTIONAL", r'optional '),
             ('REPETEABLE',r'repeteable'),
             ('PAGINATION',r'pagination'),

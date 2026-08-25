@@ -1,0 +1,17 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+
+import "protofiles/prince_3ac5d8b36fc7dcfb70888145147ddfb7.proto";
+import "protofiles/grower_3ac5d8b36fc7dcfb70888145147ddfb7.proto";
+message data {
+int32 ID_3ac5d8b36fc7dcfb70888145147ddfb7 = 1;
+int32 i = 2;
+optional int32 j = 3;
+prince val = 4;
+grower car = 5;
+repeated int32 tags = 6;
+string STATUS_3ac5d8b36fc7dcfb70888145147ddfb7 = 7;
+string ERROR_3ac5d8b36fc7dcfb70888145147ddfb7 = 8;
+string ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7 = 9;
+}

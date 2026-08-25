@@ -33,7 +33,8 @@ _REST = loadTemplate(__file__, "rest.h.tmpl")
 
 
 class RestAdapter:
-    def __init__(self, messages, dest) -> None:
+    def __init__(self, messages, dest, compliance=None) -> None:
+        self.compliance = compliance
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "rest")

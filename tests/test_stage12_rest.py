@@ -24,7 +24,7 @@ SQLITE = os.path.join(REPO_ROOT, "third_party", "sqlite")
 CROW = os.path.join(REPO_ROOT, "third_party", "crow")
 ASIO = os.path.join(REPO_ROOT, "third_party", "asio")
 TINYXML2 = os.path.join(REPO_ROOT, "third_party", "tinyxml2")
-HASH = "c96f8fd7f45108efee5a8ecb43eab1da"
+HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
 
 pytestmark = pytest.mark.skipif(
     any(shutil.which(t) is None for t in ("protoc", "g++", "cc", "pkg-config")),

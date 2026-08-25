@@ -1,0 +1,13 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+
+import "protofiles/route_3ac5d8b36fc7dcfb70888145147ddfb7.proto";
+message journey {
+int32 ID_3ac5d8b36fc7dcfb70888145147ddfb7 = 1;
+route path = 2;
+string vessel = 3;
+string STATUS_3ac5d8b36fc7dcfb70888145147ddfb7 = 4;
+string ERROR_3ac5d8b36fc7dcfb70888145147ddfb7 = 5;
+string ORIGINATOR = 6;
+}

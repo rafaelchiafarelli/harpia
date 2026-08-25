@@ -6,8 +6,24 @@ PROTO_EXT = ".proto"
 MESSAGE_EXT = ".message"
 VARIABLES_EXT = ".variables"
 
+# Java's protoc plugin packs every message declared in one .proto into a
+# single outer wrapper class by default. harpia's convention is already one
+# message per .proto (hash-qualified filename), so without this option the
+# Java target would nest every generated class inside a wrapper, unlike every
+# other target -- see initiatives/multi-language-targets/thread-1-java-target
+# (session J.1). Both options are standard descriptor.proto FileOptions,
+# ignored by every non-Java protoc backend, so emitting them unconditionally
+# is safe for the C++ target too. One flat package for now -- there's no
+# per-project/per-namespace concept in the emitted .proto to key off of.
+# Flagged, not fixed: a flat package means two messages with the SAME NAME
+# from two different root-file hashes would collide as Java classes (unlike
+# their .proto filenames, which stay hash-qualified and never collide) --
+# a latent multi-root risk, not a bug in today's single-root pipeline.
+JAVA_PACKAGE = "com.harpia.generated"
+
 class FileCreator():
-    def __init__(self, message, imports, dest) -> None:
+    def __init__(self, message, imports, dest, compliance=None) -> None:
+        self.compliance = compliance
         self.message = message
         self.fileName = "{}_{}.proto".format(message.name,message.md5Hash)
         self.gRPCfileName = "{}_{}_service.proto".format(message.name,message.md5Hash)
@@ -38,7 +54,9 @@ class FileCreator():
     def Process(self):
         #create the proto file
         
-        protoData = "syntax = \"proto3\";"
+        protoData = "syntax = \"proto3\";\n"
+        protoData += "option java_multiple_files = true;\n"
+        protoData += "option java_package = \"{}\";\n".format(JAVA_PACKAGE)
         for dep in self.imports:
             protoData+="import \"{}\"\n".format(dep)
         protoData+="\n"
@@ -78,9 +96,23 @@ class FileCreator():
                         protoData+="map<{}, {}> {} = {};\n".format(
                             keyType, valType, v.name, v.index)
                     else:
-                        prefix = ("repeated " if any(
-                            m[0] == 'REPETEABLE' for m in (v.modifiers or []))
-                            else "")
+                        mods = v.modifiers or []
+                        isRepeated = any(m[0] == 'REPETEABLE' for m in mods)
+                        if isRepeated:
+                            # proto3 forbids "optional repeated" -- repeated
+                            # already has its own presence signal (an empty
+                            # list), so REPETEABLE wins over OPTIONAL here.
+                            prefix = "repeated "
+                        elif any(m[0] == 'OPTIONAL' for m in mods):
+                            # emits proto3's `optional` keyword, giving the
+                            # field real explicit-presence tracking (a
+                            # generated has_<field>() distinct from the
+                            # zero-value default) instead of Harpia's
+                            # OPTIONAL modifier being a no-op past the lexer
+                            # -- see plans/message-versioning.md S4.
+                            prefix = "optional "
+                        else:
+                            prefix = ""
                         protoData+="{}{} {} = {};\n".format(
                             prefix, self.protoType(v.type), v.name, v.index)
                     if len(v.modifiers) != 0:

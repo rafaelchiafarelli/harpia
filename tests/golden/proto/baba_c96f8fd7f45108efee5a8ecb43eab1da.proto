@@ -1,6 +1,0 @@
-syntax = "proto3";
-enum baba {
-caca = 0;
-dada = 1;
-lala = 2;
-}

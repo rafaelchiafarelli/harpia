@@ -23,7 +23,7 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 | 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD + DB bulk export/import |
 | 11 | SOAP | ✅ SOAP get/set/update/delete endpoint (XML over HTTP) over CRUDL (Crow + tinyxml2), gated by the Stage 5 access credential (SOAP Header `<credentials>`, 401 Fault on mismatch); WSDL 1.1 descriptor emitted per message (`wsdl/<name>_<hash>.wsdl`, document/literal SOAP binding) |
 | 12 | HTML / REST bindings | ✅ REST CRUD (GET/POST/PUT/DELETE) over CRUDL (Crow) with JSON/XML content negotiation (`Content-Type`/`Accept`, via the JSON + XML adapters), gated by the Stage 5 access credential (`X-User`/`X-Pswd` headers, 401 on mismatch); GET-list is paginated via `?limit=&offset=` (defaulting to the table's declared `pagination[size]` when present) |
-| 13 | zmq/socket + gRPC access | ✅ gRPC stubs **wired to CRUDL** (per table message, a `<name>_service` impl: push→create, pullByID→read, streamSrc→list [paginated via the request's `offset`/`limit` fields when `limit>0`], heartBeat→echo), with the data RPCs gated by the Stage 5 credential via `x-user`/`x-pswd` call metadata (UNAUTHENTICATED on mismatch) **and** ZMQ push/pull + pub/sub, with a sender "originator" id (process.md 1.3.1.1): a compile-time constant for a unique publisher (`pull`/`event`/`stream`), or a runtime-unique id (pid + counter + random, no broker needed) for a shared publisher (`push`/`pushpull`); every ZMQ sender/receiver/publisher/subscriber constructor also takes an optional CURVE encryption keys parameter (default-disabled, `USAGE.md` §10) |
+| 13 | zmq/socket + gRPC access | ✅ gRPC stubs **wired to CRUDL** (per table message, a `<name>_service` impl: push→create, pullByID→read, streamSrc→list [paginated via the request's `offset`/`limit` fields when `limit>0`], heartBeat→echo), with the data RPCs gated by the Stage 5 credential via `x-user`/`x-pswd` call metadata (UNAUTHENTICATED on mismatch) **and** ZMQ push/pull + pub/sub, with a sender "originator" id (process.md 1.3.1.1): a compile-time constant for a unique publisher (`pull`/`event`/`stream`), or a runtime-unique id (pid + counter + random, no broker needed) for a shared publisher (`push`/`pushpull`); every ZMQ sender/receiver/publisher/subscriber constructor also takes an optional CURVE encryption keys parameter (default-disabled, `USAGE.md` §10). **Capability handshake** (message-versioning effort, shipped 2026-08-23, all four transports — see `Capability/CLAUDE.md`): one whole-project capability advertisement per generated peer per transport (`capabilities_service` for gRPC, a shared `GET <base>/capabilities` route for REST/SOAP, a REQ/REP exchange for ZMQ — all three carrying the same `capabilities_Request`/`capabilities_Response` wire messages) lists every message-type name the peer knows about; each transport's hand-written `negotiate()` runtime queries a peer's set with a real deadline (a peer that predates this feature, or never answers in time, resolves to a named "legacy peer" outcome, not a hang), and the shared `harpia::capability::Dispatcher` routes a message type to a registered handler when the peer's set covers it or to a mandatory fallback otherwise — never a silent no-op. |
 | 14 | generated-code unit tests | ✅ per-message C++ unit tests + one app-level test as an opt-in CTest target (`-DHARPIA_BUILD_TESTS=ON`): simple field access + CRUDL round-trip (14.1/14.2), SOAP access-rights credential gate (14.3), access-modifier constraint enforcement (14.4), JSON (14.5) + XML (14.6) parser round-trips, live REST JSON-CRUD (14.7/14.10) and SOAP-over-HTTP (14.8/14.9) HTTP APIs, and an application-level all-good/crash/slower/non-parseable suite (14.11–14.14) |
 
 The generated project builds with its own CMake and ships a runnable
@@ -32,20 +32,37 @@ client/server demo (ZMQ). See `tests/` for what is verified end to end.
 ### Known gaps
 
 Within the pipeline above (stages 0–14, C++ only):
-- The "continuable process" gap in `harpia.architecture.md` has two halves:
-  regeneration being wasteful (redoing unchanged work) is **done** —
-  regeneration is write-if-different with stale-output pruning (see
-  `Util.util.write_if_different`/`prune_stale_outputs`, `USAGE.md` §11), so
-  an unchanged file keeps its mtime and a downstream `cmake --build` skips
-  recompiling it. True interrupt/crash recovery (resume a *killed mid-run*
-  generate, not just skip a no-op regenerate) is the sha256-registry/marker
-  machinery the doc describes — still explicitly aspirational, not started.
+- **Corrected 2026-08-23** (this bullet previously called the second half
+  below "still aspirational, not started" — that was stale; both halves
+  shipped 2026-08-19). The "continuable process" gap had two halves:
+  regeneration being wasteful (redoing unchanged work), and true
+  interrupt/crash recovery (resuming a *killed mid-run* generate, not
+  just skipping a no-op regenerate). Both are closed by the same
+  mechanism, not two separate ones: every generated file goes through
+  `Util.util.write_if_different`/`copy_if_different` (content-compared,
+  atomic same-directory temp-file + `os.replace`), plus
+  `prune_stale_outputs` for renamed/removed messages — see `USAGE.md`
+  §11, `util/CLAUDE.md`. An unchanged file keeps its mtime (a downstream
+  `cmake --build` skips recompiling it — the wasteful-regen half); a
+  process killed mid-write can never leave a truncated file, and rerunning
+  the whole generate after a kill just reproduces the same content for
+  already-correct files and completes the rest — no separate resume logic
+  needed (the crash-recovery half). The original design (a dual sha256
+  registry + start/finish markers, `harpia_medical_master_plan.md`'s
+  Track I) was deliberately superseded by this simpler mechanism, not
+  built as originally scoped.
 
 Beyond the pipeline (the "## objective:"-onward spec section below is the
 design vision, not current status):
 - No YAML serialization (JSON and XML adapters exist; spec calls for
   YAML-style `toString` too).
-- No Doxygen generation for the emitted C++.
+- No Doxygen generation for the emitted C++ yet — still a real gap in
+  today's output. Plumbing + ongoing discipline now folded into
+  Foundation's F6 + Ground Rule 6 (2026-08-23, shipped and merged to `dev`;
+  see `initiatives/medical_devices/epics/handoff-document.md`) rather than
+  staying its own deferred track; see
+  `initiatives/doxygen-generation/doxygen-generation.md` for the pitfall-table reference that
+  discipline builds from.
 - REST/SOAP (Crow's `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC
   (`grpc::SslServerCredentials`) are TLS-capable and documented (`USAGE.md`
   §9); harpia never generated their server-construction code to begin with
@@ -63,22 +80,39 @@ design vision, not current status):
 - No multi-tier RBAC — every credential-gated surface checks a single flat
   `X-User`/`X-Pswd`-style secret, not the admin/main/guest roles the spec
   describes.
-- C++ is the only generation target (spec envisions Node/Rust/Python/Java).
+- **Java is a second generation target, mostly shipped** (stages 8–14
+  equivalents: DB×2 dialects, JSON, XML, REST, SOAP, ZMQ core+CURVE,
+  generated JUnit tests, Gradle packaging — real code, real Python-side
+  tests). The Docker image now carries a JDK 17 + Gradle 8.5 toolchain, so
+  the JDK-gated Java-side tests run against a real JVM here too, not just
+  correctly-by-inspection. Node/Rust/Python are still spec-only.
+  Android-consumption (message classes, gRPC client, ZMQ client) now
+  **compiles for real** against a real Android SDK (also added to the
+  Docker image: cmdline-tools, `platforms;android-34`,
+  `build-tools;34.0.0`) — `assembleDebugAndroidTest` and `assembleRelease`
+  (R8, multidex confirmed clean) both pass. Still open: none of the three
+  instrumented tests have run on an actual device/emulator (needs
+  `/dev/kvm` passthrough into the container, untested) — see
+  `initiatives/multi-language-targets/thread-1-java-target/README.md` and
+  `examples/android_consumer/README.md`.
 - **Windows as a generated-code target** — the generator (`main.py`) still
   only runs via Docker/Linux, but the *generated* C++ project now builds
   and runs natively on Windows (MSVC + vcpkg), verified for the ZMQ
   server/client demo, the REST/JSON demo (`examples/consumer`, including
   `-DUSE_TLS=ON`), and the Stage 14 generated `ctest` suite (`10/10`
   passing, including its REST/SOAP HTTP test client now ported to
-  Winsock2) — see `USAGE.md` §12. Not yet covered: the PostgreSQL backend
-  on Windows, and `-DUSE_ZMQ_CURVE=ON` (vcpkg feature added, build
-  unverified).
+  Winsock2) — see `USAGE.md` §12. Not yet covered (both: vcpkg feature
+  added, build unverified): the PostgreSQL backend on Windows, and
+  `-DUSE_ZMQ_CURVE=ON`.
 - No compliance profile for regulated (e.g. medical-device) deployments —
   no `ComplianceContext`, no PHI field tagging, no message-level
   criticality classification, no key management/mTLS/RBAC/audit-trail
-  generation. Not started; scoped as a large, multi-session plan at
-  `plans/medical_devices/` (see `plans/medical_devices/schedule/
-  foundation.md` for the dependency graph across sessions).
+  generation. Foundation (F1-F6) is done and merged to `dev`; the five
+  parallel compliance threads it unblocks are not started. Scoped as a
+  large, multi-session plan at `initiatives/medical_devices/` (see
+  `harpia_medical_master_plan.md` for the dependency graph across sessions
+  and `initiatives/medical_devices/epics/handoff-document.md` for what
+  Foundation concretely shipped).
 
 **Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the
 consumer's guide (generate, the `.harpia` language by example, what gets
@@ -148,7 +182,7 @@ script sets: `HARPIA_INPUT_FILE`, `HARPIA_INCLUDE_FOLDER`, `HARPIA_OUTPUT_DIR`.
 | `third_party/` | vendored third-party source (tinyxml2, SQLite, Crow + standalone asio) |
 | `tests/` | golden snapshots + per-stage compile/run tests (see `tests/README.md`) |
 | `HarpiaTest/` | the sample `test.harpia` and its includes |
-| `plans/` | scoping docs for larger, not-yet-started or in-progress work (multi-language targets, Postgres migration, `medical_devices/` — a multi-session plan for a medical-device-compliance profile: PHI field tagging, message-level criticality, key management, mTLS/RBAC, audit) — not part of the pipeline itself |
+| `initiatives/` | scoping docs for larger, not-yet-started or in-progress work (multi-language targets, Postgres migration, `medical_devices/` — a multi-session plan for a medical-device-compliance profile: PHI field tagging, message-level criticality, key management, mTLS/RBAC, audit) — not part of the pipeline itself |
 
 ## objective:
 Create a generalized interface for processes and threads to share data among themselves, database and web that has gRPC, ORM, RESTFull, SOAP, CRUDL, multi-project, multi-language and a  multi-thread library to exchange data.

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Minimal on purpose: this module exists to run instrumented tests
+  (app/src/androidTest/) against harpia-generated Java output, not to be
+  a real app. No launcher Activity: the androidTest suite doesn't need
+  one, only a successfully-installed application package.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:label="harpia_android_consumer"
+        android:allowBackup="false" />
+
+</manifest>

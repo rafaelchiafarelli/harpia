@@ -109,12 +109,17 @@ inline void write_message(const ::google::protobuf::Message& msg, std::string& o
                 out += "</" + tag + ">";
             }
         } else {
-            // proto3 singular scalars are emitted with their defaults, but a
-            // singular *message* field is emitted only when actually present --
-            // otherwise an absent child round-trips back as an empty present
-            // child (which, e.g., would make a FK adapter persist a phantom row).
-            if (f->cpp_type() == ::google::protobuf::FieldDescriptor::CPPTYPE_MESSAGE
-                    && !refl->HasField(msg, f))
+            // proto3 implicit-presence scalars are emitted with their
+            // defaults (there's no "unset" to distinguish); but any field
+            // with REAL presence -- a singular message field (always has
+            // presence in proto3), or a scalar explicitly marked `optional`
+            // in the .harpia schema (message/FieldMap.py S4) -- is emitted
+            // only when actually present. Otherwise an absent field
+            // round-trips back as a present-with-default one: for a message
+            // field that's a phantom child (e.g. a spurious FK row); for an
+            // `optional` scalar it's the exact "explicitly 0" vs. "never
+            // set" ambiguity presence tracking exists to close.
+            if (f->has_presence() && !refl->HasField(msg, f))
                 continue;
             out += "<" + tag + ">";
             write_singular(msg, refl, f, out);

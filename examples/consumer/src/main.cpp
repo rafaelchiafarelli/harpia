@@ -11,6 +11,9 @@
 // accessor names) change with it.
 #include <soci/soci.h>
 #include <soci/sqlite3/soci-sqlite3.h>   // pick the backend at your session-open site
+#ifdef HARPIA_DEMO_POSTGRES
+#include <soci/postgresql/soci-postgresql.h>
+#endif
 
 #include <chrono>
 #include <cstdlib>
@@ -29,7 +32,16 @@ int main() {
     // 1) Open a database. Your app owns the session; swap the backend header +
     //    factory to target PostgreSQL instead of SQLite -- the code below is
     //    identical either way.
+#ifdef HARPIA_DEMO_POSTGRES
+    // -DUSE_POSTGRES=ON build (see CMakeLists.txt): Windows PostgreSQL
+    // build/link verification, USAGE.md §12 known-gaps. Conninfo comes from
+    // the environment so this demo never hardcodes real credentials.
+    const char* conninfo = std::getenv("HARPIA_PG_CONNINFO");
+    if (!conninfo) { std::cerr << "HARPIA_PG_CONNINFO not set\n"; return 3; }
+    ::soci::session db(::soci::postgresql, conninfo);
+#else
     ::soci::session db(::soci::sqlite3, ":memory:");
+#endif
 
     // 2) Use the generated DAO (create_table / create / read / update / remove / list).
     harpia::db::users_dao dao(db);

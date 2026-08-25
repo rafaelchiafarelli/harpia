@@ -1,3 +1,8 @@
+// canonical example of the optional/required/map<K,V>-x3/pagination
+// modifier combination (previously duplicated near-verbatim by pope/king/
+// queenBee, folded away here as pure redundancy -- see
+// initiatives/feature-examples/histories/track-ex-feature-examples.md,
+// Session EX.1).
 message queen{
 
     int var;
@@ -72,3 +77,14 @@ message beacon_log{
     renamed_from[handle] string label;
     int strength;
 }beacon_log_table;
+
+// exercises the Foundation F2 phi field modifier -- per-field, composes
+// with other modifiers, and mixes phi and non-phi fields in one message
+// (design-rules doc Rule 0). checked-in canonical fixture for downstream
+// compliance tracks (Track A DB encryption and audit-on-access, Track F
+// redaction, Track Q FHIR facade) to build integration tests against.
+message patient_vitals{
+    phi string patient_id;
+    phi required float heart_rate;
+    optional string device_note;
+}patient_vitals_table;

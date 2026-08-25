@@ -20,17 +20,26 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
   changed"). Used by every adapter that emits generated C++/SQL/proto text
   (`JsonAdapter`, `XmlAdapter`, `ZmqAdapter`, every `Database/*Adapter.py`,
   `ProtoFile/FileCreator.py`, `TestAdapter/TestAdapter.py`) in place of a raw
-  `open(path,"w").write(content)`.
+  `open(path,"w").write(content)`. The actual write goes through
+  `_atomic_replace` (temp file in the same dir + `os.replace`), so a process
+  killed mid-write can never leave a truncated file at `path`.
 - `copy_if_different(src, dst) -> bool` — same idea via `filecmp.cmp`, for
   the static/vendored files that are copied rather than rendered
-  (`copyCMakeFiles`, `copyBasicProtos`, `TestAdapter._vendor_deps`).
+  (`copyCMakeFiles`, `copyBasicProtos`, `TestAdapter._vendor_deps`). Also
+  routed through `_atomic_replace`.
+- `_atomic_replace(dst, populate)` (private) — crash-safety primitive behind
+  both of the above: builds new content into a same-directory temp file via
+  `populate(tmp_path)`, then `os.replace(tmp, dst)` (atomic rename). On any
+  exception the temp file is removed and the exception re-raised; `dst` is
+  untouched until the rename succeeds.
 - `prune_stale_outputs(dest, current_hash, valid_names)` — removes generated
   files left behind by a message renamed/removed since the last run, or by a
   previous run against a different root-file hash. Matches harpia's
   `<name>_<hash>...` filename convention (`_NAME_HASH_RE`) so it never
   touches anything that doesn't look generated (CMakeLists.txt, vendored
-  `third_party/`, ...); `_ALWAYS_VALID_BASENAMES` allowlists the one
-  non-message-keyed exception (`TestAdapter`'s `app_<hash>_test.cpp`).
+  `third_party/`, ...); `_ALWAYS_VALID_BASENAMES` allowlists the
+  non-message-keyed exceptions (`TestAdapter`'s `app_<hash>_test.cpp`,
+  `GrpcCapabilityAdapter`'s whole-project `capabilities_<hash>_grpc.h`).
   Called once by `main.py`, right after messages are parsed and before
   anything is written, replacing the old blanket `shutil.rmtree(dest)`.
 - `chooseDemo(messages)` — picks the message that drives the end-to-end demo:
@@ -53,8 +62,13 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
   compiles.
 - `_emitTemplate(srcPath, destPath, demo)` (private) — does the `%KEY%` replace,
   or the stub if `demo is None`.
-- `copyBasicProtos(src, dest)` — copies the always-needed `errorCode.proto` and
-  `heartBeat.proto` into `dest/proto/protofiles`.
+- `copyBasicProtos(src, dest)` — copies the always-needed `errorCode.proto`,
+  `heartBeat.proto`, and `capabilities_service.proto` (S5 capability
+  handshake's fixed wire contract) into `dest/proto/protofiles`.
+- `copyDoxygenFiles(src, dest)` — copies `Assets/Doxyfile` to
+  `<dest>/Doxyfile` (Foundation F6). The companion mainpage
+  (`USAGE_EXCERPT.md`) is NOT copied by this function -- it's assembled
+  content, written separately by `Doxygen.mainpage.write_mainpage`.
 - `loadTemplate(callerFile, name)` — reads a code-gen template from the
   `templates/` dir next to the *calling* module (`os.path.dirname(callerFile)`).
   Templates use `str.format` placeholders; C++ braces must be escaped `{{ }}`.

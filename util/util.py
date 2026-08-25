@@ -5,6 +5,7 @@ import shutil
 import string
 import os
 import re
+import tempfile
 import json as _json
 from Errors.Error import Error, Types, Classes
 import hashlib
@@ -17,8 +18,11 @@ _DEMO_SCALARS = {"STRING", "INT32", "INT64", "FLOAT"}
 # in the output tree (CMakeLists.txt, vendored third_party/, ...).
 _NAME_HASH_RE = re.compile(r'^([A-Za-z_]\w*)_([0-9a-f]{32})')
 # Non-message-keyed but still hash-qualified filenames that must never be
-# treated as orphans -- TestAdapter's single app-level test (app_<hash>_test.cpp).
-_ALWAYS_VALID_BASENAMES = {"app"}
+# treated as orphans -- TestAdapter's single app-level test (app_<hash>_test.cpp)
+# and GrpcCapabilityAdapter's single whole-project capability advertisement
+# (capabilities_<hash>_grpc.h, hash-qualified by the ROOT file's hash like
+# every other Stage 13 output, but not keyed to any one message name).
+_ALWAYS_VALID_BASENAMES = {"app", "capabilities"}
 
 
 def chooseDemo(messages):
@@ -106,6 +110,30 @@ def isFileInFolders(folders, file):
                         CharacterNumber = 0)
 
 
+def _atomic_replace(dst, populate):
+    """Crash-safety primitive: build the new file's content in a temp file
+    next to `dst` (via `populate(tmp_path)`), then `os.replace` it into place.
+    `os.replace` is an atomic rename on both POSIX and Windows, so a process
+    killed at any point either leaves `dst` untouched or fully updated --
+    never a truncated/partial file sitting at the real path. This is what
+    lets a killed-mid-run generate just be rerun (see
+    plans/crash-interrupt-recovery.md): the next write_if_different sees
+    either the old complete file or the new complete one, both valid inputs
+    to its content comparison."""
+    dirpath = os.path.dirname(dst) or "."
+    fd, tmp = tempfile.mkstemp(dir=dirpath, prefix=".{}.".format(os.path.basename(dst)))
+    os.close(fd)
+    try:
+        populate(tmp)
+        os.replace(tmp, dst)
+    except BaseException:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def write_if_different(path, content):
     """Write content to path unless it's already there unchanged, so an
     unchanged generated file keeps its mtime -- lets a downstream cmake/make
@@ -115,8 +143,11 @@ def write_if_different(path, content):
         with open(path, "r") as f:
             if f.read() == content:
                 return False
-    with open(path, "w") as f:
-        f.write(content)
+
+    def _populate(tmp):
+        with open(tmp, "w") as f:
+            f.write(content)
+    _atomic_replace(path, _populate)
     return True
 
 
@@ -126,7 +157,7 @@ def copy_if_different(src, dst):
     files that are copied rather than rendered."""
     if os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False):
         return False
-    shutil.copy2(src, dst)
+    _atomic_replace(dst, lambda tmp: shutil.copy2(src, tmp))
     return True
 
 
@@ -208,7 +239,17 @@ def copyCMakeFiles(src, dest):
         os.makedirs(os.path.join(dest, "client"))
     copy_if_different(clientCMakePathSrc,
                        os.path.join(dest, "client", "CMakeLists.txt"))
-    
+
+
+def copyDoxygenFiles(src, dest):
+    """Copy Assets/Doxyfile to <dest>/Doxyfile (Foundation F6). The
+    companion USAGE_EXCERPT.md mainpage is written separately by
+    Doxygen.mainpage.write_mainpage -- assembled content, not a static copy."""
+    doxyfilePathSrc = "{}/{}".format(src, "Doxyfile")
+    if not os.path.exists(dest):
+        os.makedirs(dest)
+    copy_if_different(doxyfilePathSrc, os.path.join(dest, "Doxyfile"))
+
 
 def copyServerClientTemplates(src, dest, demo=None):
     serverName = "main.cpp"
@@ -267,6 +308,9 @@ def loadTemplate(callerFile, name):
 def copyBasicProtos(src, dest):
     errorProto = os.path.join(src, "errorCode.proto")
     heartBeatProto = os.path.join(src, "heartBeat.proto")
+    capabilitiesProto = os.path.join(src, "capabilities_service.proto")
     destination = os.path.join(dest,"proto","protofiles")
     copy_if_different(errorProto, os.path.join(destination, "errorCode.proto"))
     copy_if_different(heartBeatProto, os.path.join(destination, "heartBeat.proto"))
+    copy_if_different(capabilitiesProto,
+                      os.path.join(destination, "capabilities_service.proto"))

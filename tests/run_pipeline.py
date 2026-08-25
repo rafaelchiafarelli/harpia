@@ -43,8 +43,15 @@ from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
 from Database.WsdlAdapter import WsdlAdapter
 from Database.GrpcServiceAdapter import GrpcServiceAdapter
+from GrpcCapabilityAdapter.GrpcCapabilityAdapter import GrpcCapabilityAdapter
+from HttpCapabilityAdapter.HttpCapabilityAdapter import HttpCapabilityAdapter
+from ZmqCapabilityAdapter.ZmqCapabilityAdapter import ZmqCapabilityAdapter
 from TestAdapter.TestAdapter import TestAdapter
-from util.util import copyCMakeFiles, copyServerClientTemplates, copyBasicProtos, chooseDemo
+from util.util import (copyCMakeFiles, copyServerClientTemplates,
+                       copyBasicProtos, copyDoxygenFiles, chooseDemo)
+from Compliance.context import load_compliance_context
+from Crypto.backend import get_backend as get_crypto_backend, write_build_metadata as write_crypto_build_metadata
+from Doxygen.mainpage import write_mainpage as write_doxygen_mainpage
 
 
 def run(output_dir):
@@ -57,9 +64,30 @@ def run(output_dir):
         shutil.rmtree(build_dir)
     os.makedirs(build_dir, exist_ok=True)
 
+    # -1. load the project-wide compliance profile (Foundation F1), same as main.py.
+    compliance = load_compliance_context()
+
+    # -1 (crypto). pick the crypto module a build would link against (F5),
+    # same as main.py; record it as build metadata under build_dir.
+    crypto_backend = get_crypto_backend(os.environ.get("HARPIA_CRYPTO_BACKEND"),
+                                        compliance=compliance)
+    write_crypto_build_metadata(crypto_backend, build_dir)
+
+    # per-stage smoke marker (F1 integration test): every stage instance below
+    # is checked here for `.compliance is compliance` and the result dumped to
+    # compliance_smoke.txt, so test_compliance.py can assert the object -- not
+    # just a copy/default -- actually reached every stage.
+    compliance_smoke = []
+
+    def _mark(stage_name, instance):
+        compliance_smoke.append(
+            (stage_name, getattr(instance, "compliance", None) is compliance))
+        return instance
+
     # 0. pre-process / include resolution
-    root_file = pre_lex(folders=[local_folder], file=test_file,
-                        dest=build_dir, includeFolder=include_folder)
+    root_file = _mark("pre_lex(root)", pre_lex(folders=[local_folder], file=test_file,
+                        dest=build_dir, includeFolder=include_folder,
+                        compliance=compliance))
     pre_result = root_file.process()
     if pre_result is not None:
         raise SystemExit("pre_lex error: {}".format(pre_result))
@@ -67,7 +95,7 @@ def run(output_dir):
     list_of_includes = root_file.getListOfHarpias()
 
     # 1. lexical analysis of the main file
-    main_lex = LexicalAnalyzer()
+    main_lex = _mark("LexicalAnalyzer(main)", LexicalAnalyzer(compliance=compliance))
     if main_lex.process(test_file) is not None:
         raise SystemExit("lexical error in main file")
     main_lex.CommentRemover()
@@ -76,11 +104,12 @@ def run(output_dir):
     # 2. lexical analysis of each include
     analizer = main_lex
     for inc in list_of_includes:
-        inc_pre = pre_lex(folders=[local_folder], file=inc,
-                          dest=build_dir, includeFolder=include_folder)
+        inc_pre = _mark("pre_lex(include)", pre_lex(folders=[local_folder], file=inc,
+                          dest=build_dir, includeFolder=include_folder,
+                          compliance=compliance))
         if inc_pre.process() is not None:
             raise SystemExit("pre_lex error in include {}".format(inc))
-        analizer = LexicalAnalyzer()
+        analizer = _mark("LexicalAnalyzer(include)", LexicalAnalyzer(compliance=compliance))
         if analizer.process(inc) is not None:
             raise SystemExit("lexical error in include {}".format(inc))
         analizer.CommentRemover()
@@ -91,8 +120,8 @@ def run(output_dir):
     tokens = analizer.getTokens()
 
     # 3. message construction
-    msg_factory = MessageCreator(filename=test_file, tokens=tokens,
-                                 md5Hash=root_file.getHash())
+    msg_factory = _mark("MessageCreator", MessageCreator(filename=test_file, tokens=tokens,
+                                 md5Hash=root_file.getHash(), compliance=compliance))
     msg_error = msg_factory.CreateMessages(beginToken=0)
     if msg_error is not None:
         raise SystemExit("message creation error: {}".format(msg_error))
@@ -100,43 +129,59 @@ def run(output_dir):
     # 4. proto / sidecar file emission
     imports = []
     for msg in msg_factory.messages:
-        fc = FileCreator(message=msg, imports=imports, dest=build_dir)
+        fc = _mark("FileCreator", FileCreator(message=msg, imports=imports, dest=build_dir, compliance=compliance))
         fc.Process()
         fc.save()
     copyBasicProtos(src="./Assets/proto/protofiles", dest=build_dir)
     copyServerClientTemplates(src="./Assets", dest=build_dir,
                               demo=chooseDemo(msg_factory.messages))
     copyCMakeFiles(src="./Assets", dest=build_dir)
+    copyDoxygenFiles(src="./Assets", dest=build_dir)
+    write_doxygen_mainpage(build_dir)
 
     # 9. JSON adapters (header-only C++ over the protobuf messages)
-    JsonAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+    _mark("JsonAdapter", JsonAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
     # 13 (zmq). ZMQ/socket transport for push/pull + event/stream messages
-    ZmqAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+    _mark("ZmqAdapter", ZmqAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+
+    # 13 (zmq capability handshake). advertise this project's message-type set
+    _mark("ZmqCapabilityAdapter", ZmqCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
+                         rootHash=root_file.getHash(), compliance=compliance)).Process()
 
     # 13 (grpc impl). concrete gRPC service wired to CRUDL (per table message)
-    GrpcServiceAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+    _mark("GrpcServiceAdapter", GrpcServiceAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+
+    # 13 (grpc capability handshake). advertise this project's message-type set
+    _mark("GrpcCapabilityAdapter", GrpcCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
+                          rootHash=root_file.getHash(), compliance=compliance)).Process()
 
     # 10. XML adapters (reflection runtime + per-message wrappers)
-    XmlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+    _mark("XmlAdapter", XmlAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
     # 8. SQL schema (supersedes the FileCreator stub) + CRUDL DAOs + DB import/export
-    SqlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
-    CrudlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
-    MigrationAdapter(messages=msg_factory.messages, dest=build_dir).Process()
-    DbIoAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+    _mark("SqlAdapter", SqlAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+    _mark("CrudlAdapter", CrudlAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+    _mark("MigrationAdapter", MigrationAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+    _mark("DbIoAdapter", DbIoAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
     # 12. REST bindings (HTTP CRUD over CRUDL + JSON)
-    RestAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+    _mark("RestAdapter", RestAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
     # 11. SOAP endpoints (XML over HTTP, get/set over CRUDL)
-    SoapAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+    _mark("SoapAdapter", SoapAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
     # 11 (WSDL). WSDL descriptor for the SOAP service
-    WsdlAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+    _mark("WsdlAdapter", WsdlAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+
+    # 11/12 (http capability handshake). shared by REST and SOAP
+    _mark("HttpCapabilityAdapter", HttpCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
+                          rootHash=root_file.getHash(), compliance=compliance)).Process()
 
     # 14. generated unit tests (opt-in CTest target over CRUDL + messages)
-    TestAdapter(messages=msg_factory.messages, dest=build_dir).Process()
+    _mark("TestAdapter", TestAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+
+    _dump_compliance_smoke(os.path.join(output_dir, "compliance_smoke.txt"), compliance_smoke)
 
     # --- capture artifacts -------------------------------------------------
     _dump_tokens(os.path.join(output_dir, "tokens.txt"), tokens)
@@ -145,6 +190,7 @@ def run(output_dir):
     _collect_json(build_dir, os.path.join(output_dir, "json"))
     _collect_zmq(build_dir, os.path.join(output_dir, "zmq"))
     _collect_grpc(build_dir, os.path.join(output_dir, "grpc"))
+    _collect_capability(build_dir, os.path.join(output_dir, "capability"))
     _collect_xml(build_dir, os.path.join(output_dir, "xml"))
     _collect_crudl(build_dir, os.path.join(output_dir, "db"))
     _collect_migrate(build_dir, os.path.join(output_dir, "migrate"))
@@ -168,6 +214,12 @@ def _dump_messages(path, messages):
         for msg in messages:
             f.write(msg.__str__())
             f.write("\n")
+
+
+def _dump_compliance_smoke(path, compliance_smoke):
+    with open(path, "w") as f:
+        for stage_name, received in compliance_smoke:
+            f.write("{}: {}\n".format(stage_name, received))
 
 
 def _collect_protos(build_dir, dest):
@@ -287,6 +339,22 @@ def _collect_grpc(build_dir, dest):
         return
     for name in sorted(os.listdir(src)):
         if name.endswith(".h"):
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_capability(build_dir, dest):
+    # the generated capability advertisements only (capabilities_<hash>_*.h);
+    # everything named harpia_*.h is a static runtime copy (lives in the repo
+    # under {Grpc,Http,Zmq}CapabilityAdapter/runtime and Capability/runtime,
+    # no need to re-snapshot the copies -- same convention as _collect_xml).
+    src = os.path.join(build_dir, "generated", "cpp", "capability")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.startswith("capabilities_") and name.endswith(".h"):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 

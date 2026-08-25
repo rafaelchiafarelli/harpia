@@ -3,6 +3,12 @@
 # Everything the pipeline needs to go from .harpia -> .proto -> compilable C++
 # lives in this image, so nothing has to be installed on the host:
 #   - Python 3.12 (Ubuntu 24.04 default) + pytest      : run the pipeline & golden tests
+#   - python3-yaml                                     : Compliance/context.py's
+#                                                      project.harpia.yaml parser (F1)
+#   - doxygen                                          : Foundation F6's `doxygen`
+#                                                      CMake target (Assets/Doxyfile);
+#                                                      doxygen-gated tests skip
+#                                                      without it, same as protoc/g++
 #   - protobuf-compiler (protoc) + libprotobuf-dev     : Stage 7, .proto -> C++
 #   - protobuf-compiler-grpc + libgrpc++-dev           : Stage 13 gRPC stubs
 #   - libzmq3-dev + cppzmq-dev                         : Stage 13 ZMQ transport
@@ -22,6 +28,38 @@
 #  output stays self-contained and cross-compilable on any target board. protobuf,
 #  gRPC, ZMQ and SOCI are the heavier libs and come from apt, like on a board.)
 #
+#   - openjdk-17-jdk + Gradle 8.5           : Java target (thread-1-java-target)
+#                                              build/test toolchain -- matches
+#                                              GradleAdapter's `java` plugin
+#                                              output and examples/android_consumer's
+#                                              AGP 8.2.2 pin (compileOptions
+#                                              VERSION_17). Gradle comes from a
+#                                              pinned binary distribution, not
+#                                              apt's `gradle` package, which on
+#                                              Ubuntu 24.04 is a much older 4.x
+#                                              line too old for AGP 8.2.2 (needs
+#                                              Gradle 8.2+). Unblocks this repo's
+#                                              own gradle+JDK-gated tests
+#                                              (tests/test_java_*.py,
+#                                              tests/_java_gradle_helpers.py),
+#                                              previously skipped for lack of a
+#                                              JDK in this image.
+#   - Android SDK cmdline-tools + platform-tools + platform 34 + build-tools 34.0.0
+#                                            : compiles examples/android_consumer
+#                                              (compileSdk 34) and runs
+#                                              `./gradlew assembleRelease` for
+#                                              the R8/DEX-count check
+#                                              protobuf-runtime-variant-decision.md
+#                                              (J.24) calls for. Does NOT include
+#                                              an emulator or device: the three
+#                                              `connectedAndroidTest` runs
+#                                              (J.25-J.27) still need a real
+#                                              device/emulator reachable from a
+#                                              container, which needs hardware
+#                                              virtualization (/dev/kvm) wired in
+#                                              separately at `docker run` time,
+#                                              not baked into this image.
+#
 # The repository is mounted at /harpia at run time (see docker/run.sh), so edits
 # on the host are picked up without rebuilding the image.
 FROM ubuntu:24.04
@@ -31,6 +69,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
         python3 \
         python3-pytest \
+        python3-yaml \
+        doxygen \
         protobuf-compiler \
         libprotobuf-dev \
         protobuf-compiler-grpc \
@@ -48,7 +88,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         make \
         libssl-dev \
         openssl \
+        openjdk-17-jdk \
+        unzip \
+        wget \
     && rm -rf /var/lib/apt/lists/*
+
+# Gradle 8.5 (AGP 8.2.2 needs Gradle 8.2+; apt's `gradle` on Ubuntu 24.04 is 4.x).
+RUN wget -q https://services.gradle.org/distributions/gradle-8.5-bin.zip -O /tmp/gradle.zip \
+    && unzip -q /tmp/gradle.zip -d /opt \
+    && rm /tmp/gradle.zip
+ENV PATH="/opt/gradle-8.5/bin:${PATH}"
+
+# Android SDK command-line tools -> platform-tools + platform 34 + build-tools
+# 34.0.0, matching examples/android_consumer's compileSdk/AGP pin. Licenses
+# accepted non-interactively (`yes |`) since this is a throwaway build image,
+# not a workstation install.
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+ENV ANDROID_HOME="${ANDROID_SDK_ROOT}"
+RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
+    && wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O /tmp/cmdline-tools.zip \
+    && unzip -q /tmp/cmdline-tools.zip -d "${ANDROID_SDK_ROOT}/cmdline-tools" \
+    && mv "${ANDROID_SDK_ROOT}/cmdline-tools/cmdline-tools" "${ANDROID_SDK_ROOT}/cmdline-tools/latest" \
+    && rm /tmp/cmdline-tools.zip
+ENV PATH="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${PATH}"
+RUN yes | sdkmanager --licenses >/dev/null \
+    && sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" >/dev/null
 
 WORKDIR /harpia
 

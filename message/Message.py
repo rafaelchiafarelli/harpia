@@ -3,6 +3,7 @@
 import copy
 from message.Variables import Variables
 from message.EnumValues import EnumValues
+from message.FieldMap import freeze as freezeFieldNumbers
 from Errors.Error import Types, Classes, Error
 from logger.logger import logger
 class Message():
@@ -16,8 +17,9 @@ class Message():
     md5Hash = None
     dependency = None
     isEnum = False
-    def __init__(self, fileName,availableMessages, md5Hash) -> None:
+    def __init__(self, fileName,availableMessages, md5Hash, compliance=None) -> None:
 
+        self.compliance = compliance
         self.file = fileName
         self.availableMessages = availableMessages
         self.variables = []
@@ -85,26 +87,31 @@ class Message():
                 if isEnum == False:
                     endOfVariables = j-1
                     v = Variables(filename=self.file,
-                                tok=tokens[startOfVariables:endOfVariables], 
+                                tok=tokens[startOfVariables:endOfVariables],
                                 composedVariables= self.availableMessages,
                                 md5Hash=self.md5Hash,
-                                isOneToMany=isOneToMany)
+                                isOneToMany=isOneToMany,
+                                compliance=self.compliance)
                     ret = v.Process()
                     if ret != None:
                         return ret
                     if v.dependencies != None:
                         self.dependency = v.dependencies
                     self.variables = v.get()
+                    freezeErr = freezeFieldNumbers(self.variables, self.file, self.name)
+                    if freezeErr != None:
+                        return freezeErr
                     rBracePosition = j
 
                 else:
                     endOfVariables = j-1
                     
                     v = EnumValues(filename=self.file,
-                                tok=tokens[startOfVariables:endOfVariables], 
+                                tok=tokens[startOfVariables:endOfVariables],
                                 composedVariables= self.availableMessages,
                                 md5Hash=self.md5Hash,
-                                isOneToMany=isOneToMany)
+                                isOneToMany=isOneToMany,
+                                compliance=self.compliance)
                     ret = v.Process()
                     if ret != None:
                         return ret

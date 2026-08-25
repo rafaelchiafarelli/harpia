@@ -48,7 +48,7 @@ add_library(harpia_tinyxml2 STATIC
 target_include_directories(harpia_tinyxml2 PUBLIC
     ${CMAKE_SOURCE_DIR}/third_party/tinyxml2)
 
-add_executable(data_test data_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+add_executable(data_test data_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
 target_include_directories(data_test PRIVATE
     ${HARPIA_TEST_PROTO_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/generated/cpp
@@ -69,7 +69,7 @@ if(WIN32)
 endif()
 add_test(NAME data_test COMMAND data_test)
 
-add_executable(users_test users_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+add_executable(users_test users_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
 target_include_directories(users_test PRIVATE
     ${HARPIA_TEST_PROTO_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/generated/cpp
@@ -90,7 +90,7 @@ if(WIN32)
 endif()
 add_test(NAME users_test COMMAND users_test)
 
-add_executable(vip_users_test vip_users_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+add_executable(vip_users_test vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
 target_include_directories(vip_users_test PRIVATE
     ${HARPIA_TEST_PROTO_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/generated/cpp
@@ -111,7 +111,7 @@ if(WIN32)
 endif()
 add_test(NAME vip_users_test COMMAND vip_users_test)
 
-add_executable(top_users_test top_users_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+add_executable(top_users_test top_users_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
 target_include_directories(top_users_test PRIVATE
     ${HARPIA_TEST_PROTO_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/generated/cpp
@@ -132,7 +132,7 @@ if(WIN32)
 endif()
 add_test(NAME top_users_test COMMAND top_users_test)
 
-add_executable(shipment_test shipment_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+add_executable(shipment_test shipment_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
 target_include_directories(shipment_test PRIVATE
     ${HARPIA_TEST_PROTO_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/generated/cpp
@@ -153,7 +153,7 @@ if(WIN32)
 endif()
 add_test(NAME shipment_test COMMAND shipment_test)
 
-add_executable(journey_test journey_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+add_executable(journey_test journey_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
 target_include_directories(journey_test PRIVATE
     ${HARPIA_TEST_PROTO_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/generated/cpp
@@ -174,7 +174,7 @@ if(WIN32)
 endif()
 add_test(NAME journey_test COMMAND journey_test)
 
-add_executable(crew_test crew_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+add_executable(crew_test crew_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
 target_include_directories(crew_test PRIVATE
     ${HARPIA_TEST_PROTO_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/generated/cpp
@@ -195,7 +195,7 @@ if(WIN32)
 endif()
 add_test(NAME crew_test COMMAND crew_test)
 
-add_executable(outpost_test outpost_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+add_executable(outpost_test outpost_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
 target_include_directories(outpost_test PRIVATE
     ${HARPIA_TEST_PROTO_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/generated/cpp
@@ -216,7 +216,7 @@ if(WIN32)
 endif()
 add_test(NAME outpost_test COMMAND outpost_test)
 
-add_executable(beacon_log_test beacon_log_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+add_executable(beacon_log_test beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
 target_include_directories(beacon_log_test PRIVATE
     ${HARPIA_TEST_PROTO_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/generated/cpp
@@ -237,7 +237,28 @@ if(WIN32)
 endif()
 add_test(NAME beacon_log_test COMMAND beacon_log_test)
 
-add_executable(app_test app_c96f8fd7f45108efee5a8ecb43eab1da_test.cpp)
+add_executable(patient_vitals_test patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
+target_include_directories(patient_vitals_test PRIVATE
+    ${HARPIA_TEST_PROTO_INCLUDE_DIR}
+    ${CMAKE_SOURCE_DIR}/generated/cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/third_party/crow
+    ${CMAKE_SOURCE_DIR}/third_party/asio)
+target_link_libraries(patient_vitals_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(patient_vitals_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    # harpia_test_client.h (REST/SOAP HTTP round-trip client)
+    # is Winsock2 on this platform; its own #pragma comment
+    # covers MSVC, but link explicitly too for other Windows
+    # toolchains (e.g. MinGW, which ignores pragma comment).
+    target_link_libraries(patient_vitals_test PRIVATE ws2_32)
+endif()
+add_test(NAME patient_vitals_test COMMAND patient_vitals_test)
+
+add_executable(app_test app_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
 target_include_directories(app_test PRIVATE
     ${HARPIA_TEST_PROTO_INCLUDE_DIR}
     ${CMAKE_SOURCE_DIR}/generated/cpp

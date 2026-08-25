@@ -1,42 +1,21 @@
 # Next session
 
 `README.md`'s "Known gaps" section is the live, authoritative list of
-feature/perf gaps. `plans/README.md` is the backlog/scoping-doc index —
+feature/perf gaps. `initiatives/README.md` is the backlog/scoping-doc index —
 open items that used to accumulate in this file now live there instead;
 this file stays a short handoff note, not an archive.
 
-## This session: main/dev reconciliation + a real breakage found and fixed
+## Resolved 2026-08-23: `third_party/asio` vendoring gap
 
-`main` and `dev` had diverged at the git-history level (unrelated commit
-hashes after an earlier rewrite) without diverging at the content level —
-`dev` was a strict superset of `main`. Reconciled by pointing `main` at
-`dev`'s tree via an explicit two-parent merge commit (`git commit-tree`),
-not a content-by-content conflict resolution — a plain
-`git merge --allow-unrelated-histories` produced ~100 spurious add/add
-conflicts that weren't real contradictions.
-
-While verifying the environment on a fresh (WSL2/ext4, case-sensitive)
-checkout, found `main.py` genuinely broken:
-`Logger`/`Message`/`ProtoFile`/`Util` were renamed lowercase at the
-directory level, but the import statements across 33 files were never
-updated to match. It went unnoticed because it was last verified on a
-case-insensitive filesystem, where the mismatch is invisible. Fixed all 33
-files; `setup-env.sh` now runs a case-sensitivity import check on `main.py`
-so this can't silently reoccur. Full pytest suite: 39 passed, 42 skipped
-(Docker toolchain not available on this host — see `[[env-wsl-docker]]`
-memory).
-
-## Reminder for whoever picks this up
-
-`git log --oneline origin/dev..dev` to check nothing's local-only (should
-be empty). `main` and `dev` should currently have identical trees — verify
-with `git diff main dev --stat` (expect empty) before assuming either one
-needs the other's work.
-
-`[[harpia-dev-workflow]]` memory has the test/golden-file workflow;
-`[[harpia-project-status]]` memory has the full session-by-session history.
-`[[harpia-git-case-insensitive-gotcha]]` matters again for any commit
-touching `logger/`, `message/`, `protoFile/`, or `util/` — verify with
-`git diff --stat HEAD` after committing, not just `git status`, and prefer
-running `setup-env.sh`'s import check on a genuinely case-sensitive
-filesystem before trusting a rename like this is complete.
+Was: `third_party/asio` missing `asio/detail/bind_handler.hpp`, breaking
+anything that `#include`s `crow.h` in the Docker image (9 tests red:
+`test_stage11_soap.py`, `test_stage12_rest.py`, `test_consumer_example.py`,
+`test_stage14.py`, and two Crow-server cases in
+`test_message_versioning_capability_http.py`). Diffing the vendored tree
+against the pinned upstream tag (`asio-1-30-2`, per
+`third_party/asio/VENDORED.md`) showed 5 missing headers, not just the one
+found earlier: `asio/bind_allocator.hpp`, `asio/bind_cancellation_slot.hpp`,
+`asio/bind_executor.hpp`, `asio/bind_immediate_executor.hpp`, and
+`asio/detail/bind_handler.hpp`. Re-vendored all five from the same tag;
+confirmed in the real Docker toolchain that all 9 tests now pass and the
+full suite shows no regressions (158 passed, 2 opt-in-skipped).

@@ -15,6 +15,7 @@ class variable():
     modifiers = None
     constant = None
     renamedFrom = None
+    is_phi = False
     def __init__(self) -> None:
         self.modifiers = []
 
@@ -34,7 +35,8 @@ class Variables():
     tokens = None
     isOneToMany = None
     dependencies = None
-    def __init__(self,filename, tok,composedVariables,md5Hash,isOneToMany) -> None:
+    def __init__(self,filename, tok,composedVariables,md5Hash,isOneToMany, compliance=None) -> None:
+        self.compliance = compliance
         self.tokens = copy.deepcopy(tok)
         self.file = filename
         self.md5Hash = md5Hash
@@ -81,6 +83,10 @@ class Variables():
                         # separately as a memory hint.
                         var.modifiers.append(t)
                         var.repeteableSize = repeteable
+                    if t[0] == 'PHI':
+                        firstID = i
+                        var.modifiers.append(t)
+                        var.is_phi = True
                     if t[0] == 'OPTIONAL':
                         firstID = i
                         var.modifiers.append(t)

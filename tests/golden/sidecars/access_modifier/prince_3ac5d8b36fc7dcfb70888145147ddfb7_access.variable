@@ -1,0 +1,6 @@
+vari:[('PAGINATION', 'pagination', 5, 4)];
+val:[('OPTIONAL', 'optional ', 7, 4)];
+a:[('REQUIRED', 'required ', 8, 4), ('PAGINATION', 'pagination', 8, 13)];
+b:[('REQUIRED', 'required ', 9, 4)];
+c:[('REQUIRED', 'required ', 10, 4)];
+scores:[('REPETEABLE', 'repeteable', 11, 4)];

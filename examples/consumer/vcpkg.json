@@ -8,7 +8,8 @@
     {
       "name": "soci",
       "features": [
-        "sqlite3"
+        "sqlite3",
+        "postgresql"
       ]
     },
     {

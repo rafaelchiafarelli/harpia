@@ -37,7 +37,8 @@ _TABLE = loadTemplate(__file__, "table.sql.tmpl")
 
 
 class SqlAdapter:
-    def __init__(self, messages, dest, backend=None) -> None:
+    def __init__(self, messages, dest, backend=None, compliance=None) -> None:
+        self.compliance = compliance
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "database")

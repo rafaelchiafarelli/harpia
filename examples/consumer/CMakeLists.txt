@@ -26,6 +26,12 @@ set(GEN "${HARPIA_GEN}/generated/cpp")
 # REST/SOAP/gRPC". Off by default so the plain demo build/run is unchanged.
 option(USE_TLS "Build the consumer with Crow SSL enabled" OFF)
 
+# PostgreSQL backend, opt-in -- see USAGE.md §8/§12. Off by default so the
+# plain SQLite demo build/run is unchanged; requires HARPIA_GEN to have been
+# generated with HARPIA_DB_BACKEND=postgresql (its CRUDL SQL is dialect-
+# specific) and, at runtime, HARPIA_PG_CONNINFO pointing at a live server.
+option(USE_POSTGRES "Build the consumer against the SOCI PostgreSQL backend instead of SQLite" OFF)
+
 find_package(Threads REQUIRED)
 find_package(Protobuf REQUIRED)
 
@@ -95,6 +101,13 @@ if(WIN32)
     if(NOT TARGET SQLite3::SQLite3)
         add_library(SQLite3::SQLite3 ALIAS unofficial::sqlite3::sqlite3)
     endif()
+    if(USE_POSTGRES)
+        # vcpkg's libpq port has no CONFIG package of its own; it ships a
+        # vcpkg-cmake-wrapper.cmake that hooks CMake's builtin MODULE-mode
+        # FindPostgreSQL, which defines PostgreSQL::PostgreSQL directly (no
+        # "unofficial-" alias needed here, unlike SQLite3 above).
+        find_package(PostgreSQL REQUIRED)
+    endif()
     find_package(SOCI CONFIG REQUIRED)
     target_link_libraries(consumer PRIVATE
         harpia_msgs harpia_tinyxml2
@@ -109,6 +122,10 @@ else()
         harpia_msgs harpia_tinyxml2
         soci_core soci_sqlite3                 # SOCI + the SQLite backend (system libs)
         Threads::Threads ${CMAKE_DL_LIBS})
+endif()
+
+if(USE_POSTGRES)
+    target_compile_definitions(consumer PRIVATE HARPIA_DEMO_POSTGRES)
 endif()
 
 if(USE_TLS)

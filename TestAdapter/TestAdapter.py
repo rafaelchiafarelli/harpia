@@ -101,7 +101,8 @@ def _map_val(kind, i):
 
 
 class TestAdapter:
-    def __init__(self, messages, dest) -> None:
+    def __init__(self, messages, dest, compliance=None) -> None:
+        self.compliance = compliance
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "tests")

@@ -89,3 +89,23 @@ if(HARPIA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# Doxygen HTML docs (Foundation F6) -- one-time plumbing only. Ground Rule 6
+# (see harpia's Foundation plan) is what keeps each generated header's own
+# doc-comments accurate; this target only builds the machinery that
+# displays them. Silently absent (not a configure error) when the doxygen
+# binary isn't installed -- same "optional tool, non-fatal when missing"
+# convention as ProtoCompiler/GrpcCompiler on the Python generation side.
+find_package(Doxygen QUIET)
+if(DOXYGEN_FOUND)
+    add_custom_target(doxygen
+        # Doxygen's OUTPUT_DIRECTORY (docs/doxygen) is two path components
+        # deep; Doxygen only creates one missing level itself and errors on
+        # the rest, so make_directory runs first.
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_SOURCE_DIR}/docs/doxygen"
+        COMMAND ${DOXYGEN_EXECUTABLE} "${CMAKE_SOURCE_DIR}/Doxyfile"
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        COMMENT "Building Doxygen HTML docs (see docs/doxygen/html/index.html)"
+        VERBATIM
+    )
+endif()

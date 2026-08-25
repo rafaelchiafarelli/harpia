@@ -1,0 +1,11 @@
+// Pinned to Android Gradle Plugin 8.2.2, deliberately NOT the actual
+// latest (AGP 9.3, compileSdk 37, as of a 2026-08-23 check) -- this
+// module was written without any Android SDK/build-tools available to
+// compile against and verify config syntax with (see README.md's
+// verification-status section), so it's pinned to the AGP line whose
+// exact config surface is well-established rather than guessed at from
+// web research alone. Bump deliberately, not by drift, once this is
+// actually built against real tooling.
+plugins {
+    id 'com.android.application' version '8.2.2' apply false
+}

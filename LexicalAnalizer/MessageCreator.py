@@ -10,7 +10,8 @@ class MessageCreator():
     messages = None
     tokens = None
     availableMessages = None
-    def __init__(self,filename, tokens, md5Hash) -> None:
+    def __init__(self,filename, tokens, md5Hash, compliance=None) -> None:
+        self.compliance = compliance
         self.md5Hash = md5Hash
         self.file = filename
         ##must receive all the tokens and will devide in as many messages as needed
@@ -55,9 +56,10 @@ class MessageCreator():
 
             if startMessage is not None and endOfMessage is not None and endOfBody is not None:
                 
-                m = Message(fileName=self.file, 
+                m = Message(fileName=self.file,
                             availableMessages = self.availableMessages,
-                            md5Hash = self.md5Hash)
+                            md5Hash = self.md5Hash,
+                            compliance=self.compliance)
                 ret = m.Process(tokens=self.tokens[startMessage:endOfMessage])
                 if ret != None:
                     self.log.print(ret.__str__())
