@@ -1,3 +1,0 @@
-patient_id:[('PHI', 'phi ', 82, 4)];
-heart_rate:[('PHI', 'phi ', 83, 4), ('REQUIRED', 'required ', 83, 8)];
-device_note:[('OPTIONAL', 'optional ', 84, 4)];

@@ -1,1 +1,0 @@
--- king: no table declared

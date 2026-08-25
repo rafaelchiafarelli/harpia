@@ -10,7 +10,7 @@
 //
 // Every request must carry the Stage 5 access credential in the SOAP
 // Header, or it is rejected with HTTP 401 and a SOAP Fault body:
-//   <soap:Header><credentials><user>journey</user><pswd>c96f8fd7f45108efee5a8ecb43eab1da</pswd></credentials></soap:Header>
+//   <soap:Header><credentials><user>journey</user><pswd>3ac5d8b36fc7dcfb70888145147ddfb7</pswd></credentials></soap:Header>
 package com.harpia.generated.soap;
 
 import com.harpia.generated.journey;
@@ -48,7 +48,7 @@ public final class journey_soap {
                 HttpRestHelpers.sendStatus(exchange, 400);
                 return;
             }
-            if (!SoapHelpers.authorized(doc, "journey", "c96f8fd7f45108efee5a8ecb43eab1da")) {
+            if (!SoapHelpers.authorized(doc, "journey", "3ac5d8b36fc7dcfb70888145147ddfb7")) {
                 reply(exchange, 401, SoapHelpers.envelope(
                     "<soap:Fault><faultcode>Client.Authentication</faultcode>"
                     + "<faultstring>unauthorized</faultstring></soap:Fault>"));

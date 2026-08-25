@@ -8,7 +8,7 @@
 //   DELETE <base>/shipment/<id>   delete
 //
 // Content negotiation and the Stage 5 access-credential gate
-// (X-User: shipment / X-Pswd: c96f8fd7f45108efee5a8ecb43eab1da) are handled by the shared
+// (X-User: shipment / X-Pswd: 3ac5d8b36fc7dcfb70888145147ddfb7) are handled by the shared
 // com.harpia.runtime.rest.HttpRestHelpers -- see its own header comment.
 package com.harpia.generated.rest;
 
@@ -37,7 +37,7 @@ public final class shipment_rest {
 
     private static void handle(HttpExchange exchange, shipment_dao dao, String collection) {
         try {
-            if (!HttpRestHelpers.authorized(exchange, "shipment", "c96f8fd7f45108efee5a8ecb43eab1da")) {
+            if (!HttpRestHelpers.authorized(exchange, "shipment", "3ac5d8b36fc7dcfb70888145147ddfb7")) {
                 HttpRestHelpers.sendStatus(exchange, 401);
                 return;
             }

@@ -32,17 +32,17 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class top_users_Test {
-    private static final String PK_FIELD = "ID_c96f8fd7f45108efee5a8ecb43eab1da";
+    private static final String PK_FIELD = "ID_3ac5d8b36fc7dcfb70888145147ddfb7";
 
     private static top_users sample() {
         top_users.Builder b = top_users.newBuilder();
         Descriptor d = b.getDescriptorForType();
-        b.setField(d.findFieldByName("ID_c96f8fd7f45108efee5a8ecb43eab1da"), 1);
+        b.setField(d.findFieldByName("ID_3ac5d8b36fc7dcfb70888145147ddfb7"), 1);
         b.setField(d.findFieldByName("sponsor"), "sponsor_a");
         b.setField(d.findFieldByName("name"), "name_a");
-        b.setField(d.findFieldByName("STATUS_c96f8fd7f45108efee5a8ecb43eab1da"), "STATUS_c96f8fd7f45108efee5a8ecb43eab1da_a");
-        b.setField(d.findFieldByName("ERROR_c96f8fd7f45108efee5a8ecb43eab1da"), "ERROR_c96f8fd7f45108efee5a8ecb43eab1da_a");
-        b.setField(d.findFieldByName("ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da"), "ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da_a");
+        b.setField(d.findFieldByName("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7"), "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7_a");
+        b.setField(d.findFieldByName("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7"), "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7_a");
+        b.setField(d.findFieldByName("ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7"), "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7_a");
         return b.build();
     }
 
@@ -50,12 +50,12 @@ class top_users_Test {
     void fieldsSurviveSetterGetter() {
         top_users m = sample();
         Descriptor d = m.getDescriptorForType();
-        assertEquals(1, m.getField(d.findFieldByName("ID_c96f8fd7f45108efee5a8ecb43eab1da")));
+        assertEquals(1, m.getField(d.findFieldByName("ID_3ac5d8b36fc7dcfb70888145147ddfb7")));
         assertEquals("sponsor_a", m.getField(d.findFieldByName("sponsor")));
         assertEquals("name_a", m.getField(d.findFieldByName("name")));
-        assertEquals("STATUS_c96f8fd7f45108efee5a8ecb43eab1da_a", m.getField(d.findFieldByName("STATUS_c96f8fd7f45108efee5a8ecb43eab1da")));
-        assertEquals("ERROR_c96f8fd7f45108efee5a8ecb43eab1da_a", m.getField(d.findFieldByName("ERROR_c96f8fd7f45108efee5a8ecb43eab1da")));
-        assertEquals("ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da_a", m.getField(d.findFieldByName("ORIGINATOR_c96f8fd7f45108efee5a8ecb43eab1da")));
+        assertEquals("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7_a", m.getField(d.findFieldByName("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7")));
+        assertEquals("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7_a", m.getField(d.findFieldByName("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7")));
+        assertEquals("ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7_a", m.getField(d.findFieldByName("ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7")));
     }
 
     @Test

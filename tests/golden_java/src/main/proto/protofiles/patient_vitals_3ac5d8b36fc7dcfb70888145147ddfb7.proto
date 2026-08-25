@@ -1,0 +1,13 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+
+message patient_vitals {
+int32 ID_3ac5d8b36fc7dcfb70888145147ddfb7 = 1;
+string patient_id = 2;
+float heart_rate = 3;
+optional string device_note = 4;
+string STATUS_3ac5d8b36fc7dcfb70888145147ddfb7 = 5;
+string ERROR_3ac5d8b36fc7dcfb70888145147ddfb7 = 6;
+string ORIGINATOR = 7;
+}

@@ -1,8 +1,4 @@
 
-import "file1.harpia";
-
-import "file2.harpia";
-
 import "file3.harpia";
 
 message prince{

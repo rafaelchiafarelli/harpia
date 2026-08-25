@@ -18,7 +18,7 @@ public final class patient_vitals_dao {
         this.conn = conn;
     }
 
-    public static final String CREATE_TABLE_SQL = "CREATE TABLE IF NOT EXISTS \"patient_vitals_table\" (\"ID_c96f8fd7f45108efee5a8ecb43eab1da\" INTEGER PRIMARY KEY, \"patient_id\" TEXT, \"heart_rate\" REAL NOT NULL, \"device_note\" TEXT, \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT, \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" TEXT, \"ORIGINATOR\" TEXT);";
+    public static final String CREATE_TABLE_SQL = "CREATE TABLE IF NOT EXISTS \"patient_vitals_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"patient_id\" TEXT, \"heart_rate\" REAL NOT NULL, \"device_note\" TEXT, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR\" TEXT);";
     public static final String DROP_TABLE_SQL = "DROP TABLE IF EXISTS \"patient_vitals_table\";";
 
     public boolean createTable() throws SQLException {
@@ -36,31 +36,31 @@ public final class patient_vitals_dao {
     }
 
     public boolean create(patient_vitals msg) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO \"patient_vitals_table\" (\"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"patient_id\", \"heart_rate\", \"device_note\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR\") VALUES (?, ?, ?, ?, ?, ?, ?)")) {
-        JdbcBind.bind(ps, 1, msg, "ID_c96f8fd7f45108efee5a8ecb43eab1da");
+        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO \"patient_vitals_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"heart_rate\", \"device_note\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\") VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+        JdbcBind.bind(ps, 1, msg, "ID_3ac5d8b36fc7dcfb70888145147ddfb7");
         JdbcBind.bind(ps, 2, msg, "patient_id");
         JdbcBind.bind(ps, 3, msg, "heart_rate");
         JdbcBind.bind(ps, 4, msg, "device_note");
-        JdbcBind.bind(ps, 5, msg, "STATUS_c96f8fd7f45108efee5a8ecb43eab1da");
-        JdbcBind.bind(ps, 6, msg, "ERROR_c96f8fd7f45108efee5a8ecb43eab1da");
+        JdbcBind.bind(ps, 5, msg, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7");
+        JdbcBind.bind(ps, 6, msg, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7");
         JdbcBind.bind(ps, 7, msg, "ORIGINATOR");
             return ps.executeUpdate() > 0;
         }
     }
 
     public boolean read(int id, patient_vitals.Builder builder) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"patient_id\", \"heart_rate\", \"device_note\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR\" FROM \"patient_vitals_table\" WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = ?")) {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"heart_rate\", \"device_note\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"patient_vitals_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = ?")) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     return false;
                 }
-        JdbcBind.extract(rs, "ID_c96f8fd7f45108efee5a8ecb43eab1da", builder, "ID_c96f8fd7f45108efee5a8ecb43eab1da");
+        JdbcBind.extract(rs, "ID_3ac5d8b36fc7dcfb70888145147ddfb7", builder, "ID_3ac5d8b36fc7dcfb70888145147ddfb7");
         JdbcBind.extract(rs, "patient_id", builder, "patient_id");
         JdbcBind.extract(rs, "heart_rate", builder, "heart_rate");
         JdbcBind.extract(rs, "device_note", builder, "device_note");
-        JdbcBind.extract(rs, "STATUS_c96f8fd7f45108efee5a8ecb43eab1da", builder, "STATUS_c96f8fd7f45108efee5a8ecb43eab1da");
-        JdbcBind.extract(rs, "ERROR_c96f8fd7f45108efee5a8ecb43eab1da", builder, "ERROR_c96f8fd7f45108efee5a8ecb43eab1da");
+        JdbcBind.extract(rs, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", builder, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7");
+        JdbcBind.extract(rs, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", builder, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7");
         JdbcBind.extract(rs, "ORIGINATOR", builder, "ORIGINATOR");
                 return true;
             }
@@ -68,36 +68,36 @@ public final class patient_vitals_dao {
     }
 
     public boolean update(patient_vitals msg) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("UPDATE \"patient_vitals_table\" SET \"patient_id\" = ?, \"heart_rate\" = ?, \"device_note\" = ?, \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\" = ?, \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\" = ?, \"ORIGINATOR\" = ? WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = ?")) {
+        try (PreparedStatement ps = conn.prepareStatement("UPDATE \"patient_vitals_table\" SET \"patient_id\" = ?, \"heart_rate\" = ?, \"device_note\" = ?, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = ?, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = ?, \"ORIGINATOR\" = ? WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = ?")) {
         JdbcBind.bind(ps, 1, msg, "patient_id");
         JdbcBind.bind(ps, 2, msg, "heart_rate");
         JdbcBind.bind(ps, 3, msg, "device_note");
-        JdbcBind.bind(ps, 4, msg, "STATUS_c96f8fd7f45108efee5a8ecb43eab1da");
-        JdbcBind.bind(ps, 5, msg, "ERROR_c96f8fd7f45108efee5a8ecb43eab1da");
+        JdbcBind.bind(ps, 4, msg, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7");
+        JdbcBind.bind(ps, 5, msg, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7");
         JdbcBind.bind(ps, 6, msg, "ORIGINATOR");
-            JdbcBind.bind(ps, 7, msg, "ID_c96f8fd7f45108efee5a8ecb43eab1da");
+            JdbcBind.bind(ps, 7, msg, "ID_3ac5d8b36fc7dcfb70888145147ddfb7");
             return ps.executeUpdate() > 0;
         }
     }
 
     public boolean remove(int id) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM \"patient_vitals_table\" WHERE \"ID_c96f8fd7f45108efee5a8ecb43eab1da\" = ?")) {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM \"patient_vitals_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = ?")) {
             ps.setInt(1, id);
             return ps.executeUpdate() > 0;
         }
     }
 
     public boolean list(List<patient_vitals> out) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_c96f8fd7f45108efee5a8ecb43eab1da\", \"patient_id\", \"heart_rate\", \"device_note\", \"STATUS_c96f8fd7f45108efee5a8ecb43eab1da\", \"ERROR_c96f8fd7f45108efee5a8ecb43eab1da\", \"ORIGINATOR\" FROM \"patient_vitals_table\"");
+        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"heart_rate\", \"device_note\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"patient_vitals_table\"");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 patient_vitals.Builder builder = patient_vitals.newBuilder();
-        JdbcBind.extract(rs, "ID_c96f8fd7f45108efee5a8ecb43eab1da", builder, "ID_c96f8fd7f45108efee5a8ecb43eab1da");
+        JdbcBind.extract(rs, "ID_3ac5d8b36fc7dcfb70888145147ddfb7", builder, "ID_3ac5d8b36fc7dcfb70888145147ddfb7");
         JdbcBind.extract(rs, "patient_id", builder, "patient_id");
         JdbcBind.extract(rs, "heart_rate", builder, "heart_rate");
         JdbcBind.extract(rs, "device_note", builder, "device_note");
-        JdbcBind.extract(rs, "STATUS_c96f8fd7f45108efee5a8ecb43eab1da", builder, "STATUS_c96f8fd7f45108efee5a8ecb43eab1da");
-        JdbcBind.extract(rs, "ERROR_c96f8fd7f45108efee5a8ecb43eab1da", builder, "ERROR_c96f8fd7f45108efee5a8ecb43eab1da");
+        JdbcBind.extract(rs, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", builder, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7");
+        JdbcBind.extract(rs, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", builder, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7");
         JdbcBind.extract(rs, "ORIGINATOR", builder, "ORIGINATOR");
                 out.add(builder.build());
             }

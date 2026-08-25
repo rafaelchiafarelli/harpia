@@ -1,9 +1,0 @@
-message pope{
-    
-    int xcvbnxcfg;
-    optional int xdr;
-    required pagination[12] map<string,string> xcmcb;
-    required map<string,int> sdrz;
-    required map<int,string> ujk;
-    pagination[12] int vnfvbn;
-};
