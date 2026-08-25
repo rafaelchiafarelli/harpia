@@ -108,6 +108,16 @@ consumer (not a harpia contributor) could hit:
 (See the living-reference note above the table — this was originally
 written as a one-time starting set; per Ground Rule 6 it isn't anymore.)
 
+**Restructured 2026-08-24** into a trackable session breakdown, mirroring
+`initiatives/medical_devices/epics/`'s per-track format — see
+`epics/README.md` and, underneath it,
+`epics/histories/doc-comment-coverage/track-d-doc-comment-coverage.md`.
+That structure is a *fallback/audit* track, not a replacement for Ground
+Rule 6: each session there names which medical_devices track is expected
+to land it opportunistically, and exists so the still-unaddressed rows in
+this table stay checkable even if no other track ever touches the
+matching file.
+
 ## 5. Non-goals
 
 - **Usage examples run as integration tests**, per the full spec text
