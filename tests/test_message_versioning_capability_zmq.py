@@ -85,7 +85,7 @@ def _build_and_run(built, tmp_path, prog_text, name):
 
 def test_responder_and_negotiate_real_roundtrip(built, tmp_path):
     r = _build_and_run(built, tmp_path, '''
-#include "capability/capabilities_c96f8fd7f45108efee5a8ecb43eab1da_zmq.h"
+#include "capability/capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_zmq.h"
 #include "capability/harpia_zmq_capability.h"
 #include <chrono>
 #include <thread>

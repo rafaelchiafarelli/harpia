@@ -23,10 +23,10 @@
 #include <vector>
 
 // #define H is only for this demo's readability; the real names are hash-qualified.
-#define HASH c96f8fd7f45108efee5a8ecb43eab1da
-#include "db/users_c96f8fd7f45108efee5a8ecb43eab1da_crudl.h"    // harpia::db::users_dao
-#include "json/users_c96f8fd7f45108efee5a8ecb43eab1da_json.h"   // harpia::json::to_json
-#include "rest/users_c96f8fd7f45108efee5a8ecb43eab1da_rest.h"   // harpia::rest::register_users
+#define HASH 3ac5d8b36fc7dcfb70888145147ddfb7
+#include "db/users_3ac5d8b36fc7dcfb70888145147ddfb7_crudl.h"    // harpia::db::users_dao
+#include "json/users_3ac5d8b36fc7dcfb70888145147ddfb7_json.h"   // harpia::json::to_json
+#include "rest/users_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"   // harpia::rest::register_users
 
 int main() {
     // 1) Open a database. Your app owns the session; swap the backend header +
@@ -48,11 +48,11 @@ int main() {
     if (!dao.create_table()) { std::cerr << "create_table failed\n"; return 1; }
 
     ::users alice;
-    alice.set_id_c96f8fd7f45108efee5a8ecb43eab1da(1);   // ID_<hash> is caller-assigned
+    alice.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);   // ID_<hash> is caller-assigned
     alice.set_name("alice");
     alice.set_address("wonderland");
     ::users bob;
-    bob.set_id_c96f8fd7f45108efee5a8ecb43eab1da(2);
+    bob.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(2);
     bob.set_name("bob");
     bob.set_address("builder");
     if (!dao.create(alice) || !dao.create(bob)) { std::cerr << "create failed\n"; return 2; }
@@ -61,7 +61,7 @@ int main() {
     dao.list(&everyone);
     std::cout << "rows in the table: " << everyone.size() << "\n";
     for (const auto& u : everyone)
-        std::cout << "  #" << u.id_c96f8fd7f45108efee5a8ecb43eab1da()
+        std::cout << "  #" << u.id_3ac5d8b36fc7dcfb70888145147ddfb7()
                   << "  " << u.name() << " (" << u.address() << ")\n";
 
     // 3) Serialize a row with the generated JSON adapter.

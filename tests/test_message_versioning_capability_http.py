@@ -25,7 +25,7 @@ REPO_ROOT = os.path.dirname(HERE)
 RUNNER = os.path.join(HERE, "run_pipeline.py")
 CROW = os.path.join(REPO_ROOT, "third_party", "crow")
 ASIO = os.path.join(REPO_ROOT, "third_party", "asio")
-HASH = "c96f8fd7f45108efee5a8ecb43eab1da"
+HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
 
 pytestmark = pytest.mark.skipif(
     any(shutil.which(t) is None for t in ("protoc", "g++", "cc", "pkg-config")),

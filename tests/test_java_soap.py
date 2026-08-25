@@ -23,12 +23,12 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
-HASH = "c96f8fd7f45108efee5a8ecb43eab1da"
+HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
 
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from tests._java_gradle_helpers import generate, build_and_classpath, SKIP_REASON  # noqa: E402
+from tests._java_gradle_helpers import generate, build_and_classpath, wait_for_listening, SKIP_REASON  # noqa: E402
 
 _HAS_JAVA_TOOLCHAIN = shutil.which("gradle") is not None and shutil.which("java") is not None
 
@@ -110,7 +110,7 @@ _CLIENT_MAIN = (
     "        HttpResponse<String> set = client.send(\n"
     "            HttpRequest.newBuilder(URI.create(base + \"/users\"))\n"
     "                .POST(HttpRequest.BodyPublishers.ofString(envelope(header,\n"
-    "                    \"<set><users><address>matrix</address><name>neo</name></users></set>\")))\n"
+    "                    \"<set><users><ID_{h}>1</ID_{h}><address>matrix</address><name>neo</name></users></set>\")))\n"
     "                .build(),\n"
     "            HttpResponse.BodyHandlers.ofString());\n"
     "        if (set.statusCode() != 200 || !set.body().contains(\"<ok>true</ok>\")) {{\n"
@@ -131,7 +131,7 @@ _CLIENT_MAIN = (
     "        HttpResponse<String> updated = client.send(\n"
     "            HttpRequest.newBuilder(URI.create(base + \"/users\"))\n"
     "                .POST(HttpRequest.BodyPublishers.ofString(envelope(header,\n"
-    "                    \"<update><users><address>matrix</address><name>trinity</name></users></update>\")))\n"
+    "                    \"<update><users><ID_{h}>1</ID_{h}><address>matrix</address><name>trinity</name></users></update>\")))\n"
     "                .build(),\n"
     "            HttpResponse.BodyHandlers.ofString());\n"
     "        if (updated.statusCode() != 200 || !updated.body().contains(\"<ok>true</ok>\")) {{\n"
@@ -179,8 +179,7 @@ def test_soap_envelope_cycle_over_http(tmp_path):
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
     try:
-        line = server.stdout.readline()
-        assert "LISTENING" in line, "server did not start:\n" + line + server.stdout.read()
+        wait_for_listening(server)
 
         client = subprocess.run(["java", "-cp", classpath, "smoke.SoapClient", port],
                                 capture_output=True, text=True, timeout=60)

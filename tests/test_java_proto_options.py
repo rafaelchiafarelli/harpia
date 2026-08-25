@@ -23,10 +23,12 @@ import sys
 
 import pytest
 
-from protoFile.FileCreator import JAVA_PACKAGE
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from protoFile.FileCreator import JAVA_PACKAGE  # noqa: E402
 RUNNER = os.path.join(HERE, "run_phi_check.py")
 
 
@@ -70,11 +72,21 @@ def test_options_precede_message_body(tmp_path):
 def test_emitted_proto_is_valid_protobuf_syntax(tmp_path):
     result = _run(tmp_path, _MULTI_MESSAGE)
     assert result["error"] is None
-    proto_path = tmp_path / "multi.proto"
-    proto_path.write_text(result["proto"], encoding="utf-8")
-    r = subprocess.run(
-        ["protoc", "-I", str(tmp_path), "--descriptor_set_out",
-         str(tmp_path / "out.pb"), str(proto_path)],
-        capture_output=True, text=True,
-    )
-    assert r.returncode == 0, "protoc rejected the emitted .proto:\n" + r.stderr
+    # run_phi_check.py's "proto" field is every message's OWN complete .proto
+    # text concatenated (documented in tests/CLAUDE.md) -- harpia emits one
+    # message per real .proto file, each carrying its own `syntax = ...;`
+    # header, so a naive single-file write duplicates that header and protoc
+    # correctly rejects it. Split back into per-message chunks (each starts
+    # with its own `syntax = ` line) and validate each as its own file,
+    # matching how these are actually consumed.
+    chunks = ["syntax = " + c for c in result["proto"].split("syntax = ") if c.strip()]
+    assert len(chunks) >= 2, "expected at least 2 messages in the concatenated proto"
+    for i, chunk in enumerate(chunks):
+        proto_path = tmp_path / "multi_{}.proto".format(i)
+        proto_path.write_text(chunk, encoding="utf-8")
+        r = subprocess.run(
+            ["protoc", "-I", str(tmp_path), "--descriptor_set_out",
+             str(tmp_path / "out_{}.pb".format(i)), str(proto_path)],
+            capture_output=True, text=True,
+        )
+        assert r.returncode == 0, "protoc rejected {}:\n{}".format(proto_path.name, r.stderr)

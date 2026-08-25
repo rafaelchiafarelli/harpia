@@ -26,7 +26,7 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
-HASH = "c96f8fd7f45108efee5a8ecb43eab1da"
+HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
 
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
@@ -71,7 +71,7 @@ def test_generated_junit_suite_passes(tmp_path):
     out = generate(tmp_path, lang="java")
     java_root = os.path.join(out, "java")
 
-    result = subprocess.run(["gradle", "--no-daemon", "test"], cwd=java_root,
+    result = subprocess.run(["gradle", "test"], cwd=java_root,
                             capture_output=True, text=True, timeout=600)
     assert result.returncode == 0, "gradle test failed:\n" + result.stdout + result.stderr
 

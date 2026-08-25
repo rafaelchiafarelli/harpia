@@ -27,12 +27,12 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
-HASH = "c96f8fd7f45108efee5a8ecb43eab1da"
+HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
 
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from tests._java_gradle_helpers import generate, build_and_classpath, SKIP_REASON  # noqa: E402
+from tests._java_gradle_helpers import generate, build_and_classpath, wait_for_listening, SKIP_REASON  # noqa: E402
 
 _HAS_JAVA_TOOLCHAIN = shutil.which("gradle") is not None and shutil.which("java") is not None
 
@@ -105,7 +105,7 @@ def test_rest_crud_cycle_over_http(tmp_path):
             "        if (noAuth.statusCode() != 401) { System.out.println(\"noauth:\" + noAuth.statusCode()); System.exit(1); }\n"
             "\n"
             "        // create (JSON body)\n"
-            "        String createJson = \"{\\\"address\\\":\\\"matrix\\\",\\\"name\\\":\\\"neo\\\"}\";\n"
+            "        String createJson = \"{\\\"ID{h}\\\":1,\\\"address\\\":\\\"matrix\\\",\\\"name\\\":\\\"neo\\\"}\";\n"
             "        HttpResponse<String> created = client.send(\n"
             "            HttpRequest.newBuilder(URI.create(base + \"/users\"))\n"
             "                .header(\"X-User\", \"users\").header(\"X-Pswd\", \"{h}\")\n"
@@ -125,7 +125,7 @@ def test_rest_crud_cycle_over_http(tmp_path):
             "        if (!got.body().contains(\"<name>neo</name>\")) { System.out.println(got.body()); System.exit(4); }\n"
             "\n"
             "        // update\n"
-            "        String updateJson = \"{\\\"address\\\":\\\"matrix\\\",\\\"name\\\":\\\"trinity\\\"}\";\n"
+            "        String updateJson = \"{\\\"ID{h}\\\":1,\\\"address\\\":\\\"matrix\\\",\\\"name\\\":\\\"trinity\\\"}\";\n"
             "        HttpResponse<String> updated = client.send(\n"
             "            HttpRequest.newBuilder(URI.create(base + \"/users/1\"))\n"
             "                .header(\"X-User\", \"users\").header(\"X-Pswd\", \"{h}\")\n"
@@ -161,7 +161,7 @@ def test_rest_crud_cycle_over_http(tmp_path):
             "\n"
             "        System.out.println(\"OK\");\n"
             "    }\n"
-            "}\n".format(h=HASH),
+            "}\n".replace("{h}", HASH),
     })
 
     port = "18732"
@@ -170,8 +170,7 @@ def test_rest_crud_cycle_over_http(tmp_path):
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
     try:
-        line = server.stdout.readline()
-        assert "LISTENING" in line, "server did not start:\n" + line + server.stdout.read()
+        wait_for_listening(server)
 
         client = subprocess.run(["java", "-cp", classpath, "smoke.RestClient", port],
                                 capture_output=True, text=True, timeout=60)

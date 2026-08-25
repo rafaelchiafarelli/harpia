@@ -53,7 +53,12 @@ def build_and_classpath(java_root, extra_source):
         with open(path, "w") as f:
             f.write(content)
 
-    build = subprocess.run(["gradle", "--no-daemon", "build"], cwd=java_root,
+    # Daemon kept ON (not --no-daemon): ~10 test files each run their own
+    # `gradle build` from a fresh tmp_path project. A live daemon persists
+    # for the life of the container's pytest process (dies with the
+    # container on --rm, no orphaned host process), so invocation 2+ reuse
+    # an already-warm JVM instead of paying full Gradle bootstrap every time.
+    build = subprocess.run(["gradle", "build"], cwd=java_root,
                            capture_output=True, text=True, timeout=600)
     assert build.returncode == 0, "gradle build failed:\n" + build.stdout + build.stderr
 
@@ -61,7 +66,7 @@ def build_and_classpath(java_root, extra_source):
     assert jars, "gradle build produced no jar under build/libs"
 
     cp = subprocess.run(
-        ["gradle", "--no-daemon", "-q", "--console=plain", "harpiaRuntimeClasspath"],
+        ["gradle", "-q", "--console=plain", "harpiaRuntimeClasspath"],
         cwd=java_root, capture_output=True, text=True, timeout=120,
     )
     assert cp.returncode == 0, "harpiaRuntimeClasspath failed:\n" + cp.stdout + cp.stderr
@@ -71,3 +76,31 @@ def build_and_classpath(java_root, extra_source):
     runtime_classpath = line[len("HARPIA_RUNTIME_CLASSPATH="):]
 
     return os.pathsep.join(jars) + os.pathsep + runtime_classpath
+
+
+def wait_for_listening(server, marker="LISTENING", max_lines=50):
+    """Read `server`'s (stdout+stderr merged) output line by line looking
+    for `marker`, tolerating noise lines before it -- e.g. SLF4J's
+    "Failed to load class StaticLoggerBinder" static-init warning, which
+    genuinely does print before the marker line (confirmed by hand: a
+    naive single `server.stdout.readline()` grabs that warning instead,
+    the `"LISTENING" in line` assert fails, and building its failure
+    message via `server.stdout.read()` then blocks forever, since the
+    server process never exits and its stdout pipe never EOFs -- a
+    deadlock disguised as a hang, not an actual server startup failure).
+    Bounded by max_lines so a server that genuinely never starts fails
+    fast; on failure, kills the process FIRST so any further stdout read
+    can't block the same way."""
+    lines = []
+    for _ in range(max_lines):
+        line = server.stdout.readline()
+        if not line:
+            break
+        lines.append(line)
+        if marker in line:
+            return
+    server.kill()
+    server.wait(timeout=10)
+    raise AssertionError(
+        "server never printed {!r} within {} lines:\n{}".format(
+            marker, max_lines, "".join(lines)))
