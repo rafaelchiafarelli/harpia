@@ -220,21 +220,38 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 
 ## The pinned HASH constant — matters for the multi-root feature
 `test.harpia` (and its includes) hash to an md5 the generator uses to key every
-emitted filename. It is currently **`c96f8fd7f45108efee5a8ecb43eab1da`**, pinned as
-a top-of-file `HASH = "..."` constant in exactly these SIX files:
-- `test_stage8_db.py`
-- `test_stage10_xml.py`
-- `test_stage11_soap.py`
-- `test_stage12_rest.py`
-- `test_stage13.py`
-- `test_stage13_zmq.py`
+emitted filename. It is currently **`3ac5d8b36fc7dcfb70888145147ddfb7`** (bumped
+2026-08-24, `initiatives/feature-examples` Session EX.1, when `pope`/`king`/
+`queenBee` were folded into `queen` — that changed `test.harpia`'s own text, see
+`LexicalAnalizer/CLAUDE.md`: only the root file's text is hashed), pinned as a
+top-of-file `HASH = "..."` constant in **sixteen** files, not the six this doc
+used to claim — **that stale six-file list is exactly what caused EX.1 to miss
+ten of them on the first pass** (`tests/test_java_db_crudl.py` specifically hard
+NPE'd at runtime — `Descriptors$FieldDescriptor.getContainingType()` on a null
+field — because a generated Java field genuinely renamed
+(`ID_c96f8fd7...` → `ID_3ac5d8b3...`) while the test still looked it up by the
+old name). The full, actual list (re-derive via `grep -rl '^HASH = "<hash>"'
+tests/*.py` before ever trusting this list again):
+- `test_stage8_db.py`, `test_stage10_xml.py`, `test_stage11_soap.py`,
+  `test_stage12_rest.py`, `test_stage13.py`, `test_stage13_zmq.py`
+- `test_java_db_crudl.py`, `test_java_full_demo.py`, `test_java_gradle_wiring.py`,
+  `test_java_junit_tests.py`, `test_java_rest.py`, `test_java_soap.py`,
+  `test_java_zmq.py`
+- `test_message_versioning_capability_http.py`,
+  `test_message_versioning_parse_boundary.py`
+- `test_stage8_pg.py`
 
-If `test.harpia` or any of its includes change, this hash changes and **all six
-constants must be bumped in lockstep** (the tests build header/filenames from it).
-The other test files derive the hash at runtime instead of pinning it.
-(Note: the README's mention of `734126ee…` is stale prose — the live golden hash
-is `c96f8fd7…`, as seen in `tests/golden/db/` and `tests/golden/gen_tests/`
-filenames.)
+Plus **one file with the hash as a raw literal, not a `HASH` variable at all**:
+`test_message_versioning_capability_zmq.py` hardcodes
+`capability/capabilities_<hash>_zmq.h` directly inside an embedded C++ `#include`
+string.
+
+If `test.harpia` or any of its includes change, this hash changes and **every
+one of the above must be bumped in lockstep** (the tests build header/filenames
+from it). Only the *other* test files (not listed above) derive the hash at
+runtime instead of pinning it.
+(Note: the README's mention of `734126ee…` is stale prose predating even the
+old `c96f8fd7…` hash.)
 
 ## Golden snapshots (tests/golden/)
 Committed reference output keyed by the input hash. Files: `tokens.txt`,

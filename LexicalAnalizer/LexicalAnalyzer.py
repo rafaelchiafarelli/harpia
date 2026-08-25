@@ -35,8 +35,18 @@ class LexicalAnalyzer:
             ('UNIQUE',r'unique '),
             ('RENAMED_FROM', r'renamed_from\[\s*[a-zA-Z]\w*\s*\]'),
             ('MAP', r'map'),
-            ('INT32', r'int'),            # int32
+            # INT64 must precede INT32: rules are joined into one alternation
+            # regex (see tokenize() below), and Python's re alternation is
+            # leftmost-alternative-wins, not longest-match -- with INT32's
+            # `int` listed first, every `int64` in a .harpia file silently
+            # lexed as INT32("int") + a stray INTEGER_CONST("64"), downgrading
+            # every declared int64 field to int32 with no error. Caught
+            # 2026-08-25 by tests/test_java_db_crudl.py's
+            # test_bind_extract_roundtrip_per_supported_type -- the only place
+            # in this repo's entire test suite that ever declared an int64
+            # field, since no HarpiaTest fixture uses one.
             ('INT64', r'int64'),            # int64
+            ('INT32', r'int'),            # int32
             ('FLOAT', r'float'),        # float
             ('STRING', r'string'),        # string
             ('LBRACKET', r'\('),        # (

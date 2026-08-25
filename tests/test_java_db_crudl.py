@@ -36,7 +36,7 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
-HASH = "c96f8fd7f45108efee5a8ecb43eab1da"
+HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
 
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
@@ -62,6 +62,7 @@ _ALL_TYPES_HARPIA = (
 
 
 def _write_fixture(tmp_path, contents):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     src = tmp_path / "fixture.harpia"
     src.write_text(contents, encoding="utf-8")
     return str(src), str(tmp_path)
@@ -121,6 +122,7 @@ def test_bind_extract_roundtrip_per_supported_type(tmp_path):
         "smoke/BindExtract.java":
             "package smoke;\n"
             "import com.harpia.generated.all_types;\n"
+            "import com.harpia.generated.color;\n"
             "import com.harpia.runtime.db.JdbcBind;\n"
             "import java.sql.*;\n"
             "public class BindExtract {\n"

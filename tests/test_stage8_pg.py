@@ -27,7 +27,7 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
-HASH = "c96f8fd7f45108efee5a8ecb43eab1da"
+HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
 PG_DSN = os.environ.get("HARPIA_PG_DSN")
 
 pytestmark = pytest.mark.skipif(
