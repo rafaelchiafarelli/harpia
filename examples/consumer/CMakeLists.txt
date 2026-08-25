@@ -51,13 +51,13 @@ if(WIN32)
         OUT_VAR HARPIA_MSGS_GENERATED
         IMPORT_DIRS "${HARPIA_GEN}/proto"
         PROTOC_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}"
-        PROTOS "${HARPIA_GEN}/proto/protofiles/users_c96f8fd7f45108efee5a8ecb43eab1da.proto")
+        PROTOS "${HARPIA_GEN}/proto/protofiles/users_3ac5d8b36fc7dcfb70888145147ddfb7.proto")
     add_library(harpia_msgs STATIC ${HARPIA_MSGS_GENERATED})
     target_include_directories(harpia_msgs PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
     target_link_libraries(harpia_msgs PUBLIC protobuf::libprotobuf)
 else()
     add_library(harpia_msgs STATIC
-        "${GEN}/protofiles/users_c96f8fd7f45108efee5a8ecb43eab1da.pb.cc")
+        "${GEN}/protofiles/users_3ac5d8b36fc7dcfb70888145147ddfb7.pb.cc")
     target_include_directories(harpia_msgs PUBLIC "${GEN}")
     target_link_libraries(harpia_msgs PUBLIC protobuf::libprotobuf)
 endif()
