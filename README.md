@@ -83,12 +83,18 @@ design vision, not current status):
 - **Java is a second generation target, mostly shipped** (stages 8–14
   equivalents: DB×2 dialects, JSON, XML, REST, SOAP, ZMQ core+CURVE,
   generated JUnit tests, Gradle packaging — real code, real Python-side
-  tests; the JDK-gated Java-side tests are written correctly-by-inspection
-  but have never run against a real JVM toolchain here). Node/Rust/Python
-  are still spec-only. One open item: Android-consumption verification
-  (message classes, gRPC client, ZMQ client) is written but unrun — no
-  Android SDK/emulator available — see
-  `initiatives/multi-language-targets/thread-1-java-target/README.md`.
+  tests). The Docker image now carries a JDK 17 + Gradle 8.5 toolchain, so
+  the JDK-gated Java-side tests run against a real JVM here too, not just
+  correctly-by-inspection. Node/Rust/Python are still spec-only.
+  Android-consumption (message classes, gRPC client, ZMQ client) now
+  **compiles for real** against a real Android SDK (also added to the
+  Docker image: cmdline-tools, `platforms;android-34`,
+  `build-tools;34.0.0`) — `assembleDebugAndroidTest` and `assembleRelease`
+  (R8, multidex confirmed clean) both pass. Still open: none of the three
+  instrumented tests have run on an actual device/emulator (needs
+  `/dev/kvm` passthrough into the container, untested) — see
+  `initiatives/multi-language-targets/thread-1-java-target/README.md` and
+  `examples/android_consumer/README.md`.
 - **Windows as a generated-code target** — the generator (`main.py`) still
   only runs via Docker/Linux, but the *generated* C++ project now builds
   and runs natively on Windows (MSVC + vcpkg), verified for the ZMQ

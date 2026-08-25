@@ -26,3 +26,9 @@ test in this repo) — see `examples/android_consumer/README.md`'s
 verification-status section for the full picture across all three
 Android sessions (this one, J.26, J.27) and what confidence looks like
 for each.
+
+**Update (2026-08-24):** the harpia Docker image now carries a JDK 17 +
+Gradle 8.5 + Android SDK, and `MessageClassesAndroidTest` compiles clean
+against it (`gradle -PharpiaGenDir=... assembleDebugAndroidTest`). Still
+not run on an actual device/emulator — that part of the confidence claim
+above remains open.

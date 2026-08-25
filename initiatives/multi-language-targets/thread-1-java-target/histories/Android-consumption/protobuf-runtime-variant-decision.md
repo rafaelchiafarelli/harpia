@@ -71,3 +71,17 @@ APK's method count / DEX file count against the 64K single-dex limit (or
 confirm multidex activates cleanly). If that build hits real trouble
 `javalite` would have avoided, THIS decision is the one to revisit — not
 silently work around downstream.
+
+## Confirmed against a real build (2026-08-24)
+
+The harpia Docker image gained a JDK 17 + Gradle 8.5 + Android SDK
+toolchain, and `examples/android_consumer`'s `assembleRelease` (R8
+enabled) was actually run against it. Result: `classes.dex` =
+63,062 methods, `classes2.dex` = 42,760 methods (~105,822 total, read
+directly from each dex header's `method_ids_size`) — over the 65,536
+single-dex limit, so multidex genuinely activates, and does so cleanly
+with no build failure. This is exactly the "confirm multidex activates
+cleanly" outcome above; the full-runtime decision stands, confirmed rather
+than reasoned. Still not run: any of the three `connectedAndroidTest`s
+(no device/emulator available) — see `examples/android_consumer/README.md`
+for the current split between what's compile-verified and what isn't.

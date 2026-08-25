@@ -29,3 +29,11 @@ Android sessions' tests specifically**: the exact
 `AndroidChannelBuilder` API shape is reproduced from documentation/memory,
 not compiled — see `examples/android_consumer/README.md`'s verification-
 status section and this test's own header comment for the full caveat.
+
+**Update (2026-08-24):** the harpia Docker image now carries a JDK 17 +
+Gradle 8.5 + Android SDK. Against that toolchain,
+`GrpcClientAndroidTest` **compiles clean** — the `AndroidChannelBuilder`
+API shape reproduced from memory was correct. Still not verified at
+runtime: no device/emulator, and no live gRPC server was stood up to call
+against. Compiling clean narrows the "lower confidence" caveat above to
+specifically the runtime behavior, not the API surface.

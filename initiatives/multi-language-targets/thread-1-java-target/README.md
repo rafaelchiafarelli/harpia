@@ -12,16 +12,22 @@ case (an Android client SDK, a *subset* of what this thread builds) is
 Session breakdown (27 sessions, one deliverable + tests each, sized to
 fit a single sitting): [track-j-java-target.md](histories/track-j-java-target.md).
 
-**Status as of 2026-08-23: J.1-J.24 landed** (gRPC-wiring, JSON, DB×2
+**Status as of 2026-08-24: J.1-J.24 landed** (gRPC-wiring, JSON, DB×2
 dialects, XML, REST, SOAP, ZMQ×core+CURVE, generated tests + Gradle
 packaging, and the protobuf-runtime-variant decision) — real code, real
-Python-side tests, all passing in this repo's own suite; the
-gradle+JDK-gated Java-side integration tests are written correctly-by-
-inspection but haven't executed anywhere with a JVM toolchain yet (no JDK
-in this environment or, currently, the harpia Docker image — flagged
-throughout, not silently assumed passing). **J.25-J.27 (Android
-verification) are written but genuinely unverified** — this environment
-has no Android SDK/emulator at all, a strictly bigger gap than "no JDK."
+Python-side tests, all passing in this repo's own suite. **The harpia
+Docker image now carries a JDK 17 + Gradle 8.5 toolchain**, so the
+gradle+JDK-gated Java-side integration tests run against a real JVM here,
+not just correctly-by-inspection. **J.25-J.27 (Android verification):
+compile-verified, not device-verified.** The Docker image also gained a
+real Android SDK (cmdline-tools, `platforms;android-34`,
+`build-tools;34.0.0`); against it, all three
+`examples/android_consumer` instrumented tests compile clean
+(`assembleDebugAndroidTest`), `assembleRelease` with R8 succeeds with
+multidex activating cleanly, and two real bugs this uncovered (an illegal
+`--` inside an XML comment, a missing `gradle.properties`) are fixed.
+Still open: none of the three tests have run on an actual device/emulator
+— that needs `/dev/kvm` passthrough into the container, untested here.
 See [`examples/android_consumer/README.md`](../../../examples/android_consumer/README.md)
 for the full verification-status picture and what running it for real
 would need.
@@ -117,11 +123,12 @@ have to re-derive that they're real forks:
    preserves J.4's `JsonFormat`-based JSON for Android rather than needing
    a second, non-reflective implementation, and multidex/R8 substantially
    mitigate the DEX-size pressure that originally motivated `javalite`.
-   **Caveat this decision carries plainly:** not verified against a real
-   Android build (no Android SDK/emulator in this environment) — see
+   **Confirmed 2026-08-24 against a real Android build:** an APK/DEX-count
+   check (`assembleRelease` with R8) found ~105,822 methods across two dex
+   files, over the 65,536 single-dex limit — multidex activates, and does
+   so cleanly. The decision holds. See
    [histories/Android-consumption/protobuf-runtime-variant-decision.md](histories/Android-consumption/protobuf-runtime-variant-decision.md)
-   for the full reasoning and what a real APK/DEX-count check would need
-   to confirm.
+   for the full reasoning and the confirmation.
 
 ## 5. Selector mechanism
 
@@ -162,10 +169,11 @@ Android app is a *consumer* of a subset of it:
   is a desktop/server thing); this is additive to whatever §2's gRPC-stub
   slice produces, not a replacement for it.
 - **ZMQ client (JeroMQ)** — pure Java, no JNI, should run on Android
-  as-is; unverified specifically on Android (vs. desktop/server JVM)
-  until verified for real. Android's main-thread network I/O restriction
-  is an app-architecture concern for whoever consumes this, not a harpia
-  generation concern.
+  as-is; compiles clean against a real Android SDK (2026-08-24), but
+  whether it actually runs on ART is still unverified — that needs a real
+  device/emulator, not yet available here. Android's main-thread network
+  I/O restriction is an app-architecture concern for whoever consumes
+  this, not a harpia generation concern.
 - **DB/CRUDL, REST/SOAP servers, gRPC service impl — not consumed
   on-device** at all under this thread's scope. `com.sun.net.httpserver`
   and JDBC drivers are desktop/server-JVM assumptions; whether they're
