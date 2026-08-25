@@ -39,7 +39,7 @@ HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
-from tests._java_gradle_helpers import generate, build_and_classpath, SKIP_REASON  # noqa: E402
+from tests._java_gradle_helpers import generate, build_and_classpath, wait_for_listening, SKIP_REASON  # noqa: E402
 
 _HAS_JAVA_TOOLCHAIN = shutil.which("gradle") is not None and shutil.which("java") is not None
 
@@ -86,7 +86,7 @@ def test_rest_created_row_is_visible_through_the_db_layer_directly(tmp_path):
             "    public static void main(String[] args) throws Exception {{\n"
             "        String base = \"http://127.0.0.1:\" + args[0];\n"
             "        HttpClient client = HttpClient.newHttpClient();\n"
-            "        String createJson = \"{{\\\"address\\\":\\\"wonderland\\\",\\\"name\\\":\\\"alice\\\"}}\";\n"
+            "        String createJson = \"{{\\\"ID{h}\\\":1,\\\"address\\\":\\\"wonderland\\\",\\\"name\\\":\\\"alice\\\"}}\";\n"
             "        HttpResponse<String> created = client.send(\n"
             "            HttpRequest.newBuilder(URI.create(base + \"/users\"))\n"
             "                .header(\"X-User\", \"users\").header(\"X-Pswd\", \"{h}\")\n"
@@ -118,8 +118,7 @@ def test_rest_created_row_is_visible_through_the_db_layer_directly(tmp_path):
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
     try:
-        line = server.stdout.readline()
-        assert "LISTENING" in line, "server did not start:\n" + line + server.stdout.read()
+        wait_for_listening(server)
 
         check = subprocess.run(["java", "-cp", classpath, "smoke.DemoCheck", port, db_path],
                                capture_output=True, text=True, timeout=60)

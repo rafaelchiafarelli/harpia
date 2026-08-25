@@ -76,3 +76,31 @@ def build_and_classpath(java_root, extra_source):
     runtime_classpath = line[len("HARPIA_RUNTIME_CLASSPATH="):]
 
     return os.pathsep.join(jars) + os.pathsep + runtime_classpath
+
+
+def wait_for_listening(server, marker="LISTENING", max_lines=50):
+    """Read `server`'s (stdout+stderr merged) output line by line looking
+    for `marker`, tolerating noise lines before it -- e.g. SLF4J's
+    "Failed to load class StaticLoggerBinder" static-init warning, which
+    genuinely does print before the marker line (confirmed by hand: a
+    naive single `server.stdout.readline()` grabs that warning instead,
+    the `"LISTENING" in line` assert fails, and building its failure
+    message via `server.stdout.read()` then blocks forever, since the
+    server process never exits and its stdout pipe never EOFs -- a
+    deadlock disguised as a hang, not an actual server startup failure).
+    Bounded by max_lines so a server that genuinely never starts fails
+    fast; on failure, kills the process FIRST so any further stdout read
+    can't block the same way."""
+    lines = []
+    for _ in range(max_lines):
+        line = server.stdout.readline()
+        if not line:
+            break
+        lines.append(line)
+        if marker in line:
+            return
+    server.kill()
+    server.wait(timeout=10)
+    raise AssertionError(
+        "server never printed {!r} within {} lines:\n{}".format(
+            marker, max_lines, "".join(lines)))
