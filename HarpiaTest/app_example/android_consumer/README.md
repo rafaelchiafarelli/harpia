@@ -44,7 +44,7 @@ instrumented test classes:
 
 ## ✅ Verification status (updated 2026-08-25)
 
-**Verified for real, on-device.** `docker/run_android_emulator_tests.sh`
+**Verified for real, on-device.** `Docker/run_android_emulator_tests.sh`
 boots a headless Android emulator (hardware-accelerated via `/dev/kvm`)
 and runs all three instrumented tests against it. Latest run:
 `grpcAndroidClientConstructsAgainstGeneratedStub`,
@@ -137,8 +137,8 @@ gradle --no-daemon connectedAndroidTest -PharpiaGenDir=/tmp/gen
 
 Steps 1-3 all work inside the harpia Docker image. For step 3 specifically
 — which needs a device/emulator, not just the SDK — use
-[`docker/run_android_emulator_tests.sh`](../../../docker/run_android_emulator_tests.sh)
-instead of `docker/run.sh`: it boots a headless, hardware-accelerated
+[`Docker/run_android_emulator_tests.sh`](../../../Docker/run_android_emulator_tests.sh)
+instead of `Docker/run.sh`: it boots a headless, hardware-accelerated
 (`/dev/kvm`) emulator inside the container and runs steps 1-3 against it
 end to end. Requires `/dev/kvm` on the host (nested virtualization enabled,
 if the host itself is a VM).
@@ -161,7 +161,7 @@ is out of scope for this test and hasn't been exercised.
 - Generated class names are plain (not hash-qualified, unlike C++ header
   filenames) — `option java_multiple_files`/`java_package` land every
   message/service class in the flat `com.harpia.generated` package (see
-  `protoFile/CLAUDE.md`'s `JAVA_PACKAGE` note, including its flagged
+  `ProtoFile/CLAUDE.md`'s `JAVA_PACKAGE` note, including its flagged
   multi-root collision risk). This example is pinned to
   `HarpiaTest/test.harpia`'s `users`/`courier` messages; regenerate from
   your own input and the class names carry over unchanged (same package,

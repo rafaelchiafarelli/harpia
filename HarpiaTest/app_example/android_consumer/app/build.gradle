@@ -39,7 +39,7 @@ dependencies {
     // runtime classes ride along in the same jar, though this module only
     // exercises the message-class/JSON/gRPC-client/ZMQ-client pieces --
     // DB/REST/SOAP-server/gRPC-service-impl are never consumed on-device
-    // (J.27's own "Out of scope" line, ../../../../initiatives/multi-language-
+    // (J.27's own "Out of scope" line, ../../../../Initiatives/multi-language-
     // targets/thread-1-java-target/histories/Android-consumption/
     // android-verification-ZMQ-client-track-acceptance-gate.md).
     implementation fileTree(dir: "${harpiaJavaDir}/build/libs", include: ["*.jar"])

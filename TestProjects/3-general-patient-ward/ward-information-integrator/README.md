@@ -31,12 +31,12 @@ It is **Fixed infrastructure**, so it is a C++ / CMake project with a single
 ./run_harpia.sh TestProjects/3-general-patient-ward/ward-information-integrator TestProjects/_gen/ward-information-integrator-ward3 --no-build
 
 # 2. build inside the toolchain image (-DHARPIA_GEN must be ABSOLUTE)
-bash docker/run.sh bash -c '
+bash Docker/run.sh bash -c '
   cmake -S TestProjects/3-general-patient-ward/ward-information-integrator -B TestProjects/3-general-patient-ward/ward-information-integrator/_build -DHARPIA_GEN=/harpia/TestProjects/_gen/ward-information-integrator-ward3 &&
   cmake --build TestProjects/3-general-patient-ward/ward-information-integrator/_build -j"$(nproc)"'
 
 # 3. run (inside the image)
-bash docker/run.sh bash -c './TestProjects/3-general-patient-ward/ward-information-integrator/_build/device_app'
+bash Docker/run.sh bash -c './TestProjects/3-general-patient-ward/ward-information-integrator/_build/device_app'
 ```
 
 Clean up with `rm -rf TestProjects/_gen/ward-information-integrator-ward3 TestProjects/3-general-patient-ward/ward-information-integrator/_build`.

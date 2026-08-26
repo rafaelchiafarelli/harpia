@@ -1,4 +1,4 @@
-"""Sessions J.15/J.16 (initiatives/multi-language-targets/thread-1-java-
+"""Sessions J.15/J.16 (Initiatives/multi-language-targets/thread-1-java-
 target/histories/SOAP/) -- SOAP envelope parsing (J.15) and the acceptance
 gate (J.16, "nothing new" per its own history file) for the Java target.
 Landed together.
@@ -14,9 +14,9 @@ glue is generated per message, same split as JavaRestAdapter.
 """
 import os
 
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import copy_if_different, write_if_different, loadTemplate
+from Util.util import copy_if_different, write_if_different, loadTemplate
 
 _RUNTIME_FILE = "SoapHelpers.java"
 _RUNTIME_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),

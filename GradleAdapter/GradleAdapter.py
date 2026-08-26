@@ -1,4 +1,4 @@
-"""Sessions J.2/J.3 (initiatives/multi-language-targets/thread-1-java-target)
+"""Sessions J.2/J.3 (Initiatives/multi-language-targets/thread-1-java-target)
 -- message-class and gRPC stub generation for the Java target.
 
 Per the codegen-timing decision (histories/gRPC-wiring/
@@ -22,9 +22,9 @@ copyBasicProtos, which is what actually populates
 """
 import os
 
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import loadTemplate, write_if_different, copy_if_different
+from Util.util import loadTemplate, write_if_different, copy_if_different
 
 # Named project.gradle.tmpl, not build.gradle.tmpl -- the repo-wide
 # .gitignore's `*build*` glob would otherwise silently exclude it from

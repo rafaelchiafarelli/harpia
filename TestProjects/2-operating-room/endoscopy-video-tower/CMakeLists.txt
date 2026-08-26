@@ -19,7 +19,7 @@ endif()
 if(NOT IS_ABSOLUTE "${HARPIA_GEN}")
     message(FATAL_ERROR
         "-DHARPIA_GEN must be an ABSOLUTE path (got: ${HARPIA_GEN}). "
-        "Inside docker/run.sh the repo is at /harpia, so use "
+        "Inside Docker/run.sh the repo is at /harpia, so use "
         "-DHARPIA_GEN=/harpia/TestProjects/_gen/<project>.")
 endif()
 set(GEN "${HARPIA_GEN}/generated/cpp")

@@ -3,10 +3,10 @@
 **Pipeline role:** Cross-cutting, all stages. Two independent pieces:
 1. **F1 — `ComplianceContext`** (`context.py`), Python, generation-time.
    Parsed once at generation start (`main.py`, mirrored in
-   `tests/run_pipeline.py`); threaded into every `Stage*` constructor as an
+   `UnitTests/run_pipeline.py`); threaded into every `Stage*` constructor as an
    optional `compliance=` kwarg alongside the args each already takes
    (`messages`/`dest`/etc.). See the F1 section of
-   `initiatives/medical_devices/epics/handoff-document.md` (the Foundation
+   `Initiatives/medical_devices/epics/handoff-document.md` (the Foundation
    thread itself was merged to `dev` and removed; see git history for the
    original implementation write-up) and the design-rules doc §6a.
    **Plumbing only, by design:** no stage
@@ -17,7 +17,7 @@
    copied verbatim into a *generated project*'s output (like
    `Capability/runtime/harpia_capability_dispatch.h`) -- NOT a Python
    abstraction. See the F3 section of
-   `initiatives/medical_devices/epics/handoff-document.md` (the Foundation
+   `Initiatives/medical_devices/epics/handoff-document.md` (the Foundation
    thread itself was merged to `dev` and removed; see git history for the
    original implementation write-up). Interface + `NoOpAuditSink` stub only, no real (tamper-evident)
    implementation yet -- that's Track A (DB) and Track C (transport)'s job,
@@ -105,16 +105,16 @@
   `_REGISTRY` singletons, just at the C++ level instead of Python.
 
 ## Touchpoints
-- Called by: `main.py`, `tests/run_pipeline.py` (F1 only -- F3's runtime
+- Called by: `main.py`, `UnitTests/run_pipeline.py` (F1 only -- F3's runtime
   header isn't copied into generated output by anything yet). Every
   `Stage*` constructor across the repo accepts the resulting
   `ComplianceContext` as an optional `compliance=None` kwarg
-  (LexicalAnalizer/, message/, protoFile/, every adapter under Database/,
+  (LexicalAnalizer/, Message/, ProtoFile/, every adapter under Database/,
   JsonAdapter/, XmlAdapter/, ZmqAdapter/, {Grpc,Http,Zmq}CapabilityAdapter/,
   TestAdapter/) but none of them act on it yet.
 - Depends on: `logger.logger`, PyYAML (`yaml.safe_load`) for F1; C++
   standard library only (`<string>`) for F3's header. No harpia-internal
   dependencies otherwise -- safe to import from anywhere without a cycle.
-- Tested by: `tests/test_compliance.py` (F1), `tests/test_audit_sink.py`
+- Tested by: `UnitTests/test_compliance.py` (F1), `UnitTests/test_audit_sink.py`
   (F3, g++-gated -- compiles/runs small standalone programs against the
   header directly, no generated project needed).

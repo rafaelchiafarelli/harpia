@@ -69,7 +69,7 @@ commands:
 | Script | Use |
 |---|---|
 | [`../run_harpia.sh`](../run_harpia.sh) `<projdir> <outdir> --no-build` | generate the **C++** target from a project folder (codegen only -- do not run the generated ctest suite, it is slow) |
-| [`../docker/run.sh`](../docker/run.sh) `bash -c '...'` | run `cmake` / `gradle` / the Java-target `HARPIA_GEN_LANG=java python3 main.py` inside the `harpia-build` image when there is no host toolchain |
+| [`../Docker/run.sh`](../Docker/run.sh) `bash -c '...'` | run `cmake` / `gradle` / the Java-target `HARPIA_GEN_LANG=java python3 main.py` inside the `harpia-build` image when there is no host toolchain |
 
 Each project `README.md` spells out the exact commands for that project, in
 both the host-toolchain and all-in-Docker forms.

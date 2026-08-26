@@ -19,8 +19,8 @@ parsers, REST/SOAP APIs, and the all-good/crash/slower/non-parseable apps).
 import os
 import shutil
 
-from logger.logger import logger
-from util.util import loadTemplate, write_if_different, copy_if_different
+from Logger.logger import logger
+from Util.util import loadTemplate, write_if_different, copy_if_different
 from Database.model import (analyze, type_registry, map_fields, repeated_fields,
                             RepeatedComposedField)
 
@@ -33,7 +33,7 @@ _APP = loadTemplate(__file__, "app.cpp.tmpl")
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _THIRD_PARTY = os.path.join(_REPO_ROOT, "third_party")
 # the harpia test HTTP client (Crow ships no client); emitted alongside the tests
-_CLIENT_HDR = os.path.join(_REPO_ROOT, "tests", "harpia_test_client.h")
+_CLIENT_HDR = os.path.join(_REPO_ROOT, "UnitTests", "harpia_test_client.h")
 # (subdir, files) to copy into the generated project's third_party/.
 # SQLite is no longer vendored: the DB layer is emitted against SOCI, whose
 # sqlite3 backend links the system libsqlite3 (SOCI/libpq come from the system,

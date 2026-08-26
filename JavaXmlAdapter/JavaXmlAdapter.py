@@ -1,4 +1,4 @@
-"""Session J.10 (initiatives/multi-language-targets/thread-1-java-target/
+"""Session J.10 (Initiatives/multi-language-targets/thread-1-java-target/
 histories/XML-runtime/XML-write-path.md) -- XML write path for the Java
 target. (J.11 extends the same runtime file with the read path.)
 
@@ -13,9 +13,9 @@ to generate. Directly comparable in shape to the C++ target's
 """
 import os
 
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import copy_if_different
+from Util.util import copy_if_different
 
 _RUNTIME_FILE = "HarpiaXml.java"
 _RUNTIME_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),

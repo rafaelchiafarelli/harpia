@@ -30,12 +30,12 @@ CMake project with a single `device_app` target and **no `human_mock`**.
 ./run_harpia.sh TestProjects/0-hospital-management-and-information/hospital-point-of-information TestProjects/_gen/hospital-point-of-information --no-build
 
 # 2. build inside the toolchain image (-DHARPIA_GEN must be ABSOLUTE)
-bash docker/run.sh bash -c '
+bash Docker/run.sh bash -c '
   cmake -S TestProjects/0-hospital-management-and-information/hospital-point-of-information -B TestProjects/0-hospital-management-and-information/hospital-point-of-information/_build -DHARPIA_GEN=/harpia/TestProjects/_gen/hospital-point-of-information &&
   cmake --build TestProjects/0-hospital-management-and-information/hospital-point-of-information/_build -j"$(nproc)"'
 
 # 3. run (inside the image)
-bash docker/run.sh bash -c './TestProjects/0-hospital-management-and-information/hospital-point-of-information/_build/device_app'
+bash Docker/run.sh bash -c './TestProjects/0-hospital-management-and-information/hospital-point-of-information/_build/device_app'
 ```
 
 Clean up with `rm -rf TestProjects/_gen/hospital-point-of-information TestProjects/0-hospital-management-and-information/hospital-point-of-information/_build`.

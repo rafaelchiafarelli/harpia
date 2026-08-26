@@ -30,7 +30,7 @@ import org.junit.runner.RunWith;
  * this thread's other (JDK-gated, if not Android-gated) tests already
  * exercise successfully. This test only proves the CLIENT constructs; it
  * doesn't call a live server (none is available to stand up here either)
- * -- see initiatives/multi-language-targets/thread-1-java-target/
+ * -- see Initiatives/multi-language-targets/thread-1-java-target/
  * histories/Android-consumption/android-verification-gRPC-client.md.
  */
 @RunWith(AndroidJUnit4.class)

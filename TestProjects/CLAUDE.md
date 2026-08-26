@@ -8,7 +8,7 @@ Information Integrator per clinical ward (in `1-.../`, `2-.../`, `3-.../`).
 Grouped by clinical environment (blueprint sections 0-4). Each *creates and
 consumes* harpia-generated code -- same role as `HarpiaTest/app_example/consumer` /
 `HarpiaTest/app_example/android_consumer`. Nothing here is read by `main.py`, `Util/`, or
-`tests/`.
+`UnitTests/`.
 
 ## Contents
 - `Projects.md` -- the source blueprint: 15 devices + 5 infrastructure hubs (HMS, Point of Information, 3 Ward Information Integrators) x {Main Features, Network Outbound, Network Inbound, Human Interaction Device?, Mobile device?, Fixed infrastructure?}, plus a **Connectivity Map** at the end (centralized hub-and-spoke: device -> ward integrator -> HMS; no device-to-device sockets).

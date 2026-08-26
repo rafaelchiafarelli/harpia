@@ -19,9 +19,9 @@ Stage 8 CRUDL DAO rather than duplicating that logic here.
 import os
 import shutil
 
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import loadTemplate, write_if_different, copy_if_different
+from Util.util import loadTemplate, write_if_different, copy_if_different
 
 XML_EXT = "_xml.h"
 RUNTIME = "harpia_xml.h"

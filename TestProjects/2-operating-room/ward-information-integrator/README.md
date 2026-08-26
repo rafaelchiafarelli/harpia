@@ -32,12 +32,12 @@ carried on a separate in-theatre A/V path, not on this data fabric.
 ./run_harpia.sh TestProjects/2-operating-room/ward-information-integrator TestProjects/_gen/ward-information-integrator-or --no-build
 
 # 2. build inside the toolchain image (-DHARPIA_GEN must be ABSOLUTE)
-bash docker/run.sh bash -c '
+bash Docker/run.sh bash -c '
   cmake -S TestProjects/2-operating-room/ward-information-integrator -B TestProjects/2-operating-room/ward-information-integrator/_build -DHARPIA_GEN=/harpia/TestProjects/_gen/ward-information-integrator-or &&
   cmake --build TestProjects/2-operating-room/ward-information-integrator/_build -j"$(nproc)"'
 
 # 3. run (inside the image)
-bash docker/run.sh bash -c './TestProjects/2-operating-room/ward-information-integrator/_build/device_app'
+bash Docker/run.sh bash -c './TestProjects/2-operating-room/ward-information-integrator/_build/device_app'
 ```
 
 Clean up with `rm -rf TestProjects/_gen/ward-information-integrator-or TestProjects/2-operating-room/ward-information-integrator/_build`.

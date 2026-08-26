@@ -2,7 +2,7 @@
 #
 # setup-env.sh — one-shot environment setup for a freshly cloned harpia repo.
 #
-# Sets up the host-only Python path (venv + pytest, per tests/README.md) and
+# Sets up the host-only Python path (venv + pytest, per UnitTests/README.md) and
 # checks whether the full Docker toolchain (protoc/gRPC/cmake/g++/ZMQ) is
 # available. The Docker path is required for anything beyond the pure-Python
 # golden-file tests (compiling generated C++, running the demo, etc.) but is
@@ -79,7 +79,7 @@ else
     warn "On WSL2 with Docker Desktop: open Docker Desktop on Windows, then"
     warn "Settings > Resources > WSL Integration, and enable it for this distro"
     warn "(\"$(cat /etc/os-release 2>/dev/null | grep -oP '(?<=^NAME=\")[^\"]+' || echo this distro)\" / \$WSL_DISTRO_NAME=${WSL_DISTRO_NAME:-unknown})."
-    warn "Full-toolchain runs (docker/run.sh, run_harpia.sh) need this; the"
+    warn "Full-toolchain runs (Docker/run.sh, run_harpia.sh) need this; the"
     warn "pure-Python test suite below works without it."
 fi
 
@@ -108,8 +108,8 @@ info "Next steps:"
 info "  source .venv/bin/activate && python -m pytest      # host-only, Python tests"
 info "  python3 main.py                                    # run the generator (stage 0-6 need no toolchain)"
 if [ "$DOCKER_OK" -eq 1 ]; then
-    info "  docker/run.sh pytest                               # full suite incl. C++ compile/run"
+    info "  Docker/run.sh pytest                               # full suite incl. C++ compile/run"
     info "  ./run_harpia.sh <input_folder> <output_folder>     # generate + build + ctest"
 else
-    info "  (enable Docker Desktop WSL integration to unlock docker/run.sh and run_harpia.sh)"
+    info "  (enable Docker Desktop WSL integration to unlock Docker/run.sh and run_harpia.sh)"
 fi

@@ -30,8 +30,8 @@ schema (SqlAdapter) and the DAO (CrudlAdapter). Header-only C++.
 """
 import os
 
-from logger.logger import logger
-from util.util import loadTemplate, write_if_different
+from Logger.logger import logger
+from Util.util import loadTemplate, write_if_different
 from Database.backends import get_backend
 from Database.model import analyze, type_registry
 

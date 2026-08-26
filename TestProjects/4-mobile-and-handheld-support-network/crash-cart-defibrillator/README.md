@@ -39,12 +39,12 @@ they only run **inside the image** (`./device_app` on the host fails with
 
 # 2. build this consumer inside the toolchain image.
 #    NOTE -DHARPIA_GEN must be ABSOLUTE; the repo is /harpia inside the image.
-bash docker/run.sh bash -c '
+bash Docker/run.sh bash -c '
   cmake -S TestProjects/4-mobile-and-handheld-support-network/crash-cart-defibrillator -B TestProjects/4-mobile-and-handheld-support-network/crash-cart-defibrillator/_build -DHARPIA_GEN=/harpia/TestProjects/_gen/crash-cart-defibrillator &&
   cmake --build TestProjects/4-mobile-and-handheld-support-network/crash-cart-defibrillator/_build -j"$(nproc)"'
 
 # 3. run the executables (inside the image)
-bash docker/run.sh bash -c './TestProjects/4-mobile-and-handheld-support-network/crash-cart-defibrillator/_build/device_app
+bash Docker/run.sh bash -c './TestProjects/4-mobile-and-handheld-support-network/crash-cart-defibrillator/_build/device_app
   ./TestProjects/4-mobile-and-handheld-support-network/crash-cart-defibrillator/_build/human_mock | head'
 ```
 

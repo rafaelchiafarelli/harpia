@@ -1,6 +1,6 @@
 # JavaTestAdapter — Java target: generated JUnit 5 tests (a scoped subset of the C++ suite)
 
-**Pipeline role:** Java-target Stage 14 equivalent (session J.21, `initiatives/multi-language-targets/thread-1-java-target`). A Java-source-emitting counterpart for a **subset** of `TestAdapter.py`'s ~8 C++ body builders — see "What's deliberately not ported" below before assuming parity.
+**Pipeline role:** Java-target Stage 14 equivalent (session J.21, `Initiatives/multi-language-targets/thread-1-java-target`). A Java-source-emitting counterpart for a **subset** of `TestAdapter.py`'s ~8 C++ body builders — see "What's deliberately not ported" below before assuming parity.
 **Entry point (from main.py):** gated behind `HARPIA_GEN_LANG=java`, called right after `JavaZmqAdapter` in the same block: `JavaTestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; main.py logs it).
 **Inputs → Outputs:** consumes message objects (same table-bearing filter as `JavaDatabase`/`JavaRestAdapter`/`JavaSoapAdapter`). Emits `<dest>/java/src/test/java/com/harpia/generated/test/<name>_Test.java` — Gradle's standard test source root, which already sees every `src/main/java` class without any extra `build.gradle` wiring (the `java` plugin sets that dependency up by default).
 
@@ -15,16 +15,16 @@ An enum column's test value is derived from its own `FieldDescriptor` too (`fd.g
 
 ## What's deliberately NOT ported (flagged, not silently assumed covered)
 - **`_access_rights_body`/`_access_modifiers_body` (14.3/14.4):** the Java target has no access-modifier/`PRIVATE`-field-visibility implementation to test against *at all* — nothing to port a test for yet.
-- **`_rest_body`/`_soap_body` (14.7-14.10):** would need a live `HttpServer` stood up per generated test method — `tests/test_java_rest.py`/`tests/test_java_soap.py` (this repo's own tests, not generated ones) already cover that ground directly; duplicating it as generated-per-message code was judged not worth the added generator complexity for this session.
+- **`_rest_body`/`_soap_body` (14.7-14.10):** would need a live `HttpServer` stood up per generated test method — `UnitTests/test_java_rest.py`/`UnitTests/test_java_soap.py` (this repo's own tests, not generated ones) already cover that ground directly; duplicating it as generated-per-message code was judged not worth the added generator complexity for this session.
 - **The whole app-level suite (14.11-14.14, `_app_render`/`_app_all_good`/`_app_crash`/`_app_slower`/`_app_non_parseable`):** a cross-cutting integration story (whole-application all-good/crash/slower/non-parseable behavior) that's a bigger lift than "one more body builder" — left for a future session if this thread revisits generated-test parity.
 - Same underlying scope boundary as everywhere else in this Java target: only top-level scalar/enum columns are exercised (no embed/FK/map/repeated), because that's all `JavaCrudlAdapter`'s DAO handles.
 
 ## Key facts / gotchas
-- `analyze()` is called with no `backend` (defaults to SQLite internally) since this module never touches `Column.sql_def()` — the generated test's OWN `dbCrudlRoundTrip` always runs against `jdbc:sqlite::memory:` regardless of `HARPIA_DB_BACKEND`, which is correct: it's testing the DAO/runtime wiring, not dialect-specific behavior (that's `JavaDatabase`'s own Postgres test, `tests/test_java_db_crudl_postgres.py`).
+- `analyze()` is called with no `backend` (defaults to SQLite internally) since this module never touches `Column.sql_def()` — the generated test's OWN `dbCrudlRoundTrip` always runs against `jdbc:sqlite::memory:` regardless of `HARPIA_DB_BACKEND`, which is correct: it's testing the DAO/runtime wiring, not dialect-specific behavior (that's `JavaDatabase`'s own Postgres test, `UnitTests/test_java_db_crudl_postgres.py`).
 - `testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'` + a `test { useJUnitPlatform() }` block were added to `GradleAdapter/templates/project.gradle.tmpl` as part of THIS session (enabling JUnit 5 is this deliverable's own concern, not a pre-existing `J.22` packaging line item).
 - A message whose *every* user-declared field is embed/FK/map/repeated still gets a real, non-degenerate test class: `usable` always includes at least the front-end-injected `ID_<hash>`/`STATUS_<hash>`/`ERROR_<hash>`/`ORIGINATOR[_<hash>]` columns (plain top-level strings — see `JavaDatabase/CLAUDE.md`).
 
 ## Touchpoints
 - Called by: `main.py`, gated on `HARPIA_GEN_LANG=java`, right after `JavaZmqAdapter` in the same conditional block.
 - Depends on: `Database.model` (`type_registry`, `analyze`), `JavaDatabase` (the `<name>_dao` classes it tests), `JavaJsonAdapter`/`JavaXmlAdapter` (`HarpiaJson`/`HarpiaXml`), `Util.util.write_if_different`/`loadTemplate`, `Logger.logger`, `Errors.Error`.
-- Verified by: `tests/test_java_junit_tests.py` (structural, always run) + a gradle+JDK-gated `gradle test` run — this session's own stated acceptance bar ("verified together with J.23, not duplicated here"), landing now since both prerequisites (JUnit wiring, real DAOs/runtimes) already exist.
+- Verified by: `UnitTests/test_java_junit_tests.py` (structural, always run) + a gradle+JDK-gated `gradle test` run — this session's own stated acceptance bar ("verified together with J.23, not duplicated here"), landing now since both prerequisites (JUnit wiring, real DAOs/runtimes) already exist.

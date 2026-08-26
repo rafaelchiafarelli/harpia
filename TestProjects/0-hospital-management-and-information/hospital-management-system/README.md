@@ -35,12 +35,12 @@ messages. Records get a table name and so generate DB/CRUDL/REST/SOAP.
 ./run_harpia.sh TestProjects/0-hospital-management-and-information/hospital-management-system TestProjects/_gen/hospital-management-system --no-build
 
 # 2. build inside the toolchain image (-DHARPIA_GEN must be ABSOLUTE)
-bash docker/run.sh bash -c '
+bash Docker/run.sh bash -c '
   cmake -S TestProjects/0-hospital-management-and-information/hospital-management-system -B TestProjects/0-hospital-management-and-information/hospital-management-system/_build -DHARPIA_GEN=/harpia/TestProjects/_gen/hospital-management-system &&
   cmake --build TestProjects/0-hospital-management-and-information/hospital-management-system/_build -j"$(nproc)"'
 
 # 3. run (inside the image)
-bash docker/run.sh bash -c './TestProjects/0-hospital-management-and-information/hospital-management-system/_build/device_app'
+bash Docker/run.sh bash -c './TestProjects/0-hospital-management-and-information/hospital-management-system/_build/device_app'
 ```
 
 Clean up with `rm -rf TestProjects/_gen/hospital-management-system TestProjects/0-hospital-management-and-information/hospital-management-system/_build`.

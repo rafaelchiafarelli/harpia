@@ -8,7 +8,7 @@ writes the generated project's `tests/CMakeLists.txt` (one CTest per message) an
 vendors third-party deps into the generated tree so it stays self-contained.
 
 **Entry points:** `TestAdapter(messages=<Message list>, dest=<build dir>).Process()`.
-Invoked from `main.py` and `tests/run_pipeline.py` after all other adapters.
+Invoked from `main.py` and `UnitTests/run_pipeline.py` after all other adapters.
 
 **Inputs → Outputs:**
 - In: `messages` (Message objects) + `dest` build dir.
@@ -53,7 +53,7 @@ Invoked from `main.py` and `tests/run_pipeline.py` after all other adapters.
   `HARPIA_TEST_PROTO_INCLUDE_DIR` variable (same protobuf-version-skew fix as
   server/client/consumer — lists the vcpkg-regenerated `${CMAKE_BINARY_DIR}/proto`
   ahead of the Docker-baked `generated/cpp` on the include path) and a
-  `ws2_32` link per test target. `tests/harpia_test_client.h`, the REST/SOAP
+  `ws2_32` link per test target. `UnitTests/harpia_test_client.h`, the REST/SOAP
   HTTP round-trip test client it vendors, is Winsock2-ported alongside its
   POSIX path (`#ifdef _WIN32`). Verified end to end on Windows (`USAGE.md`
   §11): `10/10` ctest targets pass on native MSVC + vcpkg, including
@@ -61,8 +61,8 @@ Invoked from `main.py` and `tests/run_pipeline.py` after all other adapters.
   ported client.
 
 ## Touchpoints
-- Called by: `main.py`, `tests/run_pipeline.py`.
+- Called by: `main.py`, `UnitTests/run_pipeline.py`.
 - Depends on: `Util.util.loadTemplate` (reads templates dir next to this file),
   `Database.model`, `Logger.logger`, repo-level `third_party/`.
-- Verified by: `tests/test_stage14.py` and golden snapshots in
-  `tests/golden/gen_tests/`.
+- Verified by: `UnitTests/test_stage14.py` and golden snapshots in
+  `UnitTests/golden/gen_tests/`.

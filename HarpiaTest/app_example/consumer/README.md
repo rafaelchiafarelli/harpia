@@ -26,7 +26,7 @@ cmake --build /tmp/consumer_build
 Inside the toolchain image (no host deps needed):
 
 ```sh
-docker/run.sh bash -c '
+Docker/run.sh bash -c '
   HARPIA_OUTPUT_DIR=/tmp/gen python3 main.py &&
   cmake -S HarpiaTest/app_example/consumer -B /tmp/cb -DHARPIA_GEN=/tmp/gen &&
   cmake --build /tmp/cb && /tmp/cb/consumer'

@@ -287,9 +287,9 @@ run on every application startup, not just once.
 
 **Interactive / scripted, inside the toolchain image:**
 ```sh
-docker/run.sh                    # interactive shell in the harpia-build image
-docker/run.sh pytest             # run Harpia's own test suite
-docker/run.sh python3 main.py    # run the pipeline with the in-repo defaults
+Docker/run.sh                    # interactive shell in the harpia-build image
+Docker/run.sh pytest             # run Harpia's own test suite
+Docker/run.sh python3 main.py    # run the pipeline with the in-repo defaults
 ```
 
 **Directly via `main.py`** (defaults generate the in-repo `HarpiaTest` example).

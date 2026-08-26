@@ -13,7 +13,7 @@
 // agnostic, shared with the gRPC and ZMQ capability runtimes).
 //
 // Crow (the server side of REST/SOAP) ships no HTTP client of its own --
-// same reason tests/harpia_test_client.h exists. detail::http_get below is
+// same reason UnitTests/harpia_test_client.h exists. detail::http_get below is
 // a trimmed, GET-only, single-purpose sibling of that test client (real
 // connect + read timeouts via a raw blocking socket; no default headers, no
 // POST/PUT/DELETE -- this runtime only ever needs one GET), so generated

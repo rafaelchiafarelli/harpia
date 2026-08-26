@@ -19,7 +19,7 @@ import org.junit.runner.RunWith;
  *
  * NOT RUN, NOT VERIFIED -- this environment has no Android SDK/emulator
  * at all. See ../../../../../../README.md (this module's own) for the
- * full caveat, and initiatives/multi-language-targets/thread-1-java-
+ * full caveat, and Initiatives/multi-language-targets/thread-1-java-
  * target/histories/Android-consumption/android-verification-message-
  * classes.md for this session's own history.
  */

@@ -39,12 +39,12 @@ DB/CRUDL/REST/SOAP; pure control packets stay table-less.
 
 # 2. build this consumer inside the toolchain image.
 #    NOTE -DHARPIA_GEN must be ABSOLUTE; the repo is /harpia inside the image.
-bash docker/run.sh bash -c '
+bash Docker/run.sh bash -c '
   cmake -S TestProjects/1-intensive-care-unit/ward-information-integrator -B TestProjects/1-intensive-care-unit/ward-information-integrator/_build -DHARPIA_GEN=/harpia/TestProjects/_gen/ward-information-integrator-icu &&
   cmake --build TestProjects/1-intensive-care-unit/ward-information-integrator/_build -j"$(nproc)"'
 
 # 3. run the executable (inside the image)
-bash docker/run.sh bash -c './TestProjects/1-intensive-care-unit/ward-information-integrator/_build/device_app'
+bash Docker/run.sh bash -c './TestProjects/1-intensive-care-unit/ward-information-integrator/_build/device_app'
 ```
 
 `device_app` builds one of each uplink message and prints it as JSON. Clean up

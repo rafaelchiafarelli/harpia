@@ -2,7 +2,7 @@
 // recording (Foundation F3), hand-written, not generated. Interface + no-op
 // stub only: real (tamper-evident) implementations are Track A (DB) and
 // Track C (transport)'s job, independently, once each track starts --
-// see initiatives/medical_devices/harpia_medical_master_plan.md.
+// see Initiatives/medical_devices/harpia_medical_master_plan.md.
 //
 // Injection point for generated code: a generated class that needs to audit
 // (a DAO doing a CRUDL op on a `phi` field, a KeyProvider doing a key

@@ -17,7 +17,7 @@ import org.zeromq.ZContext;
  * native library -- JavaZmqAdapter/CLAUDE.md) actually runs on Android's
  * ART runtime, not just a desktop/server JVM. This is the one thing the
  * thread README flags as genuinely unconfirmed on-device specifically
- * (../../initiatives/multi-language-targets/thread-1-java-target/
+ * (../../Initiatives/multi-language-targets/thread-1-java-target/
  * README.md §7's ZMQ bullet).
  *
  * Track acceptance gate: per this session's own history file, this is

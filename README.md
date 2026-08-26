@@ -27,7 +27,7 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 | 14 | generated-code unit tests | ✅ per-message C++ unit tests + one app-level test as an opt-in CTest target (`-DHARPIA_BUILD_TESTS=ON`): simple field access + CRUDL round-trip (14.1/14.2), SOAP access-rights credential gate (14.3), access-modifier constraint enforcement (14.4), JSON (14.5) + XML (14.6) parser round-trips, live REST JSON-CRUD (14.7/14.10) and SOAP-over-HTTP (14.8/14.9) HTTP APIs, and an application-level all-good/crash/slower/non-parseable suite (14.11–14.14) |
 
 The generated project builds with its own CMake and ships a runnable
-client/server demo (ZMQ). See `tests/` for what is verified end to end.
+client/server demo (ZMQ). See `UnitTests/` for what is verified end to end.
 
 ### Known gaps
 
@@ -36,7 +36,7 @@ Within the pipeline (stages 0–14, C++): none currently tracked. The
 recovery) closed 2026-08-19 — every generated file goes through
 `Util.util.write_if_different` / `copy_if_different` (content-compared,
 atomic same-directory temp-file + `os.replace`), plus `prune_stale_outputs`
-for renamed/removed messages; see `USAGE.md` §11, `util/CLAUDE.md`.
+for renamed/removed messages; see `USAGE.md` §11, `Util/CLAUDE.md`.
 
 Beyond the pipeline (the "## objective:"-onward spec section below is the
 design vision, not current status):
@@ -47,7 +47,7 @@ design vision, not current status):
   extraction) shipped as Foundation F6 (merged to `dev` 2026-08-23). What
   remains is incremental: each track adds consumer-facing doc-comments to
   its own templates as it touches them (Ground Rule 6) — see
-  `initiatives/doxygen-generation/doxygen-generation.md` for the
+  `Initiatives/doxygen-generation/doxygen-generation.md` for the
   pitfall-table reference that discipline builds from.
 - **Transport encryption — ✅ done, two residuals.** REST/SOAP (Crow
   `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC (`grpc::SslServerCredentials`)
@@ -67,7 +67,7 @@ design vision, not current status):
   ZMQ core+CURVE, generated JUnit tests, Gradle packaging; the Docker image
   carries a JDK 17 + Gradle 8.5 toolchain so its JDK-gated tests run
   against a real JVM). Android consumption (message classes, gRPC client,
-  ZMQ client) is verified on-device — `docker/run_android_emulator_tests.sh`
+  ZMQ client) is verified on-device — `Docker/run_android_emulator_tests.sh`
   boots a `/dev/kvm`-accelerated emulator, 4/4 instrumented tests pass;
   this found and fixed one real ART-incompatibility bug
   (`java.lang.ProcessHandle`, a JDK9+ API absent from Android), see
@@ -84,14 +84,14 @@ design vision, not current status):
 - **Compliance implementation threads — Foundation ✅, threads not started.**
   Foundation F1–F6 shipped and merged to `dev`: `ComplianceContext`
   (`Compliance/context.py`; `project.harpia.yaml` → risk-class / topology /
-  phi-handling), the `phi` field modifier (lexer + `message/Variables.py`
+  phi-handling), the `phi` field modifier (lexer + `Message/Variables.py`
   `is_phi`), the audit scaffold (`Compliance/audit_common.py`,
   `Compliance/runtime/`), and the F6 Doxygen plumbing above. The five
   parallel threads it unblocks — DB field encryption, audit-on-access,
   multi-tier RBAC, key management, FHIR facade — are **not started**. Scoped
-  at `initiatives/medical_devices/` (see `harpia_medical_master_plan.md` for
+  at `Initiatives/medical_devices/` (see `harpia_medical_master_plan.md` for
   the dependency graph and
-  `initiatives/medical_devices/epics/handoff-document.md` for what
+  `Initiatives/medical_devices/epics/handoff-document.md` for what
   Foundation concretely shipped).
 
 **Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the
@@ -99,7 +99,7 @@ consumer's guide (generate, the `.harpia` language by example, what gets
 generated, building, choosing the DB backend, and wiring the output into your own
 project). A complete, runnable downstream example lives in
 [`HarpiaTest/app_example/consumer/`](HarpiaTest/app_example/consumer/) and is guarded by
-`tests/test_consumer_example.py`.
+`UnitTests/test_consumer_example.py`.
 
 ## Build, test & run
 
@@ -108,16 +108,16 @@ image so nothing is installed on the host. Third-party C++ libs are vendored
 in-tree under `third_party/` (e.g. tinyxml2), not installed from the system.
 
 ```sh
-docker/run.sh pytest            # full test suite
-docker/run.sh python3 main.py   # run the generator → HarpiaTest/test_build/
-docker/run.sh                   # interactive shell in the toolchain
+Docker/run.sh pytest            # full test suite
+Docker/run.sh python3 main.py   # run the generator → HarpiaTest/test_build/
+Docker/run.sh                   # interactive shell in the toolchain
 ```
 
-`docker/run.sh` builds the image (`Dockerfile`) on first use and runs as your
+`Docker/run.sh` builds the image (`Dockerfile`) on first use and runs as your
 UID so generated files are owned by you. To run the end-to-end demo by hand:
 
 ```sh
-docker/run.sh bash -c '
+Docker/run.sh bash -c '
   python3 main.py && cd HarpiaTest/test_build &&
   cmake -S . -B build && cmake --build build -j &&
   ./build/server/server "tcp://*:5599" & sleep 1 &&
@@ -125,7 +125,7 @@ docker/run.sh bash -c '
 ```
 
 Without Docker you can still run the Python-only tests in a venv (the
-compile/run tests skip themselves). See `tests/README.md`.
+compile/run tests skip themselves). See `UnitTests/README.md`.
 
 ### Run against an input folder → output folder
 
@@ -160,9 +160,9 @@ script sets: `HARPIA_INPUT_FILE`, `HARPIA_INCLUDE_FOLDER`, `HARPIA_OUTPUT_DIR`.
 | `JsonAdapter/`, `XmlAdapter/`, `ZmqAdapter/`, `Database/` | back-end generators; each has a `templates/` dir of generator templates (XmlAdapter also a `runtime/`, Database a shared `model.py`) |
 | `Assets/` | project skeleton copied into output (CMake, proto templates, server/client demo) |
 | `third_party/` | vendored third-party source (tinyxml2, SQLite, Crow + standalone asio) |
-| `tests/` | golden snapshots + per-stage compile/run tests (see `tests/README.md`) |
+| `UnitTests/` | golden snapshots + per-stage compile/run tests (see `UnitTests/README.md`) |
 | `HarpiaTest/` | the sample `test.harpia` and its includes |
-| `initiatives/` | scoping docs for larger, not-yet-started or in-progress work (multi-language targets, Postgres migration, `medical_devices/` — a multi-session plan for a medical-device-compliance profile: PHI field tagging, message-level criticality, key management, mTLS/RBAC, audit) — not part of the pipeline itself |
+| `Initiatives/` | scoping docs for larger, not-yet-started or in-progress work (multi-language targets, Postgres migration, `medical_devices/` — a multi-session plan for a medical-device-compliance profile: PHI field tagging, message-level criticality, key management, mTLS/RBAC, audit) — not part of the pipeline itself |
 
 ## objective:
 Create a generalized interface for processes and threads to share data among themselves, database and web that has gRPC, ORM, RESTFull, SOAP, CRUDL, multi-project, multi-language and a  multi-thread library to exchange data.

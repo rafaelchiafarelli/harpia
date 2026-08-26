@@ -27,12 +27,12 @@ control packets stay table-less.
 
 ## Generate + build + run
 
-Run everything through `docker/run.sh` (it builds/uses the `harpia-build`
+Run everything through `Docker/run.sh` (it builds/uses the `harpia-build`
 image, which carries the JDK + Gradle + Android SDK).
 
 ```sh
 # 1. generate a Java-target project from this folder, then build its jar
-docker/run.sh bash -c '
+Docker/run.sh bash -c '
   HARPIA_GEN_LANG=java \
     HARPIA_INPUT_FILE=TestProjects/1-intensive-care-unit/multiparameter-patient-monitor/patient_monitor.harpia \
     HARPIA_INCLUDE_FOLDER=TestProjects/1-intensive-care-unit/multiparameter-patient-monitor/Include \
@@ -40,13 +40,13 @@ docker/run.sh bash -c '
   (cd /tmp/multiparameter-patient-monitor_gen/java && gradle --no-daemon build)'
 
 # 2. assemble this consumer module against the generated jar
-docker/run.sh bash -c '
+Docker/run.sh bash -c '
   cd TestProjects/1-intensive-care-unit/multiparameter-patient-monitor &&
   gradle --no-daemon -PharpiaGenDir=/tmp/multiparameter-patient-monitor_gen assembleDebug'
 ```
 
 `run_harpia.sh` is the C++-target helper only; the Java target is driven by
-`main.py` with `HARPIA_GEN_LANG=java` (wrapped in `docker/run.sh` above).
+`main.py` with `HARPIA_GEN_LANG=java` (wrapped in `Docker/run.sh` above).
 Entry points, pure Java so a desktop JVM is enough:
 `com.harpia.patientmonitor.DeviceApp`, `com.harpia.patientmonitor.HumanMock`.
 
