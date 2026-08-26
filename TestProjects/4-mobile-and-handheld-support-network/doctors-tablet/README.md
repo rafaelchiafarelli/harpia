@@ -1,14 +1,13 @@
 # Doctor's Tablet
-
-Worked harpia example project for the **Doctor's Tablet** from
-[`../../Projects.md`](../../Projects.md). See [`doctors-tablet.md`](./doctors-tablet.md) for the
-verbatim blueprint entry.
+*   **Main Features:** A mobile computer screen allowing medical staff to view live patient data from anywhere in the building.
+*   **📡 Network Outbound:** Clinician interaction input logs, explicit authorization token requests.
+*   **📥 Network Inbound:** Live streaming waveform graphs (ECG), real-time alarm feeds, and complete historical patient charts.
+*   **Mobile device**
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`doctors-tablet.md`](./doctors-tablet.md) | the blueprint lines for this device |
 | [`doctors_tablet.harpia`](./doctors_tablet.harpia) | the assembled `.harpia` schema (messages `clinician_interaction_log`, `authorization_request`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `settings.gradle` + `build.gradle` + `gradle.properties` (Android app module, AGP 8.2.2, modelled on `examples/android_consumer`) |

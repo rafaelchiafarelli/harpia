@@ -1,14 +1,13 @@
 # Sequential Compression Device (SCD)
-
-Worked harpia example project for the **Sequential Compression Device (SCD)** from
-[`../../Projects.md`](../../Projects.md). See [`sequential-compression-device.md`](./sequential-compression-device.md) for the
-verbatim blueprint entry.
+*   **Main Features:** Uses air pumps to sequentially inflate sleeves wrapped around legs to force blood flow and prevent clots.
+*   **📡 Network Outbound:** Inflatable sleeve pressure cycles (mmHg), operation timer logs, and sleeve-disconnected alerts.
+*   **📥 Network Inbound:** Simple device location update pings.
+*   **⚠️ Human Interaction Device** (Inflatable multi-chamber compression sleeves are wrapped tightly around the patient's legs).
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`sequential-compression-device.md`](./sequential-compression-device.md) | the blueprint lines for this device |
 | [`scd.harpia`](./scd.harpia) | the assembled `.harpia` schema (messages `compression_cycle`, `scd_runtime_log`, `sleeve_disconnected_alert`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake, modelled on `examples/consumer`) |

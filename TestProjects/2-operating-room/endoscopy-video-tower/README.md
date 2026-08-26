@@ -1,14 +1,13 @@
 # Endoscopy Video Tower
-
-Worked harpia example project for the **Endoscopy Video Tower** from
-[`../../Projects.md`](../../Projects.md). See [`endoscopy-video-tower.md`](./endoscopy-video-tower.md) for the
-verbatim blueprint entry.
+*   **Main Features:** Controls light sources, processes video, and displays live internal visuals from an inserted camera scope.
+*   **📡 Network Outbound:** High-resolution video streams, captured static surgical snapshots, and light source performance statistics.
+*   **📥 Network Inbound:** Surgeon login profiles, hospital patient ID assignment tags.
+*   **⚠️ Human Interaction Device** (The flexible or rigid video scope is physically inserted into the patient's internal organs).
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`endoscopy-video-tower.md`](./endoscopy-video-tower.md) | the blueprint lines for this device |
 | [`endoscopy.harpia`](./endoscopy.harpia) | the assembled `.harpia` schema (messages `video_stream_status`, `surgical_snapshot`, `light_source_stats`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake, modelled on `examples/consumer`) |

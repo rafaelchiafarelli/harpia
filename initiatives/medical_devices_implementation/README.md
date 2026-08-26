@@ -64,8 +64,9 @@ Two generator bugs surfaced by this scaffolding were fixed on `dev` (commit
 identifiers that start with a type keyword (`int`, `string`, …), and
 `run_harpia.sh` now auto-mounts the input folder read-write for a brand-new
 project's first generation (when it has no `schema_registry/` yet). Nothing
-special is needed anymore — run `run_harpia.sh` and commit the resulting
-`schema_registry/`.
+special is needed anymore — just run `run_harpia.sh`. The generated
+`schema_registry/` sidecar is git-ignored under `TestProjects/` (throwaway
+examples — regenerated locally, not committed).
 
 Also 2026-08-26: the four cross-cutting epics (5 transport & hub wiring,
 6 Java/Android target, 7 ward end-to-end scenarios, 8 PHI & compliance surface)

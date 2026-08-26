@@ -1,14 +1,14 @@
 # Intracranial Pressure (ICP) Monitor
-
-Worked harpia example project for the **Intracranial Pressure (ICP) Monitor** from
-[`../../Projects.md`](../../Projects.md). See [`intracranial-pressure-monitor.md`](./intracranial-pressure-monitor.md) for the
-verbatim blueprint entry.
+*   **Main Features:** Measures the fluid pressure levels inside the cranium to prevent brain injury.
+*   **📡 Network Outbound:** Continuous Mean ICP values (mmHg), pressure waveform trends, and high-pressure boundary threshold alerts.
+*   **📥 Network Inbound:** Zero-calibration baseline confirmations.
+*   **⚠️ Human Interaction Device** (Connects directly via a pressure sensor catheter surgically placed inside the skull).
+*   **Mobile device**
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`intracranial-pressure-monitor.md`](./intracranial-pressure-monitor.md) | the blueprint lines for this device |
 | [`icp_monitor.harpia`](./icp_monitor.harpia) | the assembled `.harpia` schema (messages `icp_reading`, `icp_threshold_alert`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `settings.gradle` + `build.gradle` + `gradle.properties` (Android app module, AGP 8.2.2, modelled on `examples/android_consumer`) |

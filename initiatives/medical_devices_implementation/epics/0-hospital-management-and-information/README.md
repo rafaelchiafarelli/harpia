@@ -12,7 +12,10 @@ runs. None is a Human Interaction Device, so none ships a `human_mock`.
 
 Project sources:
 [`../../../../TestProjects/0-hospital-management-and-information/`](../../../../TestProjects/0-hospital-management-and-information/).
-Per-component history: `histories/<component>/`.
+Per-component history: `histories/<component>/` — `spec.md` is the "what to do"
+for that component; session notes land in sibling files.
+[`histories/hospital-management-system/spec.md`](histories/hospital-management-system/spec.md)
+is written; `hospital-point-of-information` is not yet.
 
 See the Connectivity Map at the end of `TestProjects/Projects.md` for how the
 HMS, the Points of Information and the ward integrators wire together

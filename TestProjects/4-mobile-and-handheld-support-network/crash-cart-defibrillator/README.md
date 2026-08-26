@@ -1,14 +1,13 @@
 # Crash Cart Defibrillator
-
-Worked harpia example project for the **Crash Cart Defibrillator** from
-[`../../Projects.md`](../../Projects.md). See [`crash-cart-defibrillator.md`](./crash-cart-defibrillator.md) for the
-verbatim blueprint entry.
+*   **Main Features:** A mobile emergency station used to analyze critical heart rhythms and deliver electrical shocks to restore sinus rhythm.
+*   **📡 Network Outbound:** Real-time ECG waveforms, electrical shock energy values (Joules), pacing status, and precise event timestamp logs.
+*   **📥 Network Inbound:** Clock synchronization signals, system diagnostic update passes.
+*   **⚠️ Human Interaction Device** (Delivers heavy electric energy or reads cardiac data through pads pressed onto the patient's bare chest).
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`crash-cart-defibrillator.md`](./crash-cart-defibrillator.md) | the blueprint lines for this device |
 | [`defibrillator.harpia`](./defibrillator.harpia) | the assembled `.harpia` schema (messages `defib_ecg`, `shock_event`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake, modelled on `examples/consumer`) |

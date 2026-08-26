@@ -1,14 +1,14 @@
 # Multiparameter Patient Monitor
-
-Worked harpia example project for the **Multiparameter Patient Monitor** from
-[`../../Projects.md`](../../Projects.md). See [`multiparameter-patient-monitor.md`](./multiparameter-patient-monitor.md) for the
-verbatim blueprint entry.
+*   **Main Features:** Centralizes, visualizes, and monitors continuous vital signs at the bedside.
+*   **📡 Network Outbound:** Live vital sign metrics (Heart Rate, SpO2 %, Respiration Rate, Blood Pressure), numerical alarms, and active warning flags.
+*   **📥 Network Inbound:** Patient demographic profiles, admit/discharge status updates.
+*   **⚠️ Human Interaction Device** (Connects directly via ECG patches, SpO2 finger clips, and blood pressure cuffs).
+*   **Mobile device**
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`multiparameter-patient-monitor.md`](./multiparameter-patient-monitor.md) | the blueprint lines for this device |
 | [`patient_monitor.harpia`](./patient_monitor.harpia) | the assembled `.harpia` schema (messages `vital_signs`, `monitor_alarm`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `settings.gradle` + `build.gradle` + `gradle.properties` (Android app module, AGP 8.2.2, modelled on `examples/android_consumer`) |

@@ -1,14 +1,14 @@
 # Patient Telemetry Pack
-
-Worked harpia example project for the **Patient Telemetry Pack** from
-[`../../Projects.md`](../../Projects.md). See [`patient-telemetry-pack.md`](./patient-telemetry-pack.md) for the
-verbatim blueprint entry.
+*   **Main Features:** A lightweight, battery-operated transmitter worn in a pouch that tracks vitals while the patient walks around.
+*   **📡 Network Outbound:** Continuous ambulatory Heart Rate (BPM), SpO2 values (%), wireless signal strength, and low battery alerts.
+*   **📥 Network Inbound:** Bi-directional signal check pings, configuration parameters for data transmission rates.
+*   **⚠️ Human Interaction Device** (Connects directly via wearable ECG chest stickers and a portable pulse oximeter finger wrap).
+*   **Mobile device**
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`patient-telemetry-pack.md`](./patient-telemetry-pack.md) | the blueprint lines for this device |
 | [`telemetry_pack.harpia`](./telemetry_pack.harpia) | the assembled `.harpia` schema (messages `ambulatory_vitals`, `low_battery_alert`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `settings.gradle` + `build.gradle` + `gradle.properties` (Android app module, AGP 8.2.2, modelled on `examples/android_consumer`) |

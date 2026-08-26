@@ -18,11 +18,10 @@ TestProjects/
   _shared/common.harpia        shared inbound message types (copied into each project's Include/)
   <n>-<room>/                  one folder per numbered room in Projects.md
     <device>/                  one folder per device
-      <device>.md              the verbatim blueprint lines for that device
       <name>.harpia            assembled schema: Outbound -> push/stream/event, Inbound -> pull
       Include/common.harpia    copy of _shared/common.harpia
       src/                     device code (see per-language note below)
-      README.md                generate + build + run for that project
+      README.md                blueprint bullets + generate/build/run for that project
       + build infra            CMake/vcpkg (C++) or Gradle Android module (Java)
 ```
 
@@ -80,8 +79,10 @@ both the host-toolchain and all-in-Docker forms.
 numbers), which needs the project folder writable. `run_harpia.sh` detects this
 — when the input folder has no `schema_registry/` yet it mounts the input
 **read-write** for that one run (it prints `mount : input mounted READ-WRITE
-(first generation…)`), and reverts to read-only once the sidecar exists. Just
-run `run_harpia.sh` as normal and **commit the resulting `schema_registry/`**.
+(first generation…)`), and reverts to read-only once the sidecar exists.
+`schema_registry/` is **git-ignored here** — these are throwaway example
+projects, not a wire contract anyone consumes, so the sidecar is regenerated
+locally rather than committed. (In a real project it is committed source.)
 
 ## Start here
 

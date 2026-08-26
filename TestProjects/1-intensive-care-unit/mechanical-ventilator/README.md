@@ -1,14 +1,13 @@
 # Mechanical Ventilator
-
-Worked harpia example project for the **Mechanical Ventilator** from
-[`../../Projects.md`](../../Projects.md). See [`mechanical-ventilator.md`](./mechanical-ventilator.md) for the
-verbatim blueprint entry.
+*   **Main Features:** Automatically pumps respiratory gases into the lungs to manage breathing cycles.
+*   **📡 Network Outbound:** Tidal Volume (mL), Airway Pressure (cmH2O), FiO2 percentages, respiration frequency, and critical respiratory disconnect alarms.
+*   **📥 Network Inbound:** Clock synchronization packets, target ventilation profile profiles (read-only mode).
+*   **⚠️ Human Interaction Device** (Connects directly via an endotracheal intubation tube or tight-fitting breathing mask).
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`mechanical-ventilator.md`](./mechanical-ventilator.md) | the blueprint lines for this device |
 | [`ventilator.harpia`](./ventilator.harpia) | the assembled `.harpia` schema (messages `ventilation_metrics`, `disconnect_alarm`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake, modelled on `examples/consumer`) |

@@ -1,14 +1,13 @@
 # Surgical Robot Console
-
-Worked harpia example project for the **Surgical Robot Console** from
-[`../../Projects.md`](../../Projects.md). See [`surgical-robot-console.md`](./surgical-robot-console.md) for the
-verbatim blueprint entry.
+*   **Main Features:** Translates a surgeon's hand actions into tiny, precise instrument movements inside the patient's body cavity.
+*   **📡 Network Outbound:** High-definition video camera feed, robotic arm position coordinates, instrument cycle counts, and subsystem calibration status.
+*   **📥 Network Inbound:** Pre-operative 3D surgical maps and patient anatomical image overlays.
+*   **⚠️ Human Interaction Device** (Enters the body cavity physically with robotic arms to cut, hold, or cauterize tissue).
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`surgical-robot-console.md`](./surgical-robot-console.md) | the blueprint lines for this device |
 | [`surgical_robot.harpia`](./surgical_robot.harpia) | the assembled `.harpia` schema (messages `arm_telemetry`, `video_feed_status`, `calibration_status`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake, modelled on `examples/consumer`) |

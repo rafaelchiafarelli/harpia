@@ -31,26 +31,13 @@
 
 ---
 
-## Session EX.1 — Fixture restructuring
-
-- **Depends on:** nothing.
-- **Deliverable:** fold `pope` (`Include/file1.harpia`), `king`
-  (`file2.harpia`), `queenBee` (`file4.harpia`) — confirmed via grep to be
-  referenced only inside committed golden snapshots, never in any test's
-  assertion logic — into one well-commented file, in `file3.harpia`'s
-  existing style (one message, one comment naming exactly what it
-  exercises). Every `Include/` file ends up doing one clear job.
-- **Tests:** bump the six pinned `HASH` constants (`tests/CLAUDE.md`
-  names them); regenerate golden snapshots
-  (`HARPIA_UPDATE_GOLDEN=1 .venv/bin/python -m pytest tests/test_golden.py
-  tests/test_golden_java.py`); review `git diff tests/golden
-  tests/golden_java` (the point of that flag, per `tests/README.md`);
-  full `docker/run.sh pytest` green.
-- **Acceptance gate:** no test file's *assertion logic* changes — only
-  fixture content and the six hash constants. If any test actually
-  asserts on `pope`/`king`/`queenBee` by name (re-check at execution
-  time, not just via the grep done during planning), stop and reconsider
-  before deleting.
+> **Session EX.1 (Fixture restructuring) — shipped 2026-08-24**, retired from
+> this breakdown. `pope`/`king`/`queenBee` (`Include/file1/file2/file4.harpia`)
+> were folded into `queen` (`file3.harpia`); the six pinned `HASH` constants
+> were bumped and golden snapshots regenerated + reviewed. Commit `f247b6c`
+> (merged via `a8f0a14`); rationale lives in `HarpiaTest/CLAUDE.md` /
+> `tests/CLAUDE.md`. "The restructured fixture" the sessions below depend on
+> is that shipped state.
 
 ## Session EX.2 — gRPC example
 

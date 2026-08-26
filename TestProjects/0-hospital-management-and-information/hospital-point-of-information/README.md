@@ -1,10 +1,8 @@
 # Hospital Point of Information
-
-Worked harpia example project for the **Hospital Point of Information** from
-[`../../Projects.md`](../../Projects.md) (section 0 and the Connectivity Map at
-the end). See
-[`hospital-point-of-information.md`](./hospital-point-of-information.md) for the
-verbatim blueprint entry.
+*   **Main Features:** Wall-mounted networked terminal placed at ward entrances, outside patient rooms and observation halls for medical staff. Displays the current room / bed assignment, the assigned care team, and active isolation or fall precautions, and offers a visitor "call nurse" button and wayfinding directory.
+*   **📡 Network Outbound:** Touch interaction logs, nurse-call and assistance requests, alert acknowledgements, and panel health / heartbeat status.
+*   **📥 Network Inbound:** Room and bed assignment tags, assigned care-team names, isolation / precaution flags, ward announcements, and wayfinding directory updates.
+*   **Fixed infrastructure** (Wall-mounted panel; visitor-facing touch screen, no patient contact, not mobile).
 
 ## Role
 
@@ -20,7 +18,6 @@ CMake project with a single `device_app` target and **no `human_mock`**.
 
 | File | Role |
 |---|---|
-| [`hospital-point-of-information.md`](./hospital-point-of-information.md) | the blueprint lines for this component |
 | [`hospital_point_of_information.harpia`](./hospital_point_of_information.harpia) | outbound interaction (`touch_interaction`, `assistance_request`, `alert_acknowledgement`, `panel_heartbeat`) as `push`; displayed data (`room_assignment`, `precaution_flags`, `ward_announcement`) as `pull` |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake) |

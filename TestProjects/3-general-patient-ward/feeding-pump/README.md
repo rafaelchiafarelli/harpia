@@ -1,14 +1,13 @@
 # Feeding Pump
-
-Worked harpia example project for the **Feeding Pump** from
-[`../../Projects.md`](../../Projects.md). See [`feeding-pump.md`](./feeding-pump.md) for the
-verbatim blueprint entry.
+*   **Main Features:** Automatically delivers measured liquid nutrition formulas directly into a digestive tube.
+*   **📡 Network Outbound:** Formula Feeding Rate (mL/h), Total Volume Delivered, and pump occlusion or tube block alerts.
+*   **📥 Network Inbound:** Scheduled daily nutrition plan parameters.
+*   **⚠️ Human Interaction Device** (Delivers nutritional fluids directly through an inserted nasogastric or gastric feeding tube).
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`feeding-pump.md`](./feeding-pump.md) | the blueprint lines for this device |
 | [`feeding_pump.harpia`](./feeding_pump.harpia) | the assembled `.harpia` schema (messages `feeding_status`, `feeding_block_alert`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake, modelled on `examples/consumer`) |

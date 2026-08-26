@@ -1,14 +1,13 @@
 # Infusion Pump
-
-Worked harpia example project for the **Infusion Pump** from
-[`../../Projects.md`](../../Projects.md). See [`infusion-pump.md`](./infusion-pump.md) for the
-verbatim blueprint entry.
+*   **Main Features:** Controls the precise delivery rate of intravenous fluids, medications, and nutrients.
+*   **📡 Network Outbound:** Infusion Flow Rate (mL/h), Total Volume Infused (mL), Drug Library Name selection, and safety alerts (Air-In-Line, Occlusion, Empty Bag).
+*   **📥 Network Inbound:** Verified electronic prescriptions matching current medication orders.
+*   **⚠️ Human Interaction Device** (Connects directly via IV line needles and catheters inserted into the patient's vein).
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`infusion-pump.md`](./infusion-pump.md) | the blueprint lines for this device |
 | [`infusion_pump.harpia`](./infusion_pump.harpia) | the assembled `.harpia` schema (messages `infusion_status`, `infusion_safety_alert`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake, modelled on `examples/consumer`) |

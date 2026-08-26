@@ -1,14 +1,14 @@
 # Electronic Hospital Bed
-
-Worked harpia example project for the **Electronic Hospital Bed** from
-[`../../Projects.md`](../../Projects.md). See [`electronic-hospital-bed.md`](./electronic-hospital-bed.md) for the
-verbatim blueprint entry.
+*   **Main Features:** Motorized platform designed for patient safety, pressure redistribution, and physical positioning.
+*   **📡 Network Outbound:** Bed Elevation Angle (Degrees), Side-Rail Position Flags (Up/Down), integrated scale weights, and active Patient Bed-Exit Alerts.
+*   **📥 Network Inbound:** Remote bed-lock reset commands from the nurses' station.
+*   **⚠️ Human Interaction Device** (The patient lies directly on the mattress surface; integrated pressure pads monitor movement).
+*   **Mobile device**
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`electronic-hospital-bed.md`](./electronic-hospital-bed.md) | the blueprint lines for this device |
 | [`hospital_bed.harpia`](./hospital_bed.harpia) | the assembled `.harpia` schema (messages `bed_status`, `bed_exit_alert`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `settings.gradle` + `build.gradle` + `gradle.properties` (Android app module, AGP 8.2.2, modelled on `examples/android_consumer`) |

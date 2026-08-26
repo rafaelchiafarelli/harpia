@@ -1,14 +1,14 @@
 # Bladder Scanner
-
-Worked harpia example project for the **Bladder Scanner** from
-[`../../Projects.md`](../../Projects.md). See [`bladder-scanner.md`](./bladder-scanner.md) for the
-verbatim blueprint entry.
+*   **Main Features:** A portable ultrasound tool used to scan the pelvic area and measure urine volume inside the bladder non-invasively.
+*   **📡 Network Outbound:** Calculated Total Bladder Fluid Volume (mL), 3D structural outline thumbnails, and automated measurement quality ratings.
+*   **📥 Network Inbound:** Assigned nurse login IDs, active patient record match tags.
+*   **⚠️ Human Interaction Device** (An ultrasound wand is physically pressed against the patient's lower abdomen skin layer).
+*   **Mobile device**
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`bladder-scanner.md`](./bladder-scanner.md) | the blueprint lines for this device |
 | [`bladder_scanner.harpia`](./bladder_scanner.harpia) | the assembled `.harpia` schema (messages `bladder_scan_result`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `settings.gradle` + `build.gradle` + `gradle.properties` (Android app module, AGP 8.2.2, modelled on `examples/android_consumer`) |

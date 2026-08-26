@@ -1,14 +1,14 @@
 # Anesthesia Machine
-
-Worked harpia example project for the **Anesthesia Machine** from
-[`../../Projects.md`](../../Projects.md). See [`anesthesia-machine.md`](./anesthesia-machine.md) for the
-verbatim blueprint entry.
+*   **Main Features:** Delivers a strict, measured mix of medical vapors and oxygen to maintain patient unconsciousness.
+*   **📡 Network Outbound:** Agent Gas Concentrations (Isoflurane, Sevoflurane), Oxygen mix levels, agent depletion warnings, and automated ventilation loops.
+*   **📥 Network Inbound:** Pre-surgical checklist logs, active case validation records.
+*   **⚠️ Human Interaction Device** (Connects directly via a dedicated surgical breathing circuit and closed gas mask).
+*   **Mobile device**
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`anesthesia-machine.md`](./anesthesia-machine.md) | the blueprint lines for this device |
 | [`anesthesia.harpia`](./anesthesia.harpia) | the assembled `.harpia` schema (messages `agent_delivery`, `agent_depletion_warning`, `ventilation_loop`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `settings.gradle` + `build.gradle` + `gradle.properties` (Android app module, AGP 8.2.2, modelled on `examples/android_consumer`) |

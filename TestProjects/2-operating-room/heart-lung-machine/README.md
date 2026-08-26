@@ -1,14 +1,14 @@
 # Heart-Lung Machine
+*   **Main Features:** Temporarily bypasses and takes over the physical pumping and oxygenation work of the heart and lungs during open surgery.
+*   **📡 Network Outbound:** Extracorporeal Blood Flow Rate (L/min), Blood Temperature (°C), Oxygenation levels, and system safety pressures.
+*   **📥 Network Inbound:** Surgical procedural timestamp markers.
+*   **⚠️ Human Interaction Device** (Connects directly via large plastic tubes inserted into the patient’s primary blood vessels).
 
-Worked harpia example project for the **Heart-Lung Machine** from
-[`../../Projects.md`](../../Projects.md). See [`heart-lung-machine.md`](./heart-lung-machine.md) for the
-verbatim blueprint entry.
 
 ## What is here
 
 | File | Role |
 |---|---|
-| [`heart-lung-machine.md`](./heart-lung-machine.md) | the blueprint lines for this device |
 | [`heart_lung.harpia`](./heart_lung.harpia) | the assembled `.harpia` schema (messages `perfusion_metrics`, `perfusion_safety_alarm`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
 | build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake, modelled on `examples/consumer`) |
