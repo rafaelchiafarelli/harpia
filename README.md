@@ -31,85 +31,67 @@ client/server demo (ZMQ). See `tests/` for what is verified end to end.
 
 ### Known gaps
 
-Within the pipeline above (stages 0–14, C++ only):
-- **Corrected 2026-08-23** (this bullet previously called the second half
-  below "still aspirational, not started" — that was stale; both halves
-  shipped 2026-08-19). The "continuable process" gap had two halves:
-  regeneration being wasteful (redoing unchanged work), and true
-  interrupt/crash recovery (resuming a *killed mid-run* generate, not
-  just skipping a no-op regenerate). Both are closed by the same
-  mechanism, not two separate ones: every generated file goes through
-  `Util.util.write_if_different`/`copy_if_different` (content-compared,
-  atomic same-directory temp-file + `os.replace`), plus
-  `prune_stale_outputs` for renamed/removed messages — see `USAGE.md`
-  §11, `util/CLAUDE.md`. An unchanged file keeps its mtime (a downstream
-  `cmake --build` skips recompiling it — the wasteful-regen half); a
-  process killed mid-write can never leave a truncated file, and rerunning
-  the whole generate after a kill just reproduces the same content for
-  already-correct files and completes the rest — no separate resume logic
-  needed (the crash-recovery half). The original design (a dual sha256
-  registry + start/finish markers, `harpia_medical_master_plan.md`'s
-  Track I) was deliberately superseded by this simpler mechanism, not
-  built as originally scoped.
+Within the pipeline (stages 0–14, C++): none currently tracked. The
+"continuable process" gap (wasteful regeneration + interrupt/crash
+recovery) closed 2026-08-19 — every generated file goes through
+`Util.util.write_if_different` / `copy_if_different` (content-compared,
+atomic same-directory temp-file + `os.replace`), plus `prune_stale_outputs`
+for renamed/removed messages; see `USAGE.md` §11, `util/CLAUDE.md`.
 
 Beyond the pipeline (the "## objective:"-onward spec section below is the
 design vision, not current status):
-- No YAML serialization (JSON and XML adapters exist; spec calls for
-  YAML-style `toString` too).
-- No Doxygen generation for the emitted C++ yet — still a real gap in
-  today's output. Plumbing + ongoing discipline now folded into
-  Foundation's F6 + Ground Rule 6 (2026-08-23, shipped and merged to `dev`;
-  see `initiatives/medical_devices/epics/handoff-document.md`) rather than
-  staying its own deferred track; see
-  `initiatives/doxygen-generation/doxygen-generation.md` for the pitfall-table reference that
-  discipline builds from.
-- REST/SOAP (Crow's `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC
-  (`grpc::SslServerCredentials`) are TLS-capable and documented (`USAGE.md`
-  §9); harpia never generated their server-construction code to begin with
-  (that's caller-owned), so enabling TLS is a caller-side build flag, not a
-  generator change — demonstrated in `examples/consumer -DUSE_TLS=ON`. ZMQ
-  now has **CURVE encryption** (encryption-only, no ZAP client-key
-  allowlist — apt's libzmq is libsodium-backed and CURVE-capable, confirmed
-  via `zmq_has("curve")`), a real generated-code change (not just a build
-  flag, unlike TLS above) since ZMQ's `bind`/`connect` happen inside the
-  generated sender/receiver classes themselves — see `USAGE.md` §10. ZMQ
-  still has no credential gate of its own (unlike REST/SOAP/gRPC's
-  `X-User`/`X-Pswd`), so this is encryption only, not access control.
-  Windows' vcpkg `zeromq` port has the `curve`+`sodium` features requested
-  but is not yet build-verified there (Linux/Docker only so far).
-- No multi-tier RBAC — every credential-gated surface checks a single flat
-  `X-User`/`X-Pswd`-style secret, not the admin/main/guest roles the spec
-  describes.
-- **Java is a second generation target, fully shipped** (stages 8–14
-  equivalents: DB×2 dialects, JSON, XML, REST, SOAP, ZMQ core+CURVE,
-  generated JUnit tests, Gradle packaging — real code, real Python-side
-  tests). The Docker image carries a JDK 17 + Gradle 8.5 toolchain, so the
-  JDK-gated Java-side tests run against a real JVM here too, not just
-  correctly-by-inspection. Node/Rust/Python are still spec-only.
-  Android consumption (message classes, gRPC client, ZMQ client) is
-  **verified for real, on-device**: `docker/run_android_emulator_tests.sh`
-  boots a headless, `/dev/kvm`-accelerated emulator and runs all three
-  instrumented test classes against it — 4/4 pass. This found and fixed
-  one real ART-incompatibility bug (`java.lang.ProcessHandle`, a JDK9+ API
-  absent from Android, used by the ZMQ runtime's sender-id generation) —
-  see `examples/android_consumer/README.md` for the full account.
-- **Windows as a generated-code target** — the generator (`main.py`) still
-  only runs via Docker/Linux, but the *generated* C++ project now builds
-  and runs natively on Windows (MSVC + vcpkg), verified for the ZMQ
-  server/client demo, the REST/JSON demo (`examples/consumer`, including
-  `-DUSE_TLS=ON`), and the Stage 14 generated `ctest` suite (`10/10`
-  passing, including its REST/SOAP HTTP test client now ported to
-  Winsock2) — see `USAGE.md` §12. Not yet covered (both: vcpkg feature
-  added, build unverified): the PostgreSQL backend on Windows, and
-  `-DUSE_ZMQ_CURVE=ON`.
-- No compliance profile for regulated (e.g. medical-device) deployments —
-  no `ComplianceContext`, no PHI field tagging, no message-level
-  criticality classification, no key management/mTLS/RBAC/audit-trail
-  generation. Foundation (F1-F6) is done and merged to `dev`; the five
-  parallel compliance threads it unblocks are not started. Scoped as a
-  large, multi-session plan at `initiatives/medical_devices/` (see
-  `harpia_medical_master_plan.md` for the dependency graph across sessions
-  and `initiatives/medical_devices/epics/handoff-document.md` for what
+- **No YAML serialization.** JSON and XML adapters exist; the spec also
+  calls for a YAML-style `toString`.
+- **Doxygen generation — plumbing ✅, coverage ongoing.** `Assets/Doxyfile`
+  + the CMake `doxygen` target + `Doxygen/mainpage.py` (USAGE.md §4/§6/§11
+  extraction) shipped as Foundation F6 (merged to `dev` 2026-08-23). What
+  remains is incremental: each track adds consumer-facing doc-comments to
+  its own templates as it touches them (Ground Rule 6) — see
+  `initiatives/doxygen-generation/doxygen-generation.md` for the
+  pitfall-table reference that discipline builds from.
+- **Transport encryption — ✅ done, two residuals.** REST/SOAP (Crow
+  `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC (`grpc::SslServerCredentials`)
+  are TLS-capable via a caller-side build flag (server construction is
+  caller-owned, not generated) — demonstrated in
+  `examples/consumer -DUSE_TLS=ON`, `USAGE.md` §9. ZMQ has generated CURVE
+  encryption (`bind`/`connect` live inside the generated sender/receiver
+  classes, so this is a real generated-code change), `USAGE.md` §10.
+  Residuals: ZMQ CURVE is encryption only, no credential gate of its own
+  (unlike REST/SOAP/gRPC's `X-User`/`X-Pswd`); and the Windows vcpkg
+  `zeromq` `curve`+`sodium` build is unverified (Linux/Docker only so far).
+- **No multi-tier RBAC.** Every credential-gated surface checks a single
+  flat `X-User`/`X-Pswd`-style secret, not the admin/main/guest roles the
+  spec describes.
+- **Additional language targets.** Java is a **fully shipped** second
+  target (stages 8–14 equivalents: DB ×2 dialects, JSON, XML, REST, SOAP,
+  ZMQ core+CURVE, generated JUnit tests, Gradle packaging; the Docker image
+  carries a JDK 17 + Gradle 8.5 toolchain so its JDK-gated tests run
+  against a real JVM). Android consumption (message classes, gRPC client,
+  ZMQ client) is verified on-device — `docker/run_android_emulator_tests.sh`
+  boots a `/dev/kvm`-accelerated emulator, 4/4 instrumented tests pass;
+  this found and fixed one real ART-incompatibility bug
+  (`java.lang.ProcessHandle`, a JDK9+ API absent from Android), see
+  `examples/android_consumer/README.md`. Node/Rust/Python remain spec-only,
+  not started.
+- **Windows as a generated-code target — ✅ mostly.** The generator
+  (`main.py`) still runs only via Docker/Linux, but the *generated* C++
+  project builds and runs natively on Windows (MSVC + vcpkg): the ZMQ
+  server/client demo, the REST/JSON demo (`examples/consumer`, incl.
+  `-DUSE_TLS=ON`), and the Stage 14 generated `ctest` suite (10/10, its
+  REST/SOAP HTTP test client ported to Winsock2) — `USAGE.md` §12.
+  Unverified on Windows (vcpkg feature added, build not run): the
+  PostgreSQL backend, and `-DUSE_ZMQ_CURVE=ON`.
+- **Compliance implementation threads — Foundation ✅, threads not started.**
+  Foundation F1–F6 shipped and merged to `dev`: `ComplianceContext`
+  (`Compliance/context.py`; `project.harpia.yaml` → risk-class / topology /
+  phi-handling), the `phi` field modifier (lexer + `message/Variables.py`
+  `is_phi`), the audit scaffold (`Compliance/audit_common.py`,
+  `Compliance/runtime/`), and the F6 Doxygen plumbing above. The five
+  parallel threads it unblocks — DB field encryption, audit-on-access,
+  multi-tier RBAC, key management, FHIR facade — are **not started**. Scoped
+  at `initiatives/medical_devices/` (see `harpia_medical_master_plan.md` for
+  the dependency graph and
+  `initiatives/medical_devices/epics/handoff-document.md` for what
   Foundation concretely shipped).
 
 **Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the

@@ -75,8 +75,9 @@ transports — shipped 2026-08-22/23 and was removed 2026-08-23; its
 design rationale is now distributed across `message/CLAUDE.md`,
 `Capability/CLAUDE.md`, and the three `*CapabilityAdapter/CLAUDE.md`
 files it fed. The one unrelated finding it surfaced — a `third_party/asio`
-vendoring gap — wasn't part of the plan and lives on in
-`NEXT_SESSION.md` as its own open item. `multi-language-targets/`
+vendoring gap — wasn't part of the plan and was resolved 2026-08-23 by
+re-vendoring the missing headers (see `HttpCapabilityAdapter/CLAUDE.md`).
+`multi-language-targets/`
 (Java as a full generation target, symmetric with C++, plus the
 motivating on-device Android consumption verification) shipped in full —
 J.1–J.27 — 2026-08-25 and was removed the same day; its design rationale
@@ -90,11 +91,8 @@ including the one real ART-incompatibility bug it found).)
 
 ## Backlog
 
-Open items not yet big enough for their own scoping doc. Moved here from
-`NEXT_SESSION.md`, which is a short-lived handoff note (what just happened,
-what to check first) rather than a place to accumulate a durable backlog.
-Add to this list piecemeal as items get scoped or come up — no need to do it
-all at once.
+Open items not yet big enough for their own scoping doc. Add to this list
+piecemeal as items get scoped or come up — no need to do it all at once.
 
 - **Python as language #3** (after Java, which shipped 2026-08-25 — see
   the "Finished plans" note above). Selection history: Python was the
