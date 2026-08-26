@@ -63,10 +63,10 @@ int main() {
         dump("store_forward_replay", m);
     }
     {
-        ::uplink_status m;
+        ::integrator_link_status m;
         m.set_ward_id(ward_id);
         m.set_buffered_records(0);
-        dump("uplink_status", m);
+        dump("integrator_link_status", m);
     }
 
     std::cout << "Ward Information Integrator (ICU) device app: done" << std::endl;

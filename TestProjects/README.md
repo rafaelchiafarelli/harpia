@@ -76,21 +76,12 @@ Each project `README.md` spells out the exact commands for that project, in
 both the host-toolchain and all-in-Docker forms.
 
 **First generation of a brand-new project:** the pipeline writes a
-`schema_registry/` sidecar next to the `.harpia` on the first run, which needs
-the project folder writable. `run_harpia.sh` mounts the input folder read-only,
-so the very first run must instead go through `docker/run.sh` (whole repo
-mounted read-write) with the env vars set directly:
-
-```sh
-docker run --rm -i -u "$(id -u):$(id -g)" -v "$PWD":/harpia -w /harpia \
-  -e HARPIA_INPUT_FILE=/harpia/TestProjects/<room>/<proj>/<name>.harpia \
-  -e HARPIA_INCLUDE_FOLDER=/harpia/TestProjects/<room>/<proj>/Include \
-  -e HARPIA_OUTPUT_DIR=/harpia/TestProjects/_gen/<proj> \
-  harpia-build bash -c 'python3 main.py'
-```
-
-Commit the resulting `schema_registry/`; after that `run_harpia.sh` works
-normally (field numbers are frozen and only read).
+`schema_registry/` sidecar next to the `.harpia` on the first run (frozen wire
+numbers), which needs the project folder writable. `run_harpia.sh` detects this
+— when the input folder has no `schema_registry/` yet it mounts the input
+**read-write** for that one run (it prints `mount : input mounted READ-WRITE
+(first generation…)`), and reverts to read-only once the sidecar exists. Just
+run `run_harpia.sh` as normal and **commit the resulting `schema_registry/`**.
 
 ## Start here
 

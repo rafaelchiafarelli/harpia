@@ -21,7 +21,7 @@ It is **Fixed infrastructure**, so it is a C++ / CMake project with a single
 | File | Role |
 |---|---|
 | [`ward-information-integrator.md`](./ward-information-integrator.md) | the blueprint lines for this component |
-| [`ward_information_integrator.harpia`](./ward_information_integrator.harpia) | uplink messages to the HMS (`ward_telemetry_batch`, `ward_alarm_relay`, `ward_audit_relay`, `store_forward_replay`, `uplink_status`) as `push`; cached downlink data (`nutrition_plan_cache` + the `common.harpia` types) as `pull` |
+| [`ward_information_integrator.harpia`](./ward_information_integrator.harpia) | uplink messages to the HMS (`ward_telemetry_batch`, `ward_alarm_relay`, `ward_audit_relay`, `store_forward_replay`, `integrator_link_status`) as `push`; cached downlink data (`nutrition_plan_cache` + the `common.harpia` types) as `pull` |
 | `Include/common.harpia` | shared inbound types — here they model the HMS reference data the hub caches for redistribution |
 | build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake) |
 | device code | `src/main.cpp` (builds each uplink message, prints it as JSON) |

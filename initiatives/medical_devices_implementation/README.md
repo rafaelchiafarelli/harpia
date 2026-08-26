@@ -40,16 +40,18 @@ and rooms 2–4 are not started.
 
 2026-08-26: the 5 facility-infrastructure scaffolds (HMS, Point of Information,
 and the ICU / OR / General-Ward integrators) were added and each generates +
-builds + runs its `device_app` end-to-end (C++). Their `device_app`s only
-exercise the message-class + JSON surface so far — the real hub wiring (CRUDL
-DAO, REST/gRPC/ZMQ north/south interfaces) is not started.
+builds + runs its `device_app` end-to-end (C++) straight through
+`run_harpia.sh`. Their `device_app`s only exercise the message-class + JSON
+surface so far — the real hub wiring (CRUDL DAO, REST/gRPC/ZMQ north/south
+interfaces) is not started.
 
-Note: on a component's **first** generation the pipeline writes a
-`schema_registry/` sidecar next to the `.harpia`, and it needs the project
-folder writable — `run_harpia.sh` mounts the input read-only, so the first run
-must go through `docker/run.sh` (repo mounted read-write) with
-`HARPIA_INPUT_FILE` / `HARPIA_INCLUDE_FOLDER` / `HARPIA_OUTPUT_DIR` set. After
-`schema_registry/` is committed, `run_harpia.sh` works normally.
+Two generator bugs surfaced by this scaffolding were fixed on `dev` (commit
+`045123f`) and merged into this branch: the lexer no longer mis-splits
+identifiers that start with a type keyword (`int`, `string`, …), and
+`run_harpia.sh` now auto-mounts the input folder read-write for a brand-new
+project's first generation (when it has no `schema_registry/` yet). Nothing
+special is needed anymore — run `run_harpia.sh` and commit the resulting
+`schema_registry/`.
 
 ## How each device is built
 

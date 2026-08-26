@@ -5,7 +5,7 @@ import "common.harpia";
 // caches for local redistribution arrives via common.harpia plus the case
 // validation cache below.
 
-enum uplink_state {
+enum integrator_link_state {
     unknown = 0;
     online;
     degraded;
@@ -46,11 +46,11 @@ push event message store_forward_replay {
 } store_forward_replay_table;
 
 // Current uplink state of this hub.
-push event message uplink_status {
+push event message integrator_link_status {
     required string ward_id;
-    uplink_state state;
+    integrator_link_state state;
     required int buffered_records;
-} uplink_status_table;
+} integrator_link_status_table;
 
 // Surgical case validation record cached from the HMS for redistribution to
 // OR devices.
