@@ -8,6 +8,15 @@
 - `JavaXmlAdapter.py` — `Process()` copies (`copy_if_different`) `runtime/HarpiaXml.java` in. No per-message loop.
 - `runtime/HarpiaXml.java` — hand-written (NOT generated), copied verbatim. `toXml(Message)` / `fromXml(String, Message.Builder)` (J.11), walking any message via `Descriptors.FieldDescriptor` + `Message.getField(fd)`/`hasField(fd)`/`getRepeatedField(fd, k)`/`getRepeatedFieldCount(fd)` — handles nested messages, repeated fields and enums generically, no per-message/per-field generated code, same as the C++ runtime. Uses `javax.xml`'s DOM (`DocumentBuilderFactory`/`Document`/`Transformer`) — **JDK-builtin, zero extra dependency**, genuinely cheaper than C++'s story (which had to vendor `tinyxml2`, since protobuf has no built-in XML support in either language). DOM's own serializer handles XML-escaping automatically (`&`/`<`/`>`/etc. in text content) — no hand-rolled `escape()` helper needed, unlike the C++ runtime's own `detail::escape()`.
 
+## Depends on the full protobuf-java runtime, not `protobuf-javalite`
+This runtime's whole approach (walking `Descriptors.FieldDescriptor` via
+reflection) is impossible against `javalite`-generated classes, which
+have no reflection API at all. See `JavaJsonAdapter/CLAUDE.md`'s "Why the
+full protobuf-java runtime" section for the full decision record (also
+covers JSON, which depends on the same choice) — resolved in favor of the
+full runtime, confirmed against a real Android build's DEX/multidex
+behavior.
+
 ## Why no per-message wrapper (same reasoning as JavaJsonAdapter)
 C++'s `XmlAdapter` still emits a thin per-message wrapper header (`<name>_xml.h`) around the shared `harpia_xml.h` runtime, explicitly "so XML mirrors the JSON adapter shape" (`XmlAdapter/CLAUDE.md`) — a typed-call ergonomics choice, not a technical requirement of the underlying reflection walk (which is already generic over any `google::protobuf::Message`). In Java, every generated message class already implements the common `Message` interface, so `HarpiaXml.toXml(msg)`/`HarpiaXml.fromXml(xml, builder)` already work polymorphically for any message type — see `JavaJsonAdapter/CLAUDE.md` for the fuller version of this argument, first made there for JSON.
 

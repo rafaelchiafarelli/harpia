@@ -50,15 +50,21 @@
 #                                              `./gradlew assembleRelease` for
 #                                              the R8/DEX-count check
 #                                              protobuf-runtime-variant-decision.md
-#                                              (J.24) calls for. Does NOT include
-#                                              an emulator or device: the three
-#                                              `connectedAndroidTest` runs
-#                                              (J.25-J.27) still need a real
-#                                              device/emulator reachable from a
-#                                              container, which needs hardware
-#                                              virtualization (/dev/kvm) wired in
-#                                              separately at `docker run` time,
-#                                              not baked into this image.
+#                                              (J.24) calls for.
+#   - Android SDK emulator + system-images;android-34;default;x86_64
+#                                            : lets docker/run_android_emulator_tests.sh
+#                                              boot a headless emulator and run the
+#                                              three `connectedAndroidTest`s
+#                                              (J.25-J.27). Baked in at build time
+#                                              (as root, like the rest of the SDK)
+#                                              rather than sdkmanager-installed at
+#                                              `docker run` time, because
+#                                              /opt/android-sdk is root-owned and
+#                                              run.sh's containers run as the host
+#                                              UID -- only hardware virtualization
+#                                              access (/dev/kvm + the kvm group) is
+#                                              wired in separately at `docker run`
+#                                              time, not the SDK packages.
 #
 # The repository is mounted at /harpia at run time (see docker/run.sh), so edits
 # on the host are picked up without rebuilding the image.
@@ -127,9 +133,10 @@ RUN mkdir -p "${ANDROID_SDK_ROOT}/cmdline-tools" \
     && unzip -q /tmp/cmdline-tools.zip -d "${ANDROID_SDK_ROOT}/cmdline-tools" \
     && mv "${ANDROID_SDK_ROOT}/cmdline-tools/cmdline-tools" "${ANDROID_SDK_ROOT}/cmdline-tools/latest" \
     && rm /tmp/cmdline-tools.zip
-ENV PATH="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${PATH}"
+ENV PATH="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/emulator:${PATH}"
 RUN yes | sdkmanager --licenses >/dev/null \
-    && sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" >/dev/null
+    && sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" \
+        "emulator" "system-images;android-34;default;x86_64" >/dev/null
 
 WORKDIR /harpia
 

@@ -38,18 +38,28 @@ public final class HarpiaZmq {
     private static final AtomicLong RUNTIME_COUNTER = new AtomicLong(0);
     private static final SecureRandom RANDOM = new SecureRandom();
 
+    // A random-per-JVM-instance stand-in for a real OS pid, established once
+    // at class-init time. `java.lang.ProcessHandle` (the obvious JDK9+
+    // choice) is unavailable on Android's ART runtime (confirmed by
+    // ZmqClientAndroidTest's connectedAndroidTest run -- NoClassDefFoundError
+    // resolving java.lang.ProcessHandle), and this class ships to both the
+    // desktop/server target and Android, so it can't reference it. A fresh
+    // 64-bit random value distinguishes processes at least as well as a real
+    // pid would (better, even -- OS pids get reused over a host's lifetime,
+    // this never does) for this field's actual purpose below.
+    private static final long PROCESS_ID = RANDOM.nextLong();
+
     // Runtime-unique sender id for many-to-* (push/pushpull) publishers,
     // where a shared compile-time id would make every "many" sender
     // indistinguishable (process.md 1.3.1.1). Mirrors the C++ runtime's
-    // runtime_origin_id(): pid + a per-process monotonic counter + random
-    // bits, so concurrent senders across processes and within one process
-    // never collide -- no coordinating broker/service needed. Called fresh
-    // per sender/publisher construction, not cached.
+    // runtime_origin_id(): a process-unique id + a per-process monotonic
+    // counter + random bits, so concurrent senders across processes and
+    // within one process never collide -- no coordinating broker/service
+    // needed. Called fresh per sender/publisher construction, not cached.
     public static String runtimeOriginId() {
-        long pid = ProcessHandle.current().pid();
         long seq = RUNTIME_COUNTER.getAndIncrement();
         long rand = RANDOM.nextLong();
-        return pid + "-" + seq + "-" + Long.toHexString(rand);
+        return PROCESS_ID + "-" + seq + "-" + Long.toHexString(rand);
     }
 
     // A generated keypair, raw 32-byte keys (index 0 = public, index 1 =

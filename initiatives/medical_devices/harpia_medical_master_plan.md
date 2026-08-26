@@ -111,7 +111,7 @@ are worked in the same session — split across sessions only if the
 | L | Versioning/git integration (per-project fork tracking) | `ComplianceReport/` (Track M's module — decided 2026-08-23, was `Util/`/`main.py`) | F1, Track M's Session M.1 | **Decided 2026-08-23: folded into Track M's `ComplianceReport/`/SBOM output instead of a new registry/sidecar (Track I doesn't exist as a task). Coordinate with Track M — L waits on M.1.** |
 | M | Process artifacts: SBOM, traceability matrix, jurisdiction-selected risk-file/doc templates (fda/eu_mdr/anvisa) — same underlying evidence, different paperwork shell | new `ComplianceReport/` module | F1 | Benefits from I landing first but doesn't hard-block on it. |
 | N | Static/fuzz analysis CI (cppcheck/clang-tidy CERT ruleset on generated output, fuzz harness for JSON/XML/SOAP parsers) | `tests/`, CI config only | none | Pure tooling, safe anywhere, anytime. |
-| J | Multi-language codegen (**moved 2026-08-23 to `initiatives/multi-language-targets/`** — not medical-devices-specific; see the detailed contract below for the pointer) | new per-language emitter dirs, mirroring `Database/`, `JsonAdapter/`, etc. | none (base build); F1 only for an optional compliance-aware layer | none — prove the plugin-style split with one language before replicating to a second/third. |
+| J | ~~Multi-language codegen (Java)~~ **DONE 2026-08-25 — see the detailed contract below.** Not a Session 4 task. | n/a | n/a | n/a |
 
 ---
 
@@ -839,34 +839,30 @@ Original scoping (do not build):
 
 ### J — Multi-language codegen (first target language)
 
-**Restructured 2026-08-23: this is no longer a self-contained contract.**
-Multi-language codegen isn't medical-devices-specific work — it moved to
-its own standalone plan,
-[`initiatives/multi-language-targets/`](../multi-language-targets/thread-1-java-target/README.md)
-(27-session breakdown, one deliverable + tests each, at
-`thread-1-java-target/histories/track-j-java-target.md`). The original
-`plans/java-target.md` and `plans/multi-language-targets.md` files that
-used to be cited throughout this contract were already **deleted** before
-this rename — their
-content merged into that standalone plan, not lost. See that plan's
-`README.md` §4 for the full Python→Java selection history (Java picked
-2026-08-22 over the original Python recommendation, for a concrete
-business reason: an existing Android fleet).
+**Shipped 2026-08-25, and no longer medical-devices-specific work.**
+Restructured 2026-08-23 into its own standalone plan,
+`initiatives/multi-language-targets/` (Java as a full generation target,
+symmetric with C++, plus on-device Android consumption verification —
+27 sessions). That plan has since shipped in full and, per this repo's
+convention, been **removed from `initiatives/`** — its design rationale
+now lives in the code's own `CLAUDE.md` files (`GradleAdapter/CLAUDE.md`
+for the build-time-codegen decision, `JavaJsonAdapter/CLAUDE.md` for the
+full-protobuf-runtime-vs-`javalite` decision, `JavaZmqAdapter/CLAUDE.md`
+for the JeroMQ/CURVE story) and in `examples/android_consumer/README.md`
+for the Android verification account. Selection history, preserved here
+since it explains sequencing rather than implementation: Python was the
+original per-stage-cost recommendation (2026-08-11), but a concrete
+business need — an existing Android fleet wanting harpia-generated Java
+code — overrode that in a 2026-08-22 addendum. Python is still next in
+line as language #3, not dropped.
 
-- **Preconditions:** none from this plan for the base build
-  (see the standalone plan's own Receives section). **Conditional:** F1
-  merged, only if/when this fleet's Java target needs to be
-  compliance-aware (`risk_class`/`phi`-respecting like the C++ target) —
-  see
-  `multi-language-targets/thread-1-java-target/histories/track-j-java-target.md`'s
-  own Receives section for that not-yet-scoped layer (there's no separate
-  thin-pointer file under this plan for it).
-- **Deliverables/Guarantees/Out of scope:** all in the standalone plan
-  now — don't duplicate here, it will drift the same way this contract
-  itself went stale after the Python→Java pivot.
-- **Tests:**
-  - Unit: each emitter produces code that compiles/type-checks in the
-    target language.
-  - Integration: full generate → build → run demo, target language.
-  - Acceptance gate: establishes its own golden-snapshot baseline (first
-    of its kind — nothing prior to diff against).
+- **Conditional follow-on, not yet scoped:** if/when this fleet's shipped
+  Java target needs to be compliance-aware (`risk_class`/`phi`-respecting
+  like the C++ target, gated on F1), that's a new, separate contract to
+  write when it's actually needed — nothing here to link to yet.
+- **Tests (as delivered):** each stage's generated Java code
+  compiles/type-checks; a full generate → build → run demo passed for the
+  desktop/server shape; the Android on-device acceptance gate (all four
+  `connectedAndroidTest` methods across message classes, JSON, gRPC
+  client, and JeroMQ ZMQ) passed for real on a headless emulator — see
+  `examples/android_consumer/README.md`'s verification-status section.

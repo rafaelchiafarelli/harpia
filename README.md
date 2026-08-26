@@ -80,21 +80,19 @@ design vision, not current status):
 - No multi-tier RBAC — every credential-gated surface checks a single flat
   `X-User`/`X-Pswd`-style secret, not the admin/main/guest roles the spec
   describes.
-- **Java is a second generation target, mostly shipped** (stages 8–14
+- **Java is a second generation target, fully shipped** (stages 8–14
   equivalents: DB×2 dialects, JSON, XML, REST, SOAP, ZMQ core+CURVE,
   generated JUnit tests, Gradle packaging — real code, real Python-side
-  tests). The Docker image now carries a JDK 17 + Gradle 8.5 toolchain, so
-  the JDK-gated Java-side tests run against a real JVM here too, not just
+  tests). The Docker image carries a JDK 17 + Gradle 8.5 toolchain, so the
+  JDK-gated Java-side tests run against a real JVM here too, not just
   correctly-by-inspection. Node/Rust/Python are still spec-only.
-  Android-consumption (message classes, gRPC client, ZMQ client) now
-  **compiles for real** against a real Android SDK (also added to the
-  Docker image: cmdline-tools, `platforms;android-34`,
-  `build-tools;34.0.0`) — `assembleDebugAndroidTest` and `assembleRelease`
-  (R8, multidex confirmed clean) both pass. Still open: none of the three
-  instrumented tests have run on an actual device/emulator (needs
-  `/dev/kvm` passthrough into the container, untested) — see
-  `initiatives/multi-language-targets/thread-1-java-target/README.md` and
-  `examples/android_consumer/README.md`.
+  Android consumption (message classes, gRPC client, ZMQ client) is
+  **verified for real, on-device**: `docker/run_android_emulator_tests.sh`
+  boots a headless, `/dev/kvm`-accelerated emulator and runs all three
+  instrumented test classes against it — 4/4 pass. This found and fixed
+  one real ART-incompatibility bug (`java.lang.ProcessHandle`, a JDK9+ API
+  absent from Android, used by the ZMQ runtime's sender-id generation) —
+  see `examples/android_consumer/README.md` for the full account.
 - **Windows as a generated-code target** — the generator (`main.py`) still
   only runs via Docker/Linux, but the *generated* C++ project now builds
   and runs natively on Windows (MSVC + vcpkg), verified for the ZMQ

@@ -26,11 +26,11 @@ read all the initiatives, epics and
    session breakdowns inside each track file (O.1–O.5, etc.) are the
    right grain and don't need rework, just re-parenting: they become that
    Thread's own sessions directly, no intermediate Track layer.
-2. **`multi-language-targets/thread-1-java-target/histories/track-j-java-target.md`**
-   has the same extra layer — a "thread" folder wrapping a single "track"
-   file that holds all 27 sessions. Should collapse: the Java work is one
-   Thread (a feature of the `multi-language-targets` epic), and J.1–J.27
-   are that Thread's sessions directly.
+2. ~~`multi-language-targets/thread-1-java-target/histories/track-j-java-target.md`
+   has the same extra layer~~ **moot as of 2026-08-25** — the Java thread
+   shipped in full (J.1–J.27) and was removed from `initiatives/`
+   entirely per this repo's finished-plans convention, so there's no
+   longer a structure to collapse here.
 3. **`doxygen-generation.md` was folded into Foundation's F6 + Ground Rule 6**
    (the Foundation thread itself has since shipped, merged to `dev`, and
    been removed — see `medical_devices/epics/handoff-document.md`) instead
@@ -53,13 +53,13 @@ when doing the actual restructure, don't guess it into this TODO.
 
 **Nothing in the repo has been changed to fix this yet** — this section
 is only the flag, per explicit instruction. The existing
-`medical_devices/epics/thread-*/` and `multi-language-targets/`
-folders (and the doxygen-generation fold into Foundation) are still in
-their 2026-08-23 shape below and need the re-parenting described above.
+`medical_devices/epics/thread-*/` folders (and the doxygen-generation
+fold into Foundation) are still in their 2026-08-23 shape below and need
+the re-parenting described above. (Item 2's `multi-language-targets/`
+case is now moot — see above.)
 
 | Doc | Status |
 |---|---|
-| [multi-language-targets/](multi-language-targets/thread-1-java-target/README.md) | **J.1–J.24 shipped 2026-08-23** (proto/gRPC, JSON, DB×2 dialects, XML, REST, SOAP, ZMQ, tests+packaging) — real code, real Python-side tests, matching commits; shipped design lives in each module's own `CLAUDE.md`, not preserved as history files. Only J.25–J.27 (Android consumption verification) remain open — written, never run, no Android SDK/emulator available — see `thread-1-java-target/histories/track-j-java-target.md`. |
 | [medical_devices/](medical_devices/harpia_medical_master_plan.md) | Scoped, not started — compliance profile for regulated deployments |
 | [doxygen-generation.md](doxygen-generation/doxygen-generation.md) | **Folded into Foundation's F6 + Ground Rule 6, 2026-08-23** — shipped and merged to `dev` (the Foundation thread itself was then removed, see `medical_devices/epics/handoff-document.md`); no longer a deferred track. This file now lives on as a living pitfall-table reference every track appends to as it builds. Not medical-devices-specific despite living in that plan's Foundation — the rule applies repo-wide. |
 
@@ -76,7 +76,17 @@ design rationale is now distributed across `message/CLAUDE.md`,
 `Capability/CLAUDE.md`, and the three `*CapabilityAdapter/CLAUDE.md`
 files it fed. The one unrelated finding it surfaced — a `third_party/asio`
 vendoring gap — wasn't part of the plan and lives on in
-`NEXT_SESSION.md` as its own open item.)
+`NEXT_SESSION.md` as its own open item. `multi-language-targets/`
+(Java as a full generation target, symmetric with C++, plus the
+motivating on-device Android consumption verification) shipped in full —
+J.1–J.27 — 2026-08-25 and was removed the same day; its design rationale
+is now distributed across `GradleAdapter/CLAUDE.md` (build-time codegen
+decision), `JavaJsonAdapter/CLAUDE.md`/`JavaXmlAdapter/CLAUDE.md` (full
+protobuf runtime vs. `javalite` decision), `JavaZmqAdapter/CLAUDE.md`
+(JeroMQ/CURVE), `Database/CLAUDE.md` (why a cross-language `DbBackend`
+seam is still deliberately undesigned), and
+`examples/android_consumer/README.md` (the Android verification account,
+including the one real ART-incompatibility bug it found).)
 
 ## Backlog
 
@@ -86,9 +96,16 @@ what to check first) rather than a place to accumulate a durable backlog.
 Add to this list piecemeal as items get scoped or come up — no need to do it
 all at once.
 
-- **Python as language #3** (after Java, see `multi-language-targets/`
-  above) — see `multi-language-targets/thread-1-java-target/README.md` §4
-  for the selection history. Multi-session sized, don't start as a "quick
-  session."
+- **Python as language #3** (after Java, which shipped 2026-08-25 — see
+  the "Finished plans" note above). Selection history: Python was the
+  original per-stage-cost recommendation (2026-08-11), but a concrete
+  business need — an existing Android fleet wanting harpia-generated Java
+  code — overrode that in a 2026-08-22 addendum; Python was never
+  dropped, just deferred. Also note (`Database/CLAUDE.md`): a
+  cross-language `DbBackend`-style seam was deliberately left undesigned
+  after Java, the same way `Database/backends/`'s own dialect seam waited
+  for Postgres as a second case — Python would be the third language data
+  point, likely the trigger to finally design one. Multi-session sized,
+  don't start as a "quick session."
 - **Smaller/unscoped:** no YAML serialization, no multi-tier RBAC (single
   flat credential everywhere).
