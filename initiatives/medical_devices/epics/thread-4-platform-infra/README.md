@@ -13,11 +13,16 @@ sha256 registry for crash/interrupt recovery; that already shipped
 restructuring isn't an oversight — see the note on Track L below for its
 real fallout.
 
-- [track-j-java-target.md](../../../multi-language-targets/thread-1-java-target/histories/track-j-java-target.md) — **pointer only,
-  2026-08-23**: multi-language codegen (Java) moved to its own standalone
-  plan, `initiatives/multi-language-targets/` — not medical-devices-specific
-  work. This file now covers only the one compliance-aware layer that
-  might get added on top, once it's ready to scope.
+- **Track J (multi-language codegen, Java) — moved to its own standalone
+  plan 2026-08-23, `initiatives/multi-language-targets/`, not
+  medical-devices-specific work; that plan shipped in full (J.1-J.27,
+  including on-device Android verification) 2026-08-25 and has since been
+  removed from `initiatives/` per this repo's convention (finished plans'
+  design rationale lives in the code's own `CLAUDE.md` files, not
+  preserved as history docs) — see `JavaDatabase/CLAUDE.md` and
+  `examples/android_consumer/README.md`.** This bullet now covers only
+  the one compliance-aware layer that might get added on top of that
+  shipped Java target, once it's ready to scope.
 - [track-m-process-artifacts.md](histories/process-artifacts/track-m-process-artifacts.md) — SBOM,
   traceability matrix, jurisdiction-selected doc templates.
 - [track-n-static-fuzz-ci.md](histories/static-fuzz-ci/track-n-static-fuzz-ci.md) — static/fuzz

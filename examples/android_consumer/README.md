@@ -1,4 +1,4 @@
-# Consuming Harpia's Java target on Android — worked example (compile-verified, not device-verified)
+# Consuming Harpia's Java target on Android — worked example (device-verified)
 
 A **standalone Android application module** that uses harpia's Java-target
 output as a black box — the Android-side counterpart to
@@ -6,18 +6,78 @@ output as a black box — the Android-side counterpart to
 does not depend on the harpia repo — only on a project you generate with
 `HARPIA_GEN_LANG=java`, pointed at via the `harpiaGenDir` Gradle property.
 
-It exercises, for the `users`/`courier` messages
-([`HarpiaTest/test.harpia`](../../HarpiaTest/test.harpia)), the three
-things [thread-1-java-target README.md §7](../../initiatives/multi-language-targets/thread-1-java-target/README.md#7-android-consumption--the-actual-motivating-use-case)
-identifies as the actual Android consumption surface:
-- **message classes + JSON** (`MessageClassesAndroidTest`, session J.25),
-- **gRPC client** (`GrpcClientAndroidTest`, session J.26),
-- **ZMQ client** (`ZmqClientAndroidTest`, session J.27) — the one piece
-  this thread's own docs flag as genuinely unconfirmed on-device
-  specifically, since JeroMQ is pure Java but had never been checked
-  against Android's ART runtime before this.
+## Why this is a *consumer*, not a second build target
 
-## ⚠️ Verification status (updated 2026-08-24)
+The Java target's full output is a standard JVM server/library project —
+the same relationship the C++ target's output has to a native server, not
+something that runs on-device as-is. An Android app only ever consumes a
+*subset* of it — this module exists to prove that subset works for real,
+not to add Android as a separate generation target with its own adapters:
+
+- **Message classes** (protobuf-java POJOs+builders) — fully portable,
+  pure Java, no JNI, no reason this doesn't work on Android as generated.
+- **JSON (de)serialization** — portable *if and only if* the full
+  protobuf runtime (not `protobuf-javalite`) is what got generated — see
+  [`JavaJsonAdapter/CLAUDE.md`](../../JavaJsonAdapter/CLAUDE.md) for the
+  full runtime-variant decision and why it matters specifically for
+  Android.
+- **gRPC client** — `io.grpc:grpc-android` + `grpc-okhttp`, the
+  Android-specific transport, additive to the generated stub classes
+  (full `grpc-netty` is a desktop/server thing).
+- **ZMQ client (JeroMQ)** — pure Java, no JNI; the one piece that needed
+  an actual on-device run to confirm (see Verification status below),
+  since a pure-Java ZMTP reimplementation running on ART was a genuinely
+  open question, not settled Android practice the way message
+  classes/JSON/gRPC already are.
+- **DB/CRUDL, REST/SOAP servers, gRPC service impl — never consumed
+  on-device.** `com.sun.net.httpserver` and JDBC drivers are
+  desktop/server-JVM assumptions, and a phone isn't meant to host a
+  server anyway — out of scope for this module regardless of whether
+  they'd even work on Android's API surface.
+
+It exercises this surface, for the `users`/`courier` messages
+([`HarpiaTest/test.harpia`](../../HarpiaTest/test.harpia)), across three
+instrumented test classes:
+- **message classes + JSON** (`MessageClassesAndroidTest`),
+- **gRPC client** (`GrpcClientAndroidTest`),
+- **ZMQ client** (`ZmqClientAndroidTest`).
+
+## ✅ Verification status (updated 2026-08-25)
+
+**Verified for real, on-device.** `docker/run_android_emulator_tests.sh`
+boots a headless Android emulator (hardware-accelerated via `/dev/kvm`)
+and runs all three instrumented tests against it. Latest run:
+`grpcAndroidClientConstructsAgainstGeneratedStub`,
+`jsonRoundTripWorksOnDevice`, `messageClassConstructsAndReadsBackOnDevice`,
+`pushPullRoundTripWorksOnDevice` — **4/4 passed** (`emulator-5554`, 0
+failures, 0 errors, 2026-08-25T23:11:34,
+`app/build/outputs/androidTest-results/connected/debug/`).
+
+This run found one real bug — the actual value of verifying on-device
+instead of stopping at "compiles clean": `HarpiaZmq.runtimeOriginId()`
+(`JavaZmqAdapter/runtime/HarpiaZmq.java`) called `java.lang.ProcessHandle`,
+a JDK9+ API Android's ART runtime doesn't implement — invisible to any
+compile-time check (the desktop JDK compiling it has the class), only
+surfacing when the code actually runs on ART.
+`ZmqClientAndroidTest.pushPullRoundTripWorksOnDevice` failed with
+`NoClassDefFoundError` until fixed: the pid component of the
+sender-uniqueness id was replaced with a `SecureRandom` value generated
+once per JVM/process instance — portable across desktop JVM and ART, and
+arguably a stronger uniqueness guarantee than a real OS pid (which gets
+reused over a long-running host's lifetime; this never does).
+
+Three more bugs, all in the emulator/Docker infrastructure itself (not
+generated code), were fixed to get this running at all: the `emulator`
+binary's own directory wasn't on the Dockerfile's `PATH`; `avdmanager
+create avd` ignores `ANDROID_AVD_HOME` and instead resolves its write
+target through Java's `user.home`, which `getpwuid` resolves to the
+image's baked-in `/home/ubuntu` regardless of the `HOME` env var (the same
+class of gotcha the Dockerfile already documents for Gradle's
+`GRADLE_USER_HOME`) — fixed by forcing `-Duser.home=/tmp` via `JAVA_OPTS`;
+and the interactive hardware-profile prompt was flaky under non-TTY stdin,
+fixed by passing `-d pixel_5` so `avdmanager` doesn't prompt at all.
+
+### Older, compile-only pass (2026-08-24) — superseded by the above
 
 **Compiles for real now — the harpia Docker image ([`../../Dockerfile`](../../Dockerfile))
 gained a JDK 17 + Gradle 8.5 + Android SDK (cmdline-tools, platform-tools,
@@ -52,24 +112,11 @@ real toolchain:
   deliberately; now confirmed to actually work at this pin, not just
   plausible.
 
-**Still not verified:** no emulator or physical device was available in
-the environment that ran this (Docker itself is reachable now, but an
-Android emulator inside a container needs `/dev/kvm` passed through, which
-needs nested virtualization enabled up the host chain — untested here).
-So **none of the three `connectedAndroidTest` runs have actually executed
-on-device.** `GrpcClientAndroidTest`'s `AndroidChannelBuilder` usage in
-particular compiles clean but is still unconfirmed to behave correctly at
-runtime against a live gRPC server. That's the one gap this pass didn't
-close — see the three session history files under
-[`../../initiatives/multi-language-targets/thread-1-java-target/histories/Android-consumption/`](../../initiatives/multi-language-targets/thread-1-java-target/histories/Android-consumption/)
-for what running those for real still needs.
+This 2026-08-24 pass didn't have `/dev/kvm` wired in yet, so none of the
+three `connectedAndroidTest` runs had actually executed on-device —
+resolved by the 2026-08-25 pass above.
 
 ## Run it
-
-Steps 1-2 (and compiling this module, steps below) now work inside the
-harpia Docker image (`docker/run.sh`), which carries a JDK 17 + Gradle 8.5
-+ Android SDK toolchain. Step 3 still needs a connected device or emulator
-reachable from wherever you run it — not provided by the image itself.
 
 ```sh
 # 1. generate a Java-target project from a .harpia (the bundled HarpiaTest)
@@ -79,25 +126,28 @@ HARPIA_GEN_LANG=java HARPIA_OUTPUT_DIR=/tmp/gen python3 main.py
 #    every Java-target runtime class) -- this module depends on it.
 (cd /tmp/gen/java && gradle --no-daemon build)
 
-# 2b. compile-only sanity check, no device needed (confirmed working):
+# 2b. compile-only sanity check, no device needed:
 gradle --no-daemon -PharpiaGenDir=/tmp/gen assembleDebugAndroidTest
 gradle --no-daemon -PharpiaGenDir=/tmp/gen assembleRelease   # R8/DEX check
 
 # 3. build + run this module's instrumented tests against a connected
-#    device or a running emulator (`adb devices` must show one) --
-#    NOT YET DONE, no device/emulator available in the environment
-#    that verified steps 1-2b.
+#    device or a running emulator (`adb devices` must show one).
 gradle --no-daemon connectedAndroidTest -PharpiaGenDir=/tmp/gen
 ```
 
-For J.26's gRPC test specifically, a generated server needs to be running
-on the HOST machine (the emulator reaches it via the `10.0.2.2` loopback
-alias baked into the test) — e.g. the C++ target's own generated gRPC
-server, or a Java-target one once REST/SOAP/gRPC-service-impl gain
-server-side Android... except they don't: per J.27's own scope, DB/REST/
-SOAP servers and the gRPC service impl are **never** consumed on-device
-(a phone isn't meant to host these) — the server side always runs
-elsewhere.
+Steps 1-3 all work inside the harpia Docker image. For step 3 specifically
+— which needs a device/emulator, not just the SDK — use
+[`docker/run_android_emulator_tests.sh`](../../docker/run_android_emulator_tests.sh)
+instead of `docker/run.sh`: it boots a headless, hardware-accelerated
+(`/dev/kvm`) emulator inside the container and runs steps 1-3 against it
+end to end. Requires `/dev/kvm` on the host (nested virtualization enabled,
+if the host itself is a VM).
+
+`GrpcClientAndroidTest` only constructs the client and asserts the stub is
+non-null — it doesn't make a live RPC call, so no server needs to be
+running to pass it. A real end-to-end call (against a generated server on
+the host, reachable from the emulator via the `10.0.2.2` loopback alias)
+is out of scope for this test and hasn't been exercised.
 
 ## Files
 - [`app/build.gradle`](app/build.gradle) — how the generated project's
