@@ -28,7 +28,7 @@ It is **Fixed infrastructure**, so it is a C++ / CMake project with a single
 
 ```sh
 # 1. generate the C++ target
-bash ./run_harpia.sh TestProjects/3-general-patient-ward/ward-information-integrator TestProjects/_gen/ward-information-integrator-ward3 --no-build
+./run_harpia.sh TestProjects/3-general-patient-ward/ward-information-integrator TestProjects/_gen/ward-information-integrator-ward3 --no-build
 
 # 2. build inside the toolchain image (-DHARPIA_GEN must be ABSOLUTE)
 bash docker/run.sh bash -c '

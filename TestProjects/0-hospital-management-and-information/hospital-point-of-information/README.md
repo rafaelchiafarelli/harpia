@@ -27,7 +27,7 @@ CMake project with a single `device_app` target and **no `human_mock`**.
 
 ```sh
 # 1. generate the C++ target
-bash ./run_harpia.sh TestProjects/0-hospital-management-and-information/hospital-point-of-information TestProjects/_gen/hospital-point-of-information --no-build
+./run_harpia.sh TestProjects/0-hospital-management-and-information/hospital-point-of-information TestProjects/_gen/hospital-point-of-information --no-build
 
 # 2. build inside the toolchain image (-DHARPIA_GEN must be ABSOLUTE)
 bash docker/run.sh bash -c '

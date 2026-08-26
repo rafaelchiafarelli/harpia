@@ -32,7 +32,7 @@ messages. Records get a table name and so generate DB/CRUDL/REST/SOAP.
 
 ```sh
 # 1. generate the C++ target
-bash ./run_harpia.sh TestProjects/0-hospital-management-and-information/hospital-management-system TestProjects/_gen/hospital-management-system --no-build
+./run_harpia.sh TestProjects/0-hospital-management-and-information/hospital-management-system TestProjects/_gen/hospital-management-system --no-build
 
 # 2. build inside the toolchain image (-DHARPIA_GEN must be ABSOLUTE)
 bash docker/run.sh bash -c '

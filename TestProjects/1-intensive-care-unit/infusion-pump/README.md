@@ -35,7 +35,7 @@ they only run **inside the image** (`./device_app` on the host fails with
 ```sh
 # 1. generate the C++ target (helper script; --no-build = codegen only,
 #    do NOT run the generated ctest suite, it is slow)
-bash ./run_harpia.sh TestProjects/1-intensive-care-unit/infusion-pump TestProjects/_gen/infusion-pump --no-build
+./run_harpia.sh TestProjects/1-intensive-care-unit/infusion-pump TestProjects/_gen/infusion-pump --no-build
 
 # 2. build this consumer inside the toolchain image.
 #    NOTE -DHARPIA_GEN must be ABSOLUTE; the repo is /harpia inside the image.

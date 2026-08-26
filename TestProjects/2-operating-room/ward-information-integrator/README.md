@@ -29,7 +29,7 @@ carried on a separate in-theatre A/V path, not on this data fabric.
 
 ```sh
 # 1. generate the C++ target
-bash ./run_harpia.sh TestProjects/2-operating-room/ward-information-integrator TestProjects/_gen/ward-information-integrator-or --no-build
+./run_harpia.sh TestProjects/2-operating-room/ward-information-integrator TestProjects/_gen/ward-information-integrator-or --no-build
 
 # 2. build inside the toolchain image (-DHARPIA_GEN must be ABSOLUTE)
 bash docker/run.sh bash -c '

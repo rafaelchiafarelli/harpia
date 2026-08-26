@@ -35,7 +35,7 @@ DB/CRUDL/REST/SOAP; pure control packets stay table-less.
 
 ```sh
 # 1. generate the C++ target (helper script; --no-build = codegen only)
-bash ./run_harpia.sh TestProjects/1-intensive-care-unit/ward-information-integrator TestProjects/_gen/ward-information-integrator-icu --no-build
+./run_harpia.sh TestProjects/1-intensive-care-unit/ward-information-integrator TestProjects/_gen/ward-information-integrator-icu --no-build
 
 # 2. build this consumer inside the toolchain image.
 #    NOTE -DHARPIA_GEN must be ABSOLUTE; the repo is /harpia inside the image.

@@ -76,7 +76,7 @@ waits on the room epics.
 ## How each device is built
 
 C++ device (per its `TestProjects/.../README.md`):
-1. `bash ./run_harpia.sh TestProjects/<room>/<device> TestProjects/_gen/<device> --no-build`
+1. `./run_harpia.sh TestProjects/<room>/<device> TestProjects/_gen/<device> --no-build`
 2. `bash docker/run.sh bash -c 'cmake -S <projdir> -B <projdir>/_build -DHARPIA_GEN=/harpia/TestProjects/_gen/<device> && cmake --build <projdir>/_build -j"$(nproc)"'`
 3. `bash docker/run.sh bash -c './<projdir>/_build/device_app; ./<projdir>/_build/human_mock | head'`
 
