@@ -19,7 +19,7 @@ This class (and `JavaXmlAdapter`'s reflection-based runtime) only works
 at all against protoc's full-runtime Java output — `javalite`-generated
 classes have no `getDescriptorForType()`/reflection API, so `JsonFormat`
 can't operate on them. Since the Android consumption path
-(`examples/android_consumer`) depends on this class, the choice of
+(`HarpiaTest/app_example/android_consumer`) depends on this class, the choice of
 protobuf runtime variant was a real fork worth deciding deliberately:
 Android best-practice often reaches for `javalite` specifically because
 most apps don't need reflection, and it's smaller/DEX-friendlier — but
@@ -30,7 +30,7 @@ full-mode shrinking substantially mitigate the DEX-size pressure that
 originally motivated `javalite` in the mid-2010s, and nothing in the
 actual motivating use case (an existing Android fleet wanting parity with
 the full target) named DEX size as a real constraint. Confirmed against a
-real build, not just reasoned: `examples/android_consumer`'s
+real build, not just reasoned: `HarpiaTest/app_example/android_consumer`'s
 `assembleRelease` (R8 enabled) produces ~105,822 methods across two dex
 files (over the 65,536 single-dex limit) — multidex activates, and does
 so cleanly. `GradleAdapter/templates/project.gradle.tmpl` already

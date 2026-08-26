@@ -1,6 +1,6 @@
 # Feature examples + shared-fixture restructuring
 
-Motivated by a gap, not a bug: `examples/consumer` is the only worked
+Motivated by a gap, not a bug: `HarpiaTest/app_example/consumer` is the only worked
 example showing a user how to actually consume harpia-generated code, and
 it only covers 3 of the ~10 generated features (DB CRUDL, JSON, REST) for
 one message. gRPC, SOAP, XML, ZMQ, capability negotiation, and
@@ -59,11 +59,11 @@ Session breakdown for the remaining work:
 
 ## What the remaining work touches
 
-- New `examples/{grpc_demo,soap_demo,xml_demo,zmq_demo,access_demo,
-  capability_demo}/` (EX.2-EX.7), each mirroring `examples/consumer`'s
+- New `HarpiaTest/app_example/{grpc_demo,soap_demo,xml_demo,zmq_demo,access_demo,
+  capability_demo}/` (EX.2-EX.7), each mirroring `HarpiaTest/app_example/consumer`'s
   proven shape (`-DHARPIA_GEN=<path>` CMake build, a README with an
   "expected output" block).
-- `examples/README.md` (new index, EX.8) and one root `README.md` bullet
+- `HarpiaTest/app_example/README.md` (new index, EX.8) and one root `README.md` bullet
   once everything lands.
 
 (EX.1 also touched `HarpiaTest/Include/*.harpia`, the six pinned `HASH`
@@ -75,7 +75,7 @@ and `tests/golden*/` — all shipped.)
 - Deliverable actually builds and runs inside `docker/run.sh` against a
   project generated from the current `HarpiaTest` fixture — compiling is
   not enough, the described output must actually happen, same bar
-  `examples/consumer/README.md` already holds itself to.
+  `HarpiaTest/app_example/consumer/README.md` already holds itself to.
 - A retrospective write-up filed under `histories/` once a session
   actually lands, same convention as every other thread in this repo —
   not written in advance of the work happening.

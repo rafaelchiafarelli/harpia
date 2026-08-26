@@ -21,7 +21,7 @@ sum of the ICU devices' own human-mock streams).
 |---|---|
 | [`ward_information_integrator.harpia`](./ward_information_integrator.harpia) | the assembled schema: uplink messages to the HMS (`ward_telemetry_batch`, `ward_alarm_relay`, `ward_audit_relay`, `store_forward_replay`, `integrator_link_status`) as `push`; cached downlink data (`prescription_cache` + the `common.harpia` types) as `pull` |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) — here they model the HMS reference data the integrator caches for redistribution |
-| build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake, modelled on `examples/consumer`) |
+| build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake, modelled on `HarpiaTest/app_example/consumer`) |
 | device code | `src/main.cpp` (builds each uplink message, prints it as JSON) |
 
 ## Schema
@@ -56,6 +56,6 @@ with `rm -rf TestProjects/_gen/ward-information-integrator-icu TestProjects/1-in
   C++ `CMakeLists.txt` globs the generated headers into
   `harpia_generated_includes.h` so this folder never hard-codes a hash.
 - This project only exercises the message-class + JSON surface. See
-  [`../../../examples/consumer`](../../../examples/consumer) for wiring the CRUDL
+  [`../../../HarpiaTest/app_example/consumer`](../../../HarpiaTest/app_example/consumer) for wiring the CRUDL
   DAO, REST bindings, gRPC service or ZMQ transport (the integrator's real
   uplink and cache).

@@ -1,7 +1,7 @@
 # Standalone project that CONSUMES harpia-generated C++ as a black box -- it does
 # not depend on the harpia repo, only on a project you generate from this folder
 # with run_harpia.sh (pointed at via -DHARPIA_GEN). Modelled on
-# examples/consumer/CMakeLists.txt; see that file for the Windows / TLS /
+# HarpiaTest/app_example/consumer/CMakeLists.txt; see that file for the Windows / TLS /
 # PostgreSQL branches deliberately left out here for brevity.
 cmake_minimum_required(VERSION 3.13)
 project(harpia_sequential_compression_device CXX)
@@ -46,7 +46,7 @@ target_include_directories(harpia_tinyxml2 PUBLIC "${HARPIA_GEN}/third_party/tin
 # protobuf message headers (protofiles/*.pb.h) rather than the generated
 # json/*_json.h convenience adapters: each *_json.h defines a non-overloaded
 # harpia::json::is_valid_json(const std::string&), so at most one may appear
-# per translation unit (see examples/consumer, which includes exactly one).
+# per translation unit (see HarpiaTest/app_example/consumer, which includes exactly one).
 # MessageToJsonString from protobuf itself works for every message type.
 file(GLOB _pb_h RELATIVE "${GEN}" "${GEN}/protofiles/*.pb.h")
 set(_umbrella "${CMAKE_BINARY_DIR}/harpia_generated_includes.h")

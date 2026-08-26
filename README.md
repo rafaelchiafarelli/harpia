@@ -53,7 +53,7 @@ design vision, not current status):
   `CROW_ENABLE_SSL`/`ssl_file()`) and gRPC (`grpc::SslServerCredentials`)
   are TLS-capable via a caller-side build flag (server construction is
   caller-owned, not generated) — demonstrated in
-  `examples/consumer -DUSE_TLS=ON`, `USAGE.md` §9. ZMQ has generated CURVE
+  `HarpiaTest/app_example/consumer -DUSE_TLS=ON`, `USAGE.md` §9. ZMQ has generated CURVE
   encryption (`bind`/`connect` live inside the generated sender/receiver
   classes, so this is a real generated-code change), `USAGE.md` §10.
   Residuals: ZMQ CURVE is encryption only, no credential gate of its own
@@ -71,12 +71,12 @@ design vision, not current status):
   boots a `/dev/kvm`-accelerated emulator, 4/4 instrumented tests pass;
   this found and fixed one real ART-incompatibility bug
   (`java.lang.ProcessHandle`, a JDK9+ API absent from Android), see
-  `examples/android_consumer/README.md`. Node/Rust/Python remain spec-only,
+  `HarpiaTest/app_example/android_consumer/README.md`. Node/Rust/Python remain spec-only,
   not started.
 - **Windows as a generated-code target — ✅ mostly.** The generator
   (`main.py`) still runs only via Docker/Linux, but the *generated* C++
   project builds and runs natively on Windows (MSVC + vcpkg): the ZMQ
-  server/client demo, the REST/JSON demo (`examples/consumer`, incl.
+  server/client demo, the REST/JSON demo (`HarpiaTest/app_example/consumer`, incl.
   `-DUSE_TLS=ON`), and the Stage 14 generated `ctest` suite (10/10, its
   REST/SOAP HTTP test client ported to Winsock2) — `USAGE.md` §12.
   Unverified on Windows (vcpkg feature added, build not run): the
@@ -98,7 +98,7 @@ design vision, not current status):
 consumer's guide (generate, the `.harpia` language by example, what gets
 generated, building, choosing the DB backend, and wiring the output into your own
 project). A complete, runnable downstream example lives in
-[`examples/consumer/`](examples/consumer/) and is guarded by
+[`HarpiaTest/app_example/consumer/`](HarpiaTest/app_example/consumer/) and is guarded by
 `tests/test_consumer_example.py`.
 
 ## Build, test & run

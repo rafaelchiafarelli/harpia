@@ -32,7 +32,7 @@ original implementation write-up).
   Fragile to `USAGE.md` renumbering its top-level sections; if that ever
   happens, update `DEFAULT_SECTIONS` here to match.
 - Cross-references inside the extracted USAGE.md prose (e.g. a relative
-  link to `examples/consumer/README.md`) are copied as-is and may not
+  link to `HarpiaTest/app_example/consumer/README.md`) are copied as-is and may not
   resolve correctly from inside an arbitrary generated project's own
   location on disk. Acceptable for F6's one-time-plumbing scope; not
   fixed here.

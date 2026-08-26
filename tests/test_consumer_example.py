@@ -1,9 +1,9 @@
 """Downstream-consumption contract test.
 
-Builds and runs the worked example under ``examples/consumer/`` against a freshly
+Builds and runs the worked example under ``HarpiaTest/app_example/consumer/`` against a freshly
 generated project, exactly as a downstream user would:
 
-    run pipeline -> cmake -S examples/consumer -DHARPIA_GEN=<gen> -> build -> run
+    run pipeline -> cmake -S HarpiaTest/app_example/consumer -DHARPIA_GEN=<gen> -> build -> run
 
 This keeps the black-box wiring contract (the generated headers, the vendored
 Crow/asio/tinyxml2, and the SOCI/protobuf link surface documented in USAGE.md)
@@ -20,7 +20,7 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
-CONSUMER = os.path.join(REPO_ROOT, "examples", "consumer")
+CONSUMER = os.path.join(REPO_ROOT, "HarpiaTest", "app_example", "consumer")
 
 pytestmark = pytest.mark.skipif(
     any(shutil.which(t) is None

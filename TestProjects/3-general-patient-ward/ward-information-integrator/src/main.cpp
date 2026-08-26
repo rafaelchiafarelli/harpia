@@ -3,7 +3,7 @@
 // Management System and prints it as JSON. The integrator also caches downlink
 // reference data (the pull messages: common.harpia types +
 // nutrition_plan_cache); wire the generated CRUDL DAO / REST bindings for those
-// the way examples/consumer does.
+// the way HarpiaTest/app_example/consumer does.
 //
 // This project is Fixed infrastructure, not a Human Interaction Device, so
 // there is no human_mock -- a realistic inbound feed is the aggregate of the

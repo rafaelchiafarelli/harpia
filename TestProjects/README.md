@@ -7,8 +7,8 @@ the Hospital Management System, the Hospital Point of Information, and one Ward
 Information Integrator per clinical ward — grouped by clinical environment
 (sections 0–4 of the blueprint).
 Each project *creates and consumes* harpia-generated code, the same way
-[`../examples/consumer`](../examples/consumer) and
-[`../examples/android_consumer`](../examples/android_consumer) do -- it is
+[`../HarpiaTest/app_example/consumer`](../HarpiaTest/app_example/consumer) and
+[`../HarpiaTest/app_example/android_consumer`](../HarpiaTest/app_example/android_consumer) do -- it is
 reference material, not wired into `main.py` or the test suite.
 
 ## Layout

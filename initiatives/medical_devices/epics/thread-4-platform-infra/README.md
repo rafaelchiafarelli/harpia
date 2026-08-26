@@ -20,7 +20,7 @@ real fallout.
   removed from `initiatives/` per this repo's convention (finished plans'
   design rationale lives in the code's own `CLAUDE.md` files, not
   preserved as history docs) — see `JavaDatabase/CLAUDE.md` and
-  `examples/android_consumer/README.md`.** This bullet now covers only
+  `HarpiaTest/app_example/android_consumer/README.md`.** This bullet now covers only
   the one compliance-aware layer that might get added on top of that
   shipped Java target, once it's ready to scope.
 - [track-m-process-artifacts.md](histories/process-artifacts/track-m-process-artifacts.md) — SBOM,

@@ -5,7 +5,7 @@
 - Nothing from any other thread — independent of `multi-language-targets`
   and `medical_devices`. Only reads (does not modify) the generator
   itself; every session here works in `HarpiaTest/`, `tests/`, and new
-  `examples/*` directories.
+  `HarpiaTest/app_example/*` directories.
 
 ## Gives (what "done" means here, consumed by whom)
 
@@ -25,9 +25,9 @@
   `tests/test_stage13.py`, `tests/test_stage13_zmq.py` (pinned `HASH`
   constant bumps only)
 - `tests/golden/`, `tests/golden_java/` (regenerated, reviewed)
-- new `examples/grpc_demo/`, `examples/soap_demo/`, `examples/xml_demo/`,
-  `examples/zmq_demo/`, `examples/access_demo/`, `examples/capability_demo/`
-- `examples/README.md` (new), root `README.md` (one bullet, at the end)
+- new `HarpiaTest/app_example/grpc_demo/`, `HarpiaTest/app_example/soap_demo/`, `HarpiaTest/app_example/xml_demo/`,
+  `HarpiaTest/app_example/zmq_demo/`, `HarpiaTest/app_example/access_demo/`, `HarpiaTest/app_example/capability_demo/`
+- `HarpiaTest/app_example/README.md` (new), root `README.md` (one bullet, at the end)
 
 ---
 
@@ -42,22 +42,22 @@
 ## Session EX.2 — gRPC example
 
 - **Depends on:** EX.1 (fixture hash must be settled before pinning a
-  README to it, same reason `examples/consumer/README.md` already flags:
+  README to it, same reason `HarpiaTest/app_example/consumer/README.md` already flags:
   "this example is pinned to HarpiaTest's hash").
-- **Deliverable:** `examples/grpc_demo/` — server + client over a real
+- **Deliverable:** `HarpiaTest/app_example/grpc_demo/` — server + client over a real
   port (`grpc::CreateChannel`/`ServerBuilder`, not in-process), `users`
   message: `push` then `pullByID`, both with correct `x-user`/`x-pswd`
-  metadata (`ClientContext::AddMetadata`). Mirrors `examples/consumer`'s
+  metadata (`ClientContext::AddMetadata`). Mirrors `HarpiaTest/app_example/consumer`'s
   shape: `CMakeLists.txt` takes `-DHARPIA_GEN=<path>`, links
   `${GEN}/protofiles/users_<hash>_service.grpc.pb.cc` +
   `gRPC::grpc gRPC::grpc++`.
 - **Tests:** build + run inside `docker/run.sh`; README documents the
-  exact expected stdout, same bar as `examples/consumer/README.md`.
+  exact expected stdout, same bar as `HarpiaTest/app_example/consumer/README.md`.
 
 ## Session EX.3 — SOAP example
 
 - **Depends on:** EX.1.
-- **Deliverable:** `examples/soap_demo/` — Crow-backed SOAP server
+- **Deliverable:** `HarpiaTest/app_example/soap_demo/` — Crow-backed SOAP server
   (`harpia::soap::register_users_soap`) + a client posting raw SOAP
   envelopes (`set`/`get`/`update`/`delete`, credential in
   `<soap:Header><credentials>`), `users` message.
@@ -67,7 +67,7 @@
 ## Session EX.4 — XML example
 
 - **Depends on:** EX.1.
-- **Deliverable:** `examples/xml_demo/` — `harpia::xml::to_xml`/`from_xml`
+- **Deliverable:** `HarpiaTest/app_example/xml_demo/` — `harpia::xml::to_xml`/`from_xml`
   round-trip + `<name>_xsd()` dump, reusing `shipment`/`parcel` (already
   in the restructured fixture, exercises nested + repeated embed-flatten
   — no new message needed).
@@ -77,7 +77,7 @@
 ## Session EX.5 — ZMQ example
 
 - **Depends on:** EX.1.
-- **Deliverable:** `examples/zmq_demo/` — explicit standalone PUSH/PULL
+- **Deliverable:** `HarpiaTest/app_example/zmq_demo/` — explicit standalone PUSH/PULL
   demo, reusing `courier` (already exists specifically for this: push-only,
   exercises the per-instance runtime origin id). README states plainly
   this is for discoverability/clarity, not a replacement for
@@ -89,7 +89,7 @@
 ## Session EX.6 — Access-modifier ("critical variables") example
 
 - **Depends on:** EX.1, EX.2 (reuses its gRPC server for the gRPC half).
-- **Deliverable:** `examples/access_demo/` — credential-gated access over
+- **Deliverable:** `HarpiaTest/app_example/access_demo/` — credential-gated access over
   REST (and gRPC) showing correct vs. wrong `X-User`/`X-Pswd` →
   200 vs 401/`UNAUTHENTICATED`, `users` message. README states explicitly
   this is the closest existing analog to "critical variables" and links
@@ -102,7 +102,7 @@
 ## Session EX.7 — Capability-negotiation example
 
 - **Depends on:** EX.1.
-- **Deliverable:** `examples/capability_demo/` — gRPC capability
+- **Deliverable:** `HarpiaTest/app_example/capability_demo/` — gRPC capability
   negotiation: a real `harpia::capability::negotiate()` call against a
   server with `capabilities_service` registered, and again against a stub
   server that doesn't (legacy-peer fallback), printing both outcomes.
@@ -112,7 +112,7 @@
 ## Session EX.8 — Documentation index (`phi`, and tying it together)
 
 - **Depends on:** EX.1-EX.7 (indexes all of them).
-- **Deliverable:** new `examples/README.md` indexing every example
+- **Deliverable:** new `HarpiaTest/app_example/README.md` indexing every example
   (`consumer`, `android_consumer`, and EX.2-EX.7's new ones), plus a `phi`
   section — documentation only, no compiled program — pointing at
   `patient_vitals` (already in the fixture) and `tests/run_phi_check.py`'s

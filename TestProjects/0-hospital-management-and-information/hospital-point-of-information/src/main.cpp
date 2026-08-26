@@ -2,7 +2,7 @@
 // outbound message the panel emits (visitor / staff interaction) and prints it
 // as JSON. The panel also pulls the data it displays (room_assignment,
 // precaution_flags, ward_announcement); wire the generated CRUDL DAO / REST
-// bindings for those the way examples/consumer does.
+// bindings for those the way HarpiaTest/app_example/consumer does.
 //
 // This project is Fixed infrastructure (a visitor-facing panel, not a Human
 // Interaction Device that touches the patient), so there is no human_mock.

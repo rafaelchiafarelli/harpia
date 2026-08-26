@@ -22,7 +22,7 @@
 #   - cmake, g++, make                                 : compile the generated C++
 #   - libssl-dev + openssl                              : optional TLS on Crow
 #                                                      (REST/SOAP); see
-#                                                      examples/consumer -DUSE_TLS=ON
+#                                                      HarpiaTest/app_example/consumer -DUSE_TLS=ON
 # (Stage 10 XML uses tinyxml2, and Stages 11/12 SOAP+REST use Crow + standalone
 #  asio, all vendored in-tree under third_party/ rather than apt — so generated
 #  output stays self-contained and cross-compilable on any target board. protobuf,
@@ -31,7 +31,7 @@
 #   - openjdk-17-jdk + Gradle 8.5           : Java target (thread-1-java-target)
 #                                              build/test toolchain -- matches
 #                                              GradleAdapter's `java` plugin
-#                                              output and examples/android_consumer's
+#                                              output and HarpiaTest/app_example/android_consumer's
 #                                              AGP 8.2.2 pin (compileOptions
 #                                              VERSION_17). Gradle comes from a
 #                                              pinned binary distribution, not
@@ -45,7 +45,7 @@
 #                                              previously skipped for lack of a
 #                                              JDK in this image.
 #   - Android SDK cmdline-tools + platform-tools + platform 34 + build-tools 34.0.0
-#                                            : compiles examples/android_consumer
+#                                            : compiles HarpiaTest/app_example/android_consumer
 #                                              (compileSdk 34) and runs
 #                                              `./gradlew assembleRelease` for
 #                                              the R8/DEX-count check
@@ -123,7 +123,7 @@ ENV PATH="/opt/gradle-8.5/bin:${PATH}"
 RUN mkdir -p /tmp/.gradle && chmod 1777 /tmp/.gradle
 
 # Android SDK command-line tools -> platform-tools + platform 34 + build-tools
-# 34.0.0, matching examples/android_consumer's compileSdk/AGP pin. Licenses
+# 34.0.0, matching HarpiaTest/app_example/android_consumer's compileSdk/AGP pin. Licenses
 # accepted non-interactively (`yes |`) since this is a throwaway build image,
 # not a workstation install.
 ENV ANDROID_SDK_ROOT=/opt/android-sdk

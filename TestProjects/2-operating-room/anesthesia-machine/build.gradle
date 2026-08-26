@@ -1,5 +1,5 @@
 // See README.md before touching this file. Pinned to Android Gradle Plugin
-// 8.2.2 to match examples/android_consumer. Consumes the harpia Java-target
+// 8.2.2 to match HarpiaTest/app_example/android_consumer. Consumes the harpia Java-target
 // jar via -PharpiaGenDir, exactly as that example does.
 plugins {
     id 'com.android.application' version '8.2.2'

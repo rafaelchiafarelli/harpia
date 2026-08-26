@@ -6,13 +6,13 @@ import com.harpia.runtime.json.HarpiaJson;
 /**
  * Constructs each outbound message the Intracranial Pressure (ICP) Monitor publishes and prints it
  * as JSON. Extend with the generated gRPC / ZMQ clients as in
- * examples/android_consumer.
+ * HarpiaTest/app_example/android_consumer.
  *
  * <p>Consumes harpia's Java-target output as a black box -- build a project from
  * this folder with HARPIA_GEN_LANG=java first (see README.md). Generated message
  * classes land in the flat package {@code com.harpia.generated} with their
  * name kept verbatim ({@code vital_signs.newBuilder()}); {@code HarpiaJson}
- * is the generated JSON runtime helper (same one examples/android_consumer uses).
+ * is the generated JSON runtime helper (same one HarpiaTest/app_example/android_consumer uses).
  */
 public final class DeviceApp {
     private static final java.util.Random RNG = new java.util.Random(20260825L);

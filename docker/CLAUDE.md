@@ -4,7 +4,7 @@
 
 ## Contents
 - `run.sh` — general-purpose entry point. Builds image then `docker run`s the given command (default `bash`).
-- `run_android_emulator_tests.sh` + `_android_emulator_test_entrypoint.sh` — boots a headless Android emulator (hardware-accelerated via `/dev/kvm`) inside the image and runs `examples/android_consumer`'s three `connectedAndroidTest`s against it. Needs `/dev/kvm` on the host (nested virt enabled, if the host itself is a VM). See `examples/android_consumer/README.md` and the Dockerfile's Android SDK comment block for what's baked in vs. wired in at `docker run` time.
+- `run_android_emulator_tests.sh` + `_android_emulator_test_entrypoint.sh` — boots a headless Android emulator (hardware-accelerated via `/dev/kvm`) inside the image and runs `HarpiaTest/app_example/android_consumer`'s three `connectedAndroidTest`s against it. Needs `/dev/kvm` on the host (nested virt enabled, if the host itself is a VM). See `HarpiaTest/app_example/android_consumer/README.md` and the Dockerfile's Android SDK comment block for what's baked in vs. wired in at `docker run` time.
 
 ## Key facts / gotchas
 - **Image tag:** `harpia-build` (`IMAGE=harpia-build`). Built with `docker build -t harpia-build <repo-root>` — the Dockerfile lives at the repo root, not here.

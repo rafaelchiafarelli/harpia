@@ -3,7 +3,7 @@
 # run_android_emulator_tests.sh, not meant to be run directly on the host):
 # creates an AVD from the image's baked-in emulator + system image, boots it
 # headless with KVM acceleration, generates+builds the Java-target project,
-# and runs examples/android_consumer's three connectedAndroidTest cases
+# and runs HarpiaTest/app_example/android_consumer's three connectedAndroidTest cases
 # against the running emulator.
 set -euo pipefail
 
@@ -77,4 +77,4 @@ echo "== Building generated project jar =="
 (cd "$GEN_DIR/java" && gradle --no-daemon build)
 
 echo "== Running connectedAndroidTest =="
-(cd examples/android_consumer && gradle --no-daemon connectedAndroidTest -PharpiaGenDir="$GEN_DIR")
+(cd HarpiaTest/app_example/android_consumer && gradle --no-daemon connectedAndroidTest -PharpiaGenDir="$GEN_DIR")

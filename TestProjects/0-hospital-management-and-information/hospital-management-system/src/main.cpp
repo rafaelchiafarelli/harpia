@@ -2,7 +2,7 @@
 // outbound (published) message the HMS broadcasts to its clients and prints it
 // as JSON. The HMS also ingests ward data (the pull messages in the schema);
 // wire the generated CRUDL DAO / REST bindings for those the way
-// examples/consumer does.
+// HarpiaTest/app_example/consumer does.
 //
 // This project is the central backend, not a Human Interaction Device, so
 // there is no human_mock.

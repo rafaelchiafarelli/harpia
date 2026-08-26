@@ -59,7 +59,7 @@ case is now moot — see above.)
 | Doc | Status |
 |---|---|
 | [medical_devices/](medical_devices/harpia_medical_master_plan.md) | Scoped, not started — compliance profile for regulated deployments |
-| [feature-examples/](feature-examples/README.md) | **Partly shipped.** EX.1 (the `HarpiaTest` shared-fixture cleanup — `pope`/`king`/`queenBee` folded into `queen`) shipped 2026-08-24 (`f247b6c`). EX.2–EX.8 — one small runnable example per generated feature (gRPC, SOAP, XML, ZMQ, capability negotiation, credential-gated access) + an index — not started. |
+| [feature-examples/](feature-HarpiaTest/app_example/README.md) | **Partly shipped.** EX.1 (the `HarpiaTest` shared-fixture cleanup — `pope`/`king`/`queenBee` folded into `queen`) shipped 2026-08-24 (`f247b6c`). EX.2–EX.8 — one small runnable example per generated feature (gRPC, SOAP, XML, ZMQ, capability negotiation, credential-gated access) + an index — not started. |
 | [doxygen-generation.md](doxygen-generation/doxygen-generation.md) | **Folded into Foundation's F6 + Ground Rule 6, 2026-08-23** — shipped and merged to `dev` (the Foundation thread itself was then removed, see `medical_devices/epics/handoff-document.md`); no longer a deferred track. This file now lives on as a living pitfall-table reference every track appends to as it builds. Not medical-devices-specific despite living in that plan's Foundation — the rule applies repo-wide. |
 
 Finished plans are removed from this index once done — the shipped
@@ -85,7 +85,7 @@ decision), `JavaJsonAdapter/CLAUDE.md`/`JavaXmlAdapter/CLAUDE.md` (full
 protobuf runtime vs. `javalite` decision), `JavaZmqAdapter/CLAUDE.md`
 (JeroMQ/CURVE), `Database/CLAUDE.md` (why a cross-language `DbBackend`
 seam is still deliberately undesigned), and
-`examples/android_consumer/README.md` (the Android verification account,
+`HarpiaTest/app_example/android_consumer/README.md` (the Android verification account,
 including the one real ART-incompatibility bug it found).)
 
 ## Backlog

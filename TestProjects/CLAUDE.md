@@ -6,8 +6,8 @@ plus 5 facility-infrastructure hubs added 2026-08-26 -- the Hospital Management
 System, the Hospital Point of Information (both under `0-.../`), and one Ward
 Information Integrator per clinical ward (in `1-.../`, `2-.../`, `3-.../`).
 Grouped by clinical environment (blueprint sections 0-4). Each *creates and
-consumes* harpia-generated code -- same role as `examples/consumer` /
-`examples/android_consumer`. Nothing here is read by `main.py`, `Util/`, or
+consumes* harpia-generated code -- same role as `HarpiaTest/app_example/consumer` /
+`HarpiaTest/app_example/android_consumer`. Nothing here is read by `main.py`, `Util/`, or
 `tests/`.
 
 ## Contents
@@ -19,7 +19,7 @@ consumes* harpia-generated code -- same role as `examples/consumer` /
 
 ## Derivation rules (see README.md for the table)
 - "Mobile device" -> Java target, single-module Android app module (Gradle, AGP 8.2.2).
-- otherwise -> C++ target, CMake + vcpkg (modelled on `examples/consumer`).
+- otherwise -> C++ target, CMake + vcpkg (modelled on `HarpiaTest/app_example/consumer`).
 - "Human Interaction Device" -> a `human-mock` runnable (`src/human_mock.cpp` / `HumanMock.java`) that generates simulated physiological + operator traffic as the generated message types.
 - "Fixed infrastructure" (HMS, Point of Information, Ward Information Integrator) -> C++ target, `device_app` only, **no `human_mock`**. Data the hub publishes -> `push`; data it ingests / caches -> `pull`.
 - Network Outbound -> `push`/`stream`/`event` messages; Network Inbound -> `pull`; recurring inbound types factored into `_shared/common.harpia`.

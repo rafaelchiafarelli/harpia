@@ -10,7 +10,7 @@
 |---|---|
 | [`endoscopy.harpia`](./endoscopy.harpia) | the assembled `.harpia` schema (messages `video_stream_status`, `surgical_snapshot`, `light_source_stats`, plus inbound types from `Include/common.harpia`) |
 | `Include/common.harpia` | shared inbound types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`) |
-| build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake, modelled on `examples/consumer`) |
+| build infra | `CMakeLists.txt` + `vcpkg.json` (C++/CMake, modelled on `HarpiaTest/app_example/consumer`) |
 | device code | `src/main.cpp` (device app), `src/human_mock.cpp` (human-mock) |
 
 ## Schema
@@ -62,7 +62,7 @@ Clean up with `rm -rf TestProjects/_gen/endoscopy-video-tower TestProjects/2-ope
   serialises with protobuf's own `MessageToJsonString` so one program can touch
   several message types; the generated `json/<msg>_<hash>_json.h` convenience
   adapter (`harpia::json::to_json`) is one-message-per-translation-unit by
-  design -- see [`../../../examples/consumer`](../../../examples/consumer) for
+  design -- see [`../../../HarpiaTest/app_example/consumer`](../../../HarpiaTest/app_example/consumer) for
   that form, and for wiring the CRUDL DAO, REST bindings, gRPC service or ZMQ
   transport. The Java side does the same via
-  [`../../../examples/android_consumer`](../../../examples/android_consumer).
+  [`../../../HarpiaTest/app_example/android_consumer`](../../../HarpiaTest/app_example/android_consumer).

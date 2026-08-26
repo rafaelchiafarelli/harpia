@@ -2,7 +2,7 @@
 
 A **standalone Android application module** that uses harpia's Java-target
 output as a black box — the Android-side counterpart to
-[`examples/consumer`](../consumer) (the C++ target's worked example). It
+[`HarpiaTest/app_example/consumer`](../consumer) (the C++ target's worked example). It
 does not depend on the harpia repo — only on a project you generate with
 `HARPIA_GEN_LANG=java`, pointed at via the `harpiaGenDir` Gradle property.
 
@@ -18,7 +18,7 @@ not to add Android as a separate generation target with its own adapters:
   pure Java, no JNI, no reason this doesn't work on Android as generated.
 - **JSON (de)serialization** — portable *if and only if* the full
   protobuf runtime (not `protobuf-javalite`) is what got generated — see
-  [`JavaJsonAdapter/CLAUDE.md`](../../JavaJsonAdapter/CLAUDE.md) for the
+  [`JavaJsonAdapter/CLAUDE.md`](../../../JavaJsonAdapter/CLAUDE.md) for the
   full runtime-variant decision and why it matters specifically for
   Android.
 - **gRPC client** — `io.grpc:grpc-android` + `grpc-okhttp`, the
@@ -36,7 +36,7 @@ not to add Android as a separate generation target with its own adapters:
   they'd even work on Android's API surface.
 
 It exercises this surface, for the `users`/`courier` messages
-([`HarpiaTest/test.harpia`](../../HarpiaTest/test.harpia)), across three
+([`HarpiaTest/test.harpia`](../../test.harpia)), across three
 instrumented test classes:
 - **message classes + JSON** (`MessageClassesAndroidTest`),
 - **gRPC client** (`GrpcClientAndroidTest`),
@@ -79,7 +79,7 @@ fixed by passing `-d pixel_5` so `avdmanager` doesn't prompt at all.
 
 ### Older, compile-only pass (2026-08-24) — superseded by the above
 
-**Compiles for real now — the harpia Docker image ([`../../Dockerfile`](../../Dockerfile))
+**Compiles for real now — the harpia Docker image ([`../../../Dockerfile`](../../../Dockerfile))
 gained a JDK 17 + Gradle 8.5 + Android SDK (cmdline-tools, platform-tools,
 `platforms;android-34`, `build-tools;34.0.0`) toolchain.** Against that
 real toolchain:
@@ -137,7 +137,7 @@ gradle --no-daemon connectedAndroidTest -PharpiaGenDir=/tmp/gen
 
 Steps 1-3 all work inside the harpia Docker image. For step 3 specifically
 — which needs a device/emulator, not just the SDK — use
-[`docker/run_android_emulator_tests.sh`](../../docker/run_android_emulator_tests.sh)
+[`docker/run_android_emulator_tests.sh`](../../../docker/run_android_emulator_tests.sh)
 instead of `docker/run.sh`: it boots a headless, hardware-accelerated
 (`/dev/kvm`) emulator inside the container and runs steps 1-3 against it
 end to end. Requires `/dev/kvm` on the host (nested virtualization enabled,

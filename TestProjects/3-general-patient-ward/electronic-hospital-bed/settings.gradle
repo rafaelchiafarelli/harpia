@@ -1,6 +1,6 @@
 // Standalone project that consumes harpia's Java-target output as a black box.
 // Single-module Android build: the module IS the root project, sources under
-// ./src (see this folder's README.md). Modelled on examples/android_consumer.
+// ./src (see this folder's README.md). Modelled on HarpiaTest/app_example/android_consumer.
 pluginManagement {
     repositories {
         google()

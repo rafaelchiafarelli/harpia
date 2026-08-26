@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Boots a headless Android emulator (hardware-accelerated via /dev/kvm) inside
-# the harpia toolchain container and runs examples/android_consumer's three
+# the harpia toolchain container and runs HarpiaTest/app_example/android_consumer's three
 # `connectedAndroidTest`s (J.25 message classes, J.26 gRPC client, J.27 ZMQ
 # client) against it. The emulator + system image are baked into the image
 # (Dockerfile) at build time; this script only wires in the one thing that
@@ -21,7 +21,7 @@ if [ ! -e /dev/kvm ]; then
     echo "has no hardware virtualization available (or nested virt is disabled" >&2
     echo "up the host chain). The connectedAndroidTest run needs it; the" >&2
     echo "assembleDebugAndroidTest/assembleRelease compile-only checks (see" >&2
-    echo "examples/android_consumer/README.md) don't." >&2
+    echo "HarpiaTest/app_example/android_consumer/README.md) don't." >&2
     exit 1
 fi
 

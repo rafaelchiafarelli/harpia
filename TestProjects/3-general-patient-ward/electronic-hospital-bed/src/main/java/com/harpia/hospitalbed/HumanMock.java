@@ -12,7 +12,7 @@ import com.harpia.runtime.json.HarpiaJson;
  * this folder with HARPIA_GEN_LANG=java first (see README.md). Generated message
  * classes land in the flat package {@code com.harpia.generated} with their
  * name kept verbatim ({@code vital_signs.newBuilder()}); {@code HarpiaJson}
- * is the generated JSON runtime helper (same one examples/android_consumer uses).
+ * is the generated JSON runtime helper (same one HarpiaTest/app_example/android_consumer uses).
  */
 public final class HumanMock {
     private static final java.util.Random RNG = new java.util.Random(20260825L);

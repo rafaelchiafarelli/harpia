@@ -1,6 +1,6 @@
 // main.cpp -- device app -- constructs each outbound message the Endoscopy Video Tower publishes
 // and prints it as JSON. Extend it with the generated CRUDL DAO / REST
-// bindings the same way examples/consumer does.
+// bindings the same way HarpiaTest/app_example/consumer does.
 //
 // Consumes harpia-generated code as a black box. Generate a project from this
 // folder first (see README.md); CMake writes harpia_generated_includes.h into

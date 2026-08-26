@@ -6,7 +6,7 @@
 #   # 1. generate a project from your .harpia (SQLite backend shown)
 #   ./run_harpia.sh HarpiaTest /tmp/gen --no-build
 #   # 2. build this consumer against it
-#   cmake -S examples/consumer -B /tmp/consumer_build -DHARPIA_GEN=/tmp/gen
+#   cmake -S HarpiaTest/app_example/consumer -B /tmp/consumer_build -DHARPIA_GEN=/tmp/gen
 #   cmake --build /tmp/consumer_build
 #   /tmp/consumer_build/consumer
 cmake_minimum_required(VERSION 3.13)

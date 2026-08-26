@@ -49,7 +49,7 @@ Invoked from `main.py` and `tests/run_pipeline.py` after all other adapters.
   compiles sqlite as C (`enable_language(C)`), links `protofiles harpia_sqlite
   harpia_tinyxml2`, adds `add_test` per unit.
 - `_write_cmake`'s emitted CMake carries the same Windows `if(WIN32)` SOCI/vcpkg
-  branch as `examples/consumer` (see `Assets/CLAUDE.md`), plus its own
+  branch as `HarpiaTest/app_example/consumer` (see `Assets/CLAUDE.md`), plus its own
   `HARPIA_TEST_PROTO_INCLUDE_DIR` variable (same protobuf-version-skew fix as
   server/client/consumer — lists the vcpkg-regenerated `${CMAKE_BINARY_DIR}/proto`
   ahead of the Docker-baked `generated/cpp` on the include path) and a

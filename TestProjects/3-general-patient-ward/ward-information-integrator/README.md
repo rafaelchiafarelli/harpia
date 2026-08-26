@@ -46,5 +46,5 @@ Clean up with `rm -rf TestProjects/_gen/ward-information-integrator-ward3 TestPr
 - Generated identifiers are **md5-hash-qualified** off the `.harpia` input; the
   `CMakeLists.txt` globs the generated headers into
   `harpia_generated_includes.h` so this folder never hard-codes a hash.
-- See [`../../../examples/consumer`](../../../examples/consumer) for wiring the
+- See [`../../../HarpiaTest/app_example/consumer`](../../../HarpiaTest/app_example/consumer) for wiring the
   CRUDL DAO, REST bindings, gRPC service or ZMQ transport.

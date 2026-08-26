@@ -1,10 +1,10 @@
 // A STANDALONE project that consumes harpia's Java-target output as a
-// black box -- mirrors examples/consumer/'s role for the C++ target, for
+// black box -- mirrors HarpiaTest/app_example/consumer/'s role for the C++ target, for
 // the Android consumption path (initiatives/multi-language-targets/
 // thread-1-java-target README.md §7, sessions J.25-J.27). Does NOT depend
 // on the harpia repo itself, only on a project generated with
 // HARPIA_GEN_LANG=java, pointed at via the harpiaGenDir Gradle property
-// (the Gradle analogue of examples/consumer's -DHARPIA_GEN) -- see this
+// (the Gradle analogue of HarpiaTest/app_example/consumer's -DHARPIA_GEN) -- see this
 // directory's own README.md for the full command sequence.
 pluginManagement {
     repositories {

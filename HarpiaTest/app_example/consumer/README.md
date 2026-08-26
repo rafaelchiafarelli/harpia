@@ -16,7 +16,7 @@ It exercises three generated layers for the `users` message:
 ./run_harpia.sh HarpiaTest /tmp/gen --no-build
 
 # 2. build this consumer against that generated project
-cmake -S examples/consumer -B /tmp/consumer_build -DHARPIA_GEN=/tmp/gen
+cmake -S HarpiaTest/app_example/consumer -B /tmp/consumer_build -DHARPIA_GEN=/tmp/gen
 cmake --build /tmp/consumer_build
 
 # 3. run
@@ -28,7 +28,7 @@ Inside the toolchain image (no host deps needed):
 ```sh
 docker/run.sh bash -c '
   HARPIA_OUTPUT_DIR=/tmp/gen python3 main.py &&
-  cmake -S examples/consumer -B /tmp/cb -DHARPIA_GEN=/tmp/gen &&
+  cmake -S HarpiaTest/app_example/consumer -B /tmp/cb -DHARPIA_GEN=/tmp/gen &&
   cmake --build /tmp/cb && /tmp/cb/consumer'
 ```
 
@@ -57,7 +57,7 @@ build\Release\consumer.exe
 
 `vcpkg.json` in this folder declares the needed ports (`protobuf`, `grpc`,
 `soci[sqlite3]`, `openssl`); the toolchain file drives `vcpkg install`
-automatically. See [USAGE.md §11](../../USAGE.md#11-building-on-windows) for
+automatically. See [USAGE.md §11](../../../USAGE.md#11-building-on-windows) for
 what's behind the `if(WIN32)` branches in `CMakeLists.txt` and known gaps
 (PostgreSQL and the Stage 14 test suite aren't verified there).
 
@@ -74,13 +74,13 @@ HTTP — CMake generates a self-signed cert at configure time and Crow's
 `CROW_ENABLE_SSL`) picks it up:
 
 ```sh
-cmake -S examples/consumer -B /tmp/cb_tls -DHARPIA_GEN=/tmp/gen -DUSE_TLS=ON
+cmake -S HarpiaTest/app_example/consumer -B /tmp/cb_tls -DHARPIA_GEN=/tmp/gen -DUSE_TLS=ON
 cmake --build /tmp/cb_tls
 /tmp/cb_tls/consumer
 ```
 
 Output is identical except the last line reads `https://127.0.0.1:<port>/api/v1/users`.
-See [USAGE.md §9](../../USAGE.md#9-enabling-tls-on-restsoapgrpc) for the gRPC
+See [USAGE.md §9](../../../USAGE.md#9-enabling-tls-on-restsoapgrpc) for the gRPC
 equivalent (`grpc::SslServerCredentials`, no extra linking needed).
 
 ## Notes

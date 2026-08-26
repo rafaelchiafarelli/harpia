@@ -848,7 +848,7 @@ convention, been **removed from `initiatives/`** — its design rationale
 now lives in the code's own `CLAUDE.md` files (`GradleAdapter/CLAUDE.md`
 for the build-time-codegen decision, `JavaJsonAdapter/CLAUDE.md` for the
 full-protobuf-runtime-vs-`javalite` decision, `JavaZmqAdapter/CLAUDE.md`
-for the JeroMQ/CURVE story) and in `examples/android_consumer/README.md`
+for the JeroMQ/CURVE story) and in `HarpiaTest/app_example/android_consumer/README.md`
 for the Android verification account. Selection history, preserved here
 since it explains sequencing rather than implementation: Python was the
 original per-stage-cost recommendation (2026-08-11), but a concrete
@@ -865,4 +865,4 @@ line as language #3, not dropped.
   desktop/server shape; the Android on-device acceptance gate (all four
   `connectedAndroidTest` methods across message classes, JSON, gRPC
   client, and JeroMQ ZMQ) passed for real on a headless emulator — see
-  `examples/android_consumer/README.md`'s verification-status section.
+  `HarpiaTest/app_example/android_consumer/README.md`'s verification-status section.

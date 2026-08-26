@@ -193,7 +193,7 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `HARPIA_DB_BACKEND=postgresql`); skipped unless `HARPIA_PG_DSN` points at a
   reachable server.
 - `test_consumer_example.py` — downstream-consumption contract: builds + runs
-  `examples/consumer/` against a freshly generated project
+  `HarpiaTest/app_example/consumer/` against a freshly generated project
   (`cmake -DHARPIA_GEN=<gen>`), asserting the black-box wiring still works.
   Also builds/runs it with `-DUSE_TLS=ON` and does a real TLS handshake
   (`ssl.get_server_certificate`) against the running server.
