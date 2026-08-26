@@ -85,19 +85,20 @@ C_OUTPUT=/harpia_output
 
 # The input folder is mounted READ-ONLY: codegen must never mutate its source.
 # The one exception is the very first generation of a brand-new project. The
-# pipeline freezes each message's wire numbers into a committed sidecar
+# pipeline freezes each message's wire numbers into a local sidecar
 # (schema_registry/<stem>/<msg>.fieldmap) written NEXT TO the .harpia file, i.e.
 # inside the input folder (message/FieldMap.py::registry_path). That write only
-# happens when the sidecar does not exist yet; every later run only reads it. So
-# if the input folder has no schema_registry/ anywhere, mount it read-write for
-# this single run to let that first freeze land, and tell the user to commit it;
-# once it exists, go back to read-only.
+# happens when the sidecar does not exist yet; every later run only reads it. The
+# sidecar is git-ignored (repo .gitignore: schema_registry/) and regenerated per
+# checkout, not committed. So if the input folder has no schema_registry/
+# anywhere, mount it read-write for this single run to let that first freeze
+# land; once it exists, go back to read-only.
 if [ -n "$(find "$INPUT_ABS" -type d -name schema_registry -print -quit)" ]; then
     INPUT_MOUNT="$INPUT_ABS:$C_INPUT:ro"
     INPUT_MOUNT_NOTE="read-only"
 else
     INPUT_MOUNT="$INPUT_ABS:$C_INPUT"
-    INPUT_MOUNT_NOTE="READ-WRITE (first generation: schema_registry/ sidecars will be written into the input folder -- commit them)"
+    INPUT_MOUNT_NOTE="READ-WRITE (first generation: local schema_registry/ sidecars will be written into the input folder -- git-ignored, no need to commit)"
 fi
 
 echo "input   : $INPUT_ABS/$HARPIA_NAME"

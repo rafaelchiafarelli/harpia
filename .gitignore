@@ -6,4 +6,4 @@
 *.pyc
 .gradle/
 TestProjects/_gen/
-TestProjects/**/schema_registry/
+schema_registry/

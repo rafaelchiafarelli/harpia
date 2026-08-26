@@ -80,9 +80,9 @@ numbers), which needs the project folder writable. `run_harpia.sh` detects this
 — when the input folder has no `schema_registry/` yet it mounts the input
 **read-write** for that one run (it prints `mount : input mounted READ-WRITE
 (first generation…)`), and reverts to read-only once the sidecar exists.
-`schema_registry/` is **git-ignored here** — these are throwaway example
-projects, not a wire contract anyone consumes, so the sidecar is regenerated
-locally rather than committed. (In a real project it is committed source.)
+`schema_registry/` is **git-ignored** (`.gitignore`: `schema_registry/`,
+repo-wide project policy) — the sidecar is regenerated locally on each fresh
+checkout rather than committed.
 
 ## Start here
 

@@ -19,7 +19,7 @@
 - **Mutable class-attribute bug in `EnumValues`:** `values = []` is a class attribute and `createValues` appends to it, so enum values can leak across `EnumValues` instances. `Variables`/`Message` mostly re-init lists in `__init__` (safer), but `Message`'s class-level defaults (`variables=None` etc.) are shadowed per-instance.
 - `type` is stored as the raw token tuple `(TYPE, lexeme, line, col)`; downstream code reads `var.type[0]`/`[1]`.
 - Regex constants live on `Variables` (RegexForInt/Float/String); `map` regex via `RegexForMaps`.
-- **`schema_registry/` sidecars are committed source, not build output** — they live next to the `.harpia` file (e.g. `HarpiaTest/schema_registry/`), deliberately outside whatever `dest`/`HARPIA_OUTPUT_DIR` points at, because that build dir gets `rmtree`d/regenerated wholesale (see `tests/run_pipeline.py`) and losing the sidecar would defeat the whole point of freezing. Don't hand-edit; a message's field additions/removals/renames update it automatically on the next generation.
+- **`schema_registry/` sidecars are a local file, not build output, and not committed** — they live next to the `.harpia` file (e.g. `HarpiaTest/schema_registry/`), deliberately outside whatever `dest`/`HARPIA_OUTPUT_DIR` points at, because that build dir gets `rmtree`d/regenerated wholesale (see `tests/run_pipeline.py`). Project policy is **git-ignored repo-wide** (`.gitignore`: `schema_registry/`): the sidecar is regenerated per checkout, not tracked. Within one working tree it still freezes wire numbers across regenerations. Don't hand-edit; a message's field additions/removals/renames update it automatically on the next generation.
 
 ## Touchpoints
 - Called by: `LexicalAnalizer/MessageCreator.py`.
