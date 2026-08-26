@@ -1,11 +1,18 @@
 # Medical Devices Implementation
 
-Turns the 15 worked example projects under [`../../TestProjects/`](../../TestProjects/)
+Turns the 20 worked example projects under [`../../TestProjects/`](../../TestProjects/)
 (derived from `TestProjects/Projects.md`, the Hospital Electronic Equipment &
 Network Data Blueprint) into a tracked implementation effort: for each device,
 drive its harpia project to **buildable, runnable code** (a `device_app` that
 consumes the generated code, plus a `human_mock` traffic generator for every
 Human Interaction Device).
+
+The 20 projects are the 15 medical devices plus the 5 facility-infrastructure
+components added to the blueprint on 2026-08-26: the **Hospital Management
+System** (HMS), the **Hospital Point of Information**, and one **Ward
+Information Integrator** per clinical ward (ICU, OR, General Patient Ward). The
+infrastructure components are all C++ hubs with a single `device_app` and no
+`human_mock`.
 
 This is the *implementation* companion to `../medical_devices/` (which is the
 compliance/design-rules effort). Nothing here changes the generator; it exercises
@@ -18,10 +25,11 @@ it, one device at a time.
   - `<room>/histories/<device>/` — the running history for that one device
     (session notes, decisions, what built and ran).
 
-- [`epics/1-intensive-care-unit/`](epics/1-intensive-care-unit/) — 4 devices
-- [`epics/2-operating-room/`](epics/2-operating-room/) — 4 devices
-- [`epics/3-general-patient-ward/`](epics/3-general-patient-ward/) — 4 devices
-- [`epics/4-mobile-and-handheld-support-network/`](epics/4-mobile-and-handheld-support-network/) — 3 devices
+- [`epics/0-hospital-management-and-information/`](epics/0-hospital-management-and-information/) — 2 components (HMS, Point of Information)
+- [`epics/1-intensive-care-unit/`](epics/1-intensive-care-unit/) — 4 devices + Ward Information Integrator
+- [`epics/2-operating-room/`](epics/2-operating-room/) — 4 devices + Ward Information Integrator
+- [`epics/3-general-patient-ward/`](epics/3-general-patient-ward/) — 4 devices + Ward Information Integrator
+- [`epics/4-mobile-and-handheld-support-network/`](epics/4-mobile-and-handheld-support-network/) — 3 devices (roam between the ward integrators; no integrator of their own)
 
 ## Status
 
@@ -29,6 +37,19 @@ Started 2026-08-25 on branch `feature/test-projects-blueprint`. ICU room first:
 `infusion-pump` and `mechanical-ventilator` (C++) generate + build + run
 end-to-end via `run_harpia.sh` + `docker/run.sh`; the two Java/Android devices
 and rooms 2–4 are not started.
+
+2026-08-26: the 5 facility-infrastructure scaffolds (HMS, Point of Information,
+and the ICU / OR / General-Ward integrators) were added and each generates +
+builds + runs its `device_app` end-to-end (C++). Their `device_app`s only
+exercise the message-class + JSON surface so far — the real hub wiring (CRUDL
+DAO, REST/gRPC/ZMQ north/south interfaces) is not started.
+
+Note: on a component's **first** generation the pipeline writes a
+`schema_registry/` sidecar next to the `.harpia`, and it needs the project
+folder writable — `run_harpia.sh` mounts the input read-only, so the first run
+must go through `docker/run.sh` (repo mounted read-write) with
+`HARPIA_INPUT_FILE` / `HARPIA_INCLUDE_FOLDER` / `HARPIA_OUTPUT_DIR` set. After
+`schema_registry/` is committed, `run_harpia.sh` works normally.
 
 ## How each device is built
 

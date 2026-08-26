@@ -1,0 +1,84 @@
+import "common.harpia";
+
+// Hospital Management System -- central facility backend. It is the source of
+// most inbound data the devices receive and the sink for their outbound data.
+// Reference data the HMS owns and publishes is modelled as push messages its
+// clients subscribe to. Data the HMS collects back from the wards is modelled
+// as pull messages. Shared client identity and location types arrive via
+// common.harpia.
+
+// Admit discharge transfer status update published to the network.
+push event message adt_status_update {
+    phi required string patient_id;
+    required string encounter_id;
+    required string status;
+    optional string bed_assignment;
+} adt_status_update_table;
+
+// Verified electronic prescription published to infusion and feeding devices.
+push event message prescription_release {
+    required string prescription_id;
+    phi required string patient_id;
+    required string drug_name;
+    required float dose_rate_ml_h;
+    string ordering_physician;
+} prescription_release_table;
+
+// Daily nutrition plan published to feeding devices.
+push event message nutrition_plan_release {
+    phi required string patient_id;
+    required float target_rate_ml_h;
+    required int total_target_ml;
+} nutrition_plan_release_table;
+
+// Authorization token issued for a clinician session.
+push event message authorization_token {
+    required string login_id;
+    required string token;
+    required int expires_epoch_millis;
+} authorization_token_table;
+
+// Device to bed assignment entry published to a ward integrator.
+push event message device_bed_assignment {
+    required string device_id;
+    optional string bed_assignment;
+    required string ward_id;
+} device_bed_assignment_table;
+
+// Authoritative facility clock tick broadcast to ward integrators.
+push event message facility_clock_tick {
+    required int epoch_millis;
+    optional int timezone_offset_minutes;
+} facility_clock_tick_table;
+
+// Aggregated ward telemetry sample collected from a ward integrator.
+pull event message ward_telemetry_ingest {
+    required string ward_id;
+    required string device_id;
+    required string metric_name;
+    required float metric_value;
+    required int sample_epoch_millis;
+} ward_telemetry_ingest_table;
+
+// Numerical alarm collected from a ward integrator.
+pull event message ward_alarm_ingest {
+    required string ward_id;
+    required string device_id;
+    required int alarm_code;
+    required int active;
+} ward_alarm_ingest_table;
+
+// Device self test and calibration status collected from the wards.
+pull event message device_selftest_ingest {
+    required string device_id;
+    required string subsystem;
+    required int passed;
+} device_selftest_ingest_table;
+
+// Event and audit log line collected from every connected unit.
+pull event message audit_log_ingest {
+    required string source_id;
+    required string category;
+    required string detail;
+    required int epoch_millis;
+} audit_log_ingest_table;

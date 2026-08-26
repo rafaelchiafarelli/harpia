@@ -1,0 +1,63 @@
+import "common.harpia";
+
+// Ward Information Integrator -- ICU. Ward local edge hub. Uplink messages to
+// the Hospital Management System are push. Downlink reference data the hub
+// caches for local redistribution arrives via common.harpia plus the
+// prescription cache below.
+
+enum uplink_state {
+    unknown = 0;
+    online;
+    degraded;
+    store_and_forward;
+}
+
+// Aggregated ICU telemetry sample forwarded to the HMS.
+stream push event message ward_telemetry_batch {
+    required string ward_id;
+    required string device_id;
+    required string metric_name;
+    required float metric_value;
+    required int sample_epoch_millis;
+} ward_telemetry_batch_table;
+
+// Aggregated numerical alarm forwarded to the HMS.
+push event message ward_alarm_relay {
+    required string ward_id;
+    required string device_id;
+    required int alarm_code;
+    required int active;
+} ward_alarm_relay_table;
+
+// Per device health and audit log line forwarded to the HMS.
+push event message ward_audit_relay {
+    required string source_id;
+    required string category;
+    required string detail;
+    required int epoch_millis;
+} ward_audit_relay_table;
+
+// Store and forward replay summary sent when the HMS link is restored.
+push event message store_forward_replay {
+    required string ward_id;
+    required int first_epoch_millis;
+    required int last_epoch_millis;
+    required int record_count;
+} store_forward_replay_table;
+
+// Current uplink state of this hub.
+push event message uplink_status {
+    required string ward_id;
+    uplink_state state;
+    required int buffered_records;
+} uplink_status_table;
+
+// Verified electronic prescription cached from the HMS for redistribution to
+// ICU infusion devices.
+pull event message prescription_cache {
+    required string prescription_id;
+    phi required string patient_id;
+    required string drug_name;
+    required float dose_rate_ml_h;
+    string ordering_physician;
+} prescription_cache_table;

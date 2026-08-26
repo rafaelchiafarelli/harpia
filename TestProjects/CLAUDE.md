@@ -1,13 +1,17 @@
 # TestProjects -- worked harpia example projects (reference material, not on the pipeline)
 
-**Role:** 15 small example projects derived from `Projects.md` (the "Hospital
-Electronic Equipment & Network Data Blueprint"), one per medical device, grouped
-by the 4 clinical environments. Each *creates and consumes* harpia-generated
-code -- same role as `examples/consumer` / `examples/android_consumer`. Nothing
-here is read by `main.py`, `Util/`, or `tests/`.
+**Role:** 20 small example projects derived from `Projects.md` (the "Hospital
+Electronic Equipment & Network Data Blueprint"): one per medical device (15),
+plus 5 facility-infrastructure hubs added 2026-08-26 -- the Hospital Management
+System, the Hospital Point of Information (both under `0-.../`), and one Ward
+Information Integrator per clinical ward (in `1-.../`, `2-.../`, `3-.../`).
+Grouped by clinical environment (blueprint sections 0-4). Each *creates and
+consumes* harpia-generated code -- same role as `examples/consumer` /
+`examples/android_consumer`. Nothing here is read by `main.py`, `Util/`, or
+`tests/`.
 
 ## Contents
-- `Projects.md` -- the source blueprint: 15 devices x {Main Features, Network Outbound, Network Inbound, Human Interaction Device?, Mobile device?}.
+- `Projects.md` -- the source blueprint: 15 devices + 5 infrastructure hubs (HMS, Point of Information, 3 Ward Information Integrators) x {Main Features, Network Outbound, Network Inbound, Human Interaction Device?, Mobile device?, Fixed infrastructure?}, plus a **Connectivity Map** at the end (centralized hub-and-spoke: device -> ward integrator -> HMS; no device-to-device sockets).
 - `_shared/common.harpia` -- shared inbound message types (`patient_demographics`, `clock_sync`, `clinician_identity`, `device_location`); copied verbatim into every project's `Include/`.
 - `<n>-<room>/<device>/` -- per project: `<device>.md` (verbatim blueprint lines), `<name>.harpia` (assembled schema), `Include/common.harpia`, `src/`, `README.md`, and build infra.
 - `Requisits.md`, `Example.md` -- the older feature-checklist / domain-example seed notes (kept).
@@ -17,10 +21,13 @@ here is read by `main.py`, `Util/`, or `tests/`.
 - "Mobile device" -> Java target, single-module Android app module (Gradle, AGP 8.2.2).
 - otherwise -> C++ target, CMake + vcpkg (modelled on `examples/consumer`).
 - "Human Interaction Device" -> a `human-mock` runnable (`src/human_mock.cpp` / `HumanMock.java`) that generates simulated physiological + operator traffic as the generated message types.
+- "Fixed infrastructure" (HMS, Point of Information, Ward Information Integrator) -> C++ target, `device_app` only, **no `human_mock`**. Data the hub publishes -> `push`; data it ingests / caches -> `pull`.
 - Network Outbound -> `push`/`stream`/`event` messages; Network Inbound -> `pull`; recurring inbound types factored into `_shared/common.harpia`.
 
 ## Key facts / gotchas
 - `.harpia` authoring constraints that bit here: no `bool` type (use `int` 0/1); `optional `/`required `/`phi ` need a trailing space; `repeteable` is spelled that way; every `enum` needs one `= 0`; files must be ASCII and end in a newline; `.harpia` **comments** may only contain letters/digits/space and `. , ( ) { } [ ] ; = < > + - * /` -- a `:` `'` `%` etc. anywhere (even in a comment) hard-errors the file.
+- **The lexer matches `int` greedily** (leftmost-alternative, not longest): any identifier *starting* with a type keyword breaks -- `integrator_link_state` lexed as `INT32("int") + ID("egrator_link_state")` and failed with `NO_NAME_IN_MESSAGE`. Renamed to `uplink_state`. Avoid message/enum/field names starting with `int`, `float`, `string`, `map`, `enum`, etc. `int` maps to proto `int32`, so keep int literals in the demo `.cpp` under 2^31.
+- **First generation needs a writable project folder** (it writes `schema_registry/`). `run_harpia.sh` mounts the input `:ro`, so the first run of a new project must go through a direct `docker run` with the repo mounted read-write and `HARPIA_INPUT_FILE` / `HARPIA_INCLUDE_FOLDER` / `HARPIA_OUTPUT_DIR` set (see `TestProjects/README.md` "First generation"). Commit `schema_registry/`; after that `run_harpia.sh` works.
 - Generated identifiers are md5-hash-qualified off the `.harpia` input; the C++ `CMakeLists.txt` globs generated headers into a `harpia_generated_includes.h` so no project hard-codes a hash.
 - Each project folder is a valid `run_harpia.sh` input folder: exactly one root `.harpia` at its top level, plus `Include/`.
 - On first generation the pipeline drops a `schema_registry/` sidecar next to each `.harpia` (stable field numbers) -- committed source, do not hand-edit.

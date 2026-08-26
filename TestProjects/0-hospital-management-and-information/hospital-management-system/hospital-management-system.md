@@ -1,0 +1,5 @@
+### Hospital Management System (HMS)
+*   **Main Features:** Central facility backend that owns the master patient record, the admit / discharge / transfer workflow, medication and nutrition orders, the staff directory, and the authoritative facility clock. Every clinical device on the network is a client of this system: it is the source of nearly all **📥 Network Inbound** data the devices receive, and the sink for nearly all their **📡 Network Outbound** data.
+*   **📡 Network Outbound:** Patient demographic profiles, admit/discharge/transfer status updates, verified electronic prescriptions and daily nutrition plans, clinician login profiles and authorization tokens, clock synchronization packets, and device-to-bed location assignments.
+*   **📥 Network Inbound:** Live vital-sign metrics and numerical alarms from bedside devices, infusion and feeding delivery totals, captured surgical snapshots, device self-test and calibration status, and event / audit logs from every connected unit.
+*   **Fixed infrastructure** (Rack-mounted server; no direct patient contact, not a mobile deployment).
