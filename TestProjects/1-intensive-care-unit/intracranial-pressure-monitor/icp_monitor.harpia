@@ -1,0 +1,24 @@
+import "common.harpia";
+
+// Intracranial Pressure (ICP) Monitor -- measures fluid pressure inside
+// the cranium.
+
+// Continuous mean ICP plus the pressure waveform sample stream.
+stream push event message icp_reading {
+    phi required string patient_id;
+    required float mean_icp_mmhg;
+    required float waveform_sample;
+} icp_reading_table;
+
+// High pressure boundary threshold alert.
+push event message icp_threshold_alert {
+    required float upper_bound_mmhg;
+    required float current_mmhg;
+    required int breached;
+} icp_threshold_alert_table;
+
+// Zero calibration baseline confirmation received from the network.
+pull message zero_calibration {
+    required int epoch_millis;
+    required string performed_by;
+};

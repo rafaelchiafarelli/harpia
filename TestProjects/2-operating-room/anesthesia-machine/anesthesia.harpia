@@ -1,0 +1,30 @@
+import "common.harpia";
+
+// Anesthesia Machine -- delivers a measured mix of medical vapours and
+// oxygen.
+
+// Agent gas concentrations and oxygen mix, streamed continuously.
+stream push event message agent_delivery {
+    required float isoflurane_percent;
+    required float sevoflurane_percent;
+    required float oxygen_mix_percent;
+} agent_delivery_table;
+
+// Agent depletion warning.
+push event message agent_depletion_warning {
+    string agent_name;
+    required float remaining_percent;
+} agent_depletion_warning_table;
+
+// Automated ventilation loop samples.
+stream push message ventilation_loop {
+    required float pressure_sample;
+    required float volume_sample;
+} ventilation_loop_table;
+
+// Pre surgical checklist log and case validation record, pulled in.
+pull event message presurgical_checklist {
+    required string case_id;
+    repeteable string completed_items;
+    int validated;
+} presurgical_checklist_table;

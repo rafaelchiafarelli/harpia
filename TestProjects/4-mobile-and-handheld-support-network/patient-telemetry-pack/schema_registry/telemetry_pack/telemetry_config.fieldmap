@@ -1,0 +1,6 @@
+ID:1
+transmit_rate_hz:2
+signal_check_interval_s:3
+STATUS:4
+ERROR:5
+ORIGINATOR:6

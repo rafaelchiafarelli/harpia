@@ -1,0 +1,38 @@
+import "common.harpia";
+
+// Doctors Tablet -- mobile screen for viewing live patient data. Mostly a
+// consumer of inbound streams; patient demographics arrive via
+// common.harpia (patient_demographics).
+
+// Clinician interaction input log.
+push message clinician_interaction_log {
+    string user_id;
+    string action;
+    string target_ref;
+} clinician_interaction_log_table;
+
+// Explicit authorisation token request.
+push event message authorization_request {
+    string user_id;
+    string scope;
+    string token_ref;
+} authorization_request_table;
+
+// Live streaming waveform graph pulled from the monitor network.
+stream pull event message live_waveform {
+    phi string patient_id;
+    repeteable float ecg_samples;
+};
+
+// Real time alarm feed.
+pull event message alarm_feed {
+    phi string patient_id;
+    required int alarm_code;
+    required int severity;
+};
+
+// Complete historical patient chart.
+pull event message patient_chart {
+    phi string patient_id;
+    repeteable string history_entries;
+} patient_chart_table;

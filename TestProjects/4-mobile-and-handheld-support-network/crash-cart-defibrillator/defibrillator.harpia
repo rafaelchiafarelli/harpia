@@ -1,0 +1,23 @@
+import "common.harpia";
+
+// Crash Cart Defibrillator -- analyses heart rhythm and delivers shocks.
+// Inbound clock sync arrives via common.harpia (clock_sync).
+
+// Real time ECG waveform stream.
+stream push event message defib_ecg {
+    phi string patient_id;
+    repeteable float ecg_samples;
+} defib_ecg_table;
+
+// Shock energy and pacing status event with a precise timestamp.
+push event message shock_event {
+    required float energy_joules;
+    required int pacing_active;
+    required int epoch_millis;
+} shock_event_table;
+
+// System diagnostic update pass pulled from the network.
+pull message diagnostic_update {
+    string package_version;
+    required int passed;
+};

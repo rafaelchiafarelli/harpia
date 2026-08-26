@@ -1,0 +1,7 @@
+ID:1
+target_tidal_volume_ml:2
+target_fio2_percent:3
+target_rate_bpm:4
+STATUS:5
+ERROR:6
+ORIGINATOR:7

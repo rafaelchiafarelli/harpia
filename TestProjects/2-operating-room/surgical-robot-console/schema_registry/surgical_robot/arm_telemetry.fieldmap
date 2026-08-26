@@ -1,0 +1,12 @@
+ID:1
+arm_id:2
+x:3
+y:4
+z:5
+roll:6
+pitch:7
+yaw:8
+instrument_cycle_count:9
+STATUS:10
+ERROR:11
+ORIGINATOR:12

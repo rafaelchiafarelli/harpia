@@ -5,3 +5,4 @@
 .pytest_cache
 *.pyc
 .gradle/
+TestProjects/_gen/

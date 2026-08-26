@@ -1,0 +1,10 @@
+ID:1
+patient_id:2
+heart_rate_bpm:3
+spo2_percent:4
+respiration_rate_bpm:5
+bp_systolic_mmhg:6
+bp_diastolic_mmhg:7
+STATUS:8
+ERROR:9
+ORIGINATOR:10

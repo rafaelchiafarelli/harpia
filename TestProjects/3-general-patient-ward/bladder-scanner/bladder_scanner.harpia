@@ -1,0 +1,13 @@
+import "common.harpia";
+
+// Bladder Scanner -- portable ultrasound that measures bladder urine
+// volume non invasively. Inbound nurse login and patient record match
+// arrive via common.harpia (clinician_identity, patient_demographics).
+
+// Calculated bladder volume, quality rating and outline thumbnail id.
+push event message bladder_scan_result {
+    phi string patient_id;
+    required float bladder_volume_ml;
+    required int quality_rating;
+    string outline_thumbnail_id;
+} bladder_scan_result_table;

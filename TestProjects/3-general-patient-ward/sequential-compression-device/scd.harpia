@@ -1,0 +1,23 @@
+import "common.harpia";
+
+// Sequential Compression Device -- inflates leg sleeves in sequence to
+// promote blood flow. Inbound location pings arrive via common.harpia
+// (device_location).
+
+// Sleeve pressure cycles, streamed per chamber.
+stream push event message compression_cycle {
+    required float sleeve_pressure_mmhg;
+    required int cycle_index;
+    string chamber;
+} compression_cycle_table;
+
+// Operation timer log.
+push message scd_runtime_log {
+    required int total_runtime_minutes;
+} scd_runtime_table;
+
+// Sleeve disconnected alert.
+push event message sleeve_disconnected_alert {
+    string leg_side;
+    required int disconnected;
+} sleeve_disconnected_alert_table;

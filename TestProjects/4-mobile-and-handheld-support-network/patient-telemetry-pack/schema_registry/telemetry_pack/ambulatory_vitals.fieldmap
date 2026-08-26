@@ -1,0 +1,9 @@
+ID:1
+patient_id:2
+heart_rate_bpm:3
+spo2_percent:4
+signal_strength_dbm:5
+battery_percent:6
+STATUS:7
+ERROR:8
+ORIGINATOR:9
