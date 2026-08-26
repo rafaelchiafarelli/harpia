@@ -20,16 +20,30 @@ it, one device at a time.
 
 ## Structure
 
-- `epics/` — one epic per clinical environment (room) from the blueprint.
-  - `<room>/README.md` — the room's devices, their target language, and status.
-  - `<room>/histories/<device>/` — the running history for that one device
-    (session notes, decisions, what built and ran).
+`epics/` holds two kinds of epic. Each `<epic>/README.md` carries the scope +
+status table; each `<epic>/histories/<name>/` is one running history (session
+notes, decisions, what built and ran).
 
-- [`epics/0-hospital-management-and-information/`](epics/0-hospital-management-and-information/) — 2 components (HMS, Point of Information)
+### Room epics (0–4) — one per clinical environment in the blueprint
+
+Goal per device/component: a harpia project that generates and a `device_app`
+(+ `human_mock` for a Human Interaction Device) that builds and runs.
+
+- [`epics/0-hospital-management-and-information/`](epics/0-hospital-management-and-information/) — HMS, Point of Information
 - [`epics/1-intensive-care-unit/`](epics/1-intensive-care-unit/) — 4 devices + Ward Information Integrator
 - [`epics/2-operating-room/`](epics/2-operating-room/) — 4 devices + Ward Information Integrator
 - [`epics/3-general-patient-ward/`](epics/3-general-patient-ward/) — 4 devices + Ward Information Integrator
 - [`epics/4-mobile-and-handheld-support-network/`](epics/4-mobile-and-handheld-support-network/) — 3 devices (roam between the ward integrators; no integrator of their own)
+
+### Cross-cutting epics (5–8) — tracks the room epics don't cover
+
+Written down 2026-08-26 as skeletons; **all not started**. Each depends on the
+room epics reaching "generates + builds + runs" first.
+
+- [`epics/5-transport-and-hub-wiring/`](epics/5-transport-and-hub-wiring/) — make the Connectivity Map real: components exchange messages over a generated transport; integrator broker + store-and-forward uplink + downlink cache; HMS north/south interfaces.
+- [`epics/6-java-android-target/`](epics/6-java-android-target/) — the 7 Java/Android projects (rooms 1–4) each build + run as an Android app module via the shared Gradle / `HARPIA_GEN_LANG=java` path.
+- [`epics/7-ward-end-to-end-scenarios/`](epics/7-ward-end-to-end-scenarios/) — run a whole ward together (`human_mock` → `device_app` → integrator → HMS → Point of Information); mobile roaming/handoff. Depends on 5 + 6.
+- [`epics/8-phi-and-compliance-surface/`](epics/8-phi-and-compliance-surface/) — verify what the `phi ` markers + `class_c` default produce across the 20 projects. Coordinates with [`../medical_devices/`](../medical_devices/).
 
 ## Status
 
@@ -52,6 +66,11 @@ identifiers that start with a type keyword (`int`, `string`, …), and
 project's first generation (when it has no `schema_registry/` yet). Nothing
 special is needed anymore — run `run_harpia.sh` and commit the resulting
 `schema_registry/`.
+
+Also 2026-08-26: the four cross-cutting epics (5 transport & hub wiring,
+6 Java/Android target, 7 ward end-to-end scenarios, 8 PHI & compliance surface)
+were written down as skeleton READMEs + history folders. All not started; each
+waits on the room epics.
 
 ## How each device is built
 
