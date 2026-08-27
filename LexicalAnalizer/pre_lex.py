@@ -1,8 +1,8 @@
 ## pre_lexical will read the selected file and make all the pre-lex operations
 import os
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import isascii, isFileInFolders
+from Util.util import isascii, isFileInFolders
 import shutil
 import hashlib
 

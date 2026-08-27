@@ -1,4 +1,4 @@
-"""Session J.4 (initiatives/multi-language-targets/thread-1-java-target/
+"""Session J.4 (Initiatives/multi-language-targets/thread-1-java-target/
 histories/JSON/pass-through.md) -- JSON pass-through for the Java target.
 
 Unlike the C++ target's JsonAdapter (one generated wrapper header per
@@ -15,9 +15,9 @@ have -- see JavaJsonAdapter/CLAUDE.md.
 """
 import os
 
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import copy_if_different
+from Util.util import copy_if_different
 
 _RUNTIME_FILE = "HarpiaJson.java"
 _RUNTIME_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),

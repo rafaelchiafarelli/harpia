@@ -1,12 +1,12 @@
 # JavaJsonAdapter — Java target: JSON pass-through (one shared runtime, no per-message generation)
 
-**Pipeline role:** Java-target Stage 9 equivalent (session J.4, `initiatives/multi-language-targets/thread-1-java-target`). Ships a single hand-written Java class wrapping `protobuf-java-util`'s `com.google.protobuf.util.JsonFormat` — the same canonical protobuf-JSON mapping the C++ (`JsonAdapter`) and future Python targets use.
+**Pipeline role:** Java-target Stage 9 equivalent (session J.4, `Initiatives/multi-language-targets/thread-1-java-target`). Ships a single hand-written Java class wrapping `protobuf-java-util`'s `com.google.protobuf.util.JsonFormat` — the same canonical protobuf-JSON mapping the C++ (`JsonAdapter`) and future Python targets use.
 **Entry point (from main.py):** gated behind `HARPIA_GEN_LANG=java` (default `cpp`, unaffected), called right after `GradleAdapter` in the same block: `JavaJsonAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; main.py logs it).
 **Inputs → Outputs:** consumes message objects only to decide whether there's anything to generate for (`Errors.Types.NOTHING_TO_REPORT` if `messages` is empty) — the runtime class itself is message-agnostic. Emits exactly one file: `<dest>/java/src/main/java/com/harpia/runtime/json/HarpiaJson.java`.
 
 ## Files
 - `JavaJsonAdapter.py` — `Process()` copies (`copy_if_different`) `runtime/HarpiaJson.java` into `<dest>/java/src/main/java/com/harpia/runtime/json/`. No loop over messages, no per-message rendering — see "Why no per-message wrapper" below.
-- `runtime/HarpiaJson.java` — hand-written (NOT generated, same status as `XmlAdapter/runtime/harpia_xml.h` on the C++ side), copied verbatim. `package com.harpia.runtime.json;` (deliberately NOT `com.harpia.generated`, the flat package every protoc-generated message class lives in — keeps this hand-written class from ever colliding with a message named e.g. `HarpiaJson`). Three static methods: `String toJson(Message msg)`, `<T extends Message.Builder> T fromJson(String json, T builder)` (throws `InvalidProtocolBufferException`, tolerant of unrecognized keys — same forward-compatibility stance as the C++/XML parse-boundary hardening, see `protoFile/CLAUDE.md`'s `optional` note), `boolean isValidJson(String json, Message.Builder prototype)` (clones `prototype` internally so the caller's own builder is never mutated by a probe call).
+- `runtime/HarpiaJson.java` — hand-written (NOT generated, same status as `XmlAdapter/runtime/harpia_xml.h` on the C++ side), copied verbatim. `package com.harpia.runtime.json;` (deliberately NOT `com.harpia.generated`, the flat package every protoc-generated message class lives in — keeps this hand-written class from ever colliding with a message named e.g. `HarpiaJson`). Three static methods: `String toJson(Message msg)`, `<T extends Message.Builder> T fromJson(String json, T builder)` (throws `InvalidProtocolBufferException`, tolerant of unrecognized keys — same forward-compatibility stance as the C++/XML parse-boundary hardening, see `ProtoFile/CLAUDE.md`'s `optional` note), `boolean isValidJson(String json, Message.Builder prototype)` (clones `prototype` internally so the caller's own builder is never mutated by a probe call).
 
 ## Why no per-message wrapper (unlike C++'s JsonAdapter)
 C++'s `JsonAdapter` emits one `_json.h` per message, each a thin wrapper typed to that one message's C++ class, even though the underlying `google::protobuf::util::MessageToJsonString`/`JsonStringToMessage` are already generic over any `google::protobuf::Message` — the per-message wrapper exists purely for typed-call ergonomics (`to_json(myPrinceMsg, &out)` reads slightly nicer than the fully-generic call), not because the underlying API needs it.
@@ -19,7 +19,7 @@ This class (and `JavaXmlAdapter`'s reflection-based runtime) only works
 at all against protoc's full-runtime Java output — `javalite`-generated
 classes have no `getDescriptorForType()`/reflection API, so `JsonFormat`
 can't operate on them. Since the Android consumption path
-(`examples/android_consumer`) depends on this class, the choice of
+(`HarpiaTest/app_example/android_consumer`) depends on this class, the choice of
 protobuf runtime variant was a real fork worth deciding deliberately:
 Android best-practice often reaches for `javalite` specifically because
 most apps don't need reflection, and it's smaller/DEX-friendlier — but
@@ -30,7 +30,7 @@ full-mode shrinking substantially mitigate the DEX-size pressure that
 originally motivated `javalite` in the mid-2010s, and nothing in the
 actual motivating use case (an existing Android fleet wanting parity with
 the full target) named DEX size as a real constraint. Confirmed against a
-real build, not just reasoned: `examples/android_consumer`'s
+real build, not just reasoned: `HarpiaTest/app_example/android_consumer`'s
 `assembleRelease` (R8 enabled) produces ~105,822 methods across two dex
 files (over the 65,536 single-dex limit) — multidex activates, and does
 so cleanly. `GradleAdapter/templates/project.gradle.tmpl` already

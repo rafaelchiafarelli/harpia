@@ -2,7 +2,7 @@
 > compliance profile (PHI field tagging, message-level criticality,
 > key management, mTLS/RBAC, audit trails — see stages 5 and 8 below,
 > which this profile extends) is scoped separately, not yet part of this
-> baseline: see `initiatives/medical_devices/`.
+> baseline: see `Initiatives/medical_devices/`.
 
 - 0. pre-process check (pre_lex)
   - 0.0. check for non-utf8 characters

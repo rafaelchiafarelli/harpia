@@ -1,0 +1,24 @@
+import "common.harpia";
+
+// Patient Telemetry Pack -- battery worn transmitter tracking vitals
+// while the patient walks around.
+
+// Continuous ambulatory vitals with link quality and battery level.
+stream push event message ambulatory_vitals {
+    phi required string patient_id;
+    required float heart_rate_bpm;
+    required float spo2_percent;
+    required float signal_strength_dbm;
+    required float battery_percent;
+} ambulatory_vitals_table;
+
+// Low battery alert.
+push event message low_battery_alert {
+    required float battery_percent;
+} low_battery_alert_table;
+
+// Bi directional signal check ping and data rate configuration.
+pull message telemetry_config {
+    int transmit_rate_hz;
+    int signal_check_interval_s;
+};

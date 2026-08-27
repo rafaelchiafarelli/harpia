@@ -4,9 +4,9 @@
 `Database/backends/` one level up in abstraction: `DbBackend` answers
 "which SQL dialect", `CryptoBackend` answers "which crypto module" (e.g.
 standard vs. FIPS-validated OpenSSL). Resolved once per run (`main.py`,
-mirrored in `tests/run_pipeline.py`), logged, and persisted as build
+mirrored in `UnitTests/run_pipeline.py`), logged, and persisted as build
 metadata. See the F5 section of
-`initiatives/medical_devices/epics/handoff-document.md` (the Foundation
+`Initiatives/medical_devices/epics/handoff-document.md` (the Foundation
 thread itself was merged to `dev` and removed; see git history for the
 original implementation write-up).
 **Neither real consumer exists in this repo yet** -- Track O (key-wrap/
@@ -53,6 +53,6 @@ HSM-backed backend).
   `Compliance`), no cycle.
 
 ## Touchpoints
-- Called by: `main.py`, `tests/run_pipeline.py`.
+- Called by: `main.py`, `UnitTests/run_pipeline.py`.
 - Depends on: `Compliance.context`, `Util.util.write_if_different`.
-- Tested by: `tests/test_crypto_backend.py`.
+- Tested by: `UnitTests/test_crypto_backend.py`.

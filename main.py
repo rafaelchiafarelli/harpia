@@ -1,14 +1,14 @@
 ##this is a file meant to be executed as the main executor
 import os
 from LexicalAnalizer.LexicalAnalyzer import LexicalAnalyzer
-from logger.logger import logger
+from Logger.logger import logger
 from LexicalAnalizer.pre_lex import pre_lex
 
 from LexicalAnalizer.MessageCreator import MessageCreator,Message
-from protoFile.ProtoFileProcessor import ProtoFileProcessor
-from protoFile.FileCreator import FileCreator
-from protoFile.ProtoCompiler import ProtoCompiler
-from protoFile.GrpcCompiler import GrpcCompiler
+from ProtoFile.ProtoFileProcessor import ProtoFileProcessor
+from ProtoFile.FileCreator import FileCreator
+from ProtoFile.ProtoCompiler import ProtoCompiler
+from ProtoFile.GrpcCompiler import GrpcCompiler
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
@@ -25,7 +25,7 @@ from HttpCapabilityAdapter.HttpCapabilityAdapter import HttpCapabilityAdapter
 from ZmqCapabilityAdapter.ZmqCapabilityAdapter import ZmqCapabilityAdapter
 from TestAdapter.TestAdapter import TestAdapter
 from copy import deepcopy
-from util.util import (copyCMakeFiles, copyServerClientTemplates,
+from Util.util import (copyCMakeFiles, copyServerClientTemplates,
                        copyBasicProtos, copyDoxygenFiles, chooseDemo,
                        prune_stale_outputs)
 from Compliance.context import load_compliance_context, ComplianceConfigError
@@ -155,7 +155,7 @@ if __name__ == '__main__':
 
     # 6/13 (java target selector). HARPIA_GEN_LANG picks the generation
     # target (default cpp, unchanged pipeline below); "java" additionally
-    # stands up a Gradle project for the Java target (see initiatives/multi-
+    # stands up a Gradle project for the Java target (see Initiatives/multi-
     # language-targets/thread-1-java-target/README.md §5), including gRPC
     # stub wiring (J.3) -- run after copyBasicProtos so the framework protos
     # (errorCode/heartBeat) it needs already exist under

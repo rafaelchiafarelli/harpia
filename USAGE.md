@@ -205,18 +205,18 @@ generated access credential (`X-User` / `X-Pswd` headers for REST; a
 
 Beyond building the generated project standalone, you usually want to **consume**
 its code from your own application. A complete, runnable example lives in
-[`examples/consumer/`](examples/consumer/) — inspect it end to end:
+[`HarpiaTest/app_example/consumer/`](HarpiaTest/app_example/consumer/) — inspect it end to end:
 
-- [`examples/consumer/src/main.cpp`](examples/consumer/src/main.cpp) — the app.
-- [`examples/consumer/CMakeLists.txt`](examples/consumer/CMakeLists.txt) — the build wiring.
-- [`examples/consumer/README.md`](examples/consumer/README.md) — how to run it.
+- [`HarpiaTest/app_example/consumer/src/main.cpp`](HarpiaTest/app_example/consumer/src/main.cpp) — the app.
+- [`HarpiaTest/app_example/consumer/CMakeLists.txt`](HarpiaTest/app_example/consumer/CMakeLists.txt) — the build wiring.
+- [`HarpiaTest/app_example/consumer/README.md`](HarpiaTest/app_example/consumer/README.md) — how to run it.
 
 It depends only on a project you generated (via `-DHARPIA_GEN=<generated dir>`),
 not on the Harpia repo:
 
 ```sh
 ./run_harpia.sh HarpiaTest /tmp/gen --no-build          # generate
-cmake -S examples/consumer -B /tmp/cb -DHARPIA_GEN=/tmp/gen
+cmake -S HarpiaTest/app_example/consumer -B /tmp/cb -DHARPIA_GEN=/tmp/gen
 cmake --build /tmp/cb && /tmp/cb/consumer               # build + run
 ```
 
@@ -287,9 +287,9 @@ run on every application startup, not just once.
 
 **Interactive / scripted, inside the toolchain image:**
 ```sh
-docker/run.sh                    # interactive shell in the harpia-build image
-docker/run.sh pytest             # run Harpia's own test suite
-docker/run.sh python3 main.py    # run the pipeline with the in-repo defaults
+Docker/run.sh                    # interactive shell in the harpia-build image
+Docker/run.sh pytest             # run Harpia's own test suite
+Docker/run.sh python3 main.py    # run the pipeline with the in-repo defaults
 ```
 
 **Directly via `main.py`** (defaults generate the in-repo `HarpiaTest` example).
@@ -346,13 +346,13 @@ target_link_libraries(your_target PRIVATE SOCI::SOCI)
 ```
 
 `SOCI::SQLite3`'s own link interface references `SQLite3::SQLite3` without
-importing it, needing a hand-written alias (see the `examples/consumer`/Stage 14
+importing it, needing a hand-written alias (see the `HarpiaTest/app_example/consumer`/Stage 14
 `gen_tests` CMakeLists for the pattern). `SOCI::PostgreSQL` does **not** need an
 analogous alias: vcpkg's `libpq` port ships a `vcpkg-cmake-wrapper.cmake` that
 hooks CMake's builtin MODULE-mode `find_package(PostgreSQL)` and defines
 `PostgreSQL::PostgreSQL` directly, so a plain `find_package(PostgreSQL REQUIRED)`
 before `find_package(SOCI CONFIG REQUIRED)` is enough — see
-`examples/consumer/CMakeLists.txt`'s `USE_POSTGRES` option. Build- and
+`HarpiaTest/app_example/consumer/CMakeLists.txt`'s `USE_POSTGRES` option. Build- and
 live-session-verified on Windows (MSVC + vcpkg, real `soci::postgresql`
 session against a real server) — see [§12](#12-building-on-windows).
 
@@ -395,7 +395,7 @@ opts.pem_key_cert_pairs.push_back({read_file("server.key"), read_file("server.cr
 builder.AddListeningPort(addr, grpc::SslServerCredentials(opts));
 ```
 
-**Worked example:** [`examples/consumer/`](examples/consumer/) demonstrates the
+**Worked example:** [`HarpiaTest/app_example/consumer/`](HarpiaTest/app_example/consumer/) demonstrates the
 Crow path end to end — build it with `-DUSE_TLS=ON` to see a generated CMake
 target generate a self-signed cert at configure time and serve real REST traffic
 over it (see its README).
@@ -482,7 +482,7 @@ On Windows, vcpkg's `zeromq` port needs the `curve`+`sodium` features (see
 
 Verified end to end on MSVC (Visual Studio 2022, toolset v143) + vcpkg,
 covering the ZMQ server/client transport demo and the REST/JSON demo
-(`examples/consumer`, including `-DUSE_TLS=ON` and, against a live server,
+(`HarpiaTest/app_example/consumer`, including `-DUSE_TLS=ON` and, against a live server,
 `-DUSE_POSTGRES=ON`). The generator itself
 (`main.py`) still only runs via Docker/Linux — this section is about the
 **generated C++ project** compiling and running natively on Windows.
@@ -515,7 +515,7 @@ cmake --build <output_folder>\build --config Release
 `vcpkg install` automatically at configure time. Expect the first configure to
 take a while — gRPC in particular is slow to build from source on Windows.
 
-### Building `examples/consumer` (REST/JSON demo)
+### Building `HarpiaTest/app_example/consumer` (REST/JSON demo)
 
 ```
 cmake -S examples\consumer -B <build_dir> -A x64 ^
@@ -564,7 +564,7 @@ Same generated project as the ZMQ demo above, reconfigured with
 ### Why the CMake files look the way they do
 
 Every `if(WIN32) ... else() ...` branch in `Assets/server_template`,
-`client_template`, `proto`, `examples/consumer`'s, and the generated
+`client_template`, `proto`, `HarpiaTest/app_example/consumer`'s, and the generated
 `tests/`'s CMakeLists exists because vcpkg's packages export namespaced
 CONFIG targets (`SOCI::SOCI`, `cppzmq`, `gRPC::grpc++`) instead of the bare
 library names (`soci_core`, `zmq`) the Linux/apt path resolves by linker

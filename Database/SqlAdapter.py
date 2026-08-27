@@ -24,9 +24,9 @@ table. The generated schema is validated against the vendored SQLite in tests.
 """
 import os
 
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import loadTemplate, write_if_different
+from Util.util import loadTemplate, write_if_different
 from Database.backends import get_backend
 from Database.model import (analyze, type_registry, map_fields, repeated_fields,
                             RepeatedComposedField)

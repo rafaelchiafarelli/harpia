@@ -1,4 +1,4 @@
-"""Session J.21 (initiatives/multi-language-targets/thread-1-java-target/
+"""Session J.21 (Initiatives/multi-language-targets/thread-1-java-target/
 histories/Generated-tests-packaging/JUnit-test-generation.md) -- JUnit 5
 test generation for the Java target.
 
@@ -25,9 +25,9 @@ camelCase accessor name against.
 """
 import os
 
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import write_if_different, loadTemplate
+from Util.util import write_if_different, loadTemplate
 from Database.model import type_registry, analyze
 
 _TEMPLATE = loadTemplate(__file__, "test.java.tmpl")

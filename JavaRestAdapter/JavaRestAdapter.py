@@ -1,4 +1,4 @@
-"""Sessions J.12/J.13/J.14 (initiatives/multi-language-targets/thread-1-
+"""Sessions J.12/J.13/J.14 (Initiatives/multi-language-targets/thread-1-
 java-target/histories/REST/) -- REST routing scaffolding (J.12), CRUDL
 handlers (J.13), and the acceptance gate (J.14, "nothing new") for the Java
 target. Landed together -- see this session's own history files for why.
@@ -22,9 +22,9 @@ flagged, not silently dropped.
 """
 import os
 
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import copy_if_different, write_if_different, loadTemplate
+from Util.util import copy_if_different, write_if_different, loadTemplate
 
 _RUNTIME_FILE = "HttpRestHelpers.java"
 _RUNTIME_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),

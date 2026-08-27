@@ -3,7 +3,7 @@ through every stage of the generator (Foundation F1).
 
 Parsed once from ``project.harpia.yaml`` at generation start and passed into
 every ``Stage*`` entry point, alongside the messages/dest args each already
-takes. Per ``initiatives/medical_devices/harpia_sensitive_data_design_rules.md``
+takes. Per ``Initiatives/medical_devices/harpia_sensitive_data_design_rules.md``
 §6a: ``risk_class`` is a single project-wide hardening floor (no
 per-jurisdiction fan-out); ``jurisdiction[]`` is inert for codegen, read only
 by Track M for paperwork-template selection.
@@ -16,7 +16,7 @@ from enum import Enum
 
 import yaml
 
-from logger.logger import logger
+from Logger.logger import logger
 
 _log = logger(outFile=None, moduleName="Compliance")
 

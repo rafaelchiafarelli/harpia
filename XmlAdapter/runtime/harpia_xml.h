@@ -113,7 +113,7 @@ inline void write_message(const ::google::protobuf::Message& msg, std::string& o
             // defaults (there's no "unset" to distinguish); but any field
             // with REAL presence -- a singular message field (always has
             // presence in proto3), or a scalar explicitly marked `optional`
-            // in the .harpia schema (message/FieldMap.py S4) -- is emitted
+            // in the .harpia schema (Message/FieldMap.py S4) -- is emitted
             // only when actually present. Otherwise an absent field
             // round-trips back as a present-with-default one: for a message
             // field that's a phantom child (e.g. a spurious FK row); for an

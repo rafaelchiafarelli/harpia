@@ -1,4 +1,4 @@
-"""Session J.5 (initiatives/multi-language-targets/thread-1-java-target/
+"""Session J.5 (Initiatives/multi-language-targets/thread-1-java-target/
 histories/DB-CRUDL-SQLITE/db-package-scaffolding.md) -- DB package
 scaffolding + JDBC bind/extract primitives for the Java target.
 
@@ -14,9 +14,9 @@ class/session.
 """
 import os
 
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import copy_if_different
+from Util.util import copy_if_different
 
 _RUNTIME_FILE = "JdbcBind.java"
 _RUNTIME_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),

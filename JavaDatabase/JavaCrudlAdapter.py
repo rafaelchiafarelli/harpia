@@ -1,4 +1,4 @@
-"""Session J.6 (initiatives/multi-language-targets/thread-1-java-target/
+"""Session J.6 (Initiatives/multi-language-targets/thread-1-java-target/
 histories/DB-CRUDL-SQLITE/CRUDL-implementation-sqlite.md) -- CRUDL DAO
 generation for the Java target.
 
@@ -30,9 +30,9 @@ issues otherwise).
 """
 import os
 
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import write_if_different, loadTemplate
+from Util.util import write_if_different, loadTemplate
 from Database.model import type_registry, analyze
 
 _KIND_TO_JAVA = {"int": "int", "int64": "long", "double": "double", "text": "String"}

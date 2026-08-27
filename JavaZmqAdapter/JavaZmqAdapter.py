@@ -1,4 +1,4 @@
-"""Sessions J.18/J.19 (initiatives/multi-language-targets/thread-1-java-
+"""Sessions J.18/J.19 (Initiatives/multi-language-targets/thread-1-java-
 target/histories/ZMQ/) -- ZMQ core transport (J.18) + CURVE-secured
 variant (J.19) for the Java target.
 
@@ -22,9 +22,9 @@ runtime's own bind-vs-connect key-role split.
 """
 import os
 
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from util.util import copy_if_different, write_if_different, loadTemplate
+from Util.util import copy_if_different, write_if_different, loadTemplate
 from ZmqAdapter.ZmqAdapter import _origin_id, _is_one_to_many
 
 _RUNTIME_FILE = "HarpiaZmq.java"

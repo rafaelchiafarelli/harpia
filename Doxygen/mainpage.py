@@ -62,7 +62,7 @@ def write_mainpage(dest, usage_md_path=None, sections=DEFAULT_SECTIONS):
     """Write the assembled mainpage to `<dest>/USAGE_EXCERPT.md`
     (write-if-different, same convention as every other generated
     artifact). Returns the written path."""
-    from util.util import write_if_different
+    from Util.util import write_if_different
 
     content = extract_usage_sections(usage_md_path, sections)
     path = os.path.join(dest, MAINPAGE_FILENAME)
