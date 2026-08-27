@@ -1359,6 +1359,148 @@ def test_a3_phi_crudl_ops_audited(generated, sqlite_obj, tmp_path):
         run.returncode)
 
 
+# -- Track A / A.4: full round-trip + cross-track acceptance gates -------
+#
+# Nothing new is generated here. A.4 closes the two Track O integration
+# tests that could only be proven once a real phi DAO existed (deferred
+# from O.5): envelope KEK-rotation is O(keys) not O(data), and the
+# KeyProvider backend swaps with zero DAO-code change.
+
+def test_a4_non_phi_crudl_unchanged(generated):
+    """Acceptance gate: a non-phi message's DAO is entirely untouched by
+    Track A -- no crypto include, no kp_/audit_ member, no encrypt/decrypt
+    or record() call (14.1/14.2 goldens stay put)."""
+    for name in ("users", "top_users", "shipment"):
+        text = open(os.path.join(generated, "generated", "cpp", "db",
+                                 "{}_{}_crudl.h".format(name, HASH))).read()
+        for needle in ("crypto/", "kp_", "audit_", "KeyProvider",
+                       "AuditSink", "encrypt_field", "decrypt_field"):
+            assert needle not in text, \
+                "{}: non-phi DAO mentions {!r}".format(name, needle)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="KEK rotation round-trip needs protoc + protobuf")
+def test_a4_kek_rotation_roundtrip(generated, sqlite_obj, tmp_path):
+    """write -> persist -> rotate KEK -> read both pre- and post-rotation
+    rows. Both decrypt (the old KEK version is retained). The pre-rotation
+    row's stored ciphertext is byte-identical before and after rotate() --
+    rotation rewraps DEKs lazily, it does NOT re-encrypt the database."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    db_path = str(tmp_path / "rot.db")
+    keks = str(tmp_path / "rot.keks")
+
+    prog = tmp_path / "a4_rotate.cpp"
+    prog.write_text(
+        '#include "db/patient_vitals_{h}_crudl.h"\n'
+        '#include "crypto/harpia_key_provider_local.h"\n'
+        "#include <soci/soci.h>\n#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "static std::string raw_pid(::soci::session& db) {{\n"
+        "    std::string v; ::soci::indicator i;\n"
+        '    db << "SELECT \\"patient_id\\" FROM \\"patient_vitals_table\\" '
+        'WHERE \\"ID_{h}\\" = 1", ::soci::into(v, i);\n'
+        "    return v;\n"
+        "}}\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, "{db}");\n'
+        '    ::harpia::crypto::LocalKeyProvider kp({{"{keks}"}});\n'
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        '    a.set_patient_id("pre-rotate"); a.set_heart_rate(50.0f);\n'
+        "    if (!dao.create(a)) return 3;\n"
+        "    std::string blob_before = raw_pid(db);\n"
+        '    if (blob_before.rfind("enc:v1:", 0) != 0) return 4;\n'
+        "    // rotate the KEK\n"
+        "    std::uint64_t v0 = kp.active_kek_version();\n"
+        "    std::uint64_t v1 = kp.rotate();\n"
+        "    if (v1 <= v0) return 5;\n"
+        "    // a row written AFTER rotation uses the new active KEK\n"
+        "    ::patient_vitals b; b.set_id_{h}(2);\n"
+        '    b.set_patient_id("post-rotate"); b.set_heart_rate(51.0f);\n'
+        "    if (!dao.create(b)) return 6;\n"
+        "    // the pre-rotation row's stored ciphertext did not change\n"
+        "    if (raw_pid(db) != blob_before) return 7;\n"
+        "    // both rows still decrypt through the one provider\n"
+        "    ::patient_vitals g1; if (!dao.read(1, &g1)) return 8;\n"
+        '    if (g1.patient_id() != "pre-rotate") return 9;\n'
+        "    ::patient_vitals g2; if (!dao.read(2, &g2)) return 10;\n"
+        '    if (g2.patient_id() != "post-rotate") return 11;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH, db=db_path, keks=keks))
+    pb_cc = os.path.join(cpp_root, "protofiles",
+                         "patient_vitals_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "a4_rotate")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, *_pkgconfig("--cflags"),
+         str(prog), pb_cc, "-o", binary, "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "a4 rotate program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "KEK-rotation round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="backend-swap proof needs protoc + protobuf")
+def test_a4_keyprovider_backend_swap(generated, sqlite_obj, tmp_path):
+    """The generated patient_vitals_dao round-trips phi values unchanged
+    whether it is handed a LocalKeyProvider (O.2) or a KmsKeyProvider over
+    MockKms (O.5) -- exact same DAO code, only the constructor argument
+    differs."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "a4_swap.cpp"
+    prog.write_text(
+        '#include "db/patient_vitals_{h}_crudl.h"\n'
+        '#include "crypto/harpia_key_provider_local.h"\n'
+        '#include "crypto/harpia_key_provider_kms.h"\n'
+        "#include <soci/soci.h>\n#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "static int roundtrip(::harpia::crypto::KeyProvider& kp) {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    if (!dao.create_table()) return 1;\n"
+        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        '    a.set_patient_id("swap-me"); a.set_heart_rate(42.0f);\n'
+        "    if (!dao.create(a)) return 2;\n"
+        "    std::string raw; ::soci::indicator ind;\n"
+        '    db << "SELECT \\"patient_id\\" FROM \\"patient_vitals_table\\" '
+        'WHERE \\"ID_{h}\\" = 1", ::soci::into(raw, ind);\n'
+        '    if (raw.rfind("enc:v1:", 0) != 0 || raw.find("swap-me") != std::string::npos) return 3;\n'
+        "    ::patient_vitals got;\n"
+        "    if (!dao.read(1, &got)) return 4;\n"
+        '    if (got.patient_id() != "swap-me" || got.heart_rate() != 42.0f) return 5;\n'
+        "    return 0;\n"
+        "}}\n"
+        "int main() {{\n"
+        '    ::harpia::crypto::LocalKeyProvider local({{"{keks}"}});\n'
+        "    if (int e = roundtrip(local)) return 10 + e;\n"
+        "    ::harpia::crypto::MockKms kms;\n"
+        "    ::harpia::crypto::KmsKeyProvider kp_kms(kms);\n"
+        "    if (int e = roundtrip(kp_kms)) return 20 + e;\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH, keks=str(tmp_path / "swap.keks")))
+    pb_cc = os.path.join(cpp_root, "protofiles",
+                         "patient_vitals_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "a4_swap")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, *_pkgconfig("--cflags"),
+         str(prog), pb_cc, "-o", binary, "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "a4 swap program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "backend-swap proof failed at check #{}".format(
+        run.returncode)
+
+
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="FK round-trip needs protoc + protobuf")
 def test_fk_roundtrip(generated, sqlite_obj, tmp_path):
