@@ -35,6 +35,7 @@ from ProtoFile.FileCreator import FileCreator
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
+from YamlAdapter.YamlAdapter import YamlAdapter
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
 from Database.DbRegistryAdapter import DbRegistryAdapter
@@ -159,6 +160,7 @@ def run(output_dir):
 
     # 10. XML adapters (reflection runtime + per-message wrappers)
     _mark("XmlAdapter", XmlAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+    _mark("YamlAdapter", YamlAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
     # 8. SQL schema (supersedes the FileCreator stub) + CRUDL DAOs + DB import/export
     _mark("SqlAdapter", SqlAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
@@ -194,6 +196,7 @@ def run(output_dir):
     _collect_grpc(build_dir, os.path.join(output_dir, "grpc"))
     _collect_capability(build_dir, os.path.join(output_dir, "capability"))
     _collect_xml(build_dir, os.path.join(output_dir, "xml"))
+    _collect_yaml(build_dir, os.path.join(output_dir, "yaml"))
     _collect_crudl(build_dir, os.path.join(output_dir, "db"))
     _collect_migrate(build_dir, os.path.join(output_dir, "migrate"))
     _collect_dbio(build_dir, os.path.join(output_dir, "dbio"))
@@ -269,6 +272,20 @@ def _collect_xml(build_dir, dest):
         return
     for name in sorted(os.listdir(src)):
         if name.endswith(".h") and name != "harpia_xml.h":
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_yaml(build_dir, dest):
+    # per-message wrappers only; harpia_yaml.h is the static runtime (lives in
+    # the repo under YamlAdapter/runtime -- same convention as _collect_xml)
+    src = os.path.join(build_dir, "generated", "cpp", "yaml")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith(".h") and name != "harpia_yaml.h":
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 

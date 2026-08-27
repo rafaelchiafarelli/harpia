@@ -12,6 +12,7 @@ from ProtoFile.GrpcCompiler import GrpcCompiler
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
+from YamlAdapter.YamlAdapter import YamlAdapter
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
 from Database.DbRegistryAdapter import DbRegistryAdapter
@@ -305,6 +306,11 @@ if __name__ == '__main__':
     xmlError = XmlAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if xmlError is not None:
         log.print(xmlError.__str__())
+
+    #10 (yaml). generate the YAML adapters (reflection-based runtime + wrappers)
+    yamlError = YamlAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    if yamlError is not None:
+        log.print(yamlError.__str__())
 
     #8. generate the SQL schema (supersedes the FileCreator stub)
     sqlError = SqlAdapter(messages=msgFactory.messages, dest=testDestination,

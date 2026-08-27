@@ -246,6 +246,17 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   project's registry a distinct artifact stamped with its own name.
 - `test_stage9.py` — JSON adapters compile + round-trip. (protoc, g++)
 - `test_stage10_xml.py` — XML adapters compile, to/from_xml round-trip, XSD.
+- `test_stage10_yaml.py` — Track F / Session F.1: the YAML adapter
+  (`YamlAdapter/`, reflection-based `harpia_yaml.h` + per-message wrappers,
+  same shape as JSON/XML). protoc+g+++pkg-config-gated: every wrapper
+  compiles (and a default-message `to_yaml`→`from_yaml` instantiates the
+  map/repeated paths); a `users` write check asserting quoted strings /
+  bare scalars / all keys present / top-level block mapping with no wrapper
+  key; and flat (`users`), nested-repeated (`shipment`+`parcel`) and map
+  (`queen`) round-trips through `to_yaml`/`from_yaml` with
+  `SerializeAsString()` equality, plus `from_yaml("not yaml at all")` →
+  `false`. F.1 is output-parity only (redaction is F.3, the unified path
+  is F.2).
 - `test_stage11_soap.py` — SOAP-over-HTTP endpoint (credential gate).
 - `test_stage12_rest.py` — REST HTTP CRUD, credential-gated.
 - `test_stage13.py` — gRPC services compile, CRUDL-backed impl, metadata auth.
@@ -372,7 +383,9 @@ old `c96f8fd7…` hash.)
 ## Golden snapshots (UnitTests/golden/)
 Committed reference output keyed by the input hash. Files: `tokens.txt`,
 `messages.txt`; dirs: `proto/`, `json/`, `zmq/`, `grpc/`, `capability/`
-(whole-project gRPC/HTTP/ZMQ capability advertisements, S5), `xml/`, `db/`
+(whole-project gRPC/HTTP/ZMQ capability advertisements, S5), `xml/`,
+`yaml/` (per-message YAML adapter wrappers — Track F; the `harpia_yaml.h`
+runtime is not snapshotted, same convention as `harpia_xml.h`), `db/`
 (per-message `<name>_<hash>_crudl.h` **plus** the one project-wide
 `harpia_db_registry.h` — Track K public/private DB registry), `migrate/`,
 `dbio/`, `rest/`, `soap/`, `wsdl/`, `gen_tests/` (generated unit tests
