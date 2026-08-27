@@ -1,10 +1,11 @@
-# NEXT_SESSION — sensitive-data implementation (`phi` side: Track K next)
+# NEXT_SESSION — sensitive-data implementation (`phi` side: Track F next)
 
 **Branch model:** one session = one branch off `dev`, named
 `features/medical_devices/thread-1/<track-folder>/<n>-<task-name>` — see
 **`Initiatives/README.md` → "How to work an `epics/` thread"**, rules 8–11
 (branch & merge flow). `dev` is the integration branch; `main` is never
-touched here. `origin/dev` is current through `44ceec7` (2026-08-27).
+touched here. `origin/dev` is current through the Track K merge (branched
+off `44ceec7`, 2026-08-27).
 
 ## Read first (in order)
 
@@ -72,23 +73,28 @@ touched here. `origin/dev` is current through `44ceec7` (2026-08-27).
 
   Baseline: **288 passed, 4 skipped** in Docker.
 
+- **Track K — public/private DB segregation — COMPLETE (2026-08-27).**
+  `histories/db-segregation/` (K.1 `-done`). New `Database/DbRegistryAdapter.py`
+  emits **one project-wide** `generated/cpp/db/harpia_db_registry.h` — a
+  `constexpr std::array<RegistryEntry>` of `{tableName, Visibility::PUBLIC|
+  PRIVATE, owner_project}` for every table-bearing message (deduped by table
+  name; a differing later declaration for the same name emitted as a
+  `// note:` line, not silently dropped) + `harpia::db::db_access_check(
+  requesting_project, target_table)` → `AccessDecision::{ALLOWED,
+  DENIED_PRIVATE_CROSS_PROJECT, DENIED_UNKNOWN_TABLE}`. Owner name = new
+  `ComplianceContext.project` (`project.harpia.yaml` → `project:`, default
+  `"default"`, `DEFAULT_PROJECT` in `Compliance/context.py`; parsed like
+  `jurisdiction` — omitted logs+defaults, present-but-bad is a hard
+  `ComplianceConfigError`). Header-only / `static_assert`-usable so a second
+  generated project `#include`s this project's registry and passes its own
+  name. **Purely additive** — no per-message SQL/DAO/proto change; the
+  golden snapshot only gains `db/harpia_db_registry.h`. Runs in `main.py`
+  right after `CrudlAdapter`. Tests: `UnitTests/test_db_segregation.py`
+  (structural + g++-gated access-check + two-project integration).
+
 ## What to do next
 
-### 1. Track K — public/private DB segregation
-
-`epics/thread-1-data-and-keys/histories/db-segregation/` —
-`track-k-db-segregation.md` (contract) + `tasks/1-registry-and-access-check.md`
-(the one session). Branch it as
-`features/medical_devices/thread-1/db-segregation/1-registry-and-access-check`
-off `dev`. Deliverable: an environment-level registry
-distinguishing public vs. private databases per project + an access-check
-so a `PRIVATE`-visibility table is inaccessible cross-project while a
-`PUBLIC` one stays reachable. Shares `Database/` generator files with
-Track A (`message ... };` → `visibility=PRIVATE`, trailing name →
-`tableName`; see `Message/CLAUDE.md`). Acceptance gate: existing
-single-project tests unaffected.
-
-### 2. Track F — `phi` redaction (independent, any time)
+### 1. Track F — `phi` redaction (independent, any time)
 
 `thread-3-message-behavior/histories/serialization/track-f-serialization.md`
 (F.1–F.5). New `YamlAdapter/`; unified `toString` across JSON/XML/YAML;
