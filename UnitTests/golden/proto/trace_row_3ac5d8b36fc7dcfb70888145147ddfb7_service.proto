@@ -1,0 +1,37 @@
+syntax = "proto3";
+package frameworkProtos;
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+//standard protofile with error code and standard heartBeat messages
+import "protofiles/errorCode.proto";
+import "protofiles/heartBeat.proto";
+
+//user imports from harpia process
+import "protofiles/trace_row_3ac5d8b36fc7dcfb70888145147ddfb7.proto";
+
+message trace_row_Message {
+    trace_row msg = 1;
+}
+//message for the standard functions 
+message trace_row_HeartBeat {
+    heartBeat hb = 1;
+}
+
+//message for the pullByID function
+message trace_row_ID {
+    int32 id = 1;
+}
+message trace_row_Stream {
+    int32 id = 1;
+    string name = 2;
+    // pagination (spec: "pagination" field modifier): limit <= 0 means
+    // unbounded (return everything, matching pre-pagination behavior).
+    int32 offset = 3;
+    int32 limit = 4;
+}
+service trace_row_Service {
+    rpc heartBeat(trace_row_HeartBeat) returns (trace_row_HeartBeat) {}
+    rpc streamSrc(trace_row_Stream ) returns (stream trace_row_Message) {}
+    rpc pullByID(trace_row_ID) returns (trace_row_Message) {}
+    rpc push(trace_row_Message) returns (errorCode) {}
+}

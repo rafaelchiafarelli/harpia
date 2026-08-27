@@ -110,10 +110,19 @@ critical event message alarm_event{
 // and retype (the element type changed, so the child table value column
 // is brought to the current type). Mirrors the main-table
 // rename add drop retype machinery beacon_log exercises for plain columns.
+// table-less target for telemetry.traces, a repeated-composed field
+// (Track H.3). its own fields (kind, weight) become the data columns of
+// the telemetry_table__traces child table, one row per repetition.
+message trace_row{
+    string kind;
+    int weight;
+};
+
 message telemetry{
     string label;
     repeteable int samples;
     renamed_from[old_notes] repeteable string notes;
     map<string,int> gauges;
     renamed_from[old_flags] map<int,string> flags;
+    renamed_from[old_traces] repeteable trace_row traces;
 }telemetry_table;

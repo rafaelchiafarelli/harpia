@@ -33,9 +33,11 @@
 //     stabilized by the rename/add/drop steps above.
 //   - DROPs any "<table>__*" child table the current schema no longer declares
 //     (a repeated/map field removed between versions) -- same implicit,
-//     no-schema-history diff as the column drop -- and RETYPEs a repeated-
-//     scalar child table's "value" column, or a map child table's "key" /
-//     "value" columns, when the element type(s) changed.
+//     no-schema-history diff as the column drop -- and evolves a child
+//     table's own columns to the current element shape: a repeated-scalar
+//     "value" column, a map "key" / "value" column, or (repeated-composed)
+//     the full add/drop/retype of one data column per the table-less
+//     target message's own field.
 //   - stamps the current version hash.
 // Cross-version DATA transforms (deriving one column's value from another,
 // not just moving/CASTing structure) are handled via an optional
@@ -165,13 +167,14 @@ inline bool migrate_outpost(::soci::session& db,
             db << "ALTER TABLE \"outpost_table__retype_tmp\" RENAME TO \"outpost_table\";";
         }
         }
-        // non-additive (child tables, Track H.1 / H.2): reap any "<table>__*"
-        // child table the current schema no longer declares -- a repeated/map
-        // field removed between versions -- then bring a repeated-scalar child
-        // table's "value" column (or a map child table's "key" / "value"
-        // columns) to the current element type. Implicit, unconditional diff,
-        // same no-schema-history caveat as the column drop above; runs after
-        // the main table has been stabilized.
+        // non-additive (child tables, Track H.1 / H.2 / H.3): reap any
+        // "<table>__*" child table the current schema no longer declares -- a
+        // repeated/map field removed between versions -- then evolve each
+        // surviving child table's own columns to the current shape
+        // (repeated-scalar "value", map "key"/"value", or a repeated-composed
+        // table's per-target-field add/drop/retype). Implicit, unconditional
+        // diff, same no-schema-history caveat as the column drop above; runs
+        // after the main table has been stabilized.
         {
             static const std::set<std::string> _child_current = {  };
             for (auto _cit = _child_have.begin(); _cit != _child_have.end(); ) {

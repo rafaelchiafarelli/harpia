@@ -33,9 +33,11 @@
 //     stabilized by the rename/add/drop steps above.
 //   - DROPs any "<table>__*" child table the current schema no longer declares
 //     (a repeated/map field removed between versions) -- same implicit,
-//     no-schema-history diff as the column drop -- and RETYPEs a repeated-
-//     scalar child table's "value" column, or a map child table's "key" /
-//     "value" columns, when the element type(s) changed.
+//     no-schema-history diff as the column drop -- and evolves a child
+//     table's own columns to the current element shape: a repeated-scalar
+//     "value" column, a map "key" / "value" column, or (repeated-composed)
+//     the full add/drop/retype of one data column per the table-less
+//     target message's own field.
 //   - stamps the current version hash.
 // Cross-version DATA transforms (deriving one column's value from another,
 // not just moving/CASTing structure) are handled via an optional
@@ -83,6 +85,10 @@ inline bool migrate_telemetry(::soci::session& db,
         if (_child_have.count("telemetry_table__old_flags") && !_child_have.count("telemetry_table__flags")) {
             db << "ALTER TABLE \"telemetry_table__old_flags\" RENAME TO \"telemetry_table__flags\";";
             _child_have.erase("telemetry_table__old_flags"); _child_have.insert("telemetry_table__flags");
+        }
+        if (_child_have.count("telemetry_table__old_traces") && !_child_have.count("telemetry_table__traces")) {
+            db << "ALTER TABLE \"telemetry_table__old_traces\" RENAME TO \"telemetry_table__traces\";";
+            _child_have.erase("telemetry_table__old_traces"); _child_have.insert("telemetry_table__traces");
         }
         // ensure the table + its map/repeated child tables exist at the current schema
         ::harpia::db::telemetry_dao dao(db);
@@ -164,15 +170,16 @@ inline bool migrate_telemetry(::soci::session& db,
             db << "ALTER TABLE \"telemetry_table__retype_tmp\" RENAME TO \"telemetry_table\";";
         }
         }
-        // non-additive (child tables, Track H.1 / H.2): reap any "<table>__*"
-        // child table the current schema no longer declares -- a repeated/map
-        // field removed between versions -- then bring a repeated-scalar child
-        // table's "value" column (or a map child table's "key" / "value"
-        // columns) to the current element type. Implicit, unconditional diff,
-        // same no-schema-history caveat as the column drop above; runs after
-        // the main table has been stabilized.
+        // non-additive (child tables, Track H.1 / H.2 / H.3): reap any
+        // "<table>__*" child table the current schema no longer declares -- a
+        // repeated/map field removed between versions -- then evolve each
+        // surviving child table's own columns to the current shape
+        // (repeated-scalar "value", map "key"/"value", or a repeated-composed
+        // table's per-target-field add/drop/retype). Implicit, unconditional
+        // diff, same no-schema-history caveat as the column drop above; runs
+        // after the main table has been stabilized.
         {
-            static const std::set<std::string> _child_current = { "telemetry_table__gauges", "telemetry_table__flags", "telemetry_table__samples", "telemetry_table__notes" };
+            static const std::set<std::string> _child_current = { "telemetry_table__gauges", "telemetry_table__flags", "telemetry_table__samples", "telemetry_table__notes", "telemetry_table__traces" };
             for (auto _cit = _child_have.begin(); _cit != _child_have.end(); ) {
                 if (!_child_current.count(*_cit)) {
                     const std::string& _dct = *_cit;
@@ -247,6 +254,34 @@ inline bool migrate_telemetry(::soci::session& db,
                 db << "INSERT INTO \"telemetry_table__flags__retype_tmp\" (\"owner\", \"key\", \"value\") SELECT \"owner\", CAST(\"key\" AS INTEGER), CAST(\"value\" AS TEXT) FROM \"telemetry_table__flags\";";
                 db << "DROP TABLE \"telemetry_table__flags\";";
                 db << "ALTER TABLE \"telemetry_table__flags__retype_tmp\" RENAME TO \"telemetry_table__flags\";";
+            }
+        }
+        {
+            std::set<std::string> _ec;
+            std::map<std::string, std::string> _ect;
+            {
+                std::string _en, _et; ::soci::indicator _eni, _eti;
+                ::soci::statement _es = (db.prepare << "SELECT \"name\", \"type\" FROM pragma_table_info('telemetry_table__traces');",
+                                         ::soci::into(_en, _eni), ::soci::into(_et, _eti));
+                _es.execute();
+                while (_es.fetch()) {
+                    if (_eni == ::soci::i_ok) { _ec.insert(_en); if (_eti == ::soci::i_ok) _ect[_en] = _et; }
+                }
+            }
+            if (!_ec.empty()) {
+                if (!_ec.count("kind")) db << "ALTER TABLE \"telemetry_table__traces\" ADD COLUMN \"kind\" TEXT;";
+                if (!_ec.count("weight")) db << "ALTER TABLE \"telemetry_table__traces\" ADD COLUMN \"weight\" INTEGER;";
+                static const std::set<std::string> _ekeep = { "owner", "ordinal", "kind", "weight" };
+                bool _erebuild = false;
+                for (const auto& _en2 : _ec) if (!_ekeep.count(_en2)) _erebuild = true;
+                if (_ect.count("kind") && _ect["kind"] != "TEXT") _erebuild = true;
+                if (_ect.count("weight") && _ect["weight"] != "INTEGER") _erebuild = true;
+                if (_erebuild) {
+                    db << "CREATE TABLE \"telemetry_table__traces__evolve_tmp\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"kind\" TEXT, \"weight\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));";
+                    db << "INSERT INTO \"telemetry_table__traces__evolve_tmp\" (\"owner\", \"ordinal\", \"kind\", \"weight\") SELECT \"owner\", \"ordinal\", CAST(\"kind\" AS TEXT), CAST(\"weight\" AS INTEGER) FROM \"telemetry_table__traces\";";
+                    db << "DROP TABLE \"telemetry_table__traces\";";
+                    db << "ALTER TABLE \"telemetry_table__traces__evolve_tmp\" RENAME TO \"telemetry_table__traces\";";
+                }
             }
         }
         // stamp the current version

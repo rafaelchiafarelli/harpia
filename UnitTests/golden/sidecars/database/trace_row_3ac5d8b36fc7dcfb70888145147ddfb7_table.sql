@@ -1,0 +1,1 @@
+-- trace_row: no table declared

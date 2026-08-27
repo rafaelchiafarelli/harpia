@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS "telemetry_table" (
 -- notes: repeated -> child table (see repeated_fields)
 -- gauges: map -> child table (see map_fields)
 -- flags: map -> child table (see map_fields)
+-- traces: repeated composed -> trace_row child table (see repeated_fields)
 
 -- map gauges -> child table "telemetry_table__gauges" (owner -> "telemetry_table")
 CREATE TABLE IF NOT EXISTS "telemetry_table__gauges" (
@@ -38,5 +39,13 @@ CREATE TABLE IF NOT EXISTS "telemetry_table__notes" (
     "owner" INTEGER,
     "ordinal" INTEGER,
     "value" TEXT,
+    PRIMARY KEY ("owner", "ordinal")
+);
+-- repeated traces -> child table "telemetry_table__traces" (owner -> "telemetry_table")
+CREATE TABLE IF NOT EXISTS "telemetry_table__traces" (
+    "owner" INTEGER,
+    "ordinal" INTEGER,
+    "kind" TEXT,
+    "weight" INTEGER,
     PRIMARY KEY ("owner", "ordinal")
 );
