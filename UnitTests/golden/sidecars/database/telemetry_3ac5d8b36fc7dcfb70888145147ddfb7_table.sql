@@ -9,7 +9,23 @@ CREATE TABLE IF NOT EXISTS "telemetry_table" (
 );
 -- samples: repeated -> child table (see repeated_fields)
 -- notes: repeated -> child table (see repeated_fields)
+-- gauges: map -> child table (see map_fields)
+-- flags: map -> child table (see map_fields)
 
+-- map gauges -> child table "telemetry_table__gauges" (owner -> "telemetry_table")
+CREATE TABLE IF NOT EXISTS "telemetry_table__gauges" (
+    "owner" INTEGER,
+    "key" TEXT,
+    "value" INTEGER,
+    PRIMARY KEY ("owner", "key")
+);
+-- map flags -> child table "telemetry_table__flags" (owner -> "telemetry_table")
+CREATE TABLE IF NOT EXISTS "telemetry_table__flags" (
+    "owner" INTEGER,
+    "key" INTEGER,
+    "value" TEXT,
+    PRIMARY KEY ("owner", "key")
+);
 -- repeated samples -> child table "telemetry_table__samples" (owner -> "telemetry_table")
 CREATE TABLE IF NOT EXISTS "telemetry_table__samples" (
     "owner" INTEGER,

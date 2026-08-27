@@ -114,4 +114,6 @@ message telemetry{
     string label;
     repeteable int samples;
     renamed_from[old_notes] repeteable string notes;
+    map<string,int> gauges;
+    renamed_from[old_flags] map<int,string> flags;
 }telemetry_table;

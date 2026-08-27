@@ -62,6 +62,10 @@ int database_roundtrip() {
     a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
     a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
     a.set_originator("originator_a");
+    (*a.mutable_gauges())["k1"] = 10;
+    (*a.mutable_gauges())["k2"] = 20;
+    (*a.mutable_flags())[1] = "v1";
+    (*a.mutable_flags())[2] = "v2";
     a.add_samples(10);
     a.add_samples(20);
     a.add_notes("v1");
@@ -73,6 +77,10 @@ int database_roundtrip() {
     if (got.status_3ac5d8b36fc7dcfb70888145147ddfb7() != "status_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 24;
     if (got.error_3ac5d8b36fc7dcfb70888145147ddfb7() != "error_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 24;
     if (got.originator() != "originator_a") return 24;
+    if (got.gauges().count("k1") != 1 || got.gauges().at("k1") != 10) return 33;
+    if (got.gauges().count("k2") != 1 || got.gauges().at("k2") != 20) return 33;
+    if (got.flags().count(1) != 1 || got.flags().at(1) != "v1") return 33;
+    if (got.flags().count(2) != 1 || got.flags().at(2) != "v2") return 33;
     if (got.samples_size() != 2) return 34;
     if (got.samples(0) != 10) return 34;
     if (got.samples(1) != 20) return 34;
