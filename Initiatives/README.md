@@ -13,7 +13,7 @@ doc yet.
 1. **`medical_devices/epics/thread-N-*/` folders each bundle multiple
    "Track" files, now nested one level deeper under `histories/<name>/`**
    (e.g. `thread-1-data-and-keys/` contains
-   `histories/track-o-key-management.md`,
+   `histories/key-management/track-o-key-management.md`,
    `histories/schema-evolution/track-h-schema-evolution.md`,
    `histories/db-encryption/track-a-db-encryption.md`,
    `histories/db-segregation/track-k-db-segregation.md`). Under the

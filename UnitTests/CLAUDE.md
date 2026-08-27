@@ -143,6 +143,18 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   module); `write_build_metadata()` produces a valid
   `build_metadata/crypto_backend.json` sidecar and is write-if-different
   (stable mtime when unchanged). Pure Python.
+- `test_key_provider.py` — Track O / Session O.1
+  (`Initiatives/medical_devices/epics/thread-1-data-and-keys/histories/key-management/`):
+  the `KeyProvider` interface + envelope-encryption shape,
+  `Crypto/runtime/harpia_key_provider.h` (hand-written C++, same
+  compile-and-run pattern as `test_audit_sink.py`/`test_delivery_runtime.py`,
+  `-Werror`). `Dek` wrap/unwrap round trip; `seal`/`open` survives a DEK
+  wrap/unwrap in between; `WrappedDek` records the active KEK version;
+  `rotate()` bumps the version, old DEKs still unwrap, no existing
+  `WrappedDek` is mutated (O(keys), not O(data)); an unknown or
+  `forget_kek_version()`-dropped KEK version makes `unwrap_dek` return
+  `nullopt` (Rule 5 — and the O.3 crypto-shred path, early); polymorphic
+  use through `KeyProvider&`. (g++)
 - `test_doxygen_mainpage.py` — Foundation F6's `Doxygen/mainpage.py`:
   extracts only the requested `USAGE.md` section numbers (not their
   neighbors), in the requested order, stopping at the next `## ` heading

@@ -25,57 +25,67 @@ Track O / H / A / K in `thread-1-data-and-keys/`, Track F in
 `Initiatives/medical_devices/sensitive-data-implementation-roadmap.md` is the
 original plan doc — **do not edit it.** thread-6 supersedes it for tracking.
 
-## What this session did — Track D, Session D.4  ✅
+## What this session did — Track O, Session O.1  ✅
 
-`UnitTests/test_critical_delivery_roundtrip.py` (protoc+g+++pkg-config+
-libzmq+cppzmq-gated) — the `critical` send/receive headline integration
-test. Drives the generated `alarm_event` transport over a real `tcp://`
-socket:
+`tasks/key-provider-interface.md` — the `KeyProvider` interface +
+envelope-encryption shape (first `phi`-side session).
 
-1. **Held then replayed in order.** Publish 5 while the subscriber is
-   absent — `publish()` only enqueues, `pending()` grows to 5, socket
-   untouched. Subscriber joins, 300 ms settle (`_SETTLE_MS` — PUB/SUB slow
-   joiner; `flush()` can't be retried), `flush()` sends all 5,
-   `pending()==0`, received severity 1..5 in order.
-2. **Overflow rotates + audits.** `queue_capacity=4`, 10-message burst
-   through a `CountingSink`: `"queue_rotated"` fires exactly 6×,
-   `queue().rotations()==6`, `pending()` stays 4, `flush()` delivers the
-   newest 4 (severity 7..10) in order.
-3. **Non-`critical` sender has no queue.** `courier_sender` has no
-   `flush()`/`pending()`/`queue()` (detection traits) and `send()` stays
-   synchronous `bool`.
+- `Crypto/runtime/harpia_key_provider.h` — hand-written C++ (not generated),
+  `harpia::crypto`: `Dek` (`seal`/`open` — the DEK, and only the DEK,
+  touches the value), `WrappedDek` (`kek_version` + `bytes`), `KeyProvider`
+  ABC (`active_kek_version` / `generate_dek` / `wrap_dek` / `unwrap_dek` →
+  `std::optional<Dek>` / `rotate`), `InMemoryKeyProvider` dummy (XOR, NOT
+  crypto — for tests until O.2). `unwrap_dek` → `nullopt` on an unknown /
+  forgotten KEK version (Rule 5; also the O.3 crypto-shred path).
+- `Crypto/key_provider_common.py` — path constants (mirror
+  `audit_common.py` / `delivery_common.py`). Nothing copies the header yet
+  — Track A is the first consumer.
+- `UnitTests/test_key_provider.py` — 8 g++-gated tests (`-Werror`):
+  wrap/unwrap round trip, seal/open, version stamping, rotation keeps old
+  DEKs unwrappable + mutates no existing `WrappedDek`, unknown/forgotten
+  KEK version → `nullopt`, polymorphic use.
+- Additive — no generator code touched, no golden impact. Host 166 passed;
+  **full Docker suite 238 passed, 4 skipped.**
 
-`UnitTests/CLAUDE.md` updated (test entry + `test_critical_delivery_roundtrip.py`
-added to the pinned-`HASH` file list). **Full Docker suite: 230 passed, 4
-skipped.**
+**Track-o restructured to match its siblings:** `histories/track-o-key-management.md`
+→ `histories/key-management/track-o-key-management.md` (contract only) +
+`histories/key-management/tasks/` (one file per session O.1–O.5). References
+in `Initiatives/README.md`, `thread-1-data-and-keys/README.md`,
+`track-a-db-encryption.md`, `thread-6-critical-and-phi/README.md` updated.
 
-### Track D earlier
-- **D.1** (`b433dd5`) — `critical` message-type modifier (lexer +
-  `Message.is_critical`), AST flag only.
-- **D.2** (`3581933`) — `Compliance/runtime/harpia_delivery.h`: `Envelope`
-  (origin CRC-32 + seq), `check_on_arrival`, `BoundedQueue` (Rule 4a),
-  `Mailbox` (Rule 4b, still unwired).
-- **D.3** (`0e7e200`) — `ZmqAdapter` routes a `critical` type's zmq
-  sender/publisher send path through `BoundedQueue`; runtime copied into
-  `generated/cpp/delivery/`. Non-critical transports byte-identical.
+### Track D — complete (the `critical` arc)
+- **D.1** `b433dd5` — `critical` modifier (lexer + `Message.is_critical`).
+- **D.2** `3581933` — `Compliance/runtime/harpia_delivery.h` (`Envelope`,
+  `BoundedQueue` Rule 4a, `Mailbox` Rule 4b still unwired).
+- **D.3** `0e7e200` — `ZmqAdapter` routes a `critical` type's send path
+  through `BoundedQueue`; runtime copied into `generated/cpp/delivery/`.
+- **D.4** `287e01b` — `UnitTests/test_critical_delivery_roundtrip.py`: real
+  `tcp://` socket, `alarm_event` held-then-replayed-in-order, overflow
+  rotates+audits, non-critical sender has no queue.
+- Remaining debt: a `ComplianceReport/` note, captured as a **Track M**
+  task (`thread-4-platform-infra/histories/process-artifacts/tasks/critical-delivery-note.md`,
+  blocked on M.1).
 
-Track D (the `critical` arc) is complete. Its one remaining debt — a
-`ComplianceReport/` traceability note — is captured as a **Track M** task
-(`thread-4-platform-infra/histories/process-artifacts/tasks/critical-delivery-note.md`,
-blocked on Track M's M.1), not a Track D session.
+## What the next session must do — continue Track O
 
-## What the next session must do — the `phi` side
+Per `thread-6-critical-and-phi/README.md`'s execution order. Track O lives
+at **`thread-1-data-and-keys/histories/key-management/`** — contract in
+`track-o-key-management.md`, one file per session in `tasks/`.
 
-Per `thread-6-critical-and-phi/README.md`'s execution order:
-
-- **`thread-1-data-and-keys/histories/track-o-key-management.md`** —
-  Session **O.1** (`KeyProvider` interface + envelope-encryption shape).
-  Preconditions F1/F3/F5 all merged. This is the first real `phi`-side
-  session and the big prerequisite for Track A.
-- Then O.2–O.5, Track H (`.../schema-evolution/track-h-schema-evolution.md`,
-  H.1–H.3, no Foundation dependency — can run in parallel), then Track A
-  (`.../db-encryption/track-a-db-encryption.md`, A.1–A.4 — **delivers the
-  `phi` send/receive headline test** at A.4), then Track K.
+- **O.1 done** — `tasks/key-provider-interface.md`. `Crypto/runtime/harpia_key_provider.h`
+  (`KeyProvider` ABC + `Dek`/`WrappedDek` + `InMemoryKeyProvider` dummy),
+  `Crypto/key_provider_common.py`, `UnitTests/test_key_provider.py` (8
+  g++-gated).
+- **Next: O.2** — `tasks/default-local-provider.md`. A concrete default
+  `KeyProvider` (platform-keystore/TPM-sealed local storage) + the
+  fail-safe acknowledgment gate under a PHI-at-scale profile. Must pass
+  O.1's contract tests unmodified.
+- Then O.3 (crypto-shred), O.4 (zeroization + `AuditSink` wiring), O.5
+  (KMS/HSM reference adapter). Track H
+  (`histories/schema-evolution/track-h-schema-evolution.md`, H.1–H.3, no
+  Foundation dependency — can run in parallel), then Track A
+  (`histories/db-encryption/track-a-db-encryption.md`, A.1–A.4 —
+  **delivers the `phi` send/receive headline test** at A.4), then Track K.
 - **`thread-3-message-behavior/histories/serialization/track-f-serialization.md`**
   — Track F (F.1–F.5), needs only F2, independent of everything above.
   Delivers the serialization/redaction half of the `phi` headline test.

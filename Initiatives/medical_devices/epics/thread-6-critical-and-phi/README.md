@@ -28,7 +28,7 @@ integration tests.
 `phi` already has a home — don't duplicate it:
 
 - **F2** (Foundation, done) — `field.is_phi` flag.
-- **Track O** — `../thread-1-data-and-keys/histories/track-o-key-management.md`
+- **Track O** — `../thread-1-data-and-keys/histories/key-management/track-o-key-management.md`
   (key management: `KeyProvider`, envelope encryption, rotation,
   crypto-shred). Prerequisite for Track A.
 - **Track H** — `../thread-1-data-and-keys/histories/schema-evolution/track-h-schema-evolution.md`

@@ -5,9 +5,9 @@
 - **F1, F2, F3** from Foundation (see `../thread-1-data-and-keys/README.md`)
   — `ComplianceContext`, the `field.is_phi` flag this track keys off of,
   and the `AuditSink` stub it wires calls into.
-- **Every session in Track O** (`track-o-key-management.md`, O.1–O.5)
-  merged — this track's encrypt/decrypt path is built directly on Track
-  O's `KeyProvider`.
+- **Every session in Track O** (`../key-management/track-o-key-management.md`,
+  O.1–O.5) merged — this track's encrypt/decrypt path is built directly on
+  Track O's `KeyProvider`.
 - **Every session in Track H** (`track-h-schema-evolution.md`, H.1–H.3)
   merged — a `phi` field living in a child table needs Track H's
   migration machinery in place before this track's schema can safely
