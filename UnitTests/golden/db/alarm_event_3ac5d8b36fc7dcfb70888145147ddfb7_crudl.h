@@ -8,6 +8,7 @@
 
 #include <soci/soci.h>
 #include "protofiles/alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7.pb.h"
+#include "crypto/harpia_encrypted_column.h"
 
 namespace harpia {
 namespace db {
@@ -24,7 +25,7 @@ namespace db {
 // are guarded by an indicator.
 class alarm_event_dao {
 public:
-    explicit alarm_event_dao(::soci::session& db) : db_(db) {}
+    explicit alarm_event_dao(::soci::session& db, ::harpia::crypto::KeyProvider& kp = ::harpia::crypto::default_key_provider()) : db_(db), kp_(kp) {}
 
     bool create_table() {
         try {
@@ -42,7 +43,7 @@ public:
     bool create(const ::alarm_event& msg) {
         try {
             int c0 = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c1 = msg.patient_id();
+            std::string c1 = ::harpia::crypto::encrypt_field(kp_, msg.patient_id());
             std::string c2 = msg.alarm_type();
             int c3 = msg.severity();
             std::string c4 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
@@ -67,7 +68,7 @@ public:
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6);
             if (!db_.got_data()) return false;
                 msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
-                msg->set_patient_id(n1 == ::soci::i_ok ? l1 : std::string());
+                msg->set_patient_id(::harpia::crypto::decrypt_field(kp_, n1 == ::soci::i_ok ? l1 : std::string()));
                 msg->set_alarm_type(n2 == ::soci::i_ok ? l2 : std::string());
                 msg->set_severity(n3 == ::soci::i_ok ? l3 : 0);
                 msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
@@ -79,7 +80,7 @@ public:
 
     bool update(const ::alarm_event& msg) {
         try {
-            std::string c0 = msg.patient_id();
+            std::string c0 = ::harpia::crypto::encrypt_field(kp_, msg.patient_id());
             std::string c1 = msg.alarm_type();
             int c2 = msg.severity();
             std::string c3 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
@@ -115,7 +116,7 @@ public:
                 ::alarm_event row;
                 ::alarm_event* msg = &row;
                 msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
-                msg->set_patient_id(n1 == ::soci::i_ok ? l1 : std::string());
+                msg->set_patient_id(::harpia::crypto::decrypt_field(kp_, n1 == ::soci::i_ok ? l1 : std::string()));
                 msg->set_alarm_type(n2 == ::soci::i_ok ? l2 : std::string());
                 msg->set_severity(n3 == ::soci::i_ok ? l3 : 0);
                 msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
@@ -144,7 +145,7 @@ public:
                 ::alarm_event row;
                 ::alarm_event* msg = &row;
                 msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
-                msg->set_patient_id(n1 == ::soci::i_ok ? l1 : std::string());
+                msg->set_patient_id(::harpia::crypto::decrypt_field(kp_, n1 == ::soci::i_ok ? l1 : std::string()));
                 msg->set_alarm_type(n2 == ::soci::i_ok ? l2 : std::string());
                 msg->set_severity(n3 == ::soci::i_ok ? l3 : 0);
                 msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
@@ -158,6 +159,7 @@ public:
 
 private:
     ::soci::session& db_;
+    ::harpia::crypto::KeyProvider& kp_;
 };
 
 }  // namespace db

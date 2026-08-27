@@ -10,7 +10,10 @@
    `Initiatives/medical_devices/epics/handoff-document.md`.
 2. **Track O — `KeyProvider`** (`runtime/harpia_key_provider*.h`),
    hand-written C++, copied verbatim into a *generated project*'s output
-   later (Track A is the first consumer) — same pattern as
+   (Track A / A.1 is the first consumer — `Database/CrudlAdapter.py` copies
+   `harpia_encrypted_column.h` + `harpia_key_provider.h` +
+   `harpia_audit_sink.h` into `generated/cpp/crypto/` for `phi`-column
+   DAOs) — same pattern as
    `Compliance/runtime/harpia_audit_sink.h` /
    `Compliance/runtime/harpia_delivery.h`. **Track O is complete (O.1–O.5).**
    **O.1** = the interface + envelope shape + an in-memory dummy. **O.2** =
@@ -84,11 +87,23 @@ the backends → `harpia_key_provider.h` + its deps), mirroring
   `MockKms` (in-header reference `KmsClient`, in-memory, XOR — ships like
   `NoOpAuditSink`). Takes an `AuditSink&` (O.4). `#include`s
   `harpia_key_provider.h`.
+- `runtime/harpia_encrypted_column.h` — Track A / A.1. `harpia::crypto`:
+  `encrypt_field(KeyProvider&, plaintext)` (generate_dek → seal → wrap_dek
+  → frame `{kek_version, wrapped_dek, ciphertext}` → `"enc:v1:"` + hex, so
+  a `phi` value stays in its column's existing TEXT type), `decrypt_field`
+  + `decrypt_field_{ll,int,double}` (numeric `phi` fields; an unrecoverable
+  value → 0/"", never a throw — Rule 5), `default_key_provider()` (a
+  process-wide `InMemoryKeyProvider` so a generated DAO ctor can default
+  its `KeyProvider&`). Adds no crypto of its own — frames + routes; the
+  real AEAD is the F5-seam binding. `#include`s `harpia_key_provider.h`.
 - `key_provider_common.py` — `KEY_PROVIDER_RUNTIME` / `_SRC` (O.1) +
   `KEY_PROVIDER_RUNTIME_DEPS` (O.4: → `harpia_audit_sink.h`);
-  `KEY_PROVIDER_LOCAL_RUNTIME` (O.2) + `KEY_PROVIDER_KMS_RUNTIME` (O.5),
-  each with `_SRC` + a `_DEPS` that includes `harpia_key_provider.h` and
-  its deps transitively. No adapter copies any of these yet (Track A will).
+  `KEY_PROVIDER_LOCAL_RUNTIME` (O.2) + `KEY_PROVIDER_KMS_RUNTIME` (O.5) +
+  `ENCRYPTED_COLUMN_RUNTIME` (A.1), each with `_SRC` + a `_DEPS` that
+  includes `harpia_key_provider.h` and its deps transitively. **Consumed
+  by `Database/CrudlAdapter.py`** (A.1) — it `copy_if_different`s
+  `ENCRYPTED_COLUMN_RUNTIME` + deps into `generated/cpp/crypto/` when a
+  message has a `phi` column.
 
 ## Key facts / gotchas
 - **Selection order in `get_backend()`:** explicit `name` (e.g.
@@ -118,13 +133,16 @@ the backends → `harpia_key_provider.h` + its deps), mirroring
 
 ## Touchpoints
 - Called by: `main.py`, `UnitTests/run_pipeline.py` (F5's `backend.py`).
-  `runtime/harpia_key_provider.h` is not consumed by any adapter yet —
-  Track A will `copy_if_different` it into generated output via
-  `Crypto.key_provider_common`.
+  `runtime/harpia_key_provider.h` + `runtime/harpia_encrypted_column.h` are
+  `copy_if_different`'d into `generated/cpp/crypto/` by
+  `Database/CrudlAdapter.py` (Track A / A.1) for any message with a `phi`
+  column, via `Crypto.key_provider_common`.
 - Depends on: `Compliance.context`, `Util.util.write_if_different` (F5);
-  C++ standard library only for the O.1 runtime header.
+  C++ standard library only for the O.1 / A.1 runtime headers.
 - Tested by: `UnitTests/test_crypto_backend.py` (F5),
   `UnitTests/test_key_provider.py` (O.1), `test_local_key_provider.py`
   (O.2), `test_crypto_shred.py` (O.3), `test_key_provider_audit.py`
   (O.4), `test_kms_key_provider.py` (O.5) — the O.* ones g++-gated and
-  compiled with `-I Compliance/runtime` (for `harpia_audit_sink.h`).
+  compiled with `-I Compliance/runtime` (for `harpia_audit_sink.h`);
+  `test_stage8_db.py`'s `test_a1_*` (A.1, `harpia_encrypted_column.h` +
+  CrudlAdapter phi encrypt-on-write / decrypt-on-read).

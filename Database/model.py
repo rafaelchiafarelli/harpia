@@ -38,7 +38,7 @@ class Column:
     def __init__(self, name, sql_type, pk=False, required=False, unique=False,
                  bindable=False, kind=None, fk_target=None, enum_type=None,
                  fk_table=False, embed=None, child_accessor=None,
-                 renamed_from=None, backend=None) -> None:
+                 renamed_from=None, is_phi=False, backend=None) -> None:
         self.name = name
         self.sql_type = sql_type
         self.pk = pk
@@ -60,6 +60,9 @@ class Column:
         self.renamed_from = renamed_from  # old column name (MigrationAdapter
                                           # RENAME COLUMN), from the DSL's
                                           # renamed_from[<old>] modifier
+        self.is_phi = is_phi          # Foundation F2 field.is_phi -- Track A
+                                      # encrypts this column's value on write
+                                      # (envelope-sealed via a KeyProvider)
         self._backend = backend or get_backend()  # dialect for sql_def()
 
     @property
@@ -454,6 +457,7 @@ def analyze(msg, types=None, backend=None):
                               unique="UNIQUE" in mods,
                               bindable=True, kind=kind,
                               renamed_from=getattr(v, "renamedFrom", None),
+                              is_phi=getattr(v, "is_phi", False),
                               backend=backend))
     return columns, notes
 

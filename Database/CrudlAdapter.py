@@ -21,14 +21,25 @@ SOCI specifics baked into the generated code (see the DAO's header comment):
 import os
 
 from Logger.logger import logger
-from Util.util import loadTemplate, write_if_different
+from Util.util import loadTemplate, write_if_different, copy_if_different
 from Database.backends import get_backend
 from Database.model import (analyze, create_table_sql, type_registry,
                             map_fields, repeated_fields, RepeatedComposedField)
+from Crypto.key_provider_common import (
+    ENCRYPTED_COLUMN_RUNTIME, ENCRYPTED_COLUMN_RUNTIME_SRC,
+    ENCRYPTED_COLUMN_RUNTIME_DEPS)
 
 CRUDL_EXT = "_crudl.h"
 
 _CRUDL = loadTemplate(__file__, "crudl.h.tmpl")
+
+# Track A / A.1: a `phi` column's value is envelope-sealed on write and
+# opened on read, both through a harpia::crypto::KeyProvider the DAO holds.
+_CRYPTO_INCLUDE = '\n#include "crypto/{}"'.format(ENCRYPTED_COLUMN_RUNTIME)
+_CRYPTO_CTOR_PARAM = (", ::harpia::crypto::KeyProvider& kp = "
+                      "::harpia::crypto::default_key_provider()")
+_CRYPTO_CTOR_INIT = ", kp_(kp)"
+_CRYPTO_MEMBER = "\n    ::harpia::crypto::KeyProvider& kp_;"
 
 # neutral bind/read kind -> C++ local type
 _CTYPE = {"text": "std::string", "int": "int", "int64": "long long",
@@ -53,6 +64,7 @@ class CrudlAdapter:
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "db")
+        self.cryptoDir = os.path.join(dest, "generated", "cpp", "crypto")
         self.types = type_registry(messages)
         self.byName = {m.name: m for m in messages}
         self.backend = backend or get_backend()
@@ -61,6 +73,7 @@ class CrudlAdapter:
     def Process(self):
         os.makedirs(self.outDir, exist_ok=True)
         written = 0
+        with_phi = 0
         for msg in self.messages:
             if getattr(msg, "isEnum", False) or not msg.tableName:
                 continue
@@ -68,9 +81,36 @@ class CrudlAdapter:
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, CRUDL_EXT)
             write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
+            if self._phi_columns(msg):
+                with_phi += 1
+
+        if with_phi:
+            # harpia_encrypted_column.h #includes harpia_key_provider.h which
+            # #includes harpia_audit_sink.h, all same-dir "quoted" -- so the
+            # whole transitive set lands in one directory (Track A / A.1).
+            os.makedirs(self.cryptoDir, exist_ok=True)
+            copy_if_different(
+                ENCRYPTED_COLUMN_RUNTIME_SRC,
+                os.path.join(self.cryptoDir, ENCRYPTED_COLUMN_RUNTIME))
+            for dep_name, dep_src in ENCRYPTED_COLUMN_RUNTIME_DEPS:
+                copy_if_different(
+                    dep_src, os.path.join(self.cryptoDir, dep_name))
+            self.log.print(
+                "copied phi-column encryption runtime into {} "
+                "({} message(s) with phi columns)".format(
+                    self.cryptoDir, with_phi))
+
         self.log.print("generated {} CRUDL DAO(s) into {}".format(
             written, self.outDir))
         return None
+
+    def _phi_columns(self, msg):
+        """The message's bindable scalar/enum columns tagged `phi` (Foundation
+        F2) -- the columns whose value is envelope-encrypted on the DAO's
+        write path and decrypted on read (Track A). FK / map / repeated
+        columns are out of scope for A.1."""
+        columns, _ = analyze(msg, self.types, self.backend)
+        return [c for c in columns if getattr(c, "is_phi", False)]
 
     def _render(self, msg):
         columns, _ = analyze(msg, self.types, self.backend)
@@ -85,10 +125,15 @@ class CrudlAdapter:
 
         maps = map_fields(msg, self.types, self.backend)
         reps = repeated_fields(msg, self.types, self.backend)
+        has_phi = any(getattr(c, "is_phi", False) for c in scalar)
 
         return _CRUDL.format(
             guard="HARPIA_CRUDL_{}_{}".format(msg.name.upper(), msg.md5Hash),
             pb_header="protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash),
+            crypto_include=_CRYPTO_INCLUDE if has_phi else "",
+            ctor_extra_params=_CRYPTO_CTOR_PARAM if has_phi else "",
+            ctor_extra_init=_CRYPTO_CTOR_INIT if has_phi else "",
+            crypto_member=_CRYPTO_MEMBER if has_phi else "",
             fk_includes=self._fk_includes(fk_cols, reps),
             fk_precreate=self._fk_hooks(fk_cols, "create"),
             fk_preupdate=self._fk_hooks(fk_cols, "update"),
@@ -140,6 +185,20 @@ class CrudlAdapter:
         """A named local holding column ``col``'s value read from ``src`` (for
         use). ``src`` defaults to "msg"; a repeated-composed field's write
         loop passes its per-element loop variable instead."""
+        if getattr(col, "is_phi", False):
+            # Track A: seal the value before it is bound. Numeric/enum fields
+            # are stringified first, so the ciphertext is always a text blob
+            # that fits the column's existing type.
+            g = col.getter(src)
+            if col.kind == "text":
+                plain = g
+            elif col.kind == "enum":
+                plain = "std::to_string(static_cast<int>({}))".format(g)
+            else:
+                plain = "std::to_string({})".format(g)
+            return ("std::string {b}{i} = "
+                    "::harpia::crypto::encrypt_field(kp_, {p});").format(
+                        b=base, i=i, p=plain)
         if col.kind == "enum":
             return "int {b}{i} = static_cast<int>({g});".format(
                 b=base, i=i, g=col.getter(src))
@@ -170,7 +229,10 @@ class CrudlAdapter:
         lines = []
         i = 0
         for c in scalar:
-            lines.append("            " + self._read_local(i, c.kind))
+            # a phi column stores marker+hex ciphertext -> always read it as
+            # text, then decrypt+convert in _extract_set.
+            kind = "text" if getattr(c, "is_phi", False) else c.kind
+            lines.append("            " + self._read_local(i, kind))
             i += 1
         for _ in fk_cols:
             lines.append("            " + self._read_local(i, "int64"))
@@ -193,7 +255,22 @@ class CrudlAdapter:
         # (indicator-guarded); FK columns are handled by _fk_extract.
         lines = []
         for i, c in enumerate(scalar):
-            if c.kind == "text":
+            if getattr(c, "is_phi", False):
+                raw = "n{i} == ::soci::i_ok ? l{i} : std::string()".format(i=i)
+                if c.kind == "text":
+                    val = "::harpia::crypto::decrypt_field(kp_, {})".format(raw)
+                elif c.kind == "enum":
+                    val = ("static_cast<::{et}>("
+                           "::harpia::crypto::decrypt_field_int(kp_, {r}))"
+                           .format(et=c.enum_type, r=raw))
+                elif c.kind == "int64":
+                    val = "::harpia::crypto::decrypt_field_ll(kp_, {})".format(raw)
+                elif c.kind == "double":
+                    val = ("::harpia::crypto::decrypt_field_double(kp_, {})"
+                           .format(raw))
+                else:
+                    val = "::harpia::crypto::decrypt_field_int(kp_, {})".format(raw)
+            elif c.kind == "text":
                 val = "n{i} == ::soci::i_ok ? l{i} : std::string()".format(i=i)
             elif c.kind == "enum":
                 val = ("static_cast<::{et}>(n{i} == ::soci::i_ok ? l{i} : 0)"
