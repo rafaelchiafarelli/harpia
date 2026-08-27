@@ -1,11 +1,11 @@
-# NEXT_SESSION — sensitive-data implementation (`phi` side: Track F, F.2 next)
+# NEXT_SESSION — sensitive-data implementation (`phi` side: Track F, F.3 next)
 
 **Branch model:** one session = one branch off `dev`, named
 `features/medical_devices/thread-<N>/<track-folder>/<n>-<task-name>` — see
 **`Initiatives/README.md` → "How to work an `epics/` thread"**, rules 8–11
 (branch & merge flow). `dev` is the integration branch; `main` is never
-touched here. `origin/dev` is current through the Track F / F.1 merge
-(`2b2cdbb`, 2026-08-27).
+touched here. `origin/dev` is current through the Track F / F.2 merge
+(`e6e62cb`, 2026-08-27).
 
 ## Read first (in order)
 
@@ -108,19 +108,38 @@ touched here. `origin/dev` is current through the Track F / F.1 merge
   (compile-all + `users` write check + flat/nested/map round-trips).
   Docker: **302 passed, 4 skipped**.
 
+- **Track F / F.2 — unified `toString` façade — COMPLETE (2026-08-27).**
+  `2-unified-tostring-path-done.md`. New `SerializeAdapter/` — one
+  `harpia::serialize::to_string(msg, Format::{JSON,XML,YAML})` /
+  `from_string` over the three **unchanged** engines (protobuf JSON util,
+  `harpia_xml.h`, `harpia_yaml.h`). It is a dispatch layer, so JSON/XML
+  output is byte-for-byte identical to before (acceptance gate held;
+  `test_json_path_is_behavior_preserving` asserts façade == `MessageToJsonString`
+  == `json/<name>_json.h`). The three formats keep their own structural
+  conventions — "one shared path" = one API / one dispatch point (and one
+  place F.3's redaction hooks), not one output shape. `main.py` step 10
+  after `YamlAdapter`; golden `serialize/` (21 wrappers, runtime not
+  snapshotted); no existing golden moved. `UnitTests/test_stage10_serialize.py`.
+  Docker: **307 passed, 4 skipped**.
+
 ## What to do next
 
-### 1. Track F / F.2 — unified `toString` path across JSON/XML/YAML
+### 1. Track F / F.3 — `phi` redaction, uniform across all three formats
 
-`histories/serialization/tasks/2-unified-tostring-path.md`. Branch
-`features/medical_devices/thread-3/serialization/2-unified-tostring-path`
-off `dev`. Fold the three independent JSON/XML/YAML `toString` entry points
-into one shared code path. **Acceptance gate:** existing JSON/XML golden
-snapshots (`json/`, `xml/`) unchanged for non-`phi` messages — behavior-
-preserving refactor. Then F.3 (uniform `phi` redaction — needs a
-fully-`phi` fixture message; add it to `HarpiaTest/Include/*.harpia`, not a
-new root file — see the track file's "Watch for"), F.4 (audited
-`--allow-phi-print` flag), F.5 (round-trip + `ComplianceReport/` note).
+`histories/serialization/tasks/3-phi-redaction.md`. Branch
+`features/medical_devices/thread-3/serialization/3-phi-redaction` off `dev`.
+`phi` fields render as a fixed redacted placeholder **by default** in JSON,
+XML and YAML alike — never omitted from the structure, never an error. The
+one hook point is `SerializeAdapter/runtime/harpia_serialize.h` (F.2 built
+it for exactly this). **Fixture:** there is no `HarpiaTest/test_medical.harpia`
+despite the thread README naming it — add a *fully-`phi`* message to
+`HarpiaTest/Include/*.harpia` (e.g. `file3.harpia`, beside `patient_vitals`),
+NOT a new root file, so the root `HASH` and every golden it pins stay put
+(`patient_vitals` = mixed, `alarm_event` = has-`phi`; the gap is
+all-fields-`phi`). Expect golden movement in `json/`/`xml/`/`yaml/`/
+`serialize/` **only for the `phi`-bearing messages** — non-`phi` messages
+must stay byte-identical. Then F.4 (audited `--allow-phi-print`), F.5
+(round-trip + `ComplianceReport/` note).
 
 ## Conventions / gotchas
 
