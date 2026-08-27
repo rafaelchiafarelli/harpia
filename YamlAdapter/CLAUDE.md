@@ -16,6 +16,7 @@
 - **`from_yaml` parses exactly the subset `to_yaml` emits** — an indentation-driven recursive descent over pre-tokenized lines (blank/`---`/`...` lines dropped). It is **not** a general YAML parser (no flow style beyond `{}`/`[]`, no anchors, no multi-doc, no block scalars). It returns `false` only as a "this text matched none of the message's fields" signal (mirrors `from_xml`'s parse-fail `false`); an empty document or `{}` is a valid empty message → `true`.
 - **Maps** are handled generically as protobuf `MapEntry` repeated messages (`refl->AddMessage` on the map field to populate, `GetRepeatedMessage` to read) — same technique protobuf's own JSON/TextFormat parsers use. Emitted as a nested `key: value` mapping under the field name.
 - **F.1 scope:** output parity only. No `phi` redaction yet (F.3); JSON/XML/YAML `toString` are still three separate code paths (unified in F.2).
+- **Unified `toString` (F.2, done):** `harpia::serialize::to_string(msg, Format::YAML)` (`SerializeAdapter/`) dispatches straight to `harpia::yaml::to_yaml` here — the façade is a dispatch layer, this runtime is unchanged by it.
 - md5-hash-qualified filenames (`<name>_<hash>`), same scheme as ProtoFile/JsonAdapter/XmlAdapter — multi-root relevance.
 - The runtime header is **not** re-snapshotted as golden (same convention as `harpia_xml.h`): it lives here in the repo, `run_pipeline.py`'s `_collect_yaml` copies only the per-message wrappers into `UnitTests/golden/yaml/`.
 

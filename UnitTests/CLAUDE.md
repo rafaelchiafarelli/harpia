@@ -257,6 +257,20 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `SerializeAsString()` equality, plus `from_yaml("not yaml at all")` →
   `false`. F.1 is output-parity only (redaction is F.3, the unified path
   is F.2).
+- `test_stage10_serialize.py` — Track F / Session F.2: the unified
+  `toString` façade (`SerializeAdapter/`, `harpia_serialize.h` +
+  per-message wrappers). `harpia::serialize::to_string(msg, Format::{JSON,
+  XML,YAML})` / `from_string` is one dispatch point over the three
+  unchanged engines (protobuf JSON util, `harpia_xml.h`, `harpia_yaml.h`).
+  protoc+g+++pkg-config-gated: every wrapper compiles; `users` (flat) and
+  `shipment`+`parcel` (nested/repeated) round-trip through all three
+  formats with `SerializeAsString()` equality; the façade's JSON is
+  byte-identical to `MessageToJsonString` and to the existing
+  `json/<name>_json.h` wrapper (the behavior-preserving proof — the
+  14.5/14.6 golden gate itself is `test_golden.py::test_json_adapters` /
+  `test_xml_adapters`, unchanged); default + odd-string (`:`, `<`, `"`)
+  inputs never yield empty output and always round-trip. F.2 adds no
+  redaction (that is F.3).
 - `test_stage11_soap.py` — SOAP-over-HTTP endpoint (credential gate).
 - `test_stage12_rest.py` — REST HTTP CRUD, credential-gated.
 - `test_stage13.py` — gRPC services compile, CRUDL-backed impl, metadata auth.
@@ -385,7 +399,9 @@ Committed reference output keyed by the input hash. Files: `tokens.txt`,
 `messages.txt`; dirs: `proto/`, `json/`, `zmq/`, `grpc/`, `capability/`
 (whole-project gRPC/HTTP/ZMQ capability advertisements, S5), `xml/`,
 `yaml/` (per-message YAML adapter wrappers — Track F; the `harpia_yaml.h`
-runtime is not snapshotted, same convention as `harpia_xml.h`), `db/`
+runtime is not snapshotted, same convention as `harpia_xml.h`),
+`serialize/` (per-message unified-`toString` façade wrappers — Track F
+F.2; `harpia_serialize.h` runtime not snapshotted), `db/`
 (per-message `<name>_<hash>_crudl.h` **plus** the one project-wide
 `harpia_db_registry.h` — Track K public/private DB registry), `migrate/`,
 `dbio/`, `rest/`, `soap/`, `wsdl/`, `gen_tests/` (generated unit tests
