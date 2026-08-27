@@ -99,6 +99,19 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   record; `peek()` is a non-destructive, order-stable look at the queue
   front; a Phase 3c rehearsal (stall overruns the queue, drain replays the
   survivors in order, every loss audited). (g++)
+- `test_critical_delivery_roundtrip.py` — Track D / Session D.4
+  (`Initiatives/medical_devices/epics/thread-6-critical-and-phi/`): the
+  `critical` send/receive headline integration test. protoc+g+++pkg-config+
+  libzmq+cppzmq-gated. Drives the generated `alarm_event` transport over a
+  real `tcp://` socket: (1) publish-while-stalled holds N in the
+  `BoundedQueue` (`pending()` grows, socket untouched), `flush()` after the
+  subscriber joins replays all N in seq order; (2) `queue_capacity=4` +
+  a 10-message burst through a `CountingSink` rotates the oldest exactly 6
+  times (`"queue_rotated"` audited, `pending()` stays 4), `flush()` then
+  delivers the newest 4 in order; (3) `courier_sender` (non-`critical`) has
+  no `flush()`/`pending()`/`queue()` (detection traits) and `send()` stays
+  synchronous `bool`. Case 1 has one timing dependency — a 300 ms PUB/SUB
+  subscription settle (`_SETTLE_MS`). Pins `HASH`.
 - `test_zmq_critical_delivery.py` — sensitive-data roadmap Phase 3b: pure
   Python / structural. Runs the real pipeline (`run_pipeline.py`, no C++
   toolchain) and asserts `alarm_event` (`critical event`) gets a
@@ -269,7 +282,8 @@ field — because a generated Java field genuinely renamed
 old name). The full, actual list (re-derive via `grep -rl '^HASH = "<hash>"'
 UnitTests/*.py` before ever trusting this list again):
 - `test_stage8_db.py`, `test_stage10_xml.py`, `test_stage11_soap.py`,
-  `test_stage12_rest.py`, `test_stage13.py`, `test_stage13_zmq.py`
+  `test_stage12_rest.py`, `test_stage13.py`, `test_stage13_zmq.py`,
+  `test_critical_delivery_roundtrip.py`
 - `test_java_db_crudl.py`, `test_java_full_demo.py`, `test_java_gradle_wiring.py`,
   `test_java_junit_tests.py`, `test_java_rest.py`, `test_java_soap.py`,
   `test_java_zmq.py`
