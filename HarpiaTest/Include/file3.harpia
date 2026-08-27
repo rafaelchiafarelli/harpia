@@ -101,3 +101,17 @@ critical event message alarm_event{
     string alarm_type;
     int severity;
 }alarm_event_table;
+
+// exercises Track H.1, repeated-scalar child-table schema migration.
+// add (a new child table for a new repeated field), rename (the repeated
+// field carries renamed from, so its child table is renamed rather than
+// left orphaned beside an empty new one), drop (a repeated field removed
+// between versions leaves an orphan child table that migrate must reap),
+// and retype (the element type changed, so the child table value column
+// is brought to the current type). Mirrors the main-table
+// rename add drop retype machinery beacon_log exercises for plain columns.
+message telemetry{
+    string label;
+    repeteable int samples;
+    renamed_from[old_notes] repeteable string notes;
+}telemetry_table;

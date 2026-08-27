@@ -46,6 +46,7 @@ public:
         "queen",
         "route",
         "shipment",
+        "telemetry",
         "top_users",
         "users",
         "vip_users",

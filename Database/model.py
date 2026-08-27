@@ -152,13 +152,17 @@ class RepeatedField:
     target owns a table (fk_target set) it holds the child's primary key and the
     children are created/loaded via the child DAO (a 1-to-many relationship)."""
     def __init__(self, child_table, field, val_sql, val_kind,
-                 fk_target=None, embed=None) -> None:
+                 fk_target=None, embed=None, renamed_from=None) -> None:
         self.child_table = child_table
         self.field = field          # protobuf accessor of the repeated field
         self.val_sql = val_sql
         self.val_kind = val_kind
         self.fk_target = fk_target  # child message name (repeated FK) or None
         self.embed = embed          # parent field accessor if embed-nested
+        self.renamed_from = renamed_from  # old repeated-field name (child table
+                                          # "<table>__<old>" RENAME TO
+                                          # "<table>__<field>"), from the DSL's
+                                          # renamed_from[<old>] modifier
 
     def entries(self, src):
         """Const repeated-field expression on message ``src`` (for iteration)."""
@@ -522,7 +526,8 @@ def repeated_fields(msg, types=None, backend=None):
         scalar = _scalar(v.type[0], backend)
         if scalar is None:
             continue
-        out.append(RepeatedField(child, v.name.lower(), scalar[0], scalar[1]))
+        out.append(RepeatedField(child, v.name.lower(), scalar[0], scalar[1],
+                                 renamed_from=getattr(v, "renamedFrom", None)))
     # repeated scalar fields reached through a flattened non-table composed field
     # (embed-nested), mirroring map_fields; keyed by the parent's PK.
     for v in (msg.variables or []):
@@ -545,6 +550,18 @@ def repeated_fields(msg, types=None, backend=None):
                 cv.name.lower(), scalar[0], scalar[1],
                 embed=v.name.lower()))
     return out
+
+
+def child_table_names(msg, types=None, backend=None):
+    """Every child-table name the current schema declares for a table-bearing
+    message -- map, repeated-scalar, repeated-FK link, and repeated-composed
+    tables, including the embed-nested variants of each. This is the complete
+    set MigrationAdapter diffs a live database against to reap an orphan child
+    table left behind by a repeated/map field removed between schema versions
+    (the child-table analogue of the main table's implicit column drop)."""
+    names = [mf.child_table for mf in map_fields(msg, types, backend)]
+    names += [rf.child_table for rf in repeated_fields(msg, types, backend)]
+    return names
 
 
 def create_table_sql(msg, if_not_exists=True, types=None, backend=None):

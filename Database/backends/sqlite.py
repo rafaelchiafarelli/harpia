@@ -132,6 +132,57 @@ class SqliteBackend(DbBackend):
         return ('SELECT "name", "type" FROM pragma_table_info(\'{}\');'
                 .format(table))
 
+    # -- migration: child tables (repeated / map) --------------------------
+    def list_tables_sql(self, prefix):
+        # every "<prefix>__*" table; substr (not LIKE, whose _ is a wildcard)
+        # keeps the match exact, and the shape mirrors list_columns_sql --
+        # one selected column, read uniformly by the migration C++.
+        n = len(prefix) + 2
+        return ("SELECT \"name\" FROM sqlite_master WHERE type = 'table' "
+                "AND substr(\"name\", 1, {}) = '{}__';").format(n, prefix)
+
+    def rename_table(self, old, new):
+        return 'ALTER TABLE "{}" RENAME TO "{}";'.format(old, new)
+
+    def drop_table_dynamic(self, name_expr):
+        return '"DROP TABLE \\"" + {} + "\\";"'.format(name_expr)
+
+    def retype_rep_child_dynamic(self, child, owner_type, val_sql):
+        # No ALTER COLUMN ... TYPE in SQLite: rebuild the (owner, ordinal,
+        # value) child table with "value" at the current element type,
+        # CASTing every row across. Guarded by the child's live "value" type
+        # so an already-current table is untouched.
+        types_sql = self.list_column_types_sql(child)
+        tmp = "{}__retype_tmp".format(child)
+        create_sql = ('CREATE TABLE "{}" ("owner" {}, "ordinal" INTEGER, '
+                      '"value" {}, PRIMARY KEY("owner", "ordinal"));').format(
+                          tmp, owner_type, val_sql)
+        insert_sql = ('INSERT INTO "{}" ("owner", "ordinal", "value") SELECT '
+                      '"owner", "ordinal", CAST("value" AS {}) FROM "{}";').format(
+                          tmp, val_sql, child)
+        drop_sql = 'DROP TABLE "{}";'.format(child)
+        rename_sql = 'ALTER TABLE "{}" RENAME TO "{}";'.format(tmp, child)
+        return (
+            '        {{\n'
+            '            std::map<std::string, std::string> _rct;\n'
+            '            {{\n'
+            '                std::string _rn, _rt; ::soci::indicator _rni, _rti;\n'
+            '                ::soci::statement _rs = (db.prepare << "{types}",\n'
+            '                                         ::soci::into(_rn, _rni), ::soci::into(_rt, _rti));\n'
+            '                _rs.execute();\n'
+            '                while (_rs.fetch()) {{ if (_rni == ::soci::i_ok && _rti == ::soci::i_ok) _rct[_rn] = _rt; }}\n'
+            '            }}\n'
+            '            if (_rct.count("value") && _rct["value"] != "{val}") {{\n'
+            '                db << "{create}";\n'
+            '                db << "{insert}";\n'
+            '                db << "{drop}";\n'
+            '                db << "{rename}";\n'
+            '            }}\n'
+            '        }}'
+        ).format(types=_esc(types_sql), val=val_sql, create=_esc(create_sql),
+                 insert=_esc(insert_sql), drop=_esc(drop_sql),
+                 rename=_esc(rename_sql))
+
     def retype_column_dynamic(self, table, columns):
         # SQLite has no ALTER COLUMN ... TYPE at all, so a real type change
         # needs a whole-table rebuild: create a tmp table with the CURRENT
@@ -195,3 +246,8 @@ if __name__ == "__main__":
         ("ID_abc", b.int_type, b.column_def(b.int_type, pk=True)),
         ("weight", b.sql_type("FLOAT"), b.column_def(b.sql_type("FLOAT"))),
     ]))
+    print(b.list_tables_sql("devices"))
+    print(b.rename_table("devices__oldtags", "devices__tags"))
+    print(b.drop_table_dynamic("_dct"))
+    print(b.retype_rep_child_dynamic("devices__tags", b.int_type,
+                                     b.sql_type("STRING")))
