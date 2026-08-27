@@ -71,7 +71,16 @@ third added by the sensitive-data roadmap, not Foundation):
   `generated/cpp/delivery/` when a `critical` transport message exists).
 - `context.py` — F1: three closed-set `Enum`s (`RiskClass`, `Topology`,
   `PhiHandling`), `ComplianceContext` (plus `jurisdiction`, a plain list of
-  strings), `strictest_profile()`, and `load_compliance_context()`.
+  strings, and `project`, a plain string — see below), `strictest_profile()`,
+  and `load_compliance_context()`.
+  **`project` (added by Track K / K.1):** `project.harpia.yaml` → `project:`,
+  default `DEFAULT_PROJECT` (`"default"`); a present-but-empty/non-string
+  value is a hard `ComplianceConfigError` (same posture as `jurisdiction`),
+  an omitted key just logs and defaults. Not a hardening axis, so
+  `strictest_profile()` just takes the default. Inert for every stage except
+  `Database/DbRegistryAdapter.py`, which stamps it as the owner of each table
+  in the public/private DB registry so a PRIVATE table can be refused to code
+  from a different project name.
 - `audit_common.py` — F3: `AUDIT_SINK_RUNTIME`/`AUDIT_SINK_RUNTIME_SRC`
   path constants, same shape as `Capability/capability_common.py`'s. No
   adapter copies the runtime header yet (nothing consumes it -- Track A/C

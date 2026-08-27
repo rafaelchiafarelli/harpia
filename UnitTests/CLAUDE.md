@@ -227,6 +227,23 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `test_stage7.py` — protoc emits/compiles `.pb.{h,cc}`. (protoc, g++)
 - `test_stage8_db.py` — SQL schema, CRUDL round-trip, FK, repeated-FK link table,
   map<K,V>, repeated scalar, migration, DB↔JSON/XML. (cc + g++, some protoc)
+- `test_db_segregation.py` — Track K / Session K.1: the public/private DB
+  registry (`Database/DbRegistryAdapter.py` → `generated/cpp/db/harpia_db_registry.h`).
+  Structural (pure Python, always run): the one project-wide header is
+  emitted; it lists exactly the table-bearing messages (enums/table-less
+  absent) with a visibility some message declared for that table (parsed off
+  the dumped `messages.txt`, not a hard-coded fixture list); `kProjectName`
+  and every `owner_project` default to `"default"` and both re-key when
+  `project.harpia.yaml` sets `project:` (driven via `HARPIA_COMPLIANCE_CONFIG`
+  pointing at a temp config); the `users`/`top_users` → `user_table`
+  visibility collision surfaces as a `// note:` line, first declaration
+  (PUBLIC) kept. g++-gated: the generated header compiles `-Werror` and
+  `db_access_check()` decides correctly — PUBLIC always ALLOWED, PRIVATE
+  ALLOWED to the owner / DENIED_PRIVATE_CROSS_PROJECT otherwise, unknown
+  table DENIED_UNKNOWN_TABLE, `static_assert`-usable; and a two-project
+  integration where a separately-generated "billing" project reads "clinic"'s
+  registry and is served its PUBLIC table but refused its PRIVATE one, each
+  project's registry a distinct artifact stamped with its own name.
 - `test_stage9.py` — JSON adapters compile + round-trip. (protoc, g++)
 - `test_stage10_xml.py` — XML adapters compile, to/from_xml round-trip, XSD.
 - `test_stage11_soap.py` — SOAP-over-HTTP endpoint (credential gate).
@@ -355,8 +372,10 @@ old `c96f8fd7…` hash.)
 ## Golden snapshots (UnitTests/golden/)
 Committed reference output keyed by the input hash. Files: `tokens.txt`,
 `messages.txt`; dirs: `proto/`, `json/`, `zmq/`, `grpc/`, `capability/`
-(whole-project gRPC/HTTP/ZMQ capability advertisements, S5), `xml/`, `db/`,
-`migrate/`, `dbio/`, `rest/`, `soap/`, `wsdl/`, `gen_tests/` (generated unit tests
+(whole-project gRPC/HTTP/ZMQ capability advertisements, S5), `xml/`, `db/`
+(per-message `<name>_<hash>_crudl.h` **plus** the one project-wide
+`harpia_db_registry.h` — Track K public/private DB registry), `migrate/`,
+`dbio/`, `rest/`, `soap/`, `wsdl/`, `gen_tests/` (generated unit tests
 + CTest CMakeLists), `sidecars/` (per-message SQL schema + modifier/access/pswd
 flag files, subdirs `database/ modifier/ access_modifier/ database_access/`).
 Do not hand-edit — regenerate via `HARPIA_UPDATE_GOLDEN=1` and review the diff.
