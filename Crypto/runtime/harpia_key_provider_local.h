@@ -19,8 +19,10 @@
 // CryptoBackend seam. O.2's contribution is the persistence + the
 // acknowledgment gate, not the crypto primitive.
 //
-// Out of scope here (later O sessions): crypto-shredding (O.3), zeroization
-// + AuditSink wiring (O.4), the KMS/HSM reference adapter (O.5).
+// Crypto-shred (O.3): shred_dek() appends to a `<storage_path>.shred`
+// append-only sidecar so a discard survives a restart; the KEK store is
+// never touched. Out of scope here (later O sessions): zeroization +
+// AuditSink wiring (O.4), the KMS/HSM reference adapter (O.5).
 #ifndef HARPIA_CRYPTO_KEY_PROVIDER_LOCAL_H
 #define HARPIA_CRYPTO_KEY_PROVIDER_LOCAL_H
 
@@ -33,6 +35,7 @@
 #include <map>
 #include <optional>
 #include <random>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -89,6 +92,7 @@ public:
             throw LocalKeyProviderRefused();
         if (!load())
             persist();  // fresh store: KEK v1 was minted below in the ctor init
+        load_shreds();
     }
 
     std::uint64_t active_kek_version() const override { return active_; }
@@ -100,6 +104,7 @@ public:
     }
 
     std::optional<Dek> unwrap_dek(const WrappedDek& w) override {
+        if (shredded_.count(shred_key(w))) return std::nullopt;  // O.3
         auto it = keks_.find(w.kek_version);
         if (it == keks_.end()) return std::nullopt;
         return Dek{Dek::xor_with(w.bytes, it->second)};
@@ -110,6 +115,17 @@ public:
         keks_[active_] = random_bytes(kKeyLen);
         persist();
         return active_;
+    }
+
+    // Crypto-shred (O.3). Appends to a `<storage_path>.shred` sidecar (an
+    // append-only log -- there is no un-shred) so the discard survives a
+    // restart. The KEK store is untouched: shredding one record leaves
+    // every other record, and every KEK, exactly as they were.
+    void shred_dek(const WrappedDek& w) override {
+        if (shredded_.insert(shred_key(w)).second) {
+            std::ofstream out(shred_path(), std::ios::app);
+            out << w.kek_version << " " << to_hex(w.bytes) << "\n";
+        }
     }
 
 private:
@@ -167,9 +183,25 @@ private:
             out << kv.first << " " << to_hex(kv.second) << "\n";
     }
 
+    std::string shred_path() const { return path_ + ".shred"; }
+
+    void load_shreds() {
+        std::ifstream in(shred_path());
+        std::string line;
+        while (std::getline(in, line)) {
+            if (line.empty()) continue;
+            std::istringstream ls(line);
+            std::uint64_t v = 0;
+            std::string hex;
+            if (!(ls >> v >> hex)) continue;
+            shredded_.insert(shred_key(WrappedDek{v, from_hex(hex)}));
+        }
+    }
+
     std::string path_;
     std::map<std::uint64_t, std::string> keks_{{1, random_bytes(kKeyLen)}};
     std::uint64_t active_ = 1;
+    std::set<std::string> shredded_;  // O.3: shred_key(w) of every shredded DEK
 };
 
 }  // namespace crypto

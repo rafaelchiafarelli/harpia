@@ -1,10 +1,11 @@
 // harpia KeyProvider -- abstract interface for envelope encryption of `phi`
-// data (Track O, Session O.1), hand-written, not generated. Interface +
-// envelope shape + an in-memory dummy implementation only. The real
-// backends -- a TPM/keystore-sealed local default, a KMS/HSM reference
-// adapter -- are O.2 and O.5; crypto-shredding is O.3; zeroization and
-// AuditSink wiring on every key operation are O.4. See
-// Initiatives/medical_devices/epics/thread-1-data-and-keys/histories/track-o-key-management.md.
+// data (Track O), hand-written, not generated. O.1 fixed the interface +
+// envelope shape + an in-memory dummy; O.3 added shred_dek() (crypto-shred)
+// to the interface and the dummy. The real backends -- a TPM/keystore-
+// sealed local default, a KMS/HSM reference adapter -- are O.2
+// (harpia_key_provider_local.h) and O.5; zeroization and AuditSink wiring
+// on every key operation are O.4. See
+// Initiatives/medical_devices/epics/thread-1-data-and-keys/histories/key-management/.
 //
 // Envelope encryption, baked in from the start (O.1's explicit ask, so O.2
 // does not have to retrofit it):
@@ -35,6 +36,7 @@
 #include <map>
 #include <optional>
 #include <random>
+#include <set>
 #include <string>
 
 namespace harpia {
@@ -73,6 +75,14 @@ struct WrappedDek {
     std::string   bytes;
 };
 
+// Stable per-wrapped-DEK identity for the crypto-shred registry (O.3): the
+// KEK version plus the wrapped bytes, exact, no hashing -- each DEK is 32
+// random bytes so two distinct records never collide. Shared by every
+// KeyProvider implementation.
+inline std::string shred_key(const WrappedDek& w) {
+    return std::to_string(w.kek_version) + ":" + w.bytes;
+}
+
 class KeyProvider {
 public:
     virtual ~KeyProvider() = default;
@@ -98,6 +108,15 @@ public:
     // live DEKs onto the new version is the caller's O(keys) pass, done
     // lazily or in a maintenance job -- not forced here.
     virtual std::uint64_t rotate() = 0;
+
+    // Crypto-shred (O.3): permanently and irreversibly discard the DEK this
+    // WrappedDek refers to. Afterwards unwrap_dek(w) returns nullopt even
+    // though the KEK is intact -- exactly that record's ciphertext becomes
+    // unrecoverable, with no need to locate or rewrite the ciphertext
+    // itself (the right-to-erasure mechanism: destroy the key, not the
+    // data). Per-DEK: shredding one record does not affect any other.
+    // Idempotent. There is no un-shred.
+    virtual void shred_dek(const WrappedDek& w) = 0;
 };
 
 // In-memory, non-persistent, DUMMY implementation -- for this session's
@@ -119,6 +138,7 @@ public:
     }
 
     std::optional<Dek> unwrap_dek(const WrappedDek& w) override {
+        if (shredded_.count(shred_key(w))) return std::nullopt;  // O.3
         auto it = keks_.find(w.kek_version);
         if (it == keks_.end()) return std::nullopt;
         return Dek{Dek::xor_with(w.bytes, it->second)};
@@ -130,8 +150,13 @@ public:
         return active_;
     }
 
-    // O.3 will formalize this as crypto-shredding; exposed now only so the
-    // O.1 tests can exercise the unknown-version unwrap path deterministically.
+    void shred_dek(const WrappedDek& w) override {
+        shredded_.insert(shred_key(w));
+    }
+
+    // Drops a whole KEK version. Distinct from shred_dek() (which discards
+    // one record's DEK): this is the coarse "retire an old KEK entirely"
+    // case, exposed since O.1 for deterministic unknown-version tests.
     void forget_kek_version(std::uint64_t version) { keks_.erase(version); }
 
 private:
@@ -147,6 +172,7 @@ private:
 
     std::map<std::uint64_t, std::string> keks_;
     std::uint64_t active_ = 1;
+    std::set<std::string> shredded_;  // O.3: shred_key(w) of every shredded DEK
 };
 
 }  // namespace crypto

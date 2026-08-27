@@ -26,7 +26,7 @@ Track O / H / A / K in `thread-1-data-and-keys/`, Track F in
 `Initiatives/medical_devices/sensitive-data-implementation-roadmap.md` is the
 original plan doc — **do not edit it.** thread-6 supersedes it for tracking.
 
-## What this session did — Track O, Sessions O.1 + O.2  ✅
+## What this session did — Track O, Sessions O.1 + O.2 + O.3  ✅
 
 **O.1** (`tasks/key-provider-interface-done.md`) — the `KeyProvider`
 interface + envelope-encryption shape (first `phi`-side session).
@@ -56,8 +56,19 @@ backend + the fail-safe acknowledgment gate.
 - `Crypto/key_provider_common.py` — `KEY_PROVIDER_LOCAL_RUNTIME` / `_SRC` +
   `_DEPS`.
 - `UnitTests/test_local_key_provider.py` — 7 g++-gated tests.
-- Additive — no generator code touched, no golden impact. Host 173 passed;
-  **full Docker suite 245 passed, 4 skipped.**
+
+**O.3** (`tasks/crypto-shredding-done.md`) — crypto-shredding.
+
+- `harpia_key_provider.h` — `KeyProvider` gains pure virtual
+  `shred_dek(const WrappedDek&)`; shared `shred_key(w)` identity;
+  `unwrap_dek` → `nullopt` for a shredded DEK, KEK untouched. Per-DEK,
+  idempotent, no un-shred. `InMemoryKeyProvider` carries a `shredded_` set.
+- `harpia_key_provider_local.h` — `shred_dek` appends to a
+  `<storage_path>.shred` append-only sidecar (survives restart; the KEK
+  store file is never rewritten).
+- `UnitTests/test_crypto_shred.py` — 5 g++-gated tests, both providers.
+- Additive — no generator code touched, no golden impact. Host 178 passed;
+  **full Docker suite 250 passed, 4 skipped.**
 
 **Also this branch:** track-o was restructured to match its siblings
 (`histories/track-o-key-management.md` inline → contract-only at
@@ -85,16 +96,18 @@ Per `thread-6-critical-and-phi/README.md`'s execution order. Track O lives
 at **`thread-1-data-and-keys/histories/key-management/`** — contract in
 `track-o-key-management.md`, one file per session in `tasks/`.
 
-- **O.1, O.2 done** — `tasks/key-provider-interface-done.md`,
-  `tasks/default-local-provider-done.md`.
-- **Next: O.3** — `tasks/crypto-shredding.md`. Permanently discard a
-  specific DEK so only that record's data becomes unrecoverable, without
-  touching or rewriting the ciphertext — the right-to-erasure mechanism.
-  Works against O.1's `InMemoryKeyProvider` or O.2's `LocalKeyProvider`.
-  (O.1 already left `forget_kek_version()` as a KEK-version stand-in;
-  O.3 formalizes per-DEK discard.)
-- Then O.4 (zeroization + `AuditSink` wiring), O.5 (KMS/HSM reference
-  adapter). Track H
+- **O.1, O.2, O.3 done** — `key-provider-interface-done.md`,
+  `default-local-provider-done.md`, `crypto-shredding-done.md`.
+- **Next: O.4** — `tasks/zeroization-and-audit.md`. Key material cleared
+  from memory after use (not left to dtor/GC timing); every key op
+  (generate / wrap / unwrap / rotate / shred) routed through `AuditSink`
+  (F3 `Compliance/runtime/harpia_audit_sink.h`). Tests: mock `AuditSink`,
+  one call per op type; a scan asserting no raw key bytes appear in
+  plaintext output/logs. **Interface change to expect:** `KeyProvider` (or
+  its impls) takes an `AuditSink&` — if `harpia_key_provider.h` then
+  `#include`s `harpia_audit_sink.h`, add a `KEY_PROVIDER_RUNTIME_DEPS`
+  tuple to `Crypto/key_provider_common.py` (see the note in that file).
+- Then O.5 (KMS/HSM reference adapter). Track H
   (`histories/schema-evolution/track-h-schema-evolution.md`, H.1–H.3, no
   Foundation dependency — can run in parallel), then Track A
   (`histories/db-encryption/track-a-db-encryption.md`, A.1–A.4 —
@@ -113,7 +126,7 @@ at **`thread-1-data-and-keys/histories/key-management/`** — contract in
   harpia-gradle-cache:/tmp/.gradle -w /harpia -e HOME=/tmp -e
   GRADLE_USER_HOME=/tmp/.gradle harpia-build pytest -q -p no:cacheprovider`.
   Do **not** use `Docker/run.sh` non-interactively (`-it`, dies on non-TTY).
-  Baseline after O.2: **245 passed, 4 skipped**.
+  Baseline after O.3: **250 passed, 4 skipped**.
 - **One session = one file under the track's `tasks/`. When it lands,
   `git mv` that file to add a `-done` suffix — the filename is the done
   marker, no status line inside. Never edit a done task file** (only fix

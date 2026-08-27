@@ -164,6 +164,17 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   proceeds with the acknowledgment; the gate doesn't bite when not at
   scale; `local_key_provider_acknowledged()` reads
   `HARPIA_ACK_LOCAL_KEY_PROVIDER` (`1`/`true`/`yes`, any case). (g++)
+- `test_crypto_shred.py` — Track O / Session O.3: crypto-shredding
+  (`shred_dek(w)` on the interface + both impls). Against `InMemoryKeyProvider`
+  and `LocalKeyProvider`: shred makes exactly that record's DEK
+  unrecoverable (`unwrap_dek` → `nullopt`) while the KEK is untouched
+  (`active_kek_version` unchanged) and the caller's `WrappedDek` is not
+  mutated; per-DEK (another record's DEK still unwraps); idempotent and
+  irreversible (compile-time `static_assert` that neither impl has an
+  `unshred_dek`; a KEK rotation afterwards doesn't resurrect it); for
+  `LocalKeyProvider` the shred is written to a `<store>.shred` append-only
+  sidecar that survives a restart and never rewrites the KEK store file.
+  (g++)
 - `test_doxygen_mainpage.py` — Foundation F6's `Doxygen/mainpage.py`:
   extracts only the requested `USAGE.md` section numbers (not their
   neighbors), in the requested order, stopping at the next `## ` heading
