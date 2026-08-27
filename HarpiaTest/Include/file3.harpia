@@ -88,3 +88,16 @@ message patient_vitals{
     phi required float heart_rate;
     optional string device_note;
 }patient_vitals_table;
+
+// exercises the critical message-type modifier (sensitive-data design
+// rules doc Rule 0, criticality axis) -- composed with the event transport
+// kind, and carrying a phi field too, since the two axes are independent
+// (a patient-specific alarm is both high-criticality and high-confidentiality).
+// checked-in canonical fixture for the delivery-guarantee machinery (Phase 3
+// of sensitive-data-implementation-roadmap.md) to build its send/receive
+// integration test against.
+critical event message alarm_event{
+    phi string patient_id;
+    string alarm_type;
+    int severity;
+}alarm_event_table;

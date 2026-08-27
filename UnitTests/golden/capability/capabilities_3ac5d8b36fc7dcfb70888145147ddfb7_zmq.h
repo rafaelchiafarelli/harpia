@@ -45,6 +45,7 @@ public:
         if (!socket_.recv(frame, ::zmq::recv_flags::none).has_value()) return false;
 
         static const std::vector<std::string> kTypes = {
+        "alarm_event",
         "another_sage",
         "beacon_log",
         "courier",

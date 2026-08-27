@@ -31,6 +31,16 @@ class LexicalAnalyzer:
             ('PUSH',r'push '),
             ('EVENT',r'event '),
             ('PUSHPULL',r'pushpull '),
+            # message-type criticality modifier (sensitive-data design rules
+            # §0, the *criticality* axis -- independent of PHI's confidentiality
+            # axis). A keyword-only modifier that sits in the same slot as the
+            # transport kinds above (before `message `), trailing space so it
+            # never matches a bare identifier or `criticality`. Flag only: no
+            # delivery-guarantee machinery lands with this token -- that is
+            # Phase 3 of sensitive-data-implementation-roadmap.md. Consumed by
+            # Message/Message.py -> Message.is_critical, the same way PHI ->
+            # variable.is_phi.
+            ('CRITICAL', r'critical '),
             ('MESSAGE',r'message '),
             # sensitive-field modifier (Foundation F2, confidentiality axis --
             # see Initiatives/medical_devices/harpia_sensitive_data_design_rules.md

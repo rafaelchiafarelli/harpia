@@ -40,9 +40,12 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `python3 UnitTests/run_frontend.py <file> <dest>`.
 - `run_phi_check.py` — front-end + `FileCreator` (Stages 0-6) on one file;
   prints one `PHI_CHECK_RESULT <json>` line: `{"error": ..., "fields":
-  [{"message","field","is_phi"}, ...], "proto": "<concatenated .proto
-  text>"}`. Used by `test_phi_modifier.py` (Foundation F2) to inspect
-  `variable.is_phi` and confirm the emitted `.proto` is unaffected by it.
+  [{"message","field","is_phi"}, ...], "messages":
+  [{"name","is_critical","is_enum"}, ...], "proto": "<concatenated .proto
+  text>"}`. Used by `test_phi_modifier.py` (Foundation F2, `variable.is_phi`)
+  and `test_critical_modifier.py` (sensitive-data roadmap Phase 1a,
+  `Message.is_critical`) to inspect the sensitive-data modifier flags and
+  confirm the emitted `.proto` is unaffected by either.
   Unlike `run_frontend.py`, does NOT `chdir` into the fixture's folder --
   `FileCreator.Process()` needs repo-root-relative `./Assets/...` to
   resolve its service-proto template, so it stays at the repo root and
@@ -75,6 +78,14 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   the modifier itself and is line-for-line identical to the same field
   without `phi` (flag only -- no encryption/redaction/audit logic lands
   with this token). Pure Python.
+- `test_critical_modifier.py` — sensitive-data roadmap Phase 1a's `critical`
+  message-type modifier: parses with/without `critical`, composed with each
+  transport kind (`event`/`stream`/`push`/`pull`), order-independent, and
+  together with a `phi` field on one message (design-rules Rule 0 — the two
+  axes are independent). Confirms `Message.is_critical` via `run_phi_check.py`.
+  Integration: the emitted `.proto` for a `critical` message contains no trace
+  of the modifier and is line-for-line identical to the same message without
+  it (flag only — the delivery-guarantee machinery is Phase 3). Pure Python.
 - `test_audit_sink.py` — Foundation F3's `Compliance/runtime/harpia_audit_sink.h`
   (hand-written C++, not Python -- unlike F1, this interface is injected
   into *generated* code by later tracks). Compiles/runs small standalone
