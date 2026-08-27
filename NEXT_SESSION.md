@@ -1,11 +1,11 @@
-# NEXT_SESSION — sensitive-data implementation (`phi` side: Track F next)
+# NEXT_SESSION — sensitive-data implementation (`phi` side: Track F, F.2 next)
 
 **Branch model:** one session = one branch off `dev`, named
-`features/medical_devices/thread-1/<track-folder>/<n>-<task-name>` — see
+`features/medical_devices/thread-<N>/<track-folder>/<n>-<task-name>` — see
 **`Initiatives/README.md` → "How to work an `epics/` thread"**, rules 8–11
 (branch & merge flow). `dev` is the integration branch; `main` is never
-touched here. `origin/dev` is current through the Track K merge (branched
-off `44ceec7`, 2026-08-27).
+touched here. `origin/dev` is current through the Track F / F.1 merge
+(`2b2cdbb`, 2026-08-27).
 
 ## Read first (in order)
 
@@ -92,14 +92,35 @@ off `44ceec7`, 2026-08-27).
   right after `CrudlAdapter`. Tests: `UnitTests/test_db_segregation.py`
   (structural + g++-gated access-check + two-project integration).
 
+- **Track F / F.1 — `YamlAdapter/` — COMPLETE (2026-08-27).**
+  `thread-3-message-behavior/histories/serialization/` — the inline track
+  file was first restructured into `tasks/1-yaml-adapter.md … 5-…` (rule 3);
+  `1-yaml-adapter-done.md`. New `YamlAdapter/` mirrors `XmlAdapter/`:
+  `runtime/harpia_yaml.h` (hand-written reflection walk — protobuf has no
+  built-in YAML), `to_yaml()` = block style / 2-space / top-level mapping
+  with no wrapper key (JSON's data model, not XML's root element), strings
+  double-quoted, scalars/enums bare, `{}`/`[]` for empty message/repeated,
+  presence rule identical to `harpia_xml.h`; `from_yaml()` = an indentation
+  recursive descent over exactly that subset (not a general parser; `false`
+  only = "matched no field", mirroring `from_xml`). Maps via `MapEntry`
+  reflection. `main.py` step 10 right after `XmlAdapter`; golden `yaml/`
+  (21 wrappers, runtime not snapshotted). Tests: `UnitTests/test_stage10_yaml.py`
+  (compile-all + `users` write check + flat/nested/map round-trips).
+  Docker: **302 passed, 4 skipped**.
+
 ## What to do next
 
-### 1. Track F — `phi` redaction (independent, any time)
+### 1. Track F / F.2 — unified `toString` path across JSON/XML/YAML
 
-`thread-3-message-behavior/histories/serialization/track-f-serialization.md`
-(F.1–F.5). New `YamlAdapter/`; unified `toString` across JSON/XML/YAML;
-`phi` values redacted by default; the unredacted-output flag emits an
-`AuditSink` record. Delivers the serialization half of the `phi` headline.
+`histories/serialization/tasks/2-unified-tostring-path.md`. Branch
+`features/medical_devices/thread-3/serialization/2-unified-tostring-path`
+off `dev`. Fold the three independent JSON/XML/YAML `toString` entry points
+into one shared code path. **Acceptance gate:** existing JSON/XML golden
+snapshots (`json/`, `xml/`) unchanged for non-`phi` messages — behavior-
+preserving refactor. Then F.3 (uniform `phi` redaction — needs a
+fully-`phi` fixture message; add it to `HarpiaTest/Include/*.harpia`, not a
+new root file — see the track file's "Watch for"), F.4 (audited
+`--allow-phi-print` flag), F.5 (round-trip + `ComplianceReport/` note).
 
 ## Conventions / gotchas
 
