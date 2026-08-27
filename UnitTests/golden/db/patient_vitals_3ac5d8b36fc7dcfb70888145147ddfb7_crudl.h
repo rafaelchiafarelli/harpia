@@ -25,7 +25,7 @@ namespace db {
 // are guarded by an indicator.
 class patient_vitals_dao {
 public:
-    explicit patient_vitals_dao(::soci::session& db, ::harpia::crypto::KeyProvider& kp = ::harpia::crypto::default_key_provider()) : db_(db), kp_(kp) {}
+    explicit patient_vitals_dao(::soci::session& db, ::harpia::crypto::KeyProvider& kp = ::harpia::crypto::default_key_provider(), ::harpia::compliance::AuditSink& audit = ::harpia::compliance::default_audit_sink()) : db_(db), kp_(kp), audit_(audit) {}
 
     bool create_table() {
         try {
@@ -51,6 +51,7 @@ public:
             std::string c6 = msg.originator();
             db_ << "INSERT INTO \"patient_vitals_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"heart_rate\", \"device_note\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6)",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6);
+            audit_.record("phi_create", "patient_vitals_table", "patient_id,heart_rate");
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -74,6 +75,7 @@ public:
                 msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
                 msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
                 msg->set_originator(n6 == ::soci::i_ok ? l6 : std::string());
+            audit_.record("phi_read", "patient_vitals_table", "patient_id,heart_rate");
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -89,6 +91,7 @@ public:
             long long cid = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
             db_ << "UPDATE \"patient_vitals_table\" SET \"patient_id\" = :c0, \"heart_rate\" = :c1, \"device_note\" = :c2, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c3, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c4, \"ORIGINATOR\" = :c5 WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :cid",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(cid);
+            audit_.record("phi_update", "patient_vitals_table", "patient_id,heart_rate");
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -96,6 +99,7 @@ public:
     bool remove(std::int64_t id) {
         try {
             db_ << "DELETE FROM \"patient_vitals_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id);
+            audit_.record("phi_delete", "patient_vitals_table", "patient_id,heart_rate");
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -124,6 +128,7 @@ public:
                 msg->set_originator(n6 == ::soci::i_ok ? l6 : std::string());
                 out->push_back(row);
             }
+            audit_.record("phi_list", "patient_vitals_table", "patient_id,heart_rate");
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -153,6 +158,7 @@ public:
                 msg->set_originator(n6 == ::soci::i_ok ? l6 : std::string());
                 out->push_back(row);
             }
+            audit_.record("phi_list", "patient_vitals_table", "patient_id,heart_rate");
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -160,6 +166,7 @@ public:
 private:
     ::soci::session& db_;
     ::harpia::crypto::KeyProvider& kp_;
+    ::harpia::compliance::AuditSink& audit_;
 };
 
 }  // namespace db

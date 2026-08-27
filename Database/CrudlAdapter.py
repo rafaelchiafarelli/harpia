@@ -49,13 +49,26 @@ CRUDL_EXT = "_crudl.h"
 
 _CRUDL = loadTemplate(__file__, "crudl.h.tmpl")
 
-# Track A / A.1: a `phi` column's value is envelope-sealed on write and
-# opened on read, both through a harpia::crypto::KeyProvider the DAO holds.
+# Track A: a `phi` column's value is envelope-sealed on write and opened on
+# read through a harpia::crypto::KeyProvider the DAO holds (A.1/A.2); every
+# CRUDL op that touches a `phi` field emits exactly one AuditSink record
+# (A.3) -- names only, never the value (Rule 5). Both are defaulted ctor
+# params so a non-phi DAO and an untagged project are byte-unchanged.
 _CRYPTO_INCLUDE = '\n#include "crypto/{}"'.format(ENCRYPTED_COLUMN_RUNTIME)
-_CRYPTO_CTOR_PARAM = (", ::harpia::crypto::KeyProvider& kp = "
-                      "::harpia::crypto::default_key_provider()")
-_CRYPTO_CTOR_INIT = ", kp_(kp)"
-_CRYPTO_MEMBER = "\n    ::harpia::crypto::KeyProvider& kp_;"
+_CRYPTO_CTOR_PARAM = (
+    ", ::harpia::crypto::KeyProvider& kp = "
+    "::harpia::crypto::default_key_provider()"
+    ", ::harpia::compliance::AuditSink& audit = "
+    "::harpia::compliance::default_audit_sink()")
+_CRYPTO_CTOR_INIT = ", kp_(kp), audit_(audit)"
+_CRYPTO_MEMBER = ("\n    ::harpia::crypto::KeyProvider& kp_;"
+                  "\n    ::harpia::compliance::AuditSink& audit_;")
+
+# one AuditSink call per DAO op, subject = table, detail = the phi column
+# names touched (comma-joined) -- field-level, value-free.
+_AUDIT_OPS = {"create": "phi_create", "read": "phi_read",
+              "update": "phi_update", "remove": "phi_delete",
+              "list": "phi_list"}
 
 # neutral bind/read kind -> C++ local type
 _CTYPE = {"text": "std::string", "int": "int", "int64": "long long",
@@ -141,7 +154,15 @@ class CrudlAdapter:
 
         maps = map_fields(msg, self.types, self.backend)
         reps = repeated_fields(msg, self.types, self.backend)
-        has_phi = any(getattr(c, "is_phi", False) for c in scalar)
+        phi_cols = [c for c in scalar if getattr(c, "is_phi", False)]
+        has_phi = bool(phi_cols)
+
+        def _audit(op):
+            if not has_phi:
+                return ""
+            return ('            audit_.record("{o}", "{t}", "{f}");\n'.format(
+                o=_AUDIT_OPS[op], t=msg.tableName,
+                f=",".join(c.name for c in phi_cols)))
 
         return _CRUDL.format(
             guard="HARPIA_CRUDL_{}_{}".format(msg.name.upper(), msg.md5Hash),
@@ -150,6 +171,11 @@ class CrudlAdapter:
             ctor_extra_params=_CRYPTO_CTOR_PARAM if has_phi else "",
             ctor_extra_init=_CRYPTO_CTOR_INIT if has_phi else "",
             crypto_member=_CRYPTO_MEMBER if has_phi else "",
+            audit_create=_audit("create"),
+            audit_read=_audit("read"),
+            audit_update=_audit("update"),
+            audit_remove=_audit("remove"),
+            audit_list=_audit("list"),
             fk_includes=self._fk_includes(fk_cols, reps),
             fk_precreate=self._fk_hooks(fk_cols, "create"),
             fk_preupdate=self._fk_hooks(fk_cols, "update"),
