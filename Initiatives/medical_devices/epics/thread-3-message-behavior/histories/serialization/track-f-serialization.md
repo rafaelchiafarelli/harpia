@@ -1,5 +1,9 @@
 # Track F — Serialization unification (YAML + redaction)
 
+Sessions live one-per-file under `tasks/`, numbered in execution order
+(`1-yaml-adapter.md` … `5-full-round-trip-and-note.md`); the number is the
+branch name too (Initiatives/README rules 8–11).
+
 ## Receives (must be done before this track starts)
 
 - **F2** from Foundation (see `../thread-3-message-behavior/README.md`)
@@ -25,61 +29,15 @@
 - `JsonAdapter/`, `XmlAdapter/`, new `YamlAdapter/`, `Message/` `toString`
   templates (per `harpia_medical_master_plan.md` §2's track table).
 
+## Watch for
+
+- Test fixture for the `phi`-spectrum sessions (F.3/F.5): the thread
+  README names `HarpiaTest/test_medical.harpia` (zero-`phi` / mixed /
+  fully-`phi` messages). That root file does not exist yet — the
+  established pattern (Tracks A/H) is to add new `phi` fixtures to
+  `HarpiaTest/Include/*.harpia` instead, so the root `test.harpia` hash
+  (and every golden it pins) stays put. `patient_vitals` (mixed) and
+  `alarm_event` (`phi` field) already live in `Include/file3.harpia`; a
+  fully-`phi` message is the only gap.
+
 ---
-
-## Session F.1 — `YamlAdapter/`
-
-- **Depends on:** F2 (Foundation).
-- **Deliverable:** new `YamlAdapter/`, mirroring the existing
-  `JsonAdapter/`/`XmlAdapter/` shape for non-`phi` messages — YAML output
-  parity with the other two formats, no redaction logic yet (F.3).
-- **Out of scope:** unifying JSON/XML into a shared path with this new
-  adapter (F.2); redaction (F.3); the audited unredacted flag (F.4).
-- **Tests:**
-  - Unit: YAML `toString` output for a non-`phi` message — structure and
-    keys always present, matches the existing JSON/XML adapters' shape.
-
-## Session F.2 — Unified `toString` path across JSON/XML/YAML
-
-- **Depends on:** F.1 merged.
-- **Deliverable:** JSON, XML, and the new YAML adapter share one
-  `toString` code path instead of three independent ones.
-- **Guarantees:** `toString` never crashes, never omits structure, for
-  any of the three formats.
-- **Tests:**
-  - Integration: round-trip a non-`phi` message through all three
-    formats via the unified path.
-- **Acceptance gate:** existing JSON/XML golden snapshots (14.5/14.6)
-  unchanged for non-`phi` messages — this refactor must be behavior-
-  preserving for the two existing formats.
-
-## Session F.3 — `phi` redaction, uniform across all three formats
-
-- **Depends on:** F.2 merged.
-- **Deliverable:** fields marked `phi` are represented in `toString`
-  output as a fixed redacted placeholder by default, in JSON, XML, and
-  YAML alike — never omitted from the output structure, never causing an
-  error or crash.
-- **Tests:**
-  - Unit: redaction present in all three formats for `phi` fields.
-
-## Session F.4 — Audited unredacted-output flag
-
-- **Depends on:** F.3 merged; F3 (Foundation) `AuditSink`.
-- **Deliverable:** unredacted output only emitted when an explicit,
-  non-default flag is set (e.g. `--allow-phi-print`); any use of that
-  flag is itself an audited event, not a silent one.
-- **Tests:**
-  - Unit: unredacted flag reveals the real value AND emits an audit
-    record.
-
-## Session F.5 — Full round-trip + `ComplianceReport` note
-
-- **Depends on:** F.1–F.4 merged.
-- **Deliverable:** one-paragraph `ComplianceReport/` note describing what
-  changed and why (feeds Track M later).
-- **Tests:**
-  - Integration: round-trip a message with `phi` fields through all
-    three formats (use `HarpiaTest/test_medical.harpia` — see the thread
-    README's "Watch for"); structure/keys always present, values
-    redacted by default.
