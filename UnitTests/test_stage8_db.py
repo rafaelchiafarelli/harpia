@@ -671,6 +671,188 @@ def test_migration_child_scalar_roundtrip(generated, sqlite_obj, tmp_path):
         "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
 
 
+# -- Track H.2: map child-table schema migration ---------------------------
+#
+# telemetry also has two map fields -> child tables "telemetry_table__gauges"
+# (map<string,int> -> key TEXT, value INTEGER) and "telemetry_table__flags"
+# (map<int,string> -> key INTEGER, value TEXT, carrying renamed_from[old_flags]).
+# A map child table is (owner, key, value) PRIMARY KEY(owner, key), so a retype
+# has to check BOTH the key and the value column.
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_map_child_add(generated, sqlite_obj, tmp_path):
+    """A map field with no live child table yet: migrate_telemetry stands
+    "telemetry_table__gauges" up (via create_table) and it round-trips
+    through the DAO."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_map_add", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        "    if (has_table(\"telemetry_table__gauges\")) return 3;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 4;\n"
+        "    if (!has_table(\"telemetry_table__gauges\")) return 5;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        '    ::telemetry t; t.set_id_{h}(1); t.set_label("dev");\n'
+        '    (*t.mutable_gauges())["cpu"] = 5; (*t.mutable_gauges())["mem"] = 8;\n'
+        "    if (!dao.create(t)) return 6;\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 7;\n"
+        '    if (got.gauges_size() != 2 || got.gauges().at("cpu") != 5) return 8;\n'
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_map_child_rename(generated, sqlite_obj, tmp_path):
+    """The map field 'flags' carries renamed_from[old_flags]: migrate_telemetry
+    moves "telemetry_table__old_flags" (with its rows) to
+    "telemetry_table__flags", and a second call is idempotent."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_map_rename", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        " VALUES (1, 'dev');\")) return 3;\n"
+        "    // the map child table under its old name (map<int,string>)\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__old_flags\\" (\\"owner\\" INTEGER,'
+        ' \\"key\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
+        " return 4;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__old_flags\\" VALUES (1, 1, \'on\'),'
+        " (1, 2, 'off');\")) return 5;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 6;\n"
+        "    if (has_table(\"telemetry_table__old_flags\")) return 7;\n"
+        "    if (!has_table(\"telemetry_table__flags\")) return 8;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 9;\n"
+        '    if (got.flags_size() != 2 || got.flags().at(1) != "on" || got.flags().at(2) != "off")'
+        " return 10;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 11;\n"
+        "    ::telemetry got2;\n"
+        "    if (!dao.read(1, &got2) || got2.flags_size() != 2) return 12;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_map_child_drop(generated, sqlite_obj, tmp_path):
+    """A map "telemetry_table__*" child table the current schema no longer
+    declares is reaped; the declared map child tables are left intact."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_map_drop", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("CREATE TABLE \\"telemetry_table__phantom\\" (\\"owner\\" INTEGER,'
+        ' \\"key\\" TEXT, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
+        " return 3;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__phantom\\" VALUES (1, \'k\', \'v\');"))'
+        " return 4;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 5;\n"
+        "    if (has_table(\"telemetry_table__phantom\")) return 6;\n"
+        "    if (!has_table(\"telemetry_table__gauges\")) return 7;\n"
+        "    if (!has_table(\"telemetry_table__flags\")) return 8;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_map_child_retype(generated, sqlite_obj, tmp_path):
+    """The map's key AND value types changed: an older
+    "telemetry_table__gauges" stored key INTEGER / value TEXT, the current
+    schema is key TEXT / value INTEGER. migrate_telemetry rebuilds the child
+    table (both columns CAST), the entries survive, and a second call is a
+    no-op."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_map_retype", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        " VALUES (1, 'dev');\")) return 3;\n"
+        "    // older child table: key INTEGER / value TEXT, now TEXT / INTEGER\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__gauges\\" (\\"owner\\" INTEGER,'
+        ' \\"key\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
+        " return 4;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__gauges\\" VALUES (1, 7, \'42\'),'
+        " (1, 8, '99');\")) return 5;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 6;\n"
+        "    int kt = 0, vt = 0; ::soci::indicator ki, vi;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__gauges')"
+        " WHERE name = 'key' AND type = 'TEXT'\", ::soci::into(kt, ki);\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__gauges')"
+        " WHERE name = 'value' AND type = 'INTEGER'\", ::soci::into(vt, vi);\n"
+        "    if (kt != 1 || vt != 1) return 7;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 8;\n"
+        '    if (got.gauges_size() != 2 || got.gauges().at("7") != 42 || got.gauges().at("8") != 99)'
+        " return 9;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 10;\n"
+        "    ::telemetry got2;\n"
+        "    if (!dao.read(1, &got2) || got2.gauges_size() != 2) return 11;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_map_child_roundtrip(generated, sqlite_obj, tmp_path):
+    """Integration: one old-database snapshot exercising all four map
+    child-table transforms in a single migrate_telemetry call -- a renamed
+    child table ("old_flags"->"flags") with rows, a retyped one ("gauges",
+    key/value types swapped) with rows, an orphan ("phantom") to reap, and
+    the parent row -- then verify every surviving entry round-trips."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_map_roundtrip", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        " VALUES (1, 'unit-9');\")) return 3;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__old_flags\\" (\\"owner\\" INTEGER,'
+        ' \\"key\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
+        " return 4;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__old_flags\\" VALUES (1, 1, \'yes\'),'
+        " (1, 2, 'no');\")) return 5;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__gauges\\" (\\"owner\\" INTEGER,'
+        ' \\"key\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
+        " return 6;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__gauges\\" VALUES (1, 3, \'30\'),'
+        " (1, 4, '40');\")) return 7;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__phantom\\" (\\"owner\\" INTEGER,'
+        ' \\"key\\" TEXT, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
+        " return 8;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 9;\n"
+        "    if (has_table(\"telemetry_table__old_flags\")) return 10;\n"
+        "    if (has_table(\"telemetry_table__phantom\")) return 11;\n"
+        "    int vt = 0; ::soci::indicator vi;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__gauges')"
+        " WHERE name = 'value' AND type = 'INTEGER'\", ::soci::into(vt, vi);\n"
+        "    if (vt != 1) return 12;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 13;\n"
+        '    if (got.label() != "unit-9") return 14;\n'
+        '    if (got.flags_size() != 2 || got.flags().at(1) != "yes" || got.flags().at(2) != "no")'
+        " return 15;\n"
+        '    if (got.gauges_size() != 2 || got.gauges().at("3") != 30 || got.gauges().at("4") != 40)'
+        " return 16;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="FK round-trip needs protoc + protobuf")
 def test_fk_roundtrip(generated, sqlite_obj, tmp_path):

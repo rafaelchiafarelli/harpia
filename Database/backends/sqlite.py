@@ -183,6 +183,42 @@ class SqliteBackend(DbBackend):
                  insert=_esc(insert_sql), drop=_esc(drop_sql),
                  rename=_esc(rename_sql))
 
+    def retype_map_child_dynamic(self, child, owner_type, key_sql, val_sql):
+        # As retype_rep_child_dynamic, for a (owner, key, value) map child
+        # table: either the key or the value type may have moved, so guard
+        # on both. SQLite still has no ALTER COLUMN ... TYPE -> rebuild.
+        types_sql = self.list_column_types_sql(child)
+        tmp = "{}__retype_tmp".format(child)
+        create_sql = ('CREATE TABLE "{}" ("owner" {}, "key" {}, "value" {}, '
+                      'PRIMARY KEY("owner", "key"));').format(
+                          tmp, owner_type, key_sql, val_sql)
+        insert_sql = ('INSERT INTO "{}" ("owner", "key", "value") SELECT '
+                      '"owner", CAST("key" AS {}), CAST("value" AS {}) '
+                      'FROM "{}";').format(tmp, key_sql, val_sql, child)
+        drop_sql = 'DROP TABLE "{}";'.format(child)
+        rename_sql = 'ALTER TABLE "{}" RENAME TO "{}";'.format(tmp, child)
+        return (
+            '        {{\n'
+            '            std::map<std::string, std::string> _mct;\n'
+            '            {{\n'
+            '                std::string _mn, _mt; ::soci::indicator _mni, _mti;\n'
+            '                ::soci::statement _ms = (db.prepare << "{types}",\n'
+            '                                         ::soci::into(_mn, _mni), ::soci::into(_mt, _mti));\n'
+            '                _ms.execute();\n'
+            '                while (_ms.fetch()) {{ if (_mni == ::soci::i_ok && _mti == ::soci::i_ok) _mct[_mn] = _mt; }}\n'
+            '            }}\n'
+            '            if ((_mct.count("key") && _mct["key"] != "{key}") ||\n'
+            '                (_mct.count("value") && _mct["value"] != "{val}")) {{\n'
+            '                db << "{create}";\n'
+            '                db << "{insert}";\n'
+            '                db << "{drop}";\n'
+            '                db << "{rename}";\n'
+            '            }}\n'
+            '        }}'
+        ).format(types=_esc(types_sql), key=key_sql, val=val_sql,
+                 create=_esc(create_sql), insert=_esc(insert_sql),
+                 drop=_esc(drop_sql), rename=_esc(rename_sql))
+
     def retype_column_dynamic(self, table, columns):
         # SQLite has no ALTER COLUMN ... TYPE at all, so a real type change
         # needs a whole-table rebuild: create a tmp table with the CURRENT
@@ -251,3 +287,5 @@ if __name__ == "__main__":
     print(b.drop_table_dynamic("_dct"))
     print(b.retype_rep_child_dynamic("devices__tags", b.int_type,
                                      b.sql_type("STRING")))
+    print(b.retype_map_child_dynamic("devices__labels", b.int_type,
+                                     b.sql_type("STRING"), b.sql_type("INT32")))

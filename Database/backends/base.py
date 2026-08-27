@@ -229,6 +229,16 @@ class DbBackend(ABC):
         child table (create at the current type, ``CAST`` every row across,
         drop, rename into place)."""
 
+    @abstractmethod
+    def retype_map_child_dynamic(self, child: str, owner_type: str,
+                                 key_sql: str, val_sql: str) -> str:
+        """As :meth:`retype_rep_child_dynamic`, for a map child table --
+        shape ``(owner, key, value)`` with ``PRIMARY KEY(owner, key)``.
+        Either the map's key type or its value type may have changed, so
+        both the ``key`` and ``value`` columns are checked against their
+        live types and brought to ``key_sql`` / ``val_sql``. SQLite rebuilds
+        the whole child table; Postgres alters each column in place."""
+
     # -- convenience ----------------------------------------------------------
     def __repr__(self):
         return "<DbBackend {!r} (soci:{})>".format(self.name, self.soci_backend)

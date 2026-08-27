@@ -171,6 +171,37 @@ class PostgresBackend(DbBackend):
         ).format(types=_esc(types_sql), val_lc=val_sql.lower(),
                  alter=_esc(alter_sql))
 
+    def retype_map_child_dynamic(self, child, owner_type, key_sql, val_sql):
+        # As retype_rep_child_dynamic, for a (owner, key, value) map child
+        # table: guard the key and the value column independently. Altering
+        # the type of "key" (part of PRIMARY KEY(owner, key)) is fine in
+        # Postgres -- it transparently rebuilds the backing index.
+        types_sql = self.list_column_types_sql(child)
+        key_alter = ('ALTER TABLE "{}" ALTER COLUMN "key" TYPE {} '
+                     'USING "key"::{};').format(child, key_sql, key_sql)
+        val_alter = ('ALTER TABLE "{}" ALTER COLUMN "value" TYPE {} '
+                     'USING "value"::{};').format(child, val_sql, val_sql)
+        return (
+            '        {{\n'
+            '            std::map<std::string, std::string> _mct;\n'
+            '            {{\n'
+            '                std::string _mn, _mt; ::soci::indicator _mni, _mti;\n'
+            '                ::soci::statement _ms = (db.prepare << "{types}",\n'
+            '                                         ::soci::into(_mn, _mni), ::soci::into(_mt, _mti));\n'
+            '                _ms.execute();\n'
+            '                while (_ms.fetch()) {{ if (_mni == ::soci::i_ok && _mti == ::soci::i_ok) _mct[_mn] = _mt; }}\n'
+            '            }}\n'
+            '            if (_mct.count("key") && _mct["key"] != "{key_lc}") {{\n'
+            '                db << "{key_alter}";\n'
+            '            }}\n'
+            '            if (_mct.count("value") && _mct["value"] != "{val_lc}") {{\n'
+            '                db << "{val_alter}";\n'
+            '            }}\n'
+            '        }}'
+        ).format(types=_esc(types_sql), key_lc=key_sql.lower(),
+                 val_lc=val_sql.lower(), key_alter=_esc(key_alter),
+                 val_alter=_esc(val_alter))
+
     def retype_column_dynamic(self, table, columns):
         # Postgres has a direct ALTER COLUMN ... TYPE, so (unlike SQLite) each
         # column is fixed independently, guarded by its own live-type check.
@@ -216,3 +247,5 @@ if __name__ == "__main__":
     print(b.drop_table_dynamic("_dct"))
     print(b.retype_rep_child_dynamic("devices__tags", b.int_type,
                                      b.sql_type("STRING")))
+    print(b.retype_map_child_dynamic("devices__labels", b.int_type,
+                                     b.sql_type("STRING"), b.sql_type("INT32")))

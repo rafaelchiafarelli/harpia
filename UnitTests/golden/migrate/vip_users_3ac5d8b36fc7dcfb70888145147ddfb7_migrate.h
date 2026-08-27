@@ -34,7 +34,8 @@
 //   - DROPs any "<table>__*" child table the current schema no longer declares
 //     (a repeated/map field removed between versions) -- same implicit,
 //     no-schema-history diff as the column drop -- and RETYPEs a repeated-
-//     scalar child table's "value" column when its element type changed.
+//     scalar child table's "value" column, or a map child table's "key" /
+//     "value" columns, when the element type(s) changed.
 //   - stamps the current version hash.
 // Cross-version DATA transforms (deriving one column's value from another,
 // not just moving/CASTing structure) are handled via an optional
@@ -61,8 +62,8 @@ inline bool migrate_vip_users(::soci::session& db,
 
         // child tables ("<table>__*", one per repeated/map field) the live
         // database currently has -- for the child-table rename below and the
-        // orphan reap further down (Track H.1). Same dialect-uniform shape
-        // as the column introspection: one selected column, a table name.
+        // orphan reap further down (Track H.1 / H.2). Same dialect-uniform
+        // shape as the column introspection: one selected column, a table name.
         std::set<std::string> _child_have;
         {
             std::string _ctn; ::soci::indicator _ctni;
@@ -160,12 +161,13 @@ inline bool migrate_vip_users(::soci::session& db,
             db << "ALTER TABLE \"table_vip_users__retype_tmp\" RENAME TO \"table_vip_users\";";
         }
         }
-        // non-additive (child tables, Track H.1): reap any "<table>__*" child
-        // table the current schema no longer declares -- a repeated/map field
-        // removed between versions -- then bring a repeated-scalar child
-        // table's "value" column to the current element type. Implicit,
-        // unconditional diff, same no-schema-history caveat as the column
-        // drop above; runs after the main table has been stabilized.
+        // non-additive (child tables, Track H.1 / H.2): reap any "<table>__*"
+        // child table the current schema no longer declares -- a repeated/map
+        // field removed between versions -- then bring a repeated-scalar child
+        // table's "value" column (or a map child table's "key" / "value"
+        // columns) to the current element type. Implicit, unconditional diff,
+        // same no-schema-history caveat as the column drop above; runs after
+        // the main table has been stabilized.
         {
             static const std::set<std::string> _child_current = {  };
             for (auto _cit = _child_have.begin(); _cit != _child_have.end(); ) {

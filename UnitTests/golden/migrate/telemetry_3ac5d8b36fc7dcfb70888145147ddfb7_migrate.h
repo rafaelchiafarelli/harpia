@@ -34,7 +34,8 @@
 //   - DROPs any "<table>__*" child table the current schema no longer declares
 //     (a repeated/map field removed between versions) -- same implicit,
 //     no-schema-history diff as the column drop -- and RETYPEs a repeated-
-//     scalar child table's "value" column when its element type changed.
+//     scalar child table's "value" column, or a map child table's "key" /
+//     "value" columns, when the element type(s) changed.
 //   - stamps the current version hash.
 // Cross-version DATA transforms (deriving one column's value from another,
 // not just moving/CASTing structure) are handled via an optional
@@ -61,8 +62,8 @@ inline bool migrate_telemetry(::soci::session& db,
 
         // child tables ("<table>__*", one per repeated/map field) the live
         // database currently has -- for the child-table rename below and the
-        // orphan reap further down (Track H.1). Same dialect-uniform shape
-        // as the column introspection: one selected column, a table name.
+        // orphan reap further down (Track H.1 / H.2). Same dialect-uniform
+        // shape as the column introspection: one selected column, a table name.
         std::set<std::string> _child_have;
         {
             std::string _ctn; ::soci::indicator _ctni;
@@ -78,6 +79,10 @@ inline bool migrate_telemetry(::soci::session& db,
         if (_child_have.count("telemetry_table__old_notes") && !_child_have.count("telemetry_table__notes")) {
             db << "ALTER TABLE \"telemetry_table__old_notes\" RENAME TO \"telemetry_table__notes\";";
             _child_have.erase("telemetry_table__old_notes"); _child_have.insert("telemetry_table__notes");
+        }
+        if (_child_have.count("telemetry_table__old_flags") && !_child_have.count("telemetry_table__flags")) {
+            db << "ALTER TABLE \"telemetry_table__old_flags\" RENAME TO \"telemetry_table__flags\";";
+            _child_have.erase("telemetry_table__old_flags"); _child_have.insert("telemetry_table__flags");
         }
         // ensure the table + its map/repeated child tables exist at the current schema
         ::harpia::db::telemetry_dao dao(db);
@@ -159,14 +164,15 @@ inline bool migrate_telemetry(::soci::session& db,
             db << "ALTER TABLE \"telemetry_table__retype_tmp\" RENAME TO \"telemetry_table\";";
         }
         }
-        // non-additive (child tables, Track H.1): reap any "<table>__*" child
-        // table the current schema no longer declares -- a repeated/map field
-        // removed between versions -- then bring a repeated-scalar child
-        // table's "value" column to the current element type. Implicit,
-        // unconditional diff, same no-schema-history caveat as the column
-        // drop above; runs after the main table has been stabilized.
+        // non-additive (child tables, Track H.1 / H.2): reap any "<table>__*"
+        // child table the current schema no longer declares -- a repeated/map
+        // field removed between versions -- then bring a repeated-scalar child
+        // table's "value" column (or a map child table's "key" / "value"
+        // columns) to the current element type. Implicit, unconditional diff,
+        // same no-schema-history caveat as the column drop above; runs after
+        // the main table has been stabilized.
         {
-            static const std::set<std::string> _child_current = { "telemetry_table__samples", "telemetry_table__notes" };
+            static const std::set<std::string> _child_current = { "telemetry_table__gauges", "telemetry_table__flags", "telemetry_table__samples", "telemetry_table__notes" };
             for (auto _cit = _child_have.begin(); _cit != _child_have.end(); ) {
                 if (!_child_current.count(*_cit)) {
                     const std::string& _dct = *_cit;
@@ -207,6 +213,40 @@ inline bool migrate_telemetry(::soci::session& db,
                 db << "INSERT INTO \"telemetry_table__notes__retype_tmp\" (\"owner\", \"ordinal\", \"value\") SELECT \"owner\", \"ordinal\", CAST(\"value\" AS TEXT) FROM \"telemetry_table__notes\";";
                 db << "DROP TABLE \"telemetry_table__notes\";";
                 db << "ALTER TABLE \"telemetry_table__notes__retype_tmp\" RENAME TO \"telemetry_table__notes\";";
+            }
+        }
+        {
+            std::map<std::string, std::string> _mct;
+            {
+                std::string _mn, _mt; ::soci::indicator _mni, _mti;
+                ::soci::statement _ms = (db.prepare << "SELECT \"name\", \"type\" FROM pragma_table_info('telemetry_table__gauges');",
+                                         ::soci::into(_mn, _mni), ::soci::into(_mt, _mti));
+                _ms.execute();
+                while (_ms.fetch()) { if (_mni == ::soci::i_ok && _mti == ::soci::i_ok) _mct[_mn] = _mt; }
+            }
+            if ((_mct.count("key") && _mct["key"] != "TEXT") ||
+                (_mct.count("value") && _mct["value"] != "INTEGER")) {
+                db << "CREATE TABLE \"telemetry_table__gauges__retype_tmp\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"key\"));";
+                db << "INSERT INTO \"telemetry_table__gauges__retype_tmp\" (\"owner\", \"key\", \"value\") SELECT \"owner\", CAST(\"key\" AS TEXT), CAST(\"value\" AS INTEGER) FROM \"telemetry_table__gauges\";";
+                db << "DROP TABLE \"telemetry_table__gauges\";";
+                db << "ALTER TABLE \"telemetry_table__gauges__retype_tmp\" RENAME TO \"telemetry_table__gauges\";";
+            }
+        }
+        {
+            std::map<std::string, std::string> _mct;
+            {
+                std::string _mn, _mt; ::soci::indicator _mni, _mti;
+                ::soci::statement _ms = (db.prepare << "SELECT \"name\", \"type\" FROM pragma_table_info('telemetry_table__flags');",
+                                         ::soci::into(_mn, _mni), ::soci::into(_mt, _mti));
+                _ms.execute();
+                while (_ms.fetch()) { if (_mni == ::soci::i_ok && _mti == ::soci::i_ok) _mct[_mn] = _mt; }
+            }
+            if ((_mct.count("key") && _mct["key"] != "INTEGER") ||
+                (_mct.count("value") && _mct["value"] != "TEXT")) {
+                db << "CREATE TABLE \"telemetry_table__flags__retype_tmp\" (\"owner\" INTEGER, \"key\" INTEGER, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));";
+                db << "INSERT INTO \"telemetry_table__flags__retype_tmp\" (\"owner\", \"key\", \"value\") SELECT \"owner\", CAST(\"key\" AS INTEGER), CAST(\"value\" AS TEXT) FROM \"telemetry_table__flags\";";
+                db << "DROP TABLE \"telemetry_table__flags\";";
+                db << "ALTER TABLE \"telemetry_table__flags__retype_tmp\" RENAME TO \"telemetry_table__flags\";";
             }
         }
         // stamp the current version

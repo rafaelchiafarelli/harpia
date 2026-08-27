@@ -29,6 +29,8 @@ public:
     bool create_table() {
         try {
             db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"label\" TEXT, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR\" TEXT);";
+            db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table__gauges\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"key\"));";
+            db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table__flags\" (\"owner\" INTEGER, \"key\" INTEGER, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));";
             db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table__samples\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));";
             db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table__notes\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"value\" TEXT, PRIMARY KEY(\"owner\", \"ordinal\"));";
             return true;
@@ -36,6 +38,8 @@ public:
     }
     bool drop_table() {
         try {
+            db_ << "DROP TABLE IF EXISTS \"telemetry_table__gauges\";";
+            db_ << "DROP TABLE IF EXISTS \"telemetry_table__flags\";";
             db_ << "DROP TABLE IF EXISTS \"telemetry_table__samples\";";
             db_ << "DROP TABLE IF EXISTS \"telemetry_table__notes\";";
             db_ << "DROP TABLE IF EXISTS \"telemetry_table\";";
@@ -52,6 +56,22 @@ public:
             std::string c4 = msg.originator();
             db_ << "INSERT INTO \"telemetry_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"label\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4)",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4);
+            {
+                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                for (const auto& kv : msg.gauges()) {
+                    std::string _k = kv.first;
+                    int _v = kv.second;
+                    db_ << "INSERT INTO \"telemetry_table__gauges\" (\"owner\", \"key\", \"value\") VALUES (:o, :k, :v)", ::soci::use(_owner), ::soci::use(_k), ::soci::use(_v);
+                }
+            }
+            {
+                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                for (const auto& kv : msg.flags()) {
+                    int _k = kv.first;
+                    std::string _v = kv.second;
+                    db_ << "INSERT INTO \"telemetry_table__flags\" (\"owner\", \"key\", \"value\") VALUES (:o, :k, :v)", ::soci::use(_owner), ::soci::use(_k), ::soci::use(_v);
+                }
+            }
             {
                 int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
                 long long _ord = 0;
@@ -90,6 +110,26 @@ public:
                 msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_originator(n4 == ::soci::i_ok ? l4 : std::string());
                 {
+                    std::string _k; int _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"telemetry_table__gauges\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_gauges())[_k] = _v;
+                    }
+                }
+                {
+                    int _k; std::string _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"telemetry_table__flags\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_flags())[_k] = _v;
+                    }
+                }
+                {
                     int _v = 0; ::soci::indicator _vi;
                     int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"telemetry_table__samples\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
@@ -122,6 +162,24 @@ public:
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(cid);
             {
                 int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                db_ << "DELETE FROM \"telemetry_table__gauges\" WHERE \"owner\" = :o", ::soci::use(_owner);
+                for (const auto& kv : msg.gauges()) {
+                    std::string _k = kv.first;
+                    int _v = kv.second;
+                    db_ << "INSERT INTO \"telemetry_table__gauges\" (\"owner\", \"key\", \"value\") VALUES (:o, :k, :v)", ::soci::use(_owner), ::soci::use(_k), ::soci::use(_v);
+                }
+            }
+            {
+                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                db_ << "DELETE FROM \"telemetry_table__flags\" WHERE \"owner\" = :o", ::soci::use(_owner);
+                for (const auto& kv : msg.flags()) {
+                    int _k = kv.first;
+                    std::string _v = kv.second;
+                    db_ << "INSERT INTO \"telemetry_table__flags\" (\"owner\", \"key\", \"value\") VALUES (:o, :k, :v)", ::soci::use(_owner), ::soci::use(_k), ::soci::use(_v);
+                }
+            }
+            {
+                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
                 db_ << "DELETE FROM \"telemetry_table__samples\" WHERE \"owner\" = :o", ::soci::use(_owner);
                 long long _ord = 0;
                 for (const auto& rv : msg.samples()) {
@@ -147,6 +205,8 @@ public:
     bool remove(std::int64_t id) {
         try {
             db_ << "DELETE FROM \"telemetry_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id);
+            db_ << "DELETE FROM \"telemetry_table__gauges\" WHERE \"owner\" = :o", ::soci::use(id);
+            db_ << "DELETE FROM \"telemetry_table__flags\" WHERE \"owner\" = :o", ::soci::use(id);
             db_ << "DELETE FROM \"telemetry_table__samples\" WHERE \"owner\" = :o", ::soci::use(id);
             db_ << "DELETE FROM \"telemetry_table__notes\" WHERE \"owner\" = :o", ::soci::use(id);
             return true;
@@ -171,6 +231,26 @@ public:
                 msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n2 == ::soci::i_ok ? l2 : std::string());
                 msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_originator(n4 == ::soci::i_ok ? l4 : std::string());
+                {
+                    std::string _k; int _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"telemetry_table__gauges\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_gauges())[_k] = _v;
+                    }
+                }
+                {
+                    int _k; std::string _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"telemetry_table__flags\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_flags())[_k] = _v;
+                    }
+                }
                 {
                     int _v = 0; ::soci::indicator _vi;
                     int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
@@ -214,6 +294,26 @@ public:
                 msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n2 == ::soci::i_ok ? l2 : std::string());
                 msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_originator(n4 == ::soci::i_ok ? l4 : std::string());
+                {
+                    std::string _k; int _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"telemetry_table__gauges\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_gauges())[_k] = _v;
+                    }
+                }
+                {
+                    int _k; std::string _v;
+                    ::soci::indicator _ki, _vi;
+                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"telemetry_table__flags\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
+                    _ms.execute();
+                    while (_ms.fetch()) {
+                        (*msg->mutable_flags())[_k] = _v;
+                    }
+                }
                 {
                     int _v = 0; ::soci::indicator _vi;
                     int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
