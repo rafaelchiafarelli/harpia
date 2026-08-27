@@ -14,6 +14,7 @@ from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
+from Database.DbRegistryAdapter import DbRegistryAdapter
 from Database.MigrationAdapter import MigrationAdapter
 from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
@@ -316,6 +317,14 @@ if __name__ == '__main__':
                               backend=dbBackend, compliance=complianceContext).Process()
     if crudlError is not None:
         log.print(crudlError.__str__())
+
+    #8 (registry). environment-level public/private DB registry + cross-project
+    # access check (Track K); one project-wide header, additive.
+    registryError = DbRegistryAdapter(messages=msgFactory.messages,
+                                      dest=testDestination,
+                                      compliance=complianceContext).Process()
+    if registryError is not None:
+        log.print(registryError.__str__())
 
     #8 (migrate). generate schema-migration / version-transform functions
     migrateError = MigrationAdapter(messages=msgFactory.messages,

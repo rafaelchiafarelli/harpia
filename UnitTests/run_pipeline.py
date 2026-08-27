@@ -37,6 +37,7 @@ from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
+from Database.DbRegistryAdapter import DbRegistryAdapter
 from Database.MigrationAdapter import MigrationAdapter
 from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
@@ -162,6 +163,7 @@ def run(output_dir):
     # 8. SQL schema (supersedes the FileCreator stub) + CRUDL DAOs + DB import/export
     _mark("SqlAdapter", SqlAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
     _mark("CrudlAdapter", CrudlAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+    _mark("DbRegistryAdapter", DbRegistryAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
     _mark("MigrationAdapter", MigrationAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
     _mark("DbIoAdapter", DbIoAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 

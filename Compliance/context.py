@@ -27,6 +27,12 @@ DEFAULT_CONFIG_PATH = "./project.harpia.yaml"
 #: Env var override for the config path, mirroring HARPIA_INPUT_FILE etc.
 CONFIG_PATH_ENV_VAR = "HARPIA_COMPLIANCE_CONFIG"
 
+#: Fallback project name when ``project.harpia.yaml`` omits ``project``.
+#: Used to key the environment-level public/private DB registry (Track K):
+#: a PRIVATE table is reachable only by code declaring this same project
+#: name, a PUBLIC one by anyone. A single-project build never has to set it.
+DEFAULT_PROJECT = "default"
+
 
 class RiskClass(Enum):
     """IEC 62304 software safety classification (see design-rules doc §6).
@@ -72,19 +78,26 @@ class ComplianceContext:
     - ``phi_handling``: whether/how this project declares PHI fields.
     - ``jurisdiction``: list of jurisdiction names. Inert for codegen --
       feeds Track M's paperwork-template selection only.
+    - ``project``: this build's project name (Track K). Inert for every
+      stage except the environment-level public/private DB registry, which
+      stamps it as the owner of each table so a PRIVATE table can be
+      refused to code from a different project. Defaults to
+      :data:`DEFAULT_PROJECT`; a single-project build never sets it.
     """
 
-    def __init__(self, risk_class, topology, phi_handling, jurisdiction=None):
+    def __init__(self, risk_class, topology, phi_handling, jurisdiction=None,
+                 project=None):
         self.risk_class = risk_class
         self.topology = topology
         self.phi_handling = phi_handling
         self.jurisdiction = list(jurisdiction) if jurisdiction else []
+        self.project = project or DEFAULT_PROJECT
 
     def __repr__(self):
         return ("<ComplianceContext risk_class={} topology={} "
-                "phi_handling={} jurisdiction={}>").format(
+                "phi_handling={} jurisdiction={} project={}>").format(
             self.risk_class.value, self.topology.value,
-            self.phi_handling.value, self.jurisdiction)
+            self.phi_handling.value, self.jurisdiction, self.project)
 
 
 def strictest_profile():
@@ -92,11 +105,15 @@ def strictest_profile():
     topology, mandatory phi_handling, no jurisdiction. Used when
     ``project.harpia.yaml`` is missing, or a field is present-but-unset --
     never for a field that's present with an unrecognized value (that's
-    :class:`ComplianceConfigError` instead)."""
+    :class:`ComplianceConfigError` instead).
+
+    ``project`` is not a hardening axis, so it just takes its default
+    (:data:`DEFAULT_PROJECT`) here -- there is no "strictest" project name."""
     return ComplianceContext(risk_class=RiskClass.CLASS_C,
                               topology=Topology.CLOUD_CONNECTED,
                               phi_handling=PhiHandling.REQUIRED,
-                              jurisdiction=[])
+                              jurisdiction=[],
+                              project=DEFAULT_PROJECT)
 
 
 def _resolve_enum(enum_cls, raw, field_name, config_path):
@@ -167,5 +184,16 @@ def load_compliance_context(path=None):
             "jurisdiction in {!r} must be a list of strings, got {!r}".format(
                 config_path, jurisdiction))
 
+    project = raw.get("project")
+    if project is None:
+        _log.print("project not set in {!r}; defaulting to {!r}".format(
+            config_path, DEFAULT_PROJECT))
+        project = DEFAULT_PROJECT
+    elif not isinstance(project, str) or not project.strip():
+        raise ComplianceConfigError(
+            "project in {!r} must be a non-empty string, got {!r}".format(
+                config_path, project))
+
     return ComplianceContext(risk_class=risk_class, topology=topology,
-                              phi_handling=phi_handling, jurisdiction=jurisdiction)
+                              phi_handling=phi_handling, jurisdiction=jurisdiction,
+                              project=project)

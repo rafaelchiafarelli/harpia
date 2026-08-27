@@ -14,3 +14,5 @@ risk_class: class_c            # IEC 62304 safety class (class_a | class_b | cla
 topology: cloud_connected      # deployment exposure (standalone | networked | cloud_connected)
 phi_handling: required         # project PHI policy (none | opt_in | required)
 jurisdiction: []               # e.g. [FDA, ANVISA] -- paperwork templates only, no codegen effect
+project: default               # Track K: owner name in the public/private DB registry; a
+                               # PRIVATE table is refused to code from any other project name
