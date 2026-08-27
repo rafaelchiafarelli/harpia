@@ -8,28 +8,32 @@
    (`main.py`, mirrored in `UnitTests/run_pipeline.py`), logged, persisted
    as build metadata. See the F5 section of
    `Initiatives/medical_devices/epics/handoff-document.md`.
-2. **Track O / O.1 — `KeyProvider`** (`runtime/harpia_key_provider.h`),
+2. **Track O — `KeyProvider`** (`runtime/harpia_key_provider*.h`),
    hand-written C++, copied verbatim into a *generated project*'s output
    later (Track A is the first consumer) — same pattern as
    `Compliance/runtime/harpia_audit_sink.h` /
-   `Compliance/runtime/harpia_delivery.h`. Interface + envelope shape + an
-   in-memory dummy only; the real backends are O.2 (local default) and O.5
-   (KMS/HSM adapter). See
+   `Compliance/runtime/harpia_delivery.h`. **O.1** = the interface +
+   envelope shape + an in-memory dummy. **O.2** = `LocalKeyProvider`, the
+   default no-KMS backend: file-persisted KEKs + a fail-safe acknowledgment
+   gate (still the O.1 placeholder cipher). O.3 (crypto-shred), O.4
+   (zeroization + `AuditSink`), O.5 (KMS/HSM adapter) still to come. See
    `Initiatives/medical_devices/epics/thread-1-data-and-keys/histories/key-management/`.
 
 **F5's real consumers still don't exist:** Track O's `KeyProvider` links
-against the F5 seam for its *real* backend (O.2+), but O.1 is the interface
-only and does no actual crypto. Track C (TLS stack) hasn't started.
+against the F5 seam for a *real* cipher, but O.1/O.2 do no actual crypto
+(placeholder XOR). Track C (TLS stack) hasn't started.
 **Entry points (F5):** `get_backend(name=None, compliance=None)` ->
 `CryptoBackend`; `write_build_metadata(backend, dest)` -> path to the
 written sidecar; `register(backend)` (extension point for a later real
 HSM-backed backend).
-**Entry points (O.1):** `harpia::crypto::KeyProvider` (C++ ABC:
+**Entry points (Track O):** `harpia::crypto::KeyProvider` (C++ ABC:
 `active_kek_version` / `generate_dek` / `wrap_dek` / `unwrap_dek` ->
 `std::optional<Dek>` / `rotate`); `harpia::crypto::InMemoryKeyProvider`
-(the dummy). `Crypto.key_provider_common.KEY_PROVIDER_RUNTIME_SRC` is the
-path constant, mirroring `Compliance.audit_common` /
-`Compliance.delivery_common`.
+(O.1 dummy); `harpia::crypto::LocalKeyProvider` +
+`LocalKeyProviderConfig` + `LocalKeyProviderRefused` +
+`local_key_provider_acknowledged()` (O.2 default backend).
+`Crypto.key_provider_common` holds the `*_RUNTIME_SRC` path constants,
+mirroring `Compliance.audit_common` / `Compliance.delivery_common`.
 
 ## Files
 - `backend.py` — `CryptoBackend` (ABC: `cmake_package`, `openssl_provider`,
@@ -47,10 +51,23 @@ path constant, mirroring `Compliance.audit_common` /
   touches no existing `WrappedDek` or ciphertext (O(keys), not O(data)).
   `unwrap_dek` → `nullopt` for an unknown/forgotten KEK version (Rule 5;
   also the O.3 crypto-shred path). Not thread-safe (caller-synchronized).
-- `key_provider_common.py` — `KEY_PROVIDER_RUNTIME` / `_SRC` path
-  constants. No adapter copies the header yet (Track A will). No co-copy
-  DEPS tuple — the header has no harpia-internal includes; O.4 adds one if
-  it pulls in `harpia_audit_sink.h`.
+- `runtime/harpia_key_provider_local.h` — Track O / O.2. The default
+  no-KMS backend. `LocalKeyProvider : public KeyProvider` persists KEK
+  material to a local file (`LocalKeyProviderConfig::storage_path`), so
+  keys survive a restart — the difference from O.1's `InMemoryKeyProvider`.
+  **Fail-safe gate:** the ctor throws `LocalKeyProviderRefused` when
+  `phi_at_scale && !acknowledged` — a PHI-at-scale profile must not
+  silently ship the local fallback; the integrator opts in explicitly
+  (`local_key_provider_acknowledged()` reads `HARPIA_ACK_LOCAL_KEY_PROVIDER`,
+  or set the field directly). Cipher is still the O.1 placeholder XOR —
+  O.2's contribution is persistence + the gate, not the primitive.
+  `#include`s `harpia_key_provider.h`.
+- `key_provider_common.py` — `KEY_PROVIDER_RUNTIME` / `_SRC` (O.1) and
+  `KEY_PROVIDER_LOCAL_RUNTIME` / `_SRC` + `_DEPS` (O.2 — names
+  `harpia_key_provider.h` as a co-copy, same shape as
+  `Compliance/delivery_common.py`'s `DELIVERY_RUNTIME_DEPS`). No adapter
+  copies any of these yet (Track A will). O.4 adds a DEPS tuple to the O.1
+  header if it pulls in `harpia_audit_sink.h`.
 
 ## Key facts / gotchas
 - **Selection order in `get_backend()`:** explicit `name` (e.g.
@@ -86,4 +103,5 @@ path constant, mirroring `Compliance.audit_common` /
 - Depends on: `Compliance.context`, `Util.util.write_if_different` (F5);
   C++ standard library only for the O.1 runtime header.
 - Tested by: `UnitTests/test_crypto_backend.py` (F5),
-  `UnitTests/test_key_provider.py` (O.1, g++-gated).
+  `UnitTests/test_key_provider.py` (O.1, g++-gated),
+  `UnitTests/test_local_key_provider.py` (O.2, g++-gated).

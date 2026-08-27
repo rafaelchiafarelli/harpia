@@ -26,33 +26,45 @@ Track O / H / A / K in `thread-1-data-and-keys/`, Track F in
 `Initiatives/medical_devices/sensitive-data-implementation-roadmap.md` is the
 original plan doc — **do not edit it.** thread-6 supersedes it for tracking.
 
-## What this session did — Track O, Session O.1  ✅
+## What this session did — Track O, Sessions O.1 + O.2  ✅
 
-`tasks/key-provider-interface-done.md` — the `KeyProvider` interface +
-envelope-encryption shape (first `phi`-side session).
+**O.1** (`tasks/key-provider-interface-done.md`) — the `KeyProvider`
+interface + envelope-encryption shape (first `phi`-side session).
 
 - `Crypto/runtime/harpia_key_provider.h` — hand-written C++ (not generated),
   `harpia::crypto`: `Dek` (`seal`/`open` — the DEK, and only the DEK,
   touches the value), `WrappedDek` (`kek_version` + `bytes`), `KeyProvider`
   ABC (`active_kek_version` / `generate_dek` / `wrap_dek` / `unwrap_dek` →
   `std::optional<Dek>` / `rotate`), `InMemoryKeyProvider` dummy (XOR, NOT
-  crypto — for tests until O.2). `unwrap_dek` → `nullopt` on an unknown /
-  forgotten KEK version (Rule 5; also the O.3 crypto-shred path).
-- `Crypto/key_provider_common.py` — path constants (mirror
-  `audit_common.py` / `delivery_common.py`). Nothing copies the header yet
-  — Track A is the first consumer.
-- `UnitTests/test_key_provider.py` — 8 g++-gated tests (`-Werror`):
-  wrap/unwrap round trip, seal/open, version stamping, rotation keeps old
-  DEKs unwrappable + mutates no existing `WrappedDek`, unknown/forgotten
-  KEK version → `nullopt`, polymorphic use.
-- Additive — no generator code touched, no golden impact. Host 166 passed;
-  **full Docker suite 238 passed, 4 skipped.**
+  crypto). `unwrap_dek` → `nullopt` on an unknown / forgotten KEK version
+  (Rule 5; also the O.3 crypto-shred path).
+- `Crypto/key_provider_common.py` — path constants. Nothing copies the
+  headers yet — Track A is the first consumer.
+- `UnitTests/test_key_provider.py` — 8 g++-gated tests (`-Werror`).
 
-**Track-o restructured to match its siblings:** `histories/track-o-key-management.md`
-→ `histories/key-management/track-o-key-management.md` (contract only) +
-`histories/key-management/tasks/` (one file per session O.1–O.5). References
-in `Initiatives/README.md`, `thread-1-data-and-keys/README.md`,
-`track-a-db-encryption.md`, `thread-6-critical-and-phi/README.md` updated.
+**O.2** (`tasks/default-local-provider-done.md`) — the default no-KMS
+backend + the fail-safe acknowledgment gate.
+
+- `Crypto/runtime/harpia_key_provider_local.h` — `LocalKeyProvider :
+  public KeyProvider`. KEK material persisted to a file
+  (`LocalKeyProviderConfig::storage_path`) so keys survive a restart. Ctor
+  throws `LocalKeyProviderRefused` when `phi_at_scale && !acknowledged` — a
+  PHI-at-scale profile must not silently ship the local fallback.
+  `local_key_provider_acknowledged()` reads `HARPIA_ACK_LOCAL_KEY_PROVIDER`.
+  Cipher still O.1's placeholder XOR (real AES-KW/GCM comes with the F5
+  seam binding).
+- `Crypto/key_provider_common.py` — `KEY_PROVIDER_LOCAL_RUNTIME` / `_SRC` +
+  `_DEPS`.
+- `UnitTests/test_local_key_provider.py` — 7 g++-gated tests.
+- Additive — no generator code touched, no golden impact. Host 173 passed;
+  **full Docker suite 245 passed, 4 skipped.**
+
+**Also this branch:** track-o was restructured to match its siblings
+(`histories/track-o-key-management.md` inline → contract-only at
+`histories/key-management/track-o-key-management.md` + per-session files in
+`tasks/`), and every completed session task file across the effort now
+carries a `-done` filename suffix as its done marker (no status line
+inside).
 
 ### Track D — complete (the `critical` arc)
 - **D.1** `b433dd5` — `critical` modifier (lexer + `Message.is_critical`).
@@ -73,16 +85,16 @@ Per `thread-6-critical-and-phi/README.md`'s execution order. Track O lives
 at **`thread-1-data-and-keys/histories/key-management/`** — contract in
 `track-o-key-management.md`, one file per session in `tasks/`.
 
-- **O.1 done** — `tasks/key-provider-interface-done.md`. `Crypto/runtime/harpia_key_provider.h`
-  (`KeyProvider` ABC + `Dek`/`WrappedDek` + `InMemoryKeyProvider` dummy),
-  `Crypto/key_provider_common.py`, `UnitTests/test_key_provider.py` (8
-  g++-gated).
-- **Next: O.2** — `tasks/default-local-provider.md`. A concrete default
-  `KeyProvider` (platform-keystore/TPM-sealed local storage) + the
-  fail-safe acknowledgment gate under a PHI-at-scale profile. Must pass
-  O.1's contract tests unmodified.
-- Then O.3 (crypto-shred), O.4 (zeroization + `AuditSink` wiring), O.5
-  (KMS/HSM reference adapter). Track H
+- **O.1, O.2 done** — `tasks/key-provider-interface-done.md`,
+  `tasks/default-local-provider-done.md`.
+- **Next: O.3** — `tasks/crypto-shredding.md`. Permanently discard a
+  specific DEK so only that record's data becomes unrecoverable, without
+  touching or rewriting the ciphertext — the right-to-erasure mechanism.
+  Works against O.1's `InMemoryKeyProvider` or O.2's `LocalKeyProvider`.
+  (O.1 already left `forget_kek_version()` as a KEK-version stand-in;
+  O.3 formalizes per-DEK discard.)
+- Then O.4 (zeroization + `AuditSink` wiring), O.5 (KMS/HSM reference
+  adapter). Track H
   (`histories/schema-evolution/track-h-schema-evolution.md`, H.1–H.3, no
   Foundation dependency — can run in parallel), then Track A
   (`histories/db-encryption/track-a-db-encryption.md`, A.1–A.4 —
@@ -101,7 +113,7 @@ at **`thread-1-data-and-keys/histories/key-management/`** — contract in
   harpia-gradle-cache:/tmp/.gradle -w /harpia -e HOME=/tmp -e
   GRADLE_USER_HOME=/tmp/.gradle harpia-build pytest -q -p no:cacheprovider`.
   Do **not** use `Docker/run.sh` non-interactively (`-it`, dies on non-TTY).
-  Baseline after O.1: **238 passed, 4 skipped**.
+  Baseline after O.2: **245 passed, 4 skipped**.
 - **One session = one file under the track's `tasks/`. When it lands,
   `git mv` that file to add a `-done` suffix — the filename is the done
   marker, no status line inside. Never edit a done task file** (only fix

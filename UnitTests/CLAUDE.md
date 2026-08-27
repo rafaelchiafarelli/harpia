@@ -155,6 +155,15 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `forget_kek_version()`-dropped KEK version makes `unwrap_dek` return
   `nullopt` (Rule 5 — and the O.3 crypto-shred path, early); polymorphic
   use through `KeyProvider&`. (g++)
+- `test_local_key_provider.py` — Track O / Session O.2: the default no-KMS
+  `LocalKeyProvider` (`Crypto/runtime/harpia_key_provider_local.h`).
+  Satisfies O.1's `KeyProvider` contract unmodified; KEK material persists
+  across instances pointed at the same `storage_path` (rotation included) —
+  the "local storage" difference from O.1's in-memory provider; the ctor
+  throws `LocalKeyProviderRefused` when `phi_at_scale && !acknowledged` and
+  proceeds with the acknowledgment; the gate doesn't bite when not at
+  scale; `local_key_provider_acknowledged()` reads
+  `HARPIA_ACK_LOCAL_KEY_PROVIDER` (`1`/`true`/`yes`, any case). (g++)
 - `test_doxygen_mainpage.py` — Foundation F6's `Doxygen/mainpage.py`:
   extracts only the requested `USAGE.md` section numbers (not their
   neighbors), in the requested order, stopping at the next `## ` heading
