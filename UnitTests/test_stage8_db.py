@@ -1265,6 +1265,100 @@ def test_a2_persist_restart_decrypt(generated, sqlite_obj, tmp_path):
             "a2 {} process failed at check #{}".format(name, r.returncode)
 
 
+# -- Track A / A.3: AuditSink wiring on phi CRUDL ops --------------------
+
+def test_a3_non_phi_dao_has_no_audit(generated):
+    """A DAO for a message with no phi column is byte-unchanged -- no
+    AuditSink member, no record() call."""
+    users = os.path.join(generated, "generated", "cpp", "db",
+                         "users_{}_crudl.h".format(HASH))
+    text = open(users).read()
+    assert "audit_" not in text and "AuditSink" not in text
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="phi audit wiring needs protoc + protobuf")
+def test_a3_phi_crudl_ops_audited(generated, sqlite_obj, tmp_path):
+    """Every DAO CRUDL op on a phi-bearing message emits EXACTLY ONE
+    AuditSink.record() -- correct operation name, subject = table, detail =
+    the phi column names (never a value, Rule 5). A not-found read audits
+    nothing."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "phi_audit.cpp"
+    prog.write_text(
+        '#include "db/patient_vitals_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n#include <vector>\n"
+        "struct RecordingSink : ::harpia::compliance::AuditSink {{\n"
+        "    struct Call {{ std::string op, subject, detail; }};\n"
+        "    std::vector<Call> calls;\n"
+        "    void record(const std::string& op, const std::string& subject,\n"
+        '               const std::string& detail = "") override {{\n'
+        "        calls.push_back({{op, subject, detail}});\n"
+        "    }}\n"
+        "}};\n"
+        "static int expect(RecordingSink& s, const char* op) {{\n"
+        "    if (s.calls.size() != 1) return 1;\n"
+        "    if (s.calls[0].op != op) return 2;\n"
+        '    if (s.calls[0].subject != "patient_vitals_table") return 3;\n'
+        '    if (s.calls[0].detail != "patient_id,heart_rate") return 4;\n'
+        "    return 0;\n"
+        "}}\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    RecordingSink sink;\n"
+        "    ::harpia::db::patient_vitals_dao dao(\n"
+        "        db, ::harpia::crypto::default_key_provider(), sink);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        "    if (!sink.calls.empty()) return 3;   // create_table is not a phi op\n"
+        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        '    a.set_patient_id("mrn-secret"); a.set_heart_rate(60.0f);\n'
+        "    if (!dao.create(a)) return 4;\n"
+        '    if (int e = expect(sink, "phi_create")) return 10 + e;\n'
+        '    if (sink.calls[0].detail.find("mrn-secret") != std::string::npos) return 19;\n'
+        "    sink.calls.clear();\n"
+        "    ::patient_vitals got;\n"
+        "    if (!dao.read(1, &got)) return 20;\n"
+        '    if (int e = expect(sink, "phi_read")) return 20 + e;\n'
+        "    sink.calls.clear();\n"
+        '    got.set_patient_id("mrn-2");\n'
+        "    if (!dao.update(got)) return 30;\n"
+        '    if (int e = expect(sink, "phi_update")) return 30 + e;\n'
+        "    sink.calls.clear();\n"
+        "    std::vector<::patient_vitals> all;\n"
+        "    if (!dao.list(&all)) return 40;\n"
+        '    if (int e = expect(sink, "phi_list")) return 40 + e;\n'
+        "    sink.calls.clear();\n"
+        "    std::vector<::patient_vitals> page;\n"
+        "    if (!dao.list(&page, 0, 10)) return 50;\n"
+        '    if (int e = expect(sink, "phi_list")) return 50 + e;\n'
+        "    sink.calls.clear();\n"
+        "    if (!dao.remove(1)) return 60;\n"
+        '    if (int e = expect(sink, "phi_delete")) return 60 + e;\n'
+        "    sink.calls.clear();\n"
+        "    ::patient_vitals gone;\n"
+        "    dao.read(999, &gone);\n"
+        "    if (!sink.calls.empty()) return 70;   // a not-found read audits nothing\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+    pb_cc = os.path.join(cpp_root, "protofiles",
+                         "patient_vitals_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "phi_audit")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, *_pkgconfig("--cflags"),
+         str(prog), pb_cc, "-o", binary, "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "phi-audit program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "phi audit wiring failed at check #{}".format(
+        run.returncode)
+
+
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="FK round-trip needs protoc + protobuf")
 def test_fk_roundtrip(generated, sqlite_obj, tmp_path):
