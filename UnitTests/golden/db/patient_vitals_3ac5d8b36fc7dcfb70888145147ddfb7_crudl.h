@@ -8,6 +8,7 @@
 
 #include <soci/soci.h>
 #include "protofiles/patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7.pb.h"
+#include "crypto/harpia_encrypted_column.h"
 
 namespace harpia {
 namespace db {
@@ -24,7 +25,7 @@ namespace db {
 // are guarded by an indicator.
 class patient_vitals_dao {
 public:
-    explicit patient_vitals_dao(::soci::session& db) : db_(db) {}
+    explicit patient_vitals_dao(::soci::session& db, ::harpia::crypto::KeyProvider& kp = ::harpia::crypto::default_key_provider()) : db_(db), kp_(kp) {}
 
     bool create_table() {
         try {
@@ -42,8 +43,8 @@ public:
     bool create(const ::patient_vitals& msg) {
         try {
             int c0 = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c1 = msg.patient_id();
-            double c2 = msg.heart_rate();
+            std::string c1 = ::harpia::crypto::encrypt_field(kp_, msg.patient_id());
+            std::string c2 = ::harpia::crypto::encrypt_field(kp_, std::to_string(msg.heart_rate()));
             std::string c3 = msg.device_note();
             std::string c4 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
             std::string c5 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
@@ -58,7 +59,7 @@ public:
         try {
             int l0 = 0; ::soci::indicator n0;
             std::string l1; ::soci::indicator n1;
-            double l2 = 0; ::soci::indicator n2;
+            std::string l2; ::soci::indicator n2;
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
@@ -67,8 +68,8 @@ public:
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6);
             if (!db_.got_data()) return false;
                 msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
-                msg->set_patient_id(n1 == ::soci::i_ok ? l1 : std::string());
-                msg->set_heart_rate(n2 == ::soci::i_ok ? l2 : 0);
+                msg->set_patient_id(::harpia::crypto::decrypt_field(kp_, n1 == ::soci::i_ok ? l1 : std::string()));
+                msg->set_heart_rate(::harpia::crypto::decrypt_field_double(kp_, n2 == ::soci::i_ok ? l2 : std::string()));
                 msg->set_device_note(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
                 msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
@@ -79,8 +80,8 @@ public:
 
     bool update(const ::patient_vitals& msg) {
         try {
-            std::string c0 = msg.patient_id();
-            double c1 = msg.heart_rate();
+            std::string c0 = ::harpia::crypto::encrypt_field(kp_, msg.patient_id());
+            std::string c1 = ::harpia::crypto::encrypt_field(kp_, std::to_string(msg.heart_rate()));
             std::string c2 = msg.device_note();
             std::string c3 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
             std::string c4 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
@@ -103,7 +104,7 @@ public:
         try {
             int l0 = 0; ::soci::indicator n0;
             std::string l1; ::soci::indicator n1;
-            double l2 = 0; ::soci::indicator n2;
+            std::string l2; ::soci::indicator n2;
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
@@ -115,8 +116,8 @@ public:
                 ::patient_vitals row;
                 ::patient_vitals* msg = &row;
                 msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
-                msg->set_patient_id(n1 == ::soci::i_ok ? l1 : std::string());
-                msg->set_heart_rate(n2 == ::soci::i_ok ? l2 : 0);
+                msg->set_patient_id(::harpia::crypto::decrypt_field(kp_, n1 == ::soci::i_ok ? l1 : std::string()));
+                msg->set_heart_rate(::harpia::crypto::decrypt_field_double(kp_, n2 == ::soci::i_ok ? l2 : std::string()));
                 msg->set_device_note(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
                 msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
@@ -132,7 +133,7 @@ public:
         try {
             int l0 = 0; ::soci::indicator n0;
             std::string l1; ::soci::indicator n1;
-            double l2 = 0; ::soci::indicator n2;
+            std::string l2; ::soci::indicator n2;
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
@@ -144,8 +145,8 @@ public:
                 ::patient_vitals row;
                 ::patient_vitals* msg = &row;
                 msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
-                msg->set_patient_id(n1 == ::soci::i_ok ? l1 : std::string());
-                msg->set_heart_rate(n2 == ::soci::i_ok ? l2 : 0);
+                msg->set_patient_id(::harpia::crypto::decrypt_field(kp_, n1 == ::soci::i_ok ? l1 : std::string()));
+                msg->set_heart_rate(::harpia::crypto::decrypt_field_double(kp_, n2 == ::soci::i_ok ? l2 : std::string()));
                 msg->set_device_note(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
                 msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
@@ -158,6 +159,7 @@ public:
 
 private:
     ::soci::session& db_;
+    ::harpia::crypto::KeyProvider& kp_;
 };
 
 }  // namespace db

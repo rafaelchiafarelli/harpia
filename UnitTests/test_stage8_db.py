@@ -1035,6 +1035,140 @@ def test_migration_composed_child_roundtrip(generated, sqlite_obj, tmp_path):
         "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
 
 
+# -- Track A / A.1: field-level `phi` column encryption -------------------
+#
+# patient_vitals (HarpiaTest/Include/file3.harpia) has phi columns
+# patient_id (string) and heart_rate (float). CrudlAdapter routes those
+# through harpia::crypto::encrypt_field on write / decrypt_field on read,
+# via a KeyProvider the DAO holds; the ciphertext is a marked hex blob that
+# stays in the column's existing type. Non-phi columns are untouched.
+
+def test_a1_encryption_runtime_copied(generated):
+    """The phi-column encryption runtime + its transitive deps are copied
+    into generated output when a message has a phi column."""
+    crypto_dir = os.path.join(generated, "generated", "cpp", "crypto")
+    for name in ("harpia_encrypted_column.h", "harpia_key_provider.h",
+                 "harpia_audit_sink.h"):
+        assert os.path.isfile(os.path.join(crypto_dir, name)), \
+            "{} not copied into generated crypto/".format(name)
+
+
+@pytest.mark.skipif(shutil.which("g++") is None, reason="needs g++")
+def test_a1_encrypt_field_roundtrip(generated, tmp_path):
+    """encrypt_field/decrypt_field round-trip every supported kind through a
+    real KeyProvider; the stored form is marker-prefixed and not plaintext;
+    a crypto-shredded DEK decrypts to "" rather than throwing (Rule 5)."""
+    crypto_dir = os.path.join(generated, "generated", "cpp", "crypto")
+    prog = tmp_path / "enc.cpp"
+    prog.write_text(
+        '#include "harpia_encrypted_column.h"\n'
+        "#include <string>\n"
+        "int main() {\n"
+        "    ::harpia::crypto::InMemoryKeyProvider kp;\n"
+        "    // text\n"
+        '    std::string blob = ::harpia::crypto::encrypt_field(kp, "the-mrn-42");\n'
+        '    if (blob.rfind("enc:v1:", 0) != 0) return 2;\n'
+        '    if (blob.find("the-mrn-42") != std::string::npos) return 3;\n'
+        '    if (::harpia::crypto::decrypt_field(kp, blob) != "the-mrn-42") return 4;\n'
+        "    // numeric kinds go through the *_double / *_ll helpers\n"
+        '    std::string d = ::harpia::crypto::encrypt_field(kp, std::to_string(98.6));\n'
+        "    if (::harpia::crypto::decrypt_field_double(kp, d) != 98.6) return 5;\n"
+        '    std::string n = ::harpia::crypto::encrypt_field(kp, std::to_string(-7));\n'
+        "    if (::harpia::crypto::decrypt_field_ll(kp, n) != -7) return 6;\n"
+        "    // an unmarked value passes through unchanged\n"
+        '    if (::harpia::crypto::decrypt_field(kp, "plain") != "plain") return 7;\n'
+        "    // a shredded DEK -> empty, never a throw (Rule 5)\n"
+        "    ::harpia::crypto::Dek dek = kp.generate_dek();\n"
+        '    ::harpia::crypto::WrappedDek w = kp.wrap_dek(dek);\n'
+        "    kp.shred_dek(w);\n"
+        "    std::string frame;\n"
+        "    ::harpia::crypto::detail::put_u64(frame, w.kek_version);\n"
+        "    ::harpia::crypto::detail::put_u32(frame, (uint32_t)w.bytes.size());\n"
+        '    frame += w.bytes; frame += dek.seal("x");\n'
+        '    std::string shredded = std::string("enc:v1:") + ::harpia::crypto::detail::to_hex(frame);\n'
+        '    if (!::harpia::crypto::decrypt_field(kp, shredded).empty()) return 8;\n'
+        "    return 0;\n"
+        "}\n")
+    binary = str(tmp_path / "enc")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-Werror", "-I", crypto_dir,
+         "-I", os.path.join(REPO_ROOT, "Compliance", "runtime"),
+         str(prog), "-o", binary],
+        capture_output=True, text=True, timeout=120)
+    assert c.returncode == 0, "enc program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "encrypt round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="phi encrypt-on-write needs protoc + protobuf")
+def test_a1_phi_persisted_as_ciphertext(generated, sqlite_obj, tmp_path):
+    """patient_vitals written through the DAO: a raw SQL query bypassing the
+    DAO shows ciphertext (marker-prefixed, not the plaintext) in every phi
+    column; a non-phi column (device_note) stays plaintext; and reading
+    back through the DAO decrypts to the original values."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "phi_write.cpp"
+    prog.write_text(
+        '#include "db/patient_vitals_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    ::harpia::db::patient_vitals_dao dao(db);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        '    a.set_patient_id("mrn-90210"); a.set_heart_rate(72.5f);\n'
+        '    a.set_device_note("sensor B");\n'
+        "    if (!dao.create(a)) return 3;\n"
+        "    // raw read, bypassing the DAO\n"
+        "    std::string pid, note; double hr = 0; ::soci::indicator i0, i1, i2;\n"
+        '    db << "SELECT \\"patient_id\\", \\"heart_rate\\", \\"device_note\\" '
+        'FROM \\"patient_vitals_table\\" WHERE \\"ID_{h}\\" = 1",\n'
+        "        ::soci::into(pid, i0), ::soci::into(hr, i1), ::soci::into(note, i2);\n"
+        '    if (pid.rfind("enc:v1:", 0) != 0) return 4;   // phi string is ciphertext\n'
+        '    if (pid.find("mrn-90210") != std::string::npos) return 5;\n'
+        "    // heart_rate column holds the marker text, not 72.5\n"
+        "    std::string hr_txt; ::soci::indicator i3;\n"
+        '    db << "SELECT CAST(\\"heart_rate\\" AS TEXT) FROM \\"patient_vitals_table\\" '
+        'WHERE \\"ID_{h}\\" = 1", ::soci::into(hr_txt, i3);\n'
+        '    if (hr_txt.rfind("enc:v1:", 0) != 0) return 6;\n'
+        '    if (note != "sensor B") return 7;            // non-phi untouched\n'
+        "    // DAO read decrypts\n"
+        "    ::patient_vitals got;\n"
+        "    if (!dao.read(1, &got)) return 8;\n"
+        '    if (got.patient_id() != "mrn-90210") return 9;\n'
+        "    if (got.heart_rate() != 72.5f) return 10;\n"
+        '    if (got.device_note() != "sensor B") return 11;\n'
+        "    // update re-encrypts\n"
+        '    got.set_patient_id("mrn-00001");\n'
+        "    if (!dao.update(got)) return 12;\n"
+        "    std::string pid2; ::soci::indicator i4;\n"
+        '    db << "SELECT \\"patient_id\\" FROM \\"patient_vitals_table\\" '
+        'WHERE \\"ID_{h}\\" = 1", ::soci::into(pid2, i4);\n'
+        '    if (pid2.rfind("enc:v1:", 0) != 0 || pid2.find("mrn-00001") != std::string::npos) return 13;\n'
+        "    ::patient_vitals got2; dao.read(1, &got2);\n"
+        '    if (got2.patient_id() != "mrn-00001") return 14;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+    pb_cc = os.path.join(cpp_root, "protofiles", "patient_vitals_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "phi_write")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, *_pkgconfig("--cflags"),
+         str(prog), pb_cc, "-o", binary, "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "phi-write program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "phi encrypt-on-write failed at check #{}".format(
+        run.returncode)
+
+
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="FK round-trip needs protoc + protobuf")
 def test_fk_roundtrip(generated, sqlite_obj, tmp_path):

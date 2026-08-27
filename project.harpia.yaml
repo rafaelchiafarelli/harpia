@@ -1,0 +1,16 @@
+# harpia project-wide compliance profile (Foundation F1 -- Compliance/context.py).
+#
+# Parsed once at generation start and threaded into every stage. Per the
+# sensitive-data design-rules doc §6a, `risk_class` is a single project-wide
+# hardening floor -- there is no per-jurisdiction build fan-out; `jurisdiction`
+# is inert for codegen (Track M reads it for paperwork-template selection only).
+#
+# These values are also the fail-safe defaults the generator falls back to when
+# this file is absent -- kept explicit here so a real run exercises the parse
+# path rather than the missing-file path, and so tightening/loosening the
+# profile is an edit to one tracked file.
+
+risk_class: class_c            # IEC 62304 safety class (class_a | class_b | class_c)
+topology: cloud_connected      # deployment exposure (standalone | networked | cloud_connected)
+phi_handling: required         # project PHI policy (none | opt_in | required)
+jurisdiction: []               # e.g. [FDA, ANVISA] -- paperwork templates only, no codegen effect

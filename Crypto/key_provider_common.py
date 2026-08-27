@@ -53,3 +53,15 @@ KEY_PROVIDER_LOCAL_RUNTIME_DEPS = (
 KEY_PROVIDER_KMS_RUNTIME_DEPS = (
     (KEY_PROVIDER_RUNTIME, KEY_PROVIDER_RUNTIME_SRC),
 ) + KEY_PROVIDER_RUNTIME_DEPS
+
+#: Track A / A.1 -- field-level `phi` column encryption helper
+#: (encrypt_field / decrypt_field / default_key_provider), built on the O.1
+#: interface. #includes "harpia_key_provider.h", so it co-copies with it and
+#: its transitive deps.
+ENCRYPTED_COLUMN_RUNTIME = "harpia_encrypted_column.h"
+ENCRYPTED_COLUMN_RUNTIME_SRC = os.path.join(
+    _RUNTIME_DIR, ENCRYPTED_COLUMN_RUNTIME)
+
+ENCRYPTED_COLUMN_RUNTIME_DEPS = (
+    (KEY_PROVIDER_RUNTIME, KEY_PROVIDER_RUNTIME_SRC),
+) + KEY_PROVIDER_RUNTIME_DEPS
