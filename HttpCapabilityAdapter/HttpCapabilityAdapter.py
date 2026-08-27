@@ -15,8 +15,8 @@ instead of inventing a redundant SOAP-envelope-specific capability op.
 """
 import os
 
-from logger.logger import logger
-from util.util import loadTemplate, write_if_different, copy_if_different
+from Logger.logger import logger
+from Util.util import loadTemplate, write_if_different, copy_if_different
 from Capability.capability_common import (
     DISPATCH_RUNTIME, DISPATCH_RUNTIME_SRC, message_type_names)
 

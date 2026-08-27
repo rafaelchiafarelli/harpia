@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 17)
 # tool ships with apt's libzmq3-dev, so cmake/curve_keygen_probe.cpp is
 # compiled and run here (try_run, configure-time) to produce a fresh
 # ephemeral keypair per side every configure -- same "ephemeral, ungitignored
-# build dir" shape as the TLS self-signed cert in examples/consumer. Runs
+# build dir" shape as the TLS self-signed cert in HarpiaTest/app_example/consumer. Runs
 # once at the root (not per-subdirectory) so server/ and client/ share the
 # same keypairs via CACHE INTERNAL variables regardless of add_subdirectory
 # order.

@@ -1,0 +1,64 @@
+import "common.harpia";
+
+// Hospital Point of Information -- wall mounted networked terminal at ward
+// entrances and outside patient rooms. Outbound data is visitor and staff
+// interaction with the panel. Inbound data is what the panel displays, pulled
+// from the network.
+
+enum poi_request_kind {
+    none = 0;
+    nurse_call;
+    assistance;
+    wayfinding;
+}
+
+// Visitor or staff touch interaction log line.
+push event message touch_interaction {
+    required string panel_id;
+    required string screen_id;
+    required int epoch_millis;
+} touch_interaction_table;
+
+// Nurse call or assistance request raised at the panel.
+push event message assistance_request {
+    required string panel_id;
+    poi_request_kind kind;
+    optional string room_id;
+} assistance_request_table;
+
+// Acknowledgement that a displayed alert was seen at the panel.
+push event message alert_acknowledgement {
+    required string panel_id;
+    required int alert_id;
+    string acknowledged_by;
+} alert_acknowledgement_table;
+
+// Panel health and heartbeat.
+push event message panel_heartbeat {
+    required string panel_id;
+    required int uptime_seconds;
+    required int display_ok;
+} panel_heartbeat_table;
+
+// Room and bed assignment shown on the panel.
+pull event message room_assignment {
+    required string room_id;
+    optional string bed_assignment;
+    phi string patient_id;
+    string care_team_name;
+} room_assignment_table;
+
+// Isolation and precaution flags shown on the panel.
+pull event message precaution_flags {
+    required string room_id;
+    required int isolation;
+    required int fall_risk;
+    string note;
+} precaution_flags_table;
+
+// Ward announcement and wayfinding directory update shown on the panel.
+pull event message ward_announcement {
+    required string ward_id;
+    required string announcement_text;
+    optional int priority;
+} ward_announcement_table;

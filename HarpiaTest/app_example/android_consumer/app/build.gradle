@@ -1,0 +1,70 @@
+// See ../README.md before touching this file -- it explains what's
+// verified here (nothing, yet -- no Android SDK in the environment this
+// was written in) and what a real verification pass needs to check.
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.harpia.android_consumer'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.harpia.android_consumer"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+def harpiaGenDir = project.findProperty('harpiaGenDir')
+if (harpiaGenDir == null) {
+    throw new GradleException(
+        "Set -PharpiaGenDir=<path to a harpia-generated project> " +
+        "(the folder main.py wrote with HARPIA_GEN_LANG=java, containing java/ -- " +
+        "see ../README.md).")
+}
+def harpiaJavaDir = file("${harpiaGenDir}/java")
+
+dependencies {
+    // The harpia-generated project's own assembled jar: message classes
+    // (J.2), gRPC stubs (J.3), and every Java-target adapter's generated/
+    // runtime classes ride along in the same jar, though this module only
+    // exercises the message-class/JSON/gRPC-client/ZMQ-client pieces --
+    // DB/REST/SOAP-server/gRPC-service-impl are never consumed on-device
+    // (J.27's own "Out of scope" line, ../../../../Initiatives/multi-language-
+    // targets/thread-1-java-target/histories/Android-consumption/
+    // android-verification-ZMQ-client-track-acceptance-gate.md).
+    implementation fileTree(dir: "${harpiaJavaDir}/build/libs", include: ["*.jar"])
+
+    // Same runtime deps the generated project itself declares -- kept in
+    // lockstep with GradleAdapter/templates/project.gradle.tmpl's pinned
+    // versions. Full protobuf-java runtime, not protobuf-javalite (J.24).
+    implementation 'com.google.protobuf:protobuf-java:3.25.3'
+    implementation 'com.google.protobuf:protobuf-java-util:3.25.3'
+
+    // gRPC client (J.26): the Android-specific transport (grpc-android +
+    // grpc-okhttp), additive to the generated stub classes already in the
+    // jar above -- grpc-netty-shaded (what the desktop/server project
+    // depends on) doesn't run on Android.
+    implementation 'io.grpc:grpc-android:1.62.2'
+    implementation 'io.grpc:grpc-okhttp:1.62.2'
+    implementation 'io.grpc:grpc-stub:1.62.2'
+    implementation 'io.grpc:grpc-protobuf:1.62.2'
+
+    // ZMQ client (J.27): the exact same pure-Java jeromq artifact the
+    // desktop/server project uses -- no JNI, so no separate Android
+    // variant exists or is needed (the actual unconfirmed fact this
+    // module's ZmqClientAndroidTest exists to check).
+    implementation 'org.zeromq:jeromq:0.6.0'
+
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test:runner:1.5.2'
+}

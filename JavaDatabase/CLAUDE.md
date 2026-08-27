@@ -1,6 +1,6 @@
 # JavaDatabase — Java target: JDBC bind/extract runtime + CRUDL DAO generation
 
-**Pipeline role:** Java-target Stage 8 equivalent (sessions J.5/J.6/J.7, `initiatives/multi-language-targets/thread-1-java-target`, landed together — see their history files). Reuses `Database/model.py`'s language-agnostic `type_registry()`/`analyze()` IR as-is to derive columns, then generates a per-table-bearing-message CRUDL DAO against a reflection-based JDBC bind/extract runtime.
+**Pipeline role:** Java-target Stage 8 equivalent (sessions J.5/J.6/J.7, `Initiatives/multi-language-targets/thread-1-java-target`, landed together — see their history files). Reuses `Database/model.py`'s language-agnostic `type_registry()`/`analyze()` IR as-is to derive columns, then generates a per-table-bearing-message CRUDL DAO against a reflection-based JDBC bind/extract runtime.
 **Entry points (from main.py):** both gated behind `HARPIA_GEN_LANG=java`, called right after `JavaJsonAdapter` in the same block, sharing the SAME `dbBackend` the C++ Stage-8 calls later in `main.py` use (resolved once, moved earlier in the file for this reason):
 - `JavaDbAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()` — ships the runtime.
 - `JavaCrudlAdapter(messages=msgFactory.messages, dest=testDestination, backend=dbBackend, compliance=complianceContext).Process()` — generates the DAOs.
@@ -16,11 +16,11 @@ Both return `None` or an `Error` (non-fatal; main.py logs it).
 ## Why reflection, not typed accessors (the load-bearing design decision)
 A generated DAO calling typed accessors (`msg.getPatientId()`, mirroring how a human would write JDBC code) requires knowing, at Python generation time, exactly what Java identifier `protoc`'s Java plugin will derive from a `.proto` field name — protobuf's real `UnderscoresToCamelCase` algorithm (case-by-case: lowercase letters capitalize on a `cap_next` flag, uppercase letters pass through unchanged past position 0, digits pass through AND set `cap_next`, any other character sets `cap_next` and is dropped). Hand-reproducing that exactly, for **every** field name harpia's front-end can produce — including the hash-suffixed `ID_<hash>`/`STATUS_<hash>`/`ERROR_<hash>` fields injected into every single message — is a real, easy-to-get-subtly-wrong risk, and this repo has no `protoc`/JDK on the generation host (or in CI here) to catch a mistake by actually compiling the result.
 
-`Descriptors.FieldDescriptor.findFieldByName(name)` sidesteps the entire problem: it looks a field up by its **exact, unmodified `.proto` field name** — which harpia already knows with total certainty, because it's the same string `FileCreator.py` wrote into the `.proto` in the first place (`Column.name`, for every column this session handles, IS that exact name — see `protoFile/CLAUDE.md`). `Message.getField(fd)`/`Builder.setField(fd, value)` then read/write generically off that descriptor, no method-name derivation anywhere. This is the same reflection-based strategy the future XML session (J.10/J.11) already plans to use (`../../README.md` §2's XML row) — DB just gets there first.
+`Descriptors.FieldDescriptor.findFieldByName(name)` sidesteps the entire problem: it looks a field up by its **exact, unmodified `.proto` field name** — which harpia already knows with total certainty, because it's the same string `FileCreator.py` wrote into the `.proto` in the first place (`Column.name`, for every column this session handles, IS that exact name — see `ProtoFile/CLAUDE.md`). `Message.getField(fd)`/`Builder.setField(fd, value)` then read/write generically off that descriptor, no method-name derivation anywhere. This is the same reflection-based strategy the future XML session (J.10/J.11) already plans to use (`../../README.md` §2's XML row) — DB just gets there first.
 
 ## Deliberately reduced scope (flagged, not scoped here — like schema migration)
 Only top-level scalar/enum columns (`analyze()` output where `Column.embed` is `None` and `Column.fk_table` is `False`) are handled:
-- **Handled:** every plain scalar/enum column `analyze()` returns for a table-bearing message, INCLUDING the front-end-injected `ID_<hash>`/`STATUS_<hash>`/`ERROR_<hash>`/`ORIGINATOR` fields (they're plain top-level `STRING` columns, no different from a schema-authored one — see the real `user_table` schema in `tests/golden/sidecars/database/`).
+- **Handled:** every plain scalar/enum column `analyze()` returns for a table-bearing message, INCLUDING the front-end-injected `ID_<hash>`/`STATUS_<hash>`/`ERROR_<hash>`/`ORIGINATOR` fields (they're plain top-level `STRING` columns, no different from a schema-authored one — see the real `user_table` schema in `UnitTests/golden/sidecars/database/`).
 - **Deferred:** a singular composed field whose target owns a table (`fk_table` — e.g. `top_users.myUsers`), a flattened embed column (`embed` set — e.g. `journey.path.label`), and everything `map_fields()`/`repeated_fields()` would produce (map/repeated child tables) — `JavaCrudlAdapter` never even calls those two functions. A message whose *every* declared field falls into one of these categories still gets a DAO — with just the front-end-injected columns (PK + STATUS_/ERROR_/ORIGINATOR).
 - Schema-evolution/migration support is flagged, not scoped here, same treatment as the deferred columns above — the C++ `CrudlAdapter` this reuses IR from took its own long incremental history to grow this sophistication (`Database/CLAUDE.md`); replicating all of it in one sitting was never this session's bar.
 
@@ -49,8 +49,8 @@ unlike C++'s `libpq`) — zero changes to `JavaCrudlAdapter.py` or
 create_table()` from whichever `DbBackend` `main.py` resolved
 (`Database/backends/postgres.py`: same caller-assigned-PK convention as
 SQLite, same neutral bind kinds — only the SQL type strings differ, e.g.
-`INT64`→`BIGINT`, `FLOAT`→`DOUBLE PRECISION`). `tests/
+`INT64`→`BIGINT`, `FLOAT`→`DOUBLE PRECISION`). `UnitTests/
 test_java_db_crudl_postgres.py` is opt-in (`HARPIA_PG_DSN` + gradle/JDK),
-same posture as `tests/test_stage8_pg.py` on the C++ side — parses the
+same posture as `UnitTests/test_stage8_pg.py` on the C++ side — parses the
 same libpq-style DSN into a JDBC URL rather than introducing a parallel
 Postgres-config mechanism.

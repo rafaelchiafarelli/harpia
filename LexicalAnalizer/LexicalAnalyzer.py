@@ -1,5 +1,5 @@
 import re
-from logger.logger import logger
+from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
 
 ## LexicalAnalyzer should only tokenize the files 
@@ -33,7 +33,7 @@ class LexicalAnalyzer:
             ('PUSHPULL',r'pushpull '),
             ('MESSAGE',r'message '),
             # sensitive-field modifier (Foundation F2, confidentiality axis --
-            # see initiatives/medical_devices/harpia_sensitive_data_design_rules.md
+            # see Initiatives/medical_devices/harpia_sensitive_data_design_rules.md
             # §0). Same category as OPTIONAL/REQUIRED/UNIQUE below: a
             # keyword-only modifier, no value, flag only -- no encryption/
             # redaction/audit logic lands with this token.
@@ -52,7 +52,7 @@ class LexicalAnalyzer:
             # boundary, every `int64` in a .harpia file silently lexed as
             # INT32("int") + a stray INTEGER_CONST("64"), downgrading every
             # declared int64 field to int32 with no error. Caught 2026-08-25 by
-            # tests/test_java_db_crudl.py's
+            # UnitTests/test_java_db_crudl.py's
             # test_bind_extract_roundtrip_per_supported_type -- the only place
             # in this repo's entire test suite that ever declared an int64
             # field, since no HarpiaTest fixture uses one. With `int\b` the

@@ -1,7 +1,7 @@
 // canonical example of the optional/required/map<K,V>-x3/pagination
 // modifier combination (previously duplicated near-verbatim by pope/king/
 // queenBee, folded away here as pure redundancy -- see
-// initiatives/feature-examples/histories/track-ex-feature-examples.md,
+// Initiatives/feature-examples/histories/track-ex-feature-examples.md,
 // Session EX.1).
 message queen{
 

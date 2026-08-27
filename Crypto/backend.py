@@ -7,8 +7,8 @@ SQL dialect", CryptoBackend answers "which crypto module" (e.g. standard vs.
 FIPS-validated OpenSSL). Both Track O (key-wrap/envelope-encryption) and
 Track C (TLS stack) must resolve their crypto module through this single
 seam, not each pick their own -- see
-initiatives/medical_devices/harpia_medical_master_plan.md's F5 entry and
-initiatives/medical_devices/epics/thread-0-foundation/histories/
+Initiatives/medical_devices/harpia_medical_master_plan.md's F5 entry and
+Initiatives/medical_devices/epics/thread-0-foundation/histories/
 CryptoBackend-selection-point-done.md.
 
 Foundation's scope stops at the seam itself: no real cryptographic
@@ -131,7 +131,7 @@ def write_build_metadata(backend, dest):
     nothing reads this back today; it exists so that track doesn't have to
     re-derive the choice, only read a file already there."""
     import json
-    from util.util import write_if_different
+    from Util.util import write_if_different
 
     metadata_dir = os.path.join(dest, "build_metadata")
     os.makedirs(metadata_dir, exist_ok=True)

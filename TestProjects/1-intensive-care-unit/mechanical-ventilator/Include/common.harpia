@@ -1,0 +1,37 @@
+// Shared inbound message types for the Hospital Electronic Equipment
+// blueprint example projects. Imported by a device root .harpia via
+//   import "common.harpia";
+// Every device that receives one of these payloads over the network pulls
+// it in here, so the generated project includes its DAO and adapters.
+
+// Patient demographic profile plus admit and discharge status, pulled
+// from the hospital admission system.
+pull event message patient_demographics {
+    phi required string patient_id;
+    phi string given_name;
+    phi string family_name;
+    optional int age_years;
+    string admit_status;
+    optional string bed_assignment;
+} patient_demographics_table;
+
+// Clock synchronisation packet handed to the device from a network time
+// source. Transient, not persisted.
+pull message clock_sync {
+    required int epoch_millis;
+    optional int timezone_offset_minutes;
+};
+
+// Clinician or nurse identity, pulled when a user logs in at the device.
+pull event message clinician_identity {
+    required string login_id;
+    string display_name;
+    string role;
+} clinician_identity_table;
+
+// Simple device location update ping. Transient, not persisted.
+pull message device_location {
+    required string device_id;
+    string zone_label;
+    optional int floor_number;
+};

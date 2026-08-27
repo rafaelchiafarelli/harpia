@@ -1,0 +1,35 @@
+import "common.harpia";
+
+// Surgical Robot Console -- translates surgeon hand motion into
+// instrument movement.
+
+// Robotic arm position coordinates and instrument cycle counts, streamed.
+stream push message arm_telemetry {
+    string arm_id;
+    required float x;
+    required float y;
+    required float z;
+    required float roll;
+    required float pitch;
+    required float yaw;
+    required int instrument_cycle_count;
+} arm_telemetry_table;
+
+// High definition video feed status.
+push message video_feed_status {
+    required int fps;
+    required int bitrate_kbps;
+    string resolution_label;
+} video_feed_status_table;
+
+// Subsystem calibration status.
+push event message calibration_status {
+    string subsystem;
+    required int passed;
+} calibration_status_table;
+
+// Pre operative 3D surgical map and anatomical overlays pulled in.
+pull event message surgical_map {
+    required string case_id;
+    repeteable string overlay_ids;
+} surgical_map_table;
