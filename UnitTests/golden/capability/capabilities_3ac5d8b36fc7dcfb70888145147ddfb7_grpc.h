@@ -48,6 +48,7 @@ public:
         "shipment",
         "telemetry",
         "top_users",
+        "trace_row",
         "users",
         "vip_users",
         "waypoint"

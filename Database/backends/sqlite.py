@@ -219,6 +219,70 @@ class SqliteBackend(DbBackend):
                  create=_esc(create_sql), insert=_esc(insert_sql),
                  drop=_esc(drop_sql), rename=_esc(rename_sql))
 
+    def evolve_rep_composed_child_dynamic(self, child, owner_type, columns):
+        # A repeated-composed child table has one data column per the
+        # table-less target's own flattened field, so its columns evolve
+        # like a main table's: ADD any current data column an older table
+        # lacks (ALTER ADD COLUMN), then -- if a live data column is now a
+        # stray or a type drifted -- rebuild (owner, ordinal, <current data
+        # cols>), CASTing every row across (which also drops the strays,
+        # since they are simply not selected). owner/ordinal never change.
+        columns = list(columns)
+        types_sql = self.list_column_types_sql(child)
+        adds = "\n".join(
+            '                if (!_ec.count("{n}")) db << "{alter}";'.format(
+                n=name, alter=_esc(self.add_column(child, name, cdef)))
+            for name, _t, cdef in columns)
+        keep = ", ".join('"{}"'.format(n)
+                         for n in ["owner", "ordinal"] + [c[0] for c in columns])
+        type_checks = "".join(
+            '\n                if (_ect.count("{n}") && _ect["{n}"] != "{t}") '
+            '_erebuild = true;'.format(n=name, t=t) for name, t, _d in columns)
+        tmp = "{}__evolve_tmp".format(child)
+        data_defs = "".join(', "{}" {}'.format(n, t) for n, t, _d in columns)
+        create_sql = ('CREATE TABLE "{}" ("owner" {}, "ordinal" INTEGER{}, '
+                      'PRIMARY KEY("owner", "ordinal"));').format(
+                          tmp, owner_type, data_defs)
+        collist = ", ".join('"{}"'.format(n)
+                            for n in ["owner", "ordinal"] + [c[0] for c in columns])
+        sellist = ", ".join(['"owner"', '"ordinal"']
+                            + ['CAST("{}" AS {})'.format(n, t)
+                               for n, t, _d in columns])
+        insert_sql = 'INSERT INTO "{}" ({}) SELECT {} FROM "{}";'.format(
+            tmp, collist, sellist, child)
+        drop_sql = 'DROP TABLE "{}";'.format(child)
+        rename_sql = 'ALTER TABLE "{}" RENAME TO "{}";'.format(tmp, child)
+        return (
+            '        {{\n'
+            '            std::set<std::string> _ec;\n'
+            '            std::map<std::string, std::string> _ect;\n'
+            '            {{\n'
+            '                std::string _en, _et; ::soci::indicator _eni, _eti;\n'
+            '                ::soci::statement _es = (db.prepare << "{types}",\n'
+            '                                         ::soci::into(_en, _eni), ::soci::into(_et, _eti));\n'
+            '                _es.execute();\n'
+            '                while (_es.fetch()) {{\n'
+            '                    if (_eni == ::soci::i_ok) {{ _ec.insert(_en); if (_eti == ::soci::i_ok) _ect[_en] = _et; }}\n'
+            '                }}\n'
+            '            }}\n'
+            '            if (!_ec.empty()) {{\n'
+            '{adds}\n'
+            '                static const std::set<std::string> _ekeep = {{ {keep} }};\n'
+            '                bool _erebuild = false;\n'
+            '                for (const auto& _en2 : _ec) if (!_ekeep.count(_en2)) _erebuild = true;{type_checks}\n'
+            '                if (_erebuild) {{\n'
+            '                    db << "{create}";\n'
+            '                    db << "{insert}";\n'
+            '                    db << "{drop}";\n'
+            '                    db << "{rename}";\n'
+            '                }}\n'
+            '            }}\n'
+            '        }}'
+        ).format(types=_esc(types_sql), adds=adds, keep=keep,
+                 type_checks=type_checks, create=_esc(create_sql),
+                 insert=_esc(insert_sql), drop=_esc(drop_sql),
+                 rename=_esc(rename_sql))
+
     def retype_column_dynamic(self, table, columns):
         # SQLite has no ALTER COLUMN ... TYPE at all, so a real type change
         # needs a whole-table rebuild: create a tmp table with the CURRENT
@@ -289,3 +353,7 @@ if __name__ == "__main__":
                                      b.sql_type("STRING")))
     print(b.retype_map_child_dynamic("devices__labels", b.int_type,
                                      b.sql_type("STRING"), b.sql_type("INT32")))
+    print(b.evolve_rep_composed_child_dynamic("devices__events", b.int_type, [
+        ("kind", b.sql_type("STRING"), b.column_def(b.sql_type("STRING"))),
+        ("weight", b.sql_type("INT32"), b.column_def(b.sql_type("INT32"))),
+    ]))

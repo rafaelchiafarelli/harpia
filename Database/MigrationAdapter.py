@@ -34,7 +34,8 @@ from Logger.logger import logger
 from Util.util import loadTemplate, write_if_different
 from Database.backends import get_backend
 from Database.model import (analyze, type_registry, repeated_fields, map_fields,
-                            child_table_names, RepeatedField)
+                            child_table_names, RepeatedField,
+                            RepeatedComposedField)
 
 MIGRATE_EXT = "_migrate.h"
 
@@ -114,20 +115,25 @@ class MigrationAdapter:
         # correctly typed by add_column, so its guard is simply never true).
         retype_block = b.retype_column_dynamic(
             msg.tableName, [(c.name, c.sql_type, c.sql_def()) for c in columns])
-        # -- child tables (Track H.1: repeated-scalar, H.2: map) ------------
+        # -- child tables (H.1: repeated-scalar, H.2: map, H.3: rep-composed)
         # repeated-scalar child tables are RepeatedField without an fk_target
-        # (that excludes the repeated-composed link table and
-        # RepeatedComposedField, which are H.3). rename + column-retype apply
-        # to repeated-scalar (value) and map (key/value) child tables; the
-        # orphan reap below covers every child table (incl. H.3's).
-        rep_scalars = [r for r in repeated_fields(msg, self.types, b)
+        # (that excludes the repeated-composed *link table*, which stays a
+        # deferred plain-FK case). The three kinds each get rename (whole
+        # child table, via renamed_from) + column evolution; the orphan reap
+        # below covers every child table.
+        reps = repeated_fields(msg, self.types, b)
+        rep_scalars = [r for r in reps
                        if isinstance(r, RepeatedField) and not r.fk_target]
+        rep_composed = [r for r in reps
+                        if isinstance(r, RepeatedComposedField)]
         maps = map_fields(msg, self.types, b)
         # a repeated/map field carrying renamed_from[<old>] moves its whole
         # "<table>__<old>" child table; only direct (non-embed-nested) fields
         # -- an embed-nested field's renamed_from is not plumbed.
         renamable = ([r for r in rep_scalars if r.renamed_from and not r.embed]
-                     + [m for m in maps if m.renamed_from and not m.embed])
+                     + [m for m in maps if m.renamed_from and not m.embed]
+                     + [r for r in rep_composed
+                        if r.renamed_from and not r.embed])
         child_renames = "\n".join(
             _CHILD_RENAME.format(
                 old=_esc("{}__{}".format(msg.tableName, ch.renamed_from)),
@@ -145,7 +151,11 @@ class MigrationAdapter:
              for r in rep_scalars]
             + [b.retype_map_child_dynamic(m.child_table, b.int_type,
                                           m.key_sql, m.val_sql)
-               for m in maps])
+               for m in maps]
+            + [b.evolve_rep_composed_child_dynamic(
+                r.child_table, b.int_type,
+                [(c.name, c.sql_type, c.sql_def()) for c in r.columns])
+               for r in rep_composed])
         return _MIGRATE.format(
             guard="HARPIA_MIGRATE_{}_{}".format(msg.name.upper(), msg.md5Hash),
             name=msg.name,

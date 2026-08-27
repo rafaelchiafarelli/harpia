@@ -33,6 +33,7 @@ public:
             db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table__flags\" (\"owner\" INTEGER, \"key\" INTEGER, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));";
             db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table__samples\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));";
             db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table__notes\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"value\" TEXT, PRIMARY KEY(\"owner\", \"ordinal\"));";
+            db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table__traces\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"kind\" TEXT, \"weight\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));";
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -42,6 +43,7 @@ public:
             db_ << "DROP TABLE IF EXISTS \"telemetry_table__flags\";";
             db_ << "DROP TABLE IF EXISTS \"telemetry_table__samples\";";
             db_ << "DROP TABLE IF EXISTS \"telemetry_table__notes\";";
+            db_ << "DROP TABLE IF EXISTS \"telemetry_table__traces\";";
             db_ << "DROP TABLE IF EXISTS \"telemetry_table\";";
             return true;
         } catch (const std::exception&) { return false; }
@@ -87,6 +89,16 @@ public:
                 for (const auto& rv : msg.notes()) {
                     std::string _v = rv;
                     db_ << "INSERT INTO \"telemetry_table__notes\" (\"owner\", \"ordinal\", \"value\") VALUES (:o, :n, :v)", ::soci::use(_owner), ::soci::use(_ord), ::soci::use(_v);
+                    ++_ord;
+                }
+            }
+            {
+                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                long long _ord = 0;
+                for (const auto& rv : msg.traces()) {
+                    std::string c0 = rv.kind();
+                    int c1 = rv.weight();
+                    db_ << "INSERT INTO \"telemetry_table__traces\" (\"owner\", \"ordinal\", \"kind\", \"weight\") VALUES (:o, :n, :c0, :c1)", ::soci::use(_owner), ::soci::use(_ord), ::soci::use(c0), ::soci::use(c1);
                     ++_ord;
                 }
             }
@@ -147,6 +159,18 @@ public:
                         msg->add_notes(_v);
                     }
                 }
+                {
+                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    std::string l0; ::soci::indicator n0;
+                    int l1 = 0; ::soci::indicator n1;
+                    ::soci::statement _rs = (db_.prepare << "SELECT \"kind\", \"weight\" FROM \"telemetry_table__traces\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(l0, n0), ::soci::into(l1, n1));
+                    _rs.execute();
+                    while (_rs.fetch()) {
+                        auto* _e = msg->add_traces();
+                        _e->set_kind(n0 == ::soci::i_ok ? l0 : std::string());
+                        _e->set_weight(n1 == ::soci::i_ok ? l1 : 0);
+                    }
+                }
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -198,6 +222,17 @@ public:
                     ++_ord;
                 }
             }
+            {
+                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                db_ << "DELETE FROM \"telemetry_table__traces\" WHERE \"owner\" = :o", ::soci::use(_owner);
+                long long _ord = 0;
+                for (const auto& rv : msg.traces()) {
+                    std::string c0 = rv.kind();
+                    int c1 = rv.weight();
+                    db_ << "INSERT INTO \"telemetry_table__traces\" (\"owner\", \"ordinal\", \"kind\", \"weight\") VALUES (:o, :n, :c0, :c1)", ::soci::use(_owner), ::soci::use(_ord), ::soci::use(c0), ::soci::use(c1);
+                    ++_ord;
+                }
+            }
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -209,6 +244,7 @@ public:
             db_ << "DELETE FROM \"telemetry_table__flags\" WHERE \"owner\" = :o", ::soci::use(id);
             db_ << "DELETE FROM \"telemetry_table__samples\" WHERE \"owner\" = :o", ::soci::use(id);
             db_ << "DELETE FROM \"telemetry_table__notes\" WHERE \"owner\" = :o", ::soci::use(id);
+            db_ << "DELETE FROM \"telemetry_table__traces\" WHERE \"owner\" = :o", ::soci::use(id);
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -267,6 +303,18 @@ public:
                     _rs.execute();
                     while (_rs.fetch()) {
                         msg->add_notes(_v);
+                    }
+                }
+                {
+                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    std::string l0; ::soci::indicator n0;
+                    int l1 = 0; ::soci::indicator n1;
+                    ::soci::statement _rs = (db_.prepare << "SELECT \"kind\", \"weight\" FROM \"telemetry_table__traces\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(l0, n0), ::soci::into(l1, n1));
+                    _rs.execute();
+                    while (_rs.fetch()) {
+                        auto* _e = msg->add_traces();
+                        _e->set_kind(n0 == ::soci::i_ok ? l0 : std::string());
+                        _e->set_weight(n1 == ::soci::i_ok ? l1 : 0);
                     }
                 }
                 out->push_back(row);
@@ -330,6 +378,18 @@ public:
                     _rs.execute();
                     while (_rs.fetch()) {
                         msg->add_notes(_v);
+                    }
+                }
+                {
+                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    std::string l0; ::soci::indicator n0;
+                    int l1 = 0; ::soci::indicator n1;
+                    ::soci::statement _rs = (db_.prepare << "SELECT \"kind\", \"weight\" FROM \"telemetry_table__traces\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(l0, n0), ::soci::into(l1, n1));
+                    _rs.execute();
+                    while (_rs.fetch()) {
+                        auto* _e = msg->add_traces();
+                        _e->set_kind(n0 == ::soci::i_ok ? l0 : std::string());
+                        _e->set_weight(n1 == ::soci::i_ok ? l1 : 0);
                     }
                 }
                 out->push_back(row);

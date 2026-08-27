@@ -66,6 +66,7 @@ inline void register_capabilities(crow::SimpleApp& app, const std::string& base)
             "shipment",
             "telemetry",
             "top_users",
+            "trace_row",
             "users",
             "vip_users",
             "waypoint"

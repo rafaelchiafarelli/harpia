@@ -211,11 +211,16 @@ class RepeatedComposedField:
     sub-fields are already resolved; map/repeated/table-composed sub-fields
     stay deferred (silently dropped, matching repeated_fields()'s existing
     deferred cases -- there is no note channel here)."""
-    def __init__(self, child_table, field, columns, embed=None) -> None:
+    def __init__(self, child_table, field, columns, embed=None,
+                 renamed_from=None) -> None:
         self.child_table = child_table
         self.field = field          # protobuf accessor of the repeated field
         self.columns = columns      # list of Column, unprefixed names/accessors
         self.embed = embed          # parent field accessor if embed-nested
+        self.renamed_from = renamed_from  # old repeated-field name (child table
+                                          # "<table>__<old>" RENAME TO
+                                          # "<table>__<field>"), from the DSL's
+                                          # renamed_from[<old>] modifier
 
     def entries(self, src):
         """Const repeated-field expression on message ``src`` (for iteration)."""
@@ -525,7 +530,9 @@ def repeated_fields(msg, types=None, backend=None):
                 cols, _notes = _flatten(v.name, target_msg, types, backend,
                                         prefix=False)
                 if cols:
-                    out.append(RepeatedComposedField(child, v.name.lower(), cols))
+                    out.append(RepeatedComposedField(
+                        child, v.name.lower(), cols,
+                        renamed_from=getattr(v, "renamedFrom", None)))
             # repeated enum -> deferred
             continue
         scalar = _scalar(v.type[0], backend)

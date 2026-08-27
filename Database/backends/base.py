@@ -239,6 +239,24 @@ class DbBackend(ABC):
         live types and brought to ``key_sql`` / ``val_sql``. SQLite rebuilds
         the whole child table; Postgres alters each column in place."""
 
+    @abstractmethod
+    def evolve_rep_composed_child_dynamic(self, child: str, owner_type: str,
+                                          columns) -> str:
+        """Non-additive migration: C++ STATEMENTS that evolve a
+        repeated-composed child table ``child`` -- shape ``(owner, ordinal,
+        <one data column per the table-less target message's own flattened
+        scalar/enum fields>)`` -- to the current target shape. Unlike a
+        repeated-scalar / map child table (one or two typed columns), the
+        target message's fields can be ADDed, DROPped, or RETYPEd
+        independently, so this is the main-table rename/add/drop/retype
+        machinery applied to a child table: ADD each current data column an
+        older table lacks, DROP each live data column no longer in the
+        target shape (``owner`` / ``ordinal`` always kept), and bring the
+        rest to their current types. ``columns`` is an iterable of
+        ``(name, sql_type, column_def)`` triples for the target's flattened
+        data fields only (not ``owner`` / ``ordinal``). Postgres alters in
+        place; SQLite ADDs then rebuilds the child table with a ``CAST``."""
+
     # -- convenience ----------------------------------------------------------
     def __repr__(self):
         return "<DbBackend {!r} (soci:{})>".format(self.name, self.soci_backend)
