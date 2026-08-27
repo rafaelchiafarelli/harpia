@@ -1,6 +1,6 @@
 ## Session O.1 — `KeyProvider` interface + envelope-encryption shape
 
-**Status:** done — `f715f09` (host 166 passed; full Docker suite 238 passed, 4 skipped).
+Landed in `b6bedda`.
 
 - **Depends on:** F1, F3, F5 (Foundation).
 - **Deliverable:** abstract `Crypto/KeyProvider` interface — generate/

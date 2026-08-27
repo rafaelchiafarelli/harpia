@@ -13,10 +13,11 @@ coordination point for the two headline integration tests.
   sensitive-data effort + definition of done. Read first.
 - **`thread-6-critical-and-phi/histories/critical-delivery/track-d-critical-delivery.md`**
   — the Track D contract. Sessions are one file each under
-  `.../critical-delivery/tasks/` (`critical-modifier.md` D.1,
-  `delivery-runtime.md` D.2, `zmq-wiring.md` D.3,
-  `send-receive-integration-test.md` D.4). **All four done** — each task
-  file's `**Status:**` line says so. Don't edit a done task file.
+  `.../critical-delivery/tasks/` — all four carry a `-done` suffix:
+  `critical-modifier-done.md` (D.1), `delivery-runtime-done.md` (D.2),
+  `zmq-wiring-done.md` (D.3), `send-receive-integration-test-done.md`
+  (D.4). The `-done` filename suffix IS the done marker — no status line
+  inside, and don't edit a done task file.
 
 The `phi` side is **not** re-tracked in thread-6 — it already has homes:
 Track O / H / A / K in `thread-1-data-and-keys/`, Track F in
@@ -27,7 +28,7 @@ original plan doc — **do not edit it.** thread-6 supersedes it for tracking.
 
 ## What this session did — Track O, Session O.1  ✅
 
-`tasks/key-provider-interface.md` — the `KeyProvider` interface +
+`tasks/key-provider-interface-done.md` — the `KeyProvider` interface +
 envelope-encryption shape (first `phi`-side session).
 
 - `Crypto/runtime/harpia_key_provider.h` — hand-written C++ (not generated),
@@ -72,7 +73,7 @@ Per `thread-6-critical-and-phi/README.md`'s execution order. Track O lives
 at **`thread-1-data-and-keys/histories/key-management/`** — contract in
 `track-o-key-management.md`, one file per session in `tasks/`.
 
-- **O.1 done** — `tasks/key-provider-interface.md`. `Crypto/runtime/harpia_key_provider.h`
+- **O.1 done** — `tasks/key-provider-interface-done.md`. `Crypto/runtime/harpia_key_provider.h`
   (`KeyProvider` ABC + `Dek`/`WrappedDek` + `InMemoryKeyProvider` dummy),
   `Crypto/key_provider_common.py`, `UnitTests/test_key_provider.py` (8
   g++-gated).
@@ -100,10 +101,11 @@ at **`thread-1-data-and-keys/histories/key-management/`** — contract in
   harpia-gradle-cache:/tmp/.gradle -w /harpia -e HOME=/tmp -e
   GRADLE_USER_HOME=/tmp/.gradle harpia-build pytest -q -p no:cacheprovider`.
   Do **not** use `Docker/run.sh` non-interactively (`-it`, dies on non-TTY).
-  Baseline after D.4: **230 passed, 4 skipped**.
-- **One session = one file under the track's `tasks/`. When it lands, add
-  the `**Status:** done — <commit>` line to that task file and nothing
-  else. Never edit a done task file.** Use the epics naming (thread folder
+  Baseline after O.1: **238 passed, 4 skipped**.
+- **One session = one file under the track's `tasks/`. When it lands,
+  `git mv` that file to add a `-done` suffix — the filename is the done
+  marker, no status line inside. Never edit a done task file** (only fix
+  links that pointed at its old name). Use the epics naming (thread folder
   / track file / task file / session ID like `D.4`, `O.1`), not "Phase 3c".
   The `track-*.md` file holds only the contract (Receives / Gives / Files
   touched / Watch for).

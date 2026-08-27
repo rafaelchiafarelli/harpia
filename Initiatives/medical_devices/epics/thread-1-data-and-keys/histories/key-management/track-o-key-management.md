@@ -43,9 +43,10 @@ per jurisdiction.
 
 ## Sessions
 
-One file per session in `tasks/`:
+One file per session in `tasks/`. A `-done` suffix on the filename is the
+done marker (no status line inside).
 
-- `tasks/key-provider-interface.md` — O.1
+- `tasks/key-provider-interface-done.md` — O.1
 - `tasks/default-local-provider.md` — O.2
 - `tasks/crypto-shredding.md` — O.3
 - `tasks/zeroization-and-audit.md` — O.4

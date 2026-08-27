@@ -1,6 +1,6 @@
 ## Session D.2 — delivery-guarantee runtime (transport-agnostic)
 
-**Status:** done — `3581933`.
+Landed in `3581933`.
 
 - **Depends on:** D.1 (conceptually — no code dependency).
 - **Deliverable:** `Compliance/runtime/harpia_delivery.h` (`harpia::delivery`),

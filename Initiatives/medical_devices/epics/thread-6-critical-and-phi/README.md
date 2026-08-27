@@ -16,9 +16,10 @@ integration tests.
 
 - [track-d-critical-delivery.md](histories/critical-delivery/track-d-critical-delivery.md)
   — the contract. Sessions are one file each under
-  `histories/critical-delivery/tasks/`: `critical-modifier.md` (D.1),
-  `delivery-runtime.md` (D.2), `zmq-wiring.md` (D.3),
-  `send-receive-integration-test.md` (D.4). The `phi`-adjacent
+  `histories/critical-delivery/tasks/`: `critical-modifier-done.md` (D.1),
+  `delivery-runtime-done.md` (D.2), `zmq-wiring-done.md` (D.3),
+  `send-receive-integration-test-done.md` (D.4) — a `-done` suffix on the
+  filename is the done marker. The `phi`-adjacent
   `ComplianceReport/` note Track D owes is a **Track M** task —
   `../thread-4-platform-infra/histories/process-artifacts/tasks/critical-delivery-note.md`
   (that is Track M's module, blocked on M.1).

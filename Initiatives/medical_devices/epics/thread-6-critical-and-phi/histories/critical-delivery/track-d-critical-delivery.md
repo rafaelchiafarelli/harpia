@@ -49,10 +49,12 @@ already built. It was not — see `../../README.md`.
 
 One file per session in `tasks/`:
 
-- `tasks/critical-modifier.md` — D.1
-- `tasks/delivery-runtime.md` — D.2
-- `tasks/zmq-wiring.md` — D.3
-- `tasks/send-receive-integration-test.md` — D.4
+- `tasks/critical-modifier-done.md` — D.1
+- `tasks/delivery-runtime-done.md` — D.2
+- `tasks/zmq-wiring-done.md` — D.3
+- `tasks/send-receive-integration-test-done.md` — D.4
+
+A `-done` suffix on the filename is the done marker (no status line inside).
 
 ## Watch for
 

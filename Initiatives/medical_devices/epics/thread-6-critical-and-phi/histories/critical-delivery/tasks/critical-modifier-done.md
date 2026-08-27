@@ -1,6 +1,6 @@
 ## Session D.1 — `critical` message-type modifier
 
-**Status:** done — `b433dd5`.
+Landed in `b433dd5`.
 
 - **Depends on:** none.
 - **Deliverable:** lexer token `('CRITICAL', r'critical ')` (keyword-only,

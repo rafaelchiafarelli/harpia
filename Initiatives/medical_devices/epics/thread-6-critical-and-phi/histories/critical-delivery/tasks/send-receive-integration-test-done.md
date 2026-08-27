@@ -1,6 +1,6 @@
 ## Session D.4 — `critical` send/receive integration test
 
-**Status:** done — `dfc8081` (full Docker suite 230 passed, 4 skipped).
+Landed in `287e01b`.
 
 - **Depends on:** D.3.
 - **Deliverable:** one of the two sensitive-data headline integration
