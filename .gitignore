@@ -1,4 +1,6 @@
-*venv*
+*.venv/*
+*.vscode/*
+*.claude/*
 *__pycache__*
 _build/
 build/
