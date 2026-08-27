@@ -40,9 +40,12 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `python3 UnitTests/run_frontend.py <file> <dest>`.
 - `run_phi_check.py` — front-end + `FileCreator` (Stages 0-6) on one file;
   prints one `PHI_CHECK_RESULT <json>` line: `{"error": ..., "fields":
-  [{"message","field","is_phi"}, ...], "proto": "<concatenated .proto
-  text>"}`. Used by `test_phi_modifier.py` (Foundation F2) to inspect
-  `variable.is_phi` and confirm the emitted `.proto` is unaffected by it.
+  [{"message","field","is_phi"}, ...], "messages":
+  [{"name","is_critical","is_enum"}, ...], "proto": "<concatenated .proto
+  text>"}`. Used by `test_phi_modifier.py` (Foundation F2, `variable.is_phi`)
+  and `test_critical_modifier.py` (sensitive-data roadmap Phase 1a,
+  `Message.is_critical`) to inspect the sensitive-data modifier flags and
+  confirm the emitted `.proto` is unaffected by either.
   Unlike `run_frontend.py`, does NOT `chdir` into the fixture's folder --
   `FileCreator.Process()` needs repo-root-relative `./Assets/...` to
   resolve its service-proto template, so it stays at the repo root and
@@ -75,6 +78,52 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   the modifier itself and is line-for-line identical to the same field
   without `phi` (flag only -- no encryption/redaction/audit logic lands
   with this token). Pure Python.
+- `test_critical_modifier.py` — sensitive-data roadmap Phase 1a's `critical`
+  message-type modifier: parses with/without `critical`, composed with each
+  transport kind (`event`/`stream`/`push`/`pull`), order-independent, and
+  together with a `phi` field on one message (design-rules Rule 0 — the two
+  axes are independent). Confirms `Message.is_critical` via `run_phi_check.py`.
+  Integration: the emitted `.proto` for a `critical` message contains no trace
+  of the modifier and is line-for-line identical to the same message without
+  it (flag only — the delivery-guarantee machinery is Phase 3). Pure Python.
+- `test_delivery_runtime.py` — sensitive-data roadmap Phase 3a's
+  `Compliance/runtime/harpia_delivery.h` (hand-written C++, like
+  `harpia_audit_sink.h` — compiles/runs small standalone programs against the
+  header, `-Werror`, no generated project). `Envelope` origin-CRC + `crc_ok()`
+  catches a mutated payload; `check_on_arrival` → Ok/CrcMismatch/SeqGap/
+  SeqRegressed; `BoundedQueue` FIFO within capacity, overflow rotates the
+  oldest with an observable `PushOutcome` + `rotations()` count +
+  `last_rotated_seq()` + a `"queue_rotated"` `AuditSink` record (via a
+  counting test sink — proves it's never a silent drop); `Mailbox` latest-
+  value-only, `put()` overwrites with `PutOutcome` + `"mailbox_overwritten"`
+  record; `peek()` is a non-destructive, order-stable look at the queue
+  front; a Phase 3c rehearsal (stall overruns the queue, drain replays the
+  survivors in order, every loss audited). (g++)
+- `test_critical_delivery_roundtrip.py` — Track D / Session D.4
+  (`Initiatives/medical_devices/epics/thread-6-critical-and-phi-done/`): the
+  `critical` send/receive headline integration test. protoc+g+++pkg-config+
+  libzmq+cppzmq-gated. Drives the generated `alarm_event` transport over a
+  real `tcp://` socket: (1) publish-while-stalled holds N in the
+  `BoundedQueue` (`pending()` grows, socket untouched), `flush()` after the
+  subscriber joins replays all N in seq order; (2) `queue_capacity=4` +
+  a 10-message burst through a `CountingSink` rotates the oldest exactly 6
+  times (`"queue_rotated"` audited, `pending()` stays 4), `flush()` then
+  delivers the newest 4 in order; (3) `courier_sender` (non-`critical`) has
+  no `flush()`/`pending()`/`queue()` (detection traits) and `send()` stays
+  synchronous `bool`. Case 1 has one timing dependency — a 300 ms PUB/SUB
+  subscription settle (`_SETTLE_MS`). Pins `HASH`.
+- `test_zmq_critical_delivery.py` — sensitive-data roadmap Phase 3b: pure
+  Python / structural. Runs the real pipeline (`run_pipeline.py`, no C++
+  toolchain) and asserts `alarm_event` (`critical event`) gets a
+  publisher that `#include`s `delivery/harpia_delivery.h`, holds a
+  `BoundedQueue queue_` + `next_seq_`, whose `publish()` returns
+  `std::optional<PushOutcome>` and enqueues an `Envelope::stamp(...)`
+  instead of firing the socket, with a separate `flush()` doing the
+  `peek()`/`pop()` drain; the subscriber half is untouched;
+  `courier`/`users` (non-critical) headers contain no `delivery::`/
+  `BoundedQueue` at all; `harpia_delivery.h` + `harpia_audit_sink.h` are
+  copied verbatim into `generated/cpp/delivery/`; and driving `ZmqAdapter`
+  directly with a lone non-critical message creates no `delivery/` dir.
 - `test_audit_sink.py` — Foundation F3's `Compliance/runtime/harpia_audit_sink.h`
   (hand-written C++, not Python -- unlike F1, this interface is injected
   into *generated* code by later tracks). Compiles/runs small standalone
@@ -94,6 +143,55 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   module); `write_build_metadata()` produces a valid
   `build_metadata/crypto_backend.json` sidecar and is write-if-different
   (stable mtime when unchanged). Pure Python.
+- `test_key_provider.py` — Track O / Session O.1
+  (`Initiatives/medical_devices/epics/thread-1-data-and-keys/histories/key-management/`):
+  the `KeyProvider` interface + envelope-encryption shape,
+  `Crypto/runtime/harpia_key_provider.h` (hand-written C++, same
+  compile-and-run pattern as `test_audit_sink.py`/`test_delivery_runtime.py`,
+  `-Werror`). `Dek` wrap/unwrap round trip; `seal`/`open` survives a DEK
+  wrap/unwrap in between; `WrappedDek` records the active KEK version;
+  `rotate()` bumps the version, old DEKs still unwrap, no existing
+  `WrappedDek` is mutated (O(keys), not O(data)); an unknown or
+  `forget_kek_version()`-dropped KEK version makes `unwrap_dek` return
+  `nullopt` (Rule 5 — and the O.3 crypto-shred path, early); polymorphic
+  use through `KeyProvider&`. (g++)
+- `test_local_key_provider.py` — Track O / Session O.2: the default no-KMS
+  `LocalKeyProvider` (`Crypto/runtime/harpia_key_provider_local.h`).
+  Satisfies O.1's `KeyProvider` contract unmodified; KEK material persists
+  across instances pointed at the same `storage_path` (rotation included) —
+  the "local storage" difference from O.1's in-memory provider; the ctor
+  throws `LocalKeyProviderRefused` when `phi_at_scale && !acknowledged` and
+  proceeds with the acknowledgment; the gate doesn't bite when not at
+  scale; `local_key_provider_acknowledged()` reads
+  `HARPIA_ACK_LOCAL_KEY_PROVIDER` (`1`/`true`/`yes`, any case). (g++)
+- `test_crypto_shred.py` — Track O / Session O.3: crypto-shredding
+  (`shred_dek(w)` on the interface + both impls). Against `InMemoryKeyProvider`
+  and `LocalKeyProvider`: shred makes exactly that record's DEK
+  unrecoverable (`unwrap_dek` → `nullopt`) while the KEK is untouched
+  (`active_kek_version` unchanged) and the caller's `WrappedDek` is not
+  mutated; per-DEK (another record's DEK still unwraps); idempotent and
+  irreversible (compile-time `static_assert` that neither impl has an
+  `unshred_dek`; a KEK rotation afterwards doesn't resurrect it); for
+  `LocalKeyProvider` the shred is written to a `<store>.shred` append-only
+  sidecar that survives a restart and never rewrites the KEK store file.
+  (g++)
+- `test_key_provider_audit.py` — Track O / Session O.4: zeroization +
+  `AuditSink` wiring. Pure Python: no long hex/base64 literal (a possible
+  hardcoded key) in `Crypto/runtime/*.h`. g++-gated: every key op emits
+  exactly one `record()` with a `key_<op>` name (both providers);
+  `subject`/`detail` are only `"dek"` / `"kek:<n>"` / `""` / `ok` /
+  `shredded` / `unknown_version` — never key bytes; `default_audit_sink()`
+  is used when no sink is passed; `detail::secure_zero` clears a string
+  (safe on empty); `Dek` is not trivially destructible (zeroizing dtor)
+  yet still copy/move-usable; the O.1 round trip is behaviour-unchanged.
+- `test_kms_key_provider.py` — Track O / Session O.5: the KMS/HSM
+  reference adapter (`Crypto/runtime/harpia_key_provider_kms.h`). g++-gated:
+  `KmsKeyProvider` backed by the in-header `MockKms` satisfies O.1's
+  `KeyProvider` contract; per-DEK shred plus KMS-side version retirement
+  (`MockKms::forget_version`) both → `unwrap_dek` `nullopt`; audit is
+  wired (no ctor KEK op — the KMS owns KEKs); the SAME `KeyProvider&`
+  round-trip code runs against `InMemoryKeyProvider` and `KmsKeyProvider`
+  unchanged (the "swap backends with no interface change" proof).
 - `test_doxygen_mainpage.py` — Foundation F6's `Doxygen/mainpage.py`:
   extracts only the requested `USAGE.md` section numbers (not their
   neighbors), in the requested order, stopping at the next `## ` heading
@@ -233,7 +331,8 @@ field — because a generated Java field genuinely renamed
 old name). The full, actual list (re-derive via `grep -rl '^HASH = "<hash>"'
 UnitTests/*.py` before ever trusting this list again):
 - `test_stage8_db.py`, `test_stage10_xml.py`, `test_stage11_soap.py`,
-  `test_stage12_rest.py`, `test_stage13.py`, `test_stage13_zmq.py`
+  `test_stage12_rest.py`, `test_stage13.py`, `test_stage13_zmq.py`,
+  `test_critical_delivery_roundtrip.py`
 - `test_java_db_crudl.py`, `test_java_full_demo.py`, `test_java_gradle_wiring.py`,
   `test_java_junit_tests.py`, `test_java_rest.py`, `test_java_soap.py`,
   `test_java_zmq.py`

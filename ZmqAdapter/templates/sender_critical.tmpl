@@ -1,0 +1,71 @@
+{comment}
+// `critical` message type (sensitive-data design-rules Rule 4a): the send
+// path does NOT fire the socket directly. {verb}() stamps a CRC + monotonic-
+// seq Envelope and enqueues it into a fixed-capacity rotating queue; flush()
+// drains the queue onto the wire, oldest-first. A transient socket outage
+// therefore costs latency, not messages, and a queue that fills rotates its
+// oldest entry with an audited, observable event -- never a silent drop.
+class {name}_{role} {{
+public:
+    {name}_{role}(::zmq::context_t& ctx, const std::string& endpoint,
+                  std::size_t queue_capacity = 128,
+                  ::harpia::compliance::AuditSink& audit
+                      = ::harpia::compliance::default_audit_sink())
+        : {name}_{role}(ctx, endpoint, {default_id_expr}, queue_capacity, audit) {{}}
+    // explicit-origin constructor: pass any externally-sourced id (same as
+    // the non-critical sender). `queue_capacity` bounds the in-flight
+    // backlog (Rule 4a -- size it to the workload, not arbitrarily deep);
+    // `audit` receives the "queue_rotated" record on overflow. The trailing
+    // curve keys default to disabled (empty) -- callers who pass nothing get
+    // today's plaintext behavior.
+    {name}_{role}(::zmq::context_t& ctx, const std::string& endpoint,
+                  const std::string& origin, std::size_t queue_capacity = 128,
+                  ::harpia::compliance::AuditSink& audit
+                      = ::harpia::compliance::default_audit_sink(),
+                  {curve_type} curve = {curve_type}())
+        : origin_(origin), socket_(ctx, ::zmq::socket_type::{sock}),
+          queue_(queue_capacity, audit, "{name}") {{
+{curve_apply}        socket_.{connect}(endpoint);
+    }}
+    // compile-time unique sender number (one-to-*): hash(file)+message
+    static const std::string& origin_id() {{
+        static const std::string id = "{origin_id}";
+        return id;
+    }}
+    const std::string& origin() const {{ return origin_; }}
+    // Stamp + enqueue only -- this never touches the socket. The returned
+    // optional is empty iff the message could not even be serialized;
+    // otherwise it carries the queue outcome (Accepted, or RotatedOldest
+    // when the enqueue displaced the oldest still-unsent envelope).
+    ::std::optional<::harpia::delivery::PushOutcome> {verb}(const {cls}& msg) {{
+        {cls} stamped = msg;
+{stamp}        std::string bytes;
+        if (!stamped.SerializeToString(&bytes)) return ::std::nullopt;
+        return queue_.push(::harpia::delivery::Envelope::stamp(
+            next_seq_++, std::move(bytes)));
+    }}
+    // Drain queued envelopes onto the socket, oldest-first (ordered
+    // delivery). Stops at the first socket failure, leaving that envelope
+    // and every later one in the queue for the next call. Returns the count
+    // actually put on the wire.
+    std::size_t flush() {{
+        std::size_t sent = 0;
+        while (const ::harpia::delivery::Envelope* env = queue_.peek()) {{
+            ::zmq::message_t frame(env->payload.size());
+            std::memcpy(frame.data(), env->payload.data(), env->payload.size());
+            if (!socket_.send(frame, ::zmq::send_flags::none).has_value()) break;
+            queue_.pop();
+            ++sent;
+        }}
+        return sent;
+    }}
+    std::size_t pending() const {{ return queue_.size(); }}
+    ::harpia::delivery::BoundedQueue& queue() {{ return queue_; }}
+    ::zmq::socket_t& socket() {{ return socket_; }}
+private:
+    std::string origin_;
+    ::zmq::socket_t socket_;
+    ::harpia::delivery::BoundedQueue queue_;
+    std::uint64_t next_seq_ = 1;
+}};
+

@@ -31,6 +31,7 @@ public:
             const ::frameworkProtos::capabilities_Request*,
             ::frameworkProtos::capabilities_Response* response) override {
         static const std::vector<std::string> kTypes = {
+        "alarm_event",
         "another_sage",
         "beacon_log",
         "courier",

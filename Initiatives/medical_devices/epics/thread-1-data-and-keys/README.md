@@ -18,7 +18,7 @@ Sessions 2, 3, 4, and 5 all got the same treatment on 2026-08-23 — see
 `../thread-4-platform-infra/`, and `../thread-5-device-interop/`. All
 five original sessions are now split.
 
-- [track-o-key-management.md](histories/track-o-key-management.md) — pluggable
+- [track-o-key-management.md](histories/key-management/track-o-key-management.md) — pluggable
   `KeyProvider`, envelope encryption, rotation, crypto-shredding.
 - [track-h-schema-evolution.md](histories/schema-evolution/track-h-schema-evolution.md) — child-table
   (map/repeated/repeated-composed) DB schema migration support.
