@@ -86,6 +86,18 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   Integration: the emitted `.proto` for a `critical` message contains no trace
   of the modifier and is line-for-line identical to the same message without
   it (flag only — the delivery-guarantee machinery is Phase 3). Pure Python.
+- `test_delivery_runtime.py` — sensitive-data roadmap Phase 3a's
+  `Compliance/runtime/harpia_delivery.h` (hand-written C++, like
+  `harpia_audit_sink.h` — compiles/runs small standalone programs against the
+  header, `-Werror`, no generated project). `Envelope` origin-CRC + `crc_ok()`
+  catches a mutated payload; `check_on_arrival` → Ok/CrcMismatch/SeqGap/
+  SeqRegressed; `BoundedQueue` FIFO within capacity, overflow rotates the
+  oldest with an observable `PushOutcome` + `rotations()` count +
+  `last_rotated_seq()` + a `"queue_rotated"` `AuditSink` record (via a
+  counting test sink — proves it's never a silent drop); `Mailbox` latest-
+  value-only, `put()` overwrites with `PutOutcome` + `"mailbox_overwritten"`
+  record; a Phase 3c rehearsal (stall overruns the queue, drain replays the
+  survivors in order, every loss audited). (g++)
 - `test_audit_sink.py` — Foundation F3's `Compliance/runtime/harpia_audit_sink.h`
   (hand-written C++, not Python -- unlike F1, this interface is injected
   into *generated* code by later tracks). Compiles/runs small standalone

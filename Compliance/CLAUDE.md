@@ -1,6 +1,7 @@
-# Compliance — project-wide compliance profile + AuditSink stub (Foundation F1/F3)
+# Compliance — project-wide compliance profile + AuditSink stub (Foundation F1/F3) + delivery-guarantee runtime (Phase 3a)
 
-**Pipeline role:** Cross-cutting, all stages. Two independent pieces:
+**Pipeline role:** Cross-cutting, all stages. Three independent pieces (the
+third added by the sensitive-data roadmap, not Foundation):
 1. **F1 — `ComplianceContext`** (`context.py`), Python, generation-time.
    Parsed once at generation start (`main.py`, mirrored in
    `UnitTests/run_pipeline.py`); threaded into every `Stage*` constructor as an
@@ -22,6 +23,15 @@
    original implementation write-up). Interface + `NoOpAuditSink` stub only, no real (tamper-evident)
    implementation yet -- that's Track A (DB) and Track C (transport)'s job,
    independently, once each starts.
+3. **Phase 3a — delivery-guarantee runtime** (`runtime/harpia_delivery.h`),
+   hand-written C++, transport-agnostic, copied verbatim into generated
+   output later (Phase 3b wires `ZmqAdapter` to it). The bounded rotating
+   queue (design-rules Rule 4a, for `critical` message types) + single-slot
+   mailbox (Rule 4b, latest-value-only) + `Envelope` (Rule 3: origin CRC +
+   monotonic seq, verified only at trust boundaries). Rotation/overwrite are
+   audited through the F3 `AuditSink` -- never a silent drop. Nothing copies
+   it into output yet (Phase 3b's job); `Message.is_critical` (roadmap
+   Phase 1a) is what will select queue-vs-mailbox.
 
 **Entry points:**
 - F1: `load_compliance_context(path=None)` -> `ComplianceContext`.
@@ -36,6 +46,22 @@
   the path constant, mirroring `Capability.capability_common`.
 
 ## Files
+- `runtime/harpia_delivery.h` — Phase 3a: `harpia::delivery`. `Envelope`
+  (`stamp()` computes the CRC-32 at origin, `crc_ok()` verifies at a
+  boundary; self-contained CRC, no zlib), `check_on_arrival()` →
+  `Arrival{Ok,CrcMismatch,SeqGap,SeqRegressed}`, `BoundedQueue` (FIFO, fixed
+  capacity, `push()` → `PushOutcome{Accepted,RotatedOldest}`, `rotations()`
+  count, `last_rotated_seq()`, `record("queue_rotated", …)` on overflow),
+  `Mailbox` (`put()` → `PutOutcome{Stored,Overwrote}`, `overwrites()` count,
+  `record("mailbox_overwritten", …)`). `#include`s its sibling
+  `harpia_audit_sink.h`. NOT thread-safe (caller-synchronized, same as
+  `harpia_capability_dispatch.h`). Nothing reads the schema here — Phase 3b
+  wires the `critical`→queue / else→mailbox choice.
+- `delivery_common.py` — Phase 3a path constant `DELIVERY_RUNTIME_SRC`
+  (mirrors `audit_common.py`), plus `DELIVERY_RUNTIME_DEPS` — the delivery
+  header pulls in `harpia_audit_sink.h` at the same relative path, so
+  whichever adapter copies it into output (Phase 3b) must copy both into the
+  same directory.
 - `context.py` — F1: three closed-set `Enum`s (`RiskClass`, `Topology`,
   `PhiHandling`), `ComplianceContext` (plus `jurisdiction`, a plain list of
   strings), `strictest_profile()`, and `load_compliance_context()`.

@@ -124,20 +124,24 @@ Delivers the `phi` send/receive test.
 Contract: §5 "K". Environment-level public/private DB registry; cross-project
 private access denied.
 
-### Phase 3a — delivery-guarantee runtime (transport-agnostic)
-A generated runtime header, shaped like
-`Capability/runtime/harpia_capability_dispatch.h` (hand-written, copied verbatim
-into generated output):
-- `Envelope{seq, crc, deliveryTimestamp}` — CRC computed once at origin
-  (Rule 3), verified only at trust-boundary crossings (arrival / departure),
-  never re-checked between internal steps.
-- Bounded **rotating queue** (Rule 4a): fixed capacity; on overflow rotate
-  (drop oldest) and emit a named rotation event through `AuditSink` — never a
-  silent drop, never unbounded growth.
-- **2-slot mailbox** / double-buffer (Rule 4b): latest-value-only; on overwrite
-  emit a named event.
-- No plausibility/range checks on payload values (Rule 2 — that's the
-  acquisition layer's contract, not delivery's).
+### Phase 3a — delivery-guarantee runtime (transport-agnostic)  ✅ done (2026-08-27)
+Hand-written `Compliance/runtime/harpia_delivery.h` (`harpia::delivery`),
+shaped like `harpia_capability_dispatch.h`, + `Compliance/delivery_common.py`
+path constant, + `UnitTests/test_delivery_runtime.py` (g++-gated, `-Werror`):
+- `Envelope::stamp()` computes a self-contained CRC-32 at origin (Rule 3);
+  `crc_ok()` verifies at a boundary; `check_on_arrival()` →
+  `Arrival{Ok, CrcMismatch, SeqGap, SeqRegressed}` (crc + monotonic-seq gap
+  detection).
+- `BoundedQueue` (Rule 4a): fixed capacity, FIFO, `push()` →
+  `PushOutcome{Accepted, RotatedOldest}`; overflow drops the oldest, bumps
+  `rotations()`, records `"queue_rotated"` through `AuditSink` — never silent,
+  never grows. Never blocks (Rule 4's rejection of bounded-blocking send).
+- `Mailbox` (Rule 4b): single pending slot, `put()` →
+  `PutOutcome{Stored, Overwrote}`; overwrite bumps `overwrites()`, records
+  `"mailbox_overwritten"`.
+- No payload parsing / range checks (Rule 2). Not thread-safe
+  (caller-synchronized) — a threaded send path is a Phase 3b concern.
+- Nothing copies it into generated output yet — that's Phase 3b.
 
 ### Phase 3b — ZMQ wiring
 `ZmqAdapter/` emits the runtime and routes each message by modifier: a
@@ -168,6 +172,19 @@ message on the same path is dropped rather than queued.
   Tracks A/C/K once the floor is in place.
 
 ---
+
+## Execution log
+
+Phases are numbered by dependency layer, not by the order they're being
+built. Actual order taken:
+
+1. **1a** — `critical` modifier (`b433dd5`).
+2. **3a** — delivery-guarantee runtime. Taken right after 1a (its only
+   prerequisite) rather than waiting for 1b/1c, so the `critical` headline
+   test (3a→3b→3c) can be finished as one arc before pivoting to the `phi`
+   side (O→H→A→F).
+3. next: **3b** (ZmqAdapter wiring) → **3c** (critical send/receive test),
+   then Track O.
 
 ## Notes carried from scoping
 
