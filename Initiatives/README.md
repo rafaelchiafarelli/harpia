@@ -45,6 +45,37 @@ expect rework:
    where possible — no generator change, no golden movement — until a
    session explicitly says otherwise.
 
+### Branch & merge flow (adopted 2026-08-27, sensitive-data `phi` side)
+
+8. **Task files are numbered per track, in execution order.** Each
+   `tasks/` file carries a numeric prefix that restarts at `1` per track
+   (`1-scalar-child-table-migration.md`, `2-map-…`, `3-composed-…`). The
+   number is the implementation order *and* the branch name. The `-done`
+   suffix (rule 4) goes *after* the name: `1-…-migration-done.md`.
+9. **One session = one branch**, named
+   `features/medical_devices/thread-<N>/<track-folder>/<n>-<task-name>`
+   (e.g. `features/medical_devices/thread-1/schema-evolution/1-scalar-child-table-migration`).
+   Branch it off `dev`. When a track's sessions genuinely build on each
+   other (H.2 reuses H.1's wiring), branch the next session off the
+   *previous session's branch* instead of `dev`, so the code is present —
+   but still merge one session at a time (next point).
+10. **Per session, in order:** implement → regenerate goldens
+    (`HARPIA_UPDATE_GOLDEN=1 .venv/bin/python -m pytest UnitTests/test_golden.py
+    UnitTests/test_golden_java.py`) and **review the diff** → full suite
+    green in Docker → **commit the implementation** → **`git mv` the task
+    file to its `-done` name in a second commit on the same branch** →
+    `git checkout dev && git merge --no-ff <branch>` (one merge bubble per
+    session, message `Merge Track <X> / Session <X.n> (<title>) into dev`)
+    → `git push origin dev` → branch the next session off `dev`. Never
+    edit the frozen plan docs (rule 1); never merge/push `main`.
+11. **A new `phi`/`critical` fixture goes in `HarpiaTest/Include/*.harpia`,
+    not `test.harpia`** — only the root file's text feeds the pinned
+    `HASH`, so an Include-file edit moves golden *content* for the touched
+    messages but leaves every `HASH = "…"` constant alone. `.harpia`
+    comments are lexed like code: letters/digits/spaces and
+    `. , ( ) { } [ ] ; = < > + - * /` only — a `:` / `'` / `"` / `_` /
+    backtick anywhere in a `//` comment hard-errors the whole file.
+
 ## STRUCTURAL TODO (flagged 2026-08-23, fix next session — nothing below has been touched yet)
 
 1. **`medical_devices/epics/thread-N-*/` folders each bundle multiple
@@ -95,7 +126,7 @@ case is now moot — see above.)
 
 | Doc | Status |
 |---|---|
-| [medical_devices/](medical_devices/harpia_medical_master_plan.md) | **In progress.** Foundation F1–F6 shipped (plumbing stubs, merged to `dev`, thread removed — see `epics/handoff-document.md`). Sensitive-data behavior (`phi` + `critical`) being built on branch `feature/sensitive-data-implementation`, merged to `dev` in slices. **Done: `epics/thread-6-critical-and-phi-done/`** — Track D, the `critical` delivery-guarantee axis the master plan assumed already existed (modifier + `harpia_delivery.h` runtime + `ZmqAdapter` wiring + a real-socket send/receive integration test). **Done: Track O** (key management) — `epics/thread-1-data-and-keys/histories/key-management/` (O.1–O.5, all `-done`): `KeyProvider` interface + envelope shape, `LocalKeyProvider` + fail-safe gate, crypto-shred, zeroization + `AuditSink`, KMS/HSM reference adapter. **Next: Track H** (schema-evolution) → **Track A** (`EncryptedColumn<T>` on `is_phi`; A.4 is the `phi` headline test) → Track K; **Track F** (redaction) independent. The [roadmap](medical_devices/sensitive-data-implementation-roadmap.md) is the frozen plan; `epics/` carries live status. |
+| [medical_devices/](medical_devices/harpia_medical_master_plan.md) | **In progress.** Foundation F1–F6 shipped (plumbing stubs, merged to `dev`, thread removed — see `epics/handoff-document.md`). Sensitive-data behavior (`phi` + `critical`) being built on branch `feature/sensitive-data-implementation`, merged to `dev` in slices. **Done: `epics/thread-6-critical-and-phi-done/`** — Track D, the `critical` delivery-guarantee axis the master plan assumed already existed (modifier + `harpia_delivery.h` runtime + `ZmqAdapter` wiring + a real-socket send/receive integration test). **Done: Track O** (key management) — `epics/thread-1-data-and-keys/histories/key-management/` (O.1–O.5, all `-done`). **Done: Track H** (schema-evolution, `histories/schema-evolution/`, H.1–H.3 `-done`) — repeated-scalar / map / repeated-composed child-table migration in `migrate_<table>()`. **Done: Track A** (DB field-level encryption, `histories/db-encryption/`, A.1–A.4 `-done`) — `phi` columns envelope-encrypted on the DAO write path / decrypted on read via Track O's `KeyProvider` (`Crypto/runtime/harpia_encrypted_column.h`, `CrudlAdapter`), one `AuditSink.record()` per `phi` CRUDL op, `project.harpia.yaml` landed at the repo root, KEK-rotation + backend-swap proofs closed (from O.5). All merged to `dev` (through `44ceec7`, 2026-08-27). **Next: Track K** (public/private DB segregation — `histories/db-segregation/tasks/1-registry-and-access-check.md`, shares `Database/` with Track A); **Track F** (`phi` redaction, `thread-3-message-behavior`) independent. The [roadmap](medical_devices/sensitive-data-implementation-roadmap.md) is the frozen plan; `epics/` carries live status. |
 | [feature-examples/](feature-examples/README.md) | **Partly shipped.** EX.1 (the `HarpiaTest` shared-fixture cleanup — `pope`/`king`/`queenBee` folded into `queen`) shipped 2026-08-24 (`f247b6c`). EX.2–EX.8 — one small runnable example per generated feature (gRPC, SOAP, XML, ZMQ, capability negotiation, credential-gated access) + an index — not started. |
 | [doxygen-generation.md](doxygen-generation/doxygen-generation.md) | **Folded into Foundation's F6 + Ground Rule 6, 2026-08-23** — shipped and merged to `dev` (the Foundation thread itself was then removed, see `medical_devices/epics/handoff-document.md`); no longer a deferred track. This file now lives on as a living pitfall-table reference every track appends to as it builds. Not medical-devices-specific despite living in that plan's Foundation — the rule applies repo-wide. |
 

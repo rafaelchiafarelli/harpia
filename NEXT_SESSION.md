@@ -1,179 +1,129 @@
-# NEXT_SESSION — sensitive-data implementation (`critical` + `phi`)
+# NEXT_SESSION — sensitive-data implementation (`phi` side: Track K next)
 
-Branch: **`feature/sensitive-data-implementation`** (off `dev`, pushed).
+**Branch model:** one session = one branch off `dev`, named
+`features/medical_devices/thread-1/<track-folder>/<n>-<task-name>` — see
+**`Initiatives/README.md` → "How to work an `epics/` thread"**, rules 8–11
+(branch & merge flow). `dev` is the integration branch; `main` is never
+touched here. `origin/dev` is current through `44ceec7` (2026-08-27).
 
-## Where the work is tracked
+## Read first (in order)
 
-`Initiatives/medical_devices/epics/thread-6-critical-and-phi/` — created
-2026-08-27. `critical` never had a track in the master plan (the plan
-assumed it was already built); this thread is that track plus the
-coordination point for the two headline integration tests.
+1. **`Initiatives/README.md` → "How to work an `epics/` thread — READ THIS
+   FIRST"** (rules 1–11). Non-negotiable: plan docs are frozen; `track-*.md`
+   is contract-only; one numbered small file per session under `tasks/`;
+   the done marker is a `-done` **filename** suffix; per-session flow =
+   implement → regen+review goldens → full suite green in Docker → commit
+   impl → `git mv` task file `-done` (second commit) → `git merge --no-ff`
+   into `dev` → `git push origin dev` → branch next off `dev`.
+2. The execution-order map:
+   `Initiatives/medical_devices/epics/thread-1-data-and-keys/README.md`
+   and `thread-6-critical-and-phi-done/README.md`.
+3. The frozen plan (do **not** edit): `medical_devices/
+   sensitive-data-implementation-roadmap.md` + `harpia_medical_master_plan.md`
+   §5 (per-track contracts) + `harpia_sensitive_data_design_rules.md`.
+4. The code this work builds on / just added: `Database/CLAUDE.md`
+   (schema / CRUDL / migration + phi encryption + audit), `Crypto/CLAUDE.md`
+   (`KeyProvider` runtime + `harpia_encrypted_column.h`),
+   `Compliance/CLAUDE.md` (F1 `ComplianceContext`, F3 `AuditSink`),
+   `UnitTests/CLAUDE.md` (the pinned `HASH`, golden dirs, Docker gating).
 
-- **`thread-6-critical-and-phi/README.md`** — execution order for the whole
-  sensitive-data effort + definition of done. Read first.
-- **`thread-6-critical-and-phi/histories/critical-delivery/track-d-critical-delivery.md`**
-  — the Track D contract. Sessions are one file each under
-  `.../critical-delivery/tasks/` — all four carry a `-done` suffix:
-  `critical-modifier-done.md` (D.1), `delivery-runtime-done.md` (D.2),
-  `zmq-wiring-done.md` (D.3), `send-receive-integration-test-done.md`
-  (D.4). The `-done` filename suffix IS the done marker — no status line
-  inside, and don't edit a done task file.
+## Done so far — all merged to `dev`
 
-The `phi` side is **not** re-tracked in thread-6 — it already has homes:
-Track O / H / A / K in `thread-1-data-and-keys/`, Track F in
-`thread-3-message-behavior/`.
+- **Track D — `critical` delivery-guarantee — COMPLETE.**
+  `epics/thread-6-critical-and-phi-done/` (D.1–D.4).
+- **Track O — key management — COMPLETE.** `epics/thread-1-data-and-keys/
+  histories/key-management/` (O.1–O.5, all `-done`). `Crypto/runtime/
+  harpia_key_provider{,_local,_kms}.h`: `KeyProvider` interface + envelope
+  shape, `LocalKeyProvider` + fail-safe gate, per-DEK crypto-shred,
+  zeroize + `AuditSink` on every key op, `KmsClient` seam + `MockKms`.
+- **Track H — DB schema-evolution — COMPLETE (2026-08-27).**
+  `histories/schema-evolution/` (H.1–H.3, all `-done`; merges `23acd6e` /
+  `480c096` / `a31fd30`). `migrate_<table>()` now evolves repeated-scalar,
+  map, and repeated-composed **child tables** (`<table>__*`), not just the
+  main table: whole-child-table rename (via `renamed_from[<old>]` on the
+  field), orphan child-table reap (runtime `<table>__%` diff against
+  `model.child_table_names()`), and per-child column retype / add / drop.
+  New `DbBackend` methods `list_tables_sql` / `rename_table` /
+  `drop_table_dynamic` / `retype_rep_child_dynamic` /
+  `retype_map_child_dynamic` / `evolve_rep_composed_child_dynamic`.
+  Fixture: `telemetry` + `trace_row` in `HarpiaTest/Include/file3.harpia`.
+- **Track A — DB field-level encryption + audit — COMPLETE (2026-08-27).**
+  `histories/db-encryption/` (A.1–A.4, all `-done`; merges `e5a584e` /
+  `896c337` / `ee12c68` / `44ceec7`).
+  - `Crypto/runtime/harpia_encrypted_column.h` (new): `encrypt_field` /
+    `decrypt_field{,_ll,_int,_double}` (`enc:v1:` + hex frame over Track
+    O's envelope; unrecoverable → 0/"" never a throw), `default_key_provider()`.
+  - `CrudlAdapter`: a message with a `Column.is_phi` field → its DAO holds
+    a `KeyProvider& kp_` **and** an `AuditSink& audit_` (both defaulted
+    ctor params, so non-phi DAOs are byte-identical); create/update
+    encrypt, read/list decrypt; exactly one `audit_.record("phi_<op>",
+    "<table>", "<phi col names>")` per CRUDL op (value-free, Rule 5).
+    `Process()` copies `harpia_encrypted_column.h` + `harpia_key_provider*.h`
+    + `harpia_audit_sink.h` into `generated/cpp/crypto/`.
+  - `project.harpia.yaml` at the repo root (roadmap Phase 0) — explicit
+    values equal to the strictest fail-safe defaults, so no behaviour /
+    golden change; F1 still isn't branched on at generation time (A.1
+    keys off `field.is_phi`, not `ComplianceContext`).
+  - `ComplianceReport/` note deferred to Track M: `thread-4-platform-infra/
+    histories/process-artifacts/tasks/phi-db-encryption-note.md`
+    (M.1-blocked), same as Track D's `critical-delivery-note.md`.
+  - A.4 closed Track O's two deferred integration tests (KEK-rotation is
+    O(keys); backend swap needs zero DAO change).
 
-`Initiatives/medical_devices/sensitive-data-implementation-roadmap.md` is the
-original plan doc — **do not edit it.** thread-6 supersedes it for tracking.
+  Baseline: **288 passed, 4 skipped** in Docker.
 
-## What this session did — Track O COMPLETE (O.1–O.5)  ✅
+## What to do next
 
-**O.1** (`tasks/key-provider-interface-done.md`) — the `KeyProvider`
-interface + envelope-encryption shape (first `phi`-side session).
+### 1. Track K — public/private DB segregation
 
-- `Crypto/runtime/harpia_key_provider.h` — hand-written C++ (not generated),
-  `harpia::crypto`: `Dek` (`seal`/`open` — the DEK, and only the DEK,
-  touches the value), `WrappedDek` (`kek_version` + `bytes`), `KeyProvider`
-  ABC (`active_kek_version` / `generate_dek` / `wrap_dek` / `unwrap_dek` →
-  `std::optional<Dek>` / `rotate`), `InMemoryKeyProvider` dummy (XOR, NOT
-  crypto). `unwrap_dek` → `nullopt` on an unknown / forgotten KEK version
-  (Rule 5; also the O.3 crypto-shred path).
-- `Crypto/key_provider_common.py` — path constants. Nothing copies the
-  headers yet — Track A is the first consumer.
-- `UnitTests/test_key_provider.py` — 8 g++-gated tests (`-Werror`).
+`epics/thread-1-data-and-keys/histories/db-segregation/` —
+`track-k-db-segregation.md` (contract) + `tasks/1-registry-and-access-check.md`
+(the one session). Branch it as
+`features/medical_devices/thread-1/db-segregation/1-registry-and-access-check`
+off `dev`. Deliverable: an environment-level registry
+distinguishing public vs. private databases per project + an access-check
+so a `PRIVATE`-visibility table is inaccessible cross-project while a
+`PUBLIC` one stays reachable. Shares `Database/` generator files with
+Track A (`message ... };` → `visibility=PRIVATE`, trailing name →
+`tableName`; see `Message/CLAUDE.md`). Acceptance gate: existing
+single-project tests unaffected.
 
-**O.2** (`tasks/default-local-provider-done.md`) — the default no-KMS
-backend + the fail-safe acknowledgment gate.
+### 2. Track F — `phi` redaction (independent, any time)
 
-- `Crypto/runtime/harpia_key_provider_local.h` — `LocalKeyProvider :
-  public KeyProvider`. KEK material persisted to a file
-  (`LocalKeyProviderConfig::storage_path`) so keys survive a restart. Ctor
-  throws `LocalKeyProviderRefused` when `phi_at_scale && !acknowledged` — a
-  PHI-at-scale profile must not silently ship the local fallback.
-  `local_key_provider_acknowledged()` reads `HARPIA_ACK_LOCAL_KEY_PROVIDER`.
-  Cipher still O.1's placeholder XOR (real AES-KW/GCM comes with the F5
-  seam binding).
-- `Crypto/key_provider_common.py` — `KEY_PROVIDER_LOCAL_RUNTIME` / `_SRC` +
-  `_DEPS`.
-- `UnitTests/test_local_key_provider.py` — 7 g++-gated tests.
-
-**O.3** (`tasks/crypto-shredding-done.md`) — crypto-shredding. `KeyProvider`
-gains pure virtual `shred_dek(const WrappedDek&)`; shared `shred_key(w)`
-identity; `unwrap_dek` → `nullopt` for a shredded DEK, KEK untouched;
-per-DEK, idempotent, no un-shred. `LocalKeyProvider` → `<store>.shred`
-append-only sidecar. `UnitTests/test_crypto_shred.py` (5 g++-gated).
-
-**O.4** (`tasks/zeroization-and-audit-done.md`) — zeroization + `AuditSink`.
-
-- `harpia_key_provider.h` — `detail::secure_zero` + `detail::random_bytes`;
-  `Dek` is now a class with a zeroizing destructor (still value-type for
-  `std::optional<Dek>`); KEKs wiped on eviction / in provider destructors.
-  Every provider ctor takes a trailing defaulted `compliance::AuditSink&`;
-  every op records `key_<op>` with subject `"kek:<v>"`/`"dek"` — never key
-  bytes. `key_provider_common.py` gains `KEY_PROVIDER_RUNTIME_DEPS`
-  (→ `harpia_audit_sink.h`). The 3 existing crypto test files gained
-  `-I Compliance/runtime`.
-- `UnitTests/test_key_provider_audit.py` — 8 tests (1 pure-Python scan).
-
-**O.5** (`tasks/kms-hsm-reference-adapter-done.md`) — KMS/HSM adapter.
-
-- `harpia_key_provider_kms.h` — `KmsClient` (the integrator seam),
-  `KmsKeyProvider` (routes every op to the seam, adds nothing), `MockKms`
-  (in-header reference impl). `key_provider_common.py` gains
-  `KEY_PROVIDER_KMS_RUNTIME` / `_SRC` / `_DEPS`.
-- `UnitTests/test_kms_key_provider.py` — 5 g++-gated tests incl. the
-  same-code-both-backends swap proof.
-- Deferred to Track A's A.4: rotate-with-no-re-encryption and
-  swap-with-zero-DAO-changes (need a real generated DAO).
-
-Additive across O.3–O.5 — no generator code touched, no golden impact.
-Host 191 passed; **full Docker suite 263 passed, 4 skipped.**
-
-**Also this branch:** track-o was restructured to match its siblings
-(`histories/track-o-key-management.md` inline → contract-only at
-`histories/key-management/track-o-key-management.md` + per-session files in
-`tasks/`), and every completed session task file across the effort now
-carries a `-done` filename suffix as its done marker (no status line
-inside).
-
-### Track D — complete (the `critical` arc)
-- **D.1** `b433dd5` — `critical` modifier (lexer + `Message.is_critical`).
-- **D.2** `3581933` — `Compliance/runtime/harpia_delivery.h` (`Envelope`,
-  `BoundedQueue` Rule 4a, `Mailbox` Rule 4b still unwired).
-- **D.3** `0e7e200` — `ZmqAdapter` routes a `critical` type's send path
-  through `BoundedQueue`; runtime copied into `generated/cpp/delivery/`.
-- **D.4** `287e01b` — `UnitTests/test_critical_delivery_roundtrip.py`: real
-  `tcp://` socket, `alarm_event` held-then-replayed-in-order, overflow
-  rotates+audits, non-critical sender has no queue.
-- Remaining debt: a `ComplianceReport/` note, captured as a **Track M**
-  task (`thread-4-platform-infra/histories/process-artifacts/tasks/critical-delivery-note.md`,
-  blocked on M.1).
-
-## What the next session must do — Track H, then Track A
-
-Per `thread-6-critical-and-phi/README.md`'s execution order. **Track D and
-Track O are both complete.** Track A (the `phi` send/receive headline test)
-needs **both Track O and Track H** merged, so Track H is next.
-
-- **Next: Track H** —
-  `thread-1-data-and-keys/histories/schema-evolution/track-h-schema-evolution.md`,
-  sessions H.1–H.3 in that folder's `tasks/`. DB schema-evolution backlog:
-  repeated-composed-field migration; non-additive transforms (rename / drop
-  / type-change) in `migrate_<table>()`. Pre-existing debt, **no compliance
-  dependency** — this one touches the real generator (`Database/`,
-  `MigrationAdapter`), so expect golden movement; regenerate + review.
-- Then **Track A** —
-  `thread-1-data-and-keys/histories/db-encryption/track-a-db-encryption.md`,
-  A.1–A.4. `EncryptedColumn<T>` on `is_phi` columns via Track O's
-  `KeyProvider` (copy `harpia_key_provider*.h` into generated output — the
-  `key_provider_common.py` `*_SRC` / `*_DEPS` constants exist for this);
-  DAO encrypt-on-write / decrypt-on-read; one `AuditSink` record per
-  phi-touching CRUDL op. **A.4 delivers the `phi` send/receive headline
-  test** and closes Track O's two deferred integration tests. Then Track K.
-- **Track F** —
-  `thread-3-message-behavior/histories/serialization/track-f-serialization.md`
-  (F.1–F.5), needs only F2, independent of H/A. `phi` redaction in
-  JSON/XML/YAML `toString` + an audited unredacted-output flag. Delivers
-  the serialization/redaction half of the `phi` headline test. Can be done
-  any time.
-- **`project.harpia.yaml`** (checked-in repo-root compliance config) —
-  still deferred; land it with **Track A** (the first code that actually
-  branches on `ComplianceContext` values at generation time). Not earlier
-  (silent test interference for no gain).
+`thread-3-message-behavior/histories/serialization/track-f-serialization.md`
+(F.1–F.5). New `YamlAdapter/`; unified `toString` across JSON/XML/YAML;
+`phi` values redacted by default; the unredacted-output flag emits an
+`AuditSink` record. Delivers the serialization half of the `phi` headline.
 
 ## Conventions / gotchas
 
-- **Run the full suite in Docker before every commit**:
+- **Full suite in Docker before every commit** (~9 min):
   `docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/harpia -v
   harpia-gradle-cache:/tmp/.gradle -w /harpia -e HOME=/tmp -e
   GRADLE_USER_HOME=/tmp/.gradle harpia-build pytest -q -p no:cacheprovider`.
-  Do **not** use `Docker/run.sh` non-interactively (`-it`, dies on non-TTY).
-  Baseline after O.5: **263 passed, 4 skipped**.
-- **One session = one file under the track's `tasks/`. When it lands,
-  `git mv` that file to add a `-done` suffix — the filename is the done
-  marker, no status line inside. Never edit a done task file** (only fix
-  links that pointed at its old name). Use the epics naming (thread folder
-  / track file / task file / session ID like `D.4`, `O.1`), not "Phase 3c".
-  The `track-*.md` file holds only the contract (Receives / Gives / Files
-  touched / Watch for).
-- The `critical` zmq sender's API differs from the non-critical one on
-  purpose: `send()`/`publish()` return `std::optional<PushOutcome>` and
-  only enqueue — call `flush()` to transmit. Non-critical senders unchanged.
-- One generated `*_zmq.h` per translation unit — two collide on the shared
-  `runtime_origin_id()` helper.
-- **`.harpia` comments are lexed like code.** Backtick, apostrophe, `:`,
-  `!`, `?`, `#`, `@`, `%`, `^`, `~` hard-error the whole file *even inside a
-  `//` comment*. Letters/digits/`. , ( ) { } [ ] ; = < > + - * /` and
-  spaces only.
-- Editing `HarpiaTest/Include/*.harpia` is safe for the pinned `HASH`
-  constants (only root `test.harpia`'s text feeds that hash) but changes
-  golden *content* — `HARPIA_UPDATE_GOLDEN=1` and review. Editing
-  `test.harpia` itself → ~18 files pin the hash, see `UnitTests/CLAUDE.md`.
-- `AuditSink` operation strings are caller-owned, not a Foundation enum.
-  The delivery runtime uses `"queue_rotated"` / `"mailbox_overwritten"`.
-- Host lacks `protoc`/`pkg-config`/`cmake`, so `test_stage9`/`test_stage14`/
-  `test_message_versioning_wire`/`test_critical_delivery_roundtrip` fail on
-  the host and pass in Docker — not regressions.
-- The delivery runtime is **not thread-safe** (caller-synchronized). The
-  zmq critical sender's `BoundedQueue` has no lock — a background flush
-  thread is a future decision, not assumed.
+  Do **not** use `Docker/run.sh` non-interactively. Host has `g++` but not
+  `protoc`/`pkg-config`/`cmake` — `test_stage9` / `test_stage14` /
+  `test_message_versioning_wire` / `test_critical_delivery_roundtrip` fail
+  on the host and pass in Docker; not regressions.
+- **Golden regen:** `HARPIA_UPDATE_GOLDEN=1 .venv/bin/python -m pytest
+  UnitTests/test_golden.py UnitTests/test_golden_java.py`, then review
+  `git diff UnitTests/golden` — the review is the point.
+- **Pinned `HASH`** (`3ac5d8b3…`) only moves if the ROOT
+  `HarpiaTest/test.harpia` text changes. New `phi`/`critical` fixtures go
+  in `HarpiaTest/Include/*.harpia` (moves golden *content* for touched
+  messages, leaves the `HASH = "…"` pins alone). `.harpia` comments are
+  lexed like code — letters/digits/spaces + `. , ( ) { } [ ] ; = < > + -
+  * /` only; a `:` / `'` / `"` / `_` / backtick anywhere in a `//`
+  comment hard-errors the whole file.
+- **`crypto/` generated output is not golden-snapshotted** (same as
+  `delivery/`) — cover copied runtime headers with a structural test
+  (`test_stage8_db.py::test_a1_encryption_runtime_copied` /
+  `test_a2_key_provider_backends_shipped`).
+- **`AuditSink` operation strings are caller-owned.** Track A DB uses
+  `phi_create` / `phi_read` / `phi_update` / `phi_delete` / `phi_list`;
+  Track O keys use `key_generate` / `key_wrap` / …; `record()` structurally
+  cannot carry a value (Rule 5).
+- **`users` and `top_users` both map to `user_table`** in the test
+  fixture (a known multi-root collision) — `migrate_users` reaps
+  `top_users`'s child tables and vice-versa, consistent with the
+  pre-existing main-table column-drop behaviour. Not Track H/K's to fix.
