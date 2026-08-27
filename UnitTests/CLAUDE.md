@@ -175,6 +175,23 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `LocalKeyProvider` the shred is written to a `<store>.shred` append-only
   sidecar that survives a restart and never rewrites the KEK store file.
   (g++)
+- `test_key_provider_audit.py` — Track O / Session O.4: zeroization +
+  `AuditSink` wiring. Pure Python: no long hex/base64 literal (a possible
+  hardcoded key) in `Crypto/runtime/*.h`. g++-gated: every key op emits
+  exactly one `record()` with a `key_<op>` name (both providers);
+  `subject`/`detail` are only `"dek"` / `"kek:<n>"` / `""` / `ok` /
+  `shredded` / `unknown_version` — never key bytes; `default_audit_sink()`
+  is used when no sink is passed; `detail::secure_zero` clears a string
+  (safe on empty); `Dek` is not trivially destructible (zeroizing dtor)
+  yet still copy/move-usable; the O.1 round trip is behaviour-unchanged.
+- `test_kms_key_provider.py` — Track O / Session O.5: the KMS/HSM
+  reference adapter (`Crypto/runtime/harpia_key_provider_kms.h`). g++-gated:
+  `KmsKeyProvider` backed by the in-header `MockKms` satisfies O.1's
+  `KeyProvider` contract; per-DEK shred plus KMS-side version retirement
+  (`MockKms::forget_version`) both → `unwrap_dek` `nullopt`; audit is
+  wired (no ctor KEK op — the KMS owns KEKs); the SAME `KeyProvider&`
+  round-trip code runs against `InMemoryKeyProvider` and `KmsKeyProvider`
+  unchanged (the "swap backends with no interface change" proof).
 - `test_doxygen_mainpage.py` — Foundation F6's `Doxygen/mainpage.py`:
   extracts only the requested `USAGE.md` section numbers (not their
   neighbors), in the requested order, stopping at the next `## ` heading

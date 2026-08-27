@@ -41,6 +41,7 @@ def _compile(tmp_path, body, name, extra_top=""):
     binpath = tmp_path / name
     c = subprocess.run(
         ["g++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-I", REPO_ROOT,
+         "-I", os.path.join(REPO_ROOT, "Compliance", "runtime"),  # harpia_audit_sink.h (O.4)
          str(src), "-o", str(binpath)],
         capture_output=True, text=True,
     )

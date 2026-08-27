@@ -21,8 +21,9 @@
 //
 // Crypto-shred (O.3): shred_dek() appends to a `<storage_path>.shred`
 // append-only sidecar so a discard survives a restart; the KEK store is
-// never touched. Out of scope here (later O sessions): zeroization +
-// AuditSink wiring (O.4), the KMS/HSM reference adapter (O.5).
+// never touched. O.4: the ctor takes an AuditSink& (every key op is
+// recorded); KEKs are zeroized on eviction and in the destructor. Out of
+// scope here: the KMS/HSM reference adapter (O.5, harpia_key_provider_kms.h).
 #ifndef HARPIA_CRYPTO_KEY_PROVIDER_LOCAL_H
 #define HARPIA_CRYPTO_KEY_PROVIDER_LOCAL_H
 
@@ -34,7 +35,6 @@
 #include <ios>
 #include <map>
 #include <optional>
-#include <random>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -86,34 +86,55 @@ inline bool local_key_provider_acknowledged() {
 
 class LocalKeyProvider : public KeyProvider {
 public:
-    explicit LocalKeyProvider(const LocalKeyProviderConfig& cfg)
-        : path_(cfg.storage_path) {
+    explicit LocalKeyProvider(
+        const LocalKeyProviderConfig& cfg,
+        compliance::AuditSink& audit = compliance::default_audit_sink())
+        : audit_(audit), path_(cfg.storage_path) {
         if (cfg.phi_at_scale && !cfg.acknowledged)
             throw LocalKeyProviderRefused();
-        if (!load())
-            persist();  // fresh store: KEK v1 was minted below in the ctor init
+        if (!load()) {
+            persist();  // fresh store: KEK v1 was minted in the ctor init
+            audit_.record(kOpGenerate, "kek:" + std::to_string(active_));
+        }
         load_shreds();
+    }
+
+    ~LocalKeyProvider() override {
+        for (auto& kv : keks_) detail::secure_zero(kv.second);  // O.4
     }
 
     std::uint64_t active_kek_version() const override { return active_; }
 
-    Dek generate_dek() override { return Dek{random_bytes(kKeyLen)}; }
+    Dek generate_dek() override {
+        audit_.record(kOpGenerate, "dek");
+        return Dek(detail::random_bytes(kKeyLen));
+    }
 
     WrappedDek wrap_dek(const Dek& dek) override {
+        audit_.record(kOpWrap, "kek:" + std::to_string(active_));
         return WrappedDek{active_, Dek::xor_with(dek.material, keks_.at(active_))};
     }
 
     std::optional<Dek> unwrap_dek(const WrappedDek& w) override {
-        if (shredded_.count(shred_key(w))) return std::nullopt;  // O.3
+        const std::string subject = "kek:" + std::to_string(w.kek_version);
+        if (shredded_.count(shred_key(w))) {                     // O.3
+            audit_.record(kOpUnwrap, subject, "shredded");
+            return std::nullopt;
+        }
         auto it = keks_.find(w.kek_version);
-        if (it == keks_.end()) return std::nullopt;
-        return Dek{Dek::xor_with(w.bytes, it->second)};
+        if (it == keks_.end()) {
+            audit_.record(kOpUnwrap, subject, "unknown_version");
+            return std::nullopt;
+        }
+        audit_.record(kOpUnwrap, subject, "ok");
+        return Dek(Dek::xor_with(w.bytes, it->second));
     }
 
     std::uint64_t rotate() override {
         ++active_;
-        keks_[active_] = random_bytes(kKeyLen);
+        keks_[active_] = detail::random_bytes(kKeyLen);
         persist();
+        audit_.record(kOpRotate, "kek:" + std::to_string(active_));
         return active_;
     }
 
@@ -126,18 +147,11 @@ public:
             std::ofstream out(shred_path(), std::ios::app);
             out << w.kek_version << " " << to_hex(w.bytes) << "\n";
         }
+        audit_.record(kOpShred, "kek:" + std::to_string(w.kek_version));
     }
 
 private:
     static constexpr std::string::size_type kKeyLen = 32;
-
-    static std::string random_bytes(std::string::size_type n) {
-        static std::random_device rd;
-        std::uniform_int_distribution<int> byte(0, 255);
-        std::string out(n, '\0');
-        for (auto& c : out) c = static_cast<char>(byte(rd));
-        return out;
-    }
 
     static std::string to_hex(const std::string& raw) {
         std::ostringstream os;
@@ -172,7 +186,8 @@ private:
             if (v > max_v) max_v = v;
         }
         if (loaded.empty()) return false;
-        keks_ = std::move(loaded);
+        for (auto& kv : keks_) detail::secure_zero(kv.second);  // O.4: wipe the
+        keks_ = std::move(loaded);                              // throwaway v1 KEK
         active_ = max_v;
         return true;
     }
@@ -198,8 +213,9 @@ private:
         }
     }
 
+    compliance::AuditSink& audit_;   // O.4
     std::string path_;
-    std::map<std::uint64_t, std::string> keks_{{1, random_bytes(kKeyLen)}};
+    std::map<std::uint64_t, std::string> keks_{{1, detail::random_bytes(kKeyLen)}};
     std::uint64_t active_ = 1;
     std::set<std::string> shredded_;  // O.3: shred_key(w) of every shredded DEK
 };

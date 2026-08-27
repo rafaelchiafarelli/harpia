@@ -1,10 +1,11 @@
 // harpia KeyProvider -- abstract interface for envelope encryption of `phi`
 // data (Track O), hand-written, not generated. O.1 fixed the interface +
-// envelope shape + an in-memory dummy; O.3 added shred_dek() (crypto-shred)
-// to the interface and the dummy. The real backends -- a TPM/keystore-
-// sealed local default, a KMS/HSM reference adapter -- are O.2
-// (harpia_key_provider_local.h) and O.5; zeroization and AuditSink wiring
-// on every key operation are O.4. See
+// envelope shape + an in-memory dummy; O.3 added shred_dek() (crypto-shred);
+// O.4 added zeroization (Dek's destructor + KEK wipe on eviction, see
+// detail::secure_zero) and AuditSink wiring on every key operation. The
+// real backends -- a TPM/keystore-sealed local default, a KMS/HSM reference
+// adapter -- are O.2 (harpia_key_provider_local.h) and O.5
+// (harpia_key_provider_kms.h). See
 // Initiatives/medical_devices/epics/thread-1-data-and-keys/histories/key-management/.
 //
 // Envelope encryption, baked in from the start (O.1's explicit ask, so O.2
@@ -38,17 +39,54 @@
 #include <random>
 #include <set>
 #include <string>
+#include <utility>
+
+#include "harpia_audit_sink.h"  // F3 -- co-copied (KEY_PROVIDER_RUNTIME_DEPS)
 
 namespace harpia {
 namespace crypto {
+
+namespace detail {
+// Best-effort in-place wipe of key bytes before the buffer is freed (O.4),
+// so raw key material does not linger in freed heap for a later
+// core-dump / use-after-free / cold-boot read. `volatile` stops the
+// compiler from optimising the stores away as dead.
+inline void secure_zero(std::string& s) {
+    volatile char* p = s.empty() ? nullptr : &s[0];
+    for (std::string::size_type i = 0; i < s.size(); ++i) p[i] = 0;
+    s.clear();
+    s.shrink_to_fit();
+}
+
+// Random key material for the PLACEHOLDER backends (InMemory / Local / the
+// MockKms reference). Not a CSPRNG contract -- a real backend draws keys
+// from its crypto module (F5 seam) or its KMS.
+inline std::string random_bytes(std::string::size_type n) {
+    static std::random_device rd;
+    std::uniform_int_distribution<int> byte(0, 255);
+    std::string out(n, '\0');
+    for (auto& c : out) c = static_cast<char>(byte(rd));
+    return out;
+}
+}  // namespace detail
 
 // A data-encryption key: one per `phi` value/record. The transform here is
 // a DUMMY reversible XOR -- NOT encryption. O.2 replaces InMemoryKeyProvider
 // with a real backend (AES-GCM value sealing, AES-KW DEK wrapping) resolved
 // through the Foundation F5 CryptoBackend seam; the INTERFACE shape below is
-// what O.1 fixes in place.
-struct Dek {
+// what O.1 fixes in place. O.4: the destructor zeroizes `material` so a DEK
+// never outlives its use in readable memory.
+class Dek {
+public:
     std::string material;  // raw key bytes
+
+    Dek() = default;
+    explicit Dek(std::string m) : material(std::move(m)) {}
+    Dek(const Dek&) = default;
+    Dek(Dek&&) = default;
+    Dek& operator=(const Dek&) = default;
+    Dek& operator=(Dek&&) = default;
+    ~Dek() { detail::secure_zero(material); }
 
     std::string seal(const std::string& plaintext) const {
         return xor_with(plaintext, material);
@@ -119,57 +157,88 @@ public:
     virtual void shred_dek(const WrappedDek& w) = 0;
 };
 
+// O.4: every key operation is routed through an AuditSink with a distinct
+// operation name -- key management is itself a security-relevant, auditable
+// activity. The `subject` is identifying metadata only ("kek:<version>",
+// "dek") -- never key bytes (Rule 5, structural: record() has no value
+// parameter). Operation names are this module's own vocabulary, not a
+// Foundation-owned enum.
+inline constexpr const char* kOpGenerate = "key_generate";
+inline constexpr const char* kOpWrap     = "key_wrap";
+inline constexpr const char* kOpUnwrap   = "key_unwrap";
+inline constexpr const char* kOpRotate   = "key_rotate";
+inline constexpr const char* kOpShred    = "key_shred";
+
 // In-memory, non-persistent, DUMMY implementation -- for this session's
 // tests and for downstream tracks' tests that need a working KeyProvider
 // before O.2's real backend exists. NOT for production: keys live only in
 // process memory and the wrap/seal transforms are XOR, not crypto.
 class InMemoryKeyProvider : public KeyProvider {
 public:
-    InMemoryKeyProvider() {
-        keks_[active_] = random_bytes(kKeyLen);
+    explicit InMemoryKeyProvider(
+        compliance::AuditSink& audit = compliance::default_audit_sink())
+        : audit_(audit) {
+        keks_[active_] = detail::random_bytes(kKeyLen);
+        audit_.record(kOpGenerate, "kek:" + std::to_string(active_));
+    }
+
+    ~InMemoryKeyProvider() override {
+        for (auto& kv : keks_) detail::secure_zero(kv.second);  // O.4
     }
 
     std::uint64_t active_kek_version() const override { return active_; }
 
-    Dek generate_dek() override { return Dek{random_bytes(kKeyLen)}; }
+    Dek generate_dek() override {
+        audit_.record(kOpGenerate, "dek");
+        return Dek(detail::random_bytes(kKeyLen));
+    }
 
     WrappedDek wrap_dek(const Dek& dek) override {
+        audit_.record(kOpWrap, "kek:" + std::to_string(active_));
         return WrappedDek{active_, Dek::xor_with(dek.material, keks_.at(active_))};
     }
 
     std::optional<Dek> unwrap_dek(const WrappedDek& w) override {
-        if (shredded_.count(shred_key(w))) return std::nullopt;  // O.3
+        const std::string subject = "kek:" + std::to_string(w.kek_version);
+        if (shredded_.count(shred_key(w))) {                     // O.3
+            audit_.record(kOpUnwrap, subject, "shredded");
+            return std::nullopt;
+        }
         auto it = keks_.find(w.kek_version);
-        if (it == keks_.end()) return std::nullopt;
-        return Dek{Dek::xor_with(w.bytes, it->second)};
+        if (it == keks_.end()) {
+            audit_.record(kOpUnwrap, subject, "unknown_version");
+            return std::nullopt;
+        }
+        audit_.record(kOpUnwrap, subject, "ok");
+        return Dek(Dek::xor_with(w.bytes, it->second));
     }
 
     std::uint64_t rotate() override {
         ++active_;
-        keks_[active_] = random_bytes(kKeyLen);
+        keks_[active_] = detail::random_bytes(kKeyLen);
+        audit_.record(kOpRotate, "kek:" + std::to_string(active_));
         return active_;
     }
 
     void shred_dek(const WrappedDek& w) override {
         shredded_.insert(shred_key(w));
+        audit_.record(kOpShred, "kek:" + std::to_string(w.kek_version));
     }
 
     // Drops a whole KEK version. Distinct from shred_dek() (which discards
     // one record's DEK): this is the coarse "retire an old KEK entirely"
     // case, exposed since O.1 for deterministic unknown-version tests.
-    void forget_kek_version(std::uint64_t version) { keks_.erase(version); }
+    void forget_kek_version(std::uint64_t version) {
+        auto it = keks_.find(version);
+        if (it == keks_.end()) return;
+        detail::secure_zero(it->second);  // O.4
+        keks_.erase(it);
+    }
 
 private:
     static constexpr std::string::size_type kKeyLen = 32;
 
-    static std::string random_bytes(std::string::size_type n) {
-        static std::random_device rd;
-        std::uniform_int_distribution<int> byte(0, 255);
-        std::string out(n, '\0');
-        for (auto& c : out) c = static_cast<char>(byte(rd));
-        return out;
-    }
-
+    compliance::AuditSink& audit_;   // O.4
     std::map<std::uint64_t, std::string> keks_;
     std::uint64_t active_ = 1;
     std::set<std::string> shredded_;  // O.3: shred_key(w) of every shredded DEK

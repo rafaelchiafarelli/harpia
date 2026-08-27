@@ -49,8 +49,10 @@ done marker (no status line inside).
 - `tasks/key-provider-interface-done.md` — O.1
 - `tasks/default-local-provider-done.md` — O.2
 - `tasks/crypto-shredding-done.md` — O.3
-- `tasks/zeroization-and-audit.md` — O.4
-- `tasks/kms-hsm-reference-adapter.md` — O.5
+- `tasks/zeroization-and-audit-done.md` — O.4
+- `tasks/kms-hsm-reference-adapter-done.md` — O.5
+
+Track O is complete (all five sessions done).
 
 ## Watch for
 
