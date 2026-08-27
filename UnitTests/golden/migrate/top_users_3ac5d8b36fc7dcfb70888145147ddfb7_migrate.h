@@ -13,6 +13,9 @@
 // Schema migration for top_users (spec 8 / 7.2 "validation/transformative functions
 // for versions"). Brings an existing database up to the current schema version
 // (3ac5d8b36fc7dcfb70888145147ddfb7) and records it in "_harpia_schema_version":
+//   - RENAMEs a "<table>__<old>" repeated/map child table to "<table>__<new>"
+//     when the field carries renamed_from[<old>] -- FIRST, so create_table
+//     below finds the populated table instead of making an empty new one,
 //   - ensures the table (and its map/repeated child tables) exist,
 //   - RENAMEs a column carrying the DSL's renamed_from[<old>] modifier (both
 //     names are known at generation time), before anything else runs,
@@ -28,6 +31,10 @@
 //     no DSL marker -- the name is unchanged, so a mismatch is unambiguous.
 //     Runs last among the structural steps, against the table already
 //     stabilized by the rename/add/drop steps above.
+//   - DROPs any "<table>__*" child table the current schema no longer declares
+//     (a repeated/map field removed between versions) -- same implicit,
+//     no-schema-history diff as the column drop -- and RETYPEs a repeated-
+//     scalar child table's "value" column when its element type changed.
 //   - stamps the current version hash.
 // Cross-version DATA transforms (deriving one column's value from another,
 // not just moving/CASTing structure) are handled via an optional
@@ -51,6 +58,23 @@ inline bool migrate_top_users(::soci::session& db,
                            std::function<void(::soci::session&)> data_transform = nullptr) {
     try {
         db << "CREATE TABLE IF NOT EXISTS \"_harpia_schema_version\" (\"name\" TEXT PRIMARY KEY, \"version\" TEXT);";
+
+        // child tables ("<table>__*", one per repeated/map field) the live
+        // database currently has -- for the child-table rename below and the
+        // orphan reap further down (Track H.1). Same dialect-uniform shape
+        // as the column introspection: one selected column, a table name.
+        std::set<std::string> _child_have;
+        {
+            std::string _ctn; ::soci::indicator _ctni;
+            ::soci::statement _cts = (db.prepare << "SELECT \"name\" FROM sqlite_master WHERE type = 'table' AND substr(\"name\", 1, 12) = 'user_table__';",
+                                     ::soci::into(_ctn, _ctni));
+            _cts.execute();
+            while (_cts.fetch()) { if (_ctni == ::soci::i_ok) _child_have.insert(_ctn); }
+        }
+        // child-table renames: a repeated/map field carrying renamed_from[<old>]
+        // moves its "<table>__<old>" child table to "<table>__<new>" BEFORE
+        // create_table's CREATE IF NOT EXISTS would leave an empty new one
+        // beside the populated old. Idempotent, like the column rename above.
 
         // ensure the table + its map/repeated child tables exist at the current schema
         ::harpia::db::top_users_dao dao(db);
@@ -140,6 +164,25 @@ inline bool migrate_top_users(::soci::session& db,
             db << "ALTER TABLE \"user_table__retype_tmp\" RENAME TO \"user_table\";";
         }
         }
+        // non-additive (child tables, Track H.1): reap any "<table>__*" child
+        // table the current schema no longer declares -- a repeated/map field
+        // removed between versions -- then bring a repeated-scalar child
+        // table's "value" column to the current element type. Implicit,
+        // unconditional diff, same no-schema-history caveat as the column
+        // drop above; runs after the main table has been stabilized.
+        {
+            static const std::set<std::string> _child_current = { "user_table__members" };
+            for (auto _cit = _child_have.begin(); _cit != _child_have.end(); ) {
+                if (!_child_current.count(*_cit)) {
+                    const std::string& _dct = *_cit;
+                    db << "DROP TABLE \"" + _dct + "\";";
+                    _cit = _child_have.erase(_cit);
+                } else {
+                    ++_cit;
+                }
+            }
+        }
+
         // stamp the current version
         db << "INSERT OR REPLACE INTO \"_harpia_schema_version\" (\"name\", \"version\") VALUES ('user_table', '3ac5d8b36fc7dcfb70888145147ddfb7');";
         return true;

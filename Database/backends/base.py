@@ -185,6 +185,50 @@ class DbBackend(ABC):
         whole table, e.g. SQLite has no ``ALTER COLUMN ... TYPE``; ignored
         otherwise)."""
 
+    # -- migration: child tables (repeated / map) --------------------------
+    @abstractmethod
+    def list_tables_sql(self, prefix: str) -> str:
+        """A query whose first (and only) selected column is the NAME of each
+        live table whose name begins ``<prefix>__`` -- i.e. every child table
+        (repeated / map) of the table ``prefix``. Read uniformly by the
+        generated migration C++ into a ``std::set`` so the
+        ``pragma``-vs-``information_schema`` split never leaks. Match on an
+        exact prefix (``substr(name, 1, N) = '<prefix>__'``), NOT ``LIKE``,
+        whose ``_`` is a single-character wildcard."""
+
+    @abstractmethod
+    def rename_table(self, old: str, new: str) -> str:
+        """Non-additive migration: ``ALTER TABLE <old> RENAME TO <new>``. Used
+        when a repeated/map field carries the DSL's ``renamed_from[<old>]``
+        modifier -- the child table moves ``<table>__<old>`` -> ``<table>__
+        <new>`` rather than being left orphaned next to an empty new one.
+        Both names are known at generation time, as with
+        :meth:`rename_column`."""
+
+    @abstractmethod
+    def drop_table_dynamic(self, name_expr: str) -> str:
+        """Non-additive migration: a C++ EXPRESSION (not a complete SQL
+        literal -- same shape as :meth:`drop_column_dynamic`) that
+        concatenates a RUNTIME-known table name (``name_expr``, a C++
+        ``std::string`` expression) into a ``DROP TABLE`` statement. The
+        orphan child table's name is only known once migration runs against
+        a live database -- there is no schema history to diff at generation
+        time, only the live table set."""
+
+    @abstractmethod
+    def retype_rep_child_dynamic(self, child: str, owner_type: str,
+                                 val_sql: str) -> str:
+        """Non-additive migration: C++ STATEMENTS (same "backend returns C++"
+        precedent as :meth:`retype_column_dynamic`) that bring the ``value``
+        column of a repeated-scalar child table ``child`` -- shape
+        ``(owner, ordinal, value)`` -- to ``val_sql``, the current element
+        type, guarded by a runtime read of that column's live type so a
+        matching table is left untouched. ``owner_type`` is the child's
+        ``owner`` column type (:attr:`int_type`). Postgres fixes the column
+        in place; SQLite has no ``ALTER COLUMN ... TYPE`` and rebuilds the
+        child table (create at the current type, ``CAST`` every row across,
+        drop, rename into place)."""
+
     # -- convenience ----------------------------------------------------------
     def __repr__(self):
         return "<DbBackend {!r} (soci:{})>".format(self.name, self.soci_backend)

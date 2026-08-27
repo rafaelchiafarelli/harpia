@@ -33,7 +33,8 @@ import os
 from Logger.logger import logger
 from Util.util import loadTemplate, write_if_different
 from Database.backends import get_backend
-from Database.model import analyze, type_registry
+from Database.model import (analyze, type_registry, repeated_fields,
+                            child_table_names, RepeatedField)
 
 MIGRATE_EXT = "_migrate.h"
 
@@ -47,6 +48,12 @@ _RENAME = ('        if (have.count("{old}") && !have.count("{new}")) {{\n'
           '            db << "{rename_sql}";\n'
           '            have.erase("{old}"); have.insert("{new}");\n'
           '        }}')
+
+_CHILD_RENAME = (
+    '        if (_child_have.count("{old}") && !_child_have.count("{new}")) {{\n'
+    '            db << "{rename_sql}";\n'
+    '            _child_have.erase("{old}"); _child_have.insert("{new}");\n'
+    '        }}')
 
 
 def _esc(sql):
@@ -107,6 +114,28 @@ class MigrationAdapter:
         # correctly typed by add_column, so its guard is simply never true).
         retype_block = b.retype_column_dynamic(
             msg.tableName, [(c.name, c.sql_type, c.sql_def()) for c in columns])
+        # -- child tables (Track H.1: repeated-scalar) ----------------------
+        # repeated-scalar child tables are RepeatedField without an fk_target
+        # (that excludes the repeated-composed link table and MapField /
+        # RepeatedComposedField, which are H.2 / H.3). rename + value-retype
+        # apply only to these; the orphan reap below covers every child table.
+        rep_scalars = [r for r in repeated_fields(msg, self.types, b)
+                       if isinstance(r, RepeatedField) and not r.fk_target]
+        child_renames = "\n".join(
+            _CHILD_RENAME.format(
+                old=_esc("{}__{}".format(msg.tableName, r.renamed_from)),
+                new=_esc(r.child_table),
+                rename_sql=_esc(b.rename_table(
+                    "{}__{}".format(msg.tableName, r.renamed_from),
+                    r.child_table)))
+            for r in rep_scalars if r.renamed_from)
+        child_current = ", ".join(
+            '"{}"'.format(_esc(t))
+            for t in child_table_names(msg, self.types, b))
+        child_drop_expr = b.drop_table_dynamic("_dct")
+        child_retypes = "\n".join(
+            b.retype_rep_child_dynamic(r.child_table, b.int_type, r.val_sql)
+            for r in rep_scalars)
         return _MIGRATE.format(
             guard="HARPIA_MIGRATE_{}_{}".format(msg.name.upper(), msg.md5Hash),
             name=msg.name,
@@ -121,4 +150,9 @@ class MigrationAdapter:
             current_cols=current_cols,
             drop_expr=drop_expr,
             retype_block=retype_block,
+            list_child_tables_sql=_esc(b.list_tables_sql(msg.tableName)),
+            child_renames=child_renames,
+            child_current=child_current,
+            child_drop_expr=child_drop_expr,
+            child_retypes=child_retypes,
         )

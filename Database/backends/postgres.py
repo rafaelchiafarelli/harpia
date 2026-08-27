@@ -132,6 +132,45 @@ class PostgresBackend(DbBackend):
         return ("SELECT column_name, data_type FROM information_schema.columns "
                 "WHERE table_name = '{}';").format(table)
 
+    # -- migration: child tables (repeated / map) --------------------------
+    def list_tables_sql(self, prefix):
+        # every "<prefix>__*" table; substr (not LIKE, whose _ is a wildcard)
+        # keeps the match exact, and the shape mirrors list_columns_sql.
+        n = len(prefix) + 2
+        return ("SELECT table_name FROM information_schema.tables "
+                "WHERE substr(table_name, 1, {}) = '{}__';").format(n, prefix)
+
+    def rename_table(self, old, new):
+        return 'ALTER TABLE "{}" RENAME TO "{}";'.format(old, new)
+
+    def drop_table_dynamic(self, name_expr):
+        return '"DROP TABLE \\"" + {} + "\\";"'.format(name_expr)
+
+    def retype_rep_child_dynamic(self, child, owner_type, val_sql):
+        # Postgres has a direct ALTER COLUMN ... TYPE, so the (owner, ordinal,
+        # value) child table's "value" column is fixed in place, guarded by
+        # its live type. information_schema.columns.data_type reports the
+        # canonical lower-case name, exactly as in retype_column_dynamic.
+        types_sql = self.list_column_types_sql(child)
+        alter_sql = ('ALTER TABLE "{}" ALTER COLUMN "value" TYPE {} '
+                     'USING "value"::{};').format(child, val_sql, val_sql)
+        return (
+            '        {{\n'
+            '            std::map<std::string, std::string> _rct;\n'
+            '            {{\n'
+            '                std::string _rn, _rt; ::soci::indicator _rni, _rti;\n'
+            '                ::soci::statement _rs = (db.prepare << "{types}",\n'
+            '                                         ::soci::into(_rn, _rni), ::soci::into(_rt, _rti));\n'
+            '                _rs.execute();\n'
+            '                while (_rs.fetch()) {{ if (_rni == ::soci::i_ok && _rti == ::soci::i_ok) _rct[_rn] = _rt; }}\n'
+            '            }}\n'
+            '            if (_rct.count("value") && _rct["value"] != "{val_lc}") {{\n'
+            '                db << "{alter}";\n'
+            '            }}\n'
+            '        }}'
+        ).format(types=_esc(types_sql), val_lc=val_sql.lower(),
+                 alter=_esc(alter_sql))
+
     def retype_column_dynamic(self, table, columns):
         # Postgres has a direct ALTER COLUMN ... TYPE, so (unlike SQLite) each
         # column is fixed independently, guarded by its own live-type check.
@@ -172,3 +211,8 @@ if __name__ == "__main__":
         ("ID_abc", b.int_type, b.column_def(b.int_type, pk=True)),
         ("weight", b.sql_type("FLOAT"), b.column_def(b.sql_type("FLOAT"))),
     ]))
+    print(b.list_tables_sql("devices"))
+    print(b.rename_table("devices__oldtags", "devices__tags"))
+    print(b.drop_table_dynamic("_dct"))
+    print(b.retype_rep_child_dynamic("devices__tags", b.int_type,
+                                     b.sql_type("STRING")))
