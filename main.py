@@ -13,6 +13,7 @@ from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from YamlAdapter.YamlAdapter import YamlAdapter
+from SerializeAdapter.SerializeAdapter import SerializeAdapter
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
 from Database.DbRegistryAdapter import DbRegistryAdapter
@@ -311,6 +312,11 @@ if __name__ == '__main__':
     yamlError = YamlAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if yamlError is not None:
         log.print(yamlError.__str__())
+
+    #10 (serialize). unified JSON/XML/YAML toString façade (Track F / F.2)
+    serializeError = SerializeAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    if serializeError is not None:
+        log.print(serializeError.__str__())
 
     #8. generate the SQL schema (supersedes the FileCreator stub)
     sqlError = SqlAdapter(messages=msgFactory.messages, dest=testDestination,

@@ -11,6 +11,7 @@ committed snapshots in UnitTests/golden/:
   - zmq/*.h          every emitted ZMQ transport (Stage 13 zmq)
   - xml/*.h          every emitted XML adapter wrapper (Stage 10)
   - yaml/*.h         every emitted YAML adapter wrapper (Stage 10)
+  - serialize/*.h    every emitted unified-serialization wrapper (Stage 10)
   - db/*.h           every emitted CRUDL DAO (Stage 8)
   - capability/*.h   the whole-project gRPC capability advertisement (Stage 13,
                      S5 message-versioning handshake)
@@ -185,6 +186,25 @@ def test_yaml_adapters(artifacts):
     assert produced == expected, "set of generated YAML adapters changed"
     for rel in produced:
         _check(os.path.join(produced_dir, rel), os.path.join("yaml", rel))
+
+
+def test_serialize_adapters(artifacts):
+    produced_dir = os.path.join(artifacts, "serialize")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "serialize")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel),
+                   os.path.join("serialize", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "serialize"))
+    assert produced == expected, "set of generated serialization wrappers changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("serialize", rel))
 
 
 def test_crudl_daos(artifacts):
