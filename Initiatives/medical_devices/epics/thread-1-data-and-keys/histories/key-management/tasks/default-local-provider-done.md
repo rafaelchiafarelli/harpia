@@ -1,6 +1,6 @@
 ## Session O.2 — Default local `KeyProvider` + fail-safe acknowledgment gate
 
-Landed in `cc26db4`.
+Landed in `8b2953b`.
 
 - **Depends on:** O.1 merged.
 - **Deliverable:** a concrete default `KeyProvider` (e.g. platform-
