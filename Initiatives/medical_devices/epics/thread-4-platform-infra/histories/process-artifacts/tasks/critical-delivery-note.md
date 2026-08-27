@@ -2,7 +2,7 @@
 
 - **Depends on:** M.1 merged (`ComplianceReport/` module exists).
 - **Origin:** raised by Track D
-  (`../../../thread-6-critical-and-phi/histories/critical-delivery/track-d-critical-delivery.md`).
+  (`../../../thread-6-critical-and-phi-done/histories/critical-delivery/track-d-critical-delivery.md`).
   `alarm_event` carries a `phi` field, so Track D's work is `phi`-adjacent
   per the effort's definition of done (master plan §4) and owes a
   traceability note — but `ComplianceReport/` is this track's module, not

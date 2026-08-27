@@ -1,5 +1,16 @@
 # Thread 6 — `critical` delivery-guarantee + sensitive-data execution
 
+**STATUS: DONE (2026-08-27).** Track D — the `critical` delivery-guarantee
+axis — is complete: D.1 modifier, D.2 `harpia_delivery.h` runtime, D.3
+`ZmqAdapter` wiring, D.4 the real-socket send/receive integration test (all
+`-done` in `histories/critical-delivery/tasks/`). D.5's `ComplianceReport/`
+note is a Track M task
+(`../thread-4-platform-infra/histories/process-artifacts/tasks/critical-delivery-note.md`,
+blocked on Track M's M.1). The execution-order map and definition-of-done
+below are retained for reference; the `phi`-side tracks they mention live
+in `thread-1-data-and-keys/` (Track O done) and
+`thread-3-message-behavior/` (Track F), not here.
+
 Added 2026-08-27. Same structure as the other five threads (one file per
 track, each broken into small `Session <Track>.<n>` units with an explicit
 Receives/Gives/Files-touched contract).

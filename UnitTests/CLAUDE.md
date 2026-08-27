@@ -100,7 +100,7 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   front; a Phase 3c rehearsal (stall overruns the queue, drain replays the
   survivors in order, every loss audited). (g++)
 - `test_critical_delivery_roundtrip.py` — Track D / Session D.4
-  (`Initiatives/medical_devices/epics/thread-6-critical-and-phi/`): the
+  (`Initiatives/medical_devices/epics/thread-6-critical-and-phi-done/`): the
   `critical` send/receive headline integration test. protoc+g+++pkg-config+
   libzmq+cppzmq-gated. Drives the generated `alarm_event` transport over a
   real `tcp://` socket: (1) publish-while-stalled holds N in the

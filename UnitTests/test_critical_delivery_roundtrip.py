@@ -1,5 +1,5 @@
 """Track D, Session D.4 -- the `critical` send/receive integration test
-(Initiatives/medical_devices/epics/thread-6-critical-and-phi/histories/critical-delivery/track-d-critical-delivery.md).
+(Initiatives/medical_devices/epics/thread-6-critical-and-phi-done/histories/critical-delivery/track-d-critical-delivery.md).
 
 One of the two sensitive-data headline deliverables. Drives the *generated*
 `alarm_event` transport (`critical event message`, from
