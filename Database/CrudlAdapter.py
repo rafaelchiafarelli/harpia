@@ -27,7 +27,23 @@ from Database.model import (analyze, create_table_sql, type_registry,
                             map_fields, repeated_fields, RepeatedComposedField)
 from Crypto.key_provider_common import (
     ENCRYPTED_COLUMN_RUNTIME, ENCRYPTED_COLUMN_RUNTIME_SRC,
-    ENCRYPTED_COLUMN_RUNTIME_DEPS)
+    ENCRYPTED_COLUMN_RUNTIME_DEPS,
+    KEY_PROVIDER_LOCAL_RUNTIME, KEY_PROVIDER_LOCAL_RUNTIME_SRC,
+    KEY_PROVIDER_LOCAL_RUNTIME_DEPS,
+    KEY_PROVIDER_KMS_RUNTIME, KEY_PROVIDER_KMS_RUNTIME_SRC,
+    KEY_PROVIDER_KMS_RUNTIME_DEPS)
+
+# The phi-column DAO's default KeyProvider is the in-process dummy
+# (harpia_encrypted_column.h). A real deployment passes its own
+# LocalKeyProvider / KmsKeyProvider to the DAO ctor -- so the backend
+# headers ship alongside, whole transitive set, one directory (A.2).
+_CRYPTO_RUNTIME_COPIES = (
+    ((ENCRYPTED_COLUMN_RUNTIME, ENCRYPTED_COLUMN_RUNTIME_SRC),)
+    + ENCRYPTED_COLUMN_RUNTIME_DEPS
+    + ((KEY_PROVIDER_LOCAL_RUNTIME, KEY_PROVIDER_LOCAL_RUNTIME_SRC),)
+    + KEY_PROVIDER_LOCAL_RUNTIME_DEPS
+    + ((KEY_PROVIDER_KMS_RUNTIME, KEY_PROVIDER_KMS_RUNTIME_SRC),)
+    + KEY_PROVIDER_KMS_RUNTIME_DEPS)
 
 CRUDL_EXT = "_crudl.h"
 
@@ -85,16 +101,16 @@ class CrudlAdapter:
                 with_phi += 1
 
         if with_phi:
-            # harpia_encrypted_column.h #includes harpia_key_provider.h which
-            # #includes harpia_audit_sink.h, all same-dir "quoted" -- so the
-            # whole transitive set lands in one directory (Track A / A.1).
+            # every header #includes the others same-dir "quoted", so the
+            # whole set (encrypt/decrypt helper + KeyProvider interface +
+            # AuditSink + the Local / KMS backends) lands in one directory.
             os.makedirs(self.cryptoDir, exist_ok=True)
-            copy_if_different(
-                ENCRYPTED_COLUMN_RUNTIME_SRC,
-                os.path.join(self.cryptoDir, ENCRYPTED_COLUMN_RUNTIME))
-            for dep_name, dep_src in ENCRYPTED_COLUMN_RUNTIME_DEPS:
-                copy_if_different(
-                    dep_src, os.path.join(self.cryptoDir, dep_name))
+            seen = set()
+            for name, src in _CRYPTO_RUNTIME_COPIES:
+                if name in seen:
+                    continue
+                seen.add(name)
+                copy_if_different(src, os.path.join(self.cryptoDir, name))
             self.log.print(
                 "copied phi-column encryption runtime into {} "
                 "({} message(s) with phi columns)".format(

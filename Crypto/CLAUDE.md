@@ -101,9 +101,11 @@ the backends → `harpia_key_provider.h` + its deps), mirroring
   `KEY_PROVIDER_LOCAL_RUNTIME` (O.2) + `KEY_PROVIDER_KMS_RUNTIME` (O.5) +
   `ENCRYPTED_COLUMN_RUNTIME` (A.1), each with `_SRC` + a `_DEPS` that
   includes `harpia_key_provider.h` and its deps transitively. **Consumed
-  by `Database/CrudlAdapter.py`** (A.1) — it `copy_if_different`s
-  `ENCRYPTED_COLUMN_RUNTIME` + deps into `generated/cpp/crypto/` when a
-  message has a `phi` column.
+  by `Database/CrudlAdapter.py`** — when a message has a `phi` column it
+  `copy_if_different`s the whole set (`ENCRYPTED_COLUMN_RUNTIME` + the O.1
+  interface + `harpia_audit_sink.h` (A.1), plus `KEY_PROVIDER_LOCAL_RUNTIME`
+  and `KEY_PROVIDER_KMS_RUNTIME` (A.2, so a deployment can hand the DAO a
+  real persistent KeyProvider)) into `generated/cpp/crypto/`.
 
 ## Key facts / gotchas
 - **Selection order in `get_backend()`:** explicit `name` (e.g.

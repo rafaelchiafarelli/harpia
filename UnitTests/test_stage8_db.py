@@ -1169,6 +1169,102 @@ def test_a1_phi_persisted_as_ciphertext(generated, sqlite_obj, tmp_path):
         run.returncode)
 
 
+# -- Track A / A.2: decrypt-on-read -- persist / restart / read ------------
+#
+# The DAO's default KeyProvider is an in-process dummy, so a genuine
+# "restart" test needs a persistent one: Track O's LocalKeyProvider
+# (file-backed KEKs), passed explicitly to the DAO ctor. CrudlAdapter ships
+# harpia_key_provider_local.h alongside for exactly this.
+
+def test_a2_key_provider_backends_shipped(generated):
+    """The Local + KMS KeyProvider backend headers ship alongside the
+    encryption runtime, so a deployment can hand the phi DAO a real,
+    persistent KeyProvider."""
+    crypto_dir = os.path.join(generated, "generated", "cpp", "crypto")
+    for name in ("harpia_key_provider_local.h", "harpia_key_provider_kms.h"):
+        assert os.path.isfile(os.path.join(crypto_dir, name)), \
+            "{} not shipped into generated crypto/".format(name)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="phi persist/restart needs protoc + protobuf")
+def test_a2_persist_restart_decrypt(generated, sqlite_obj, tmp_path):
+    """write -> persist (file DB + file-backed LocalKeyProvider) -> a
+    SEPARATE reader process opens the same DB + the same key store and
+    reads back the decrypted phi values; a reader pointed at a DIFFERENT
+    key store cannot recover the plaintext (the key, not the DB, gates the
+    data) and does not crash -- non-phi columns stay readable."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    pb_cc = os.path.join(cpp_root, "protofiles",
+                         "patient_vitals_{}.pb.cc".format(HASH))
+    db_path = str(tmp_path / "pv.db")
+    keks = str(tmp_path / "keks.store")
+    other_keks = str(tmp_path / "other.store")
+
+    common_head = (
+        '#include "db/patient_vitals_{h}_crudl.h"\n'
+        '#include "crypto/harpia_key_provider_local.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+    ).format(h=HASH)
+
+    def build(name, body):
+        prog = tmp_path / (name + ".cpp")
+        prog.write_text(common_head + "int main() {\n" + body + "}\n")
+        binary = str(tmp_path / name)
+        c = subprocess.run(
+            ["g++", "-std=c++17", "-I", cpp_root, *_pkgconfig("--cflags"),
+             str(prog), pb_cc, "-o", binary, "-lsoci_core", "-lsoci_sqlite3",
+             *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+            capture_output=True, text=True, timeout=180)
+        assert c.returncode == 0, "{} failed to build:\n{}".format(name, c.stderr)
+        return binary
+
+    writer = build("a2_writer", (
+        '    ::soci::session db(::soci::sqlite3, "{db}");\n'
+        '    ::harpia::crypto::LocalKeyProvider kp({{"{keks}"}});\n'
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        '    a.set_patient_id("mrn-55"); a.set_heart_rate(66.25f);\n'
+        '    a.set_device_note("bay 3");\n'
+        "    if (!dao.create(a)) return 3;\n"
+        "    return 0;\n"
+    ).format(db=db_path, keks=keks, h=HASH))
+
+    reader = build("a2_reader", (
+        '    ::soci::session db(::soci::sqlite3, "{db}");\n'
+        '    ::harpia::crypto::LocalKeyProvider kp({{"{keks}"}});\n'
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    ::patient_vitals got;\n"
+        "    if (!dao.read(1, &got)) return 2;\n"
+        '    if (got.patient_id() != "mrn-55") return 3;\n'
+        "    if (got.heart_rate() != 66.25f) return 4;\n"
+        '    if (got.device_note() != "bay 3") return 5;\n'
+        "    return 0;\n"
+    ).format(db=db_path, keks=keks, h=HASH))
+
+    wrongkey = build("a2_wrongkey", (
+        '    ::soci::session db(::soci::sqlite3, "{db}");\n'
+        '    ::harpia::crypto::LocalKeyProvider kp({{"{other}"}});\n'
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    ::patient_vitals got;\n"
+        "    if (!dao.read(1, &got)) return 2;\n"
+        '    if (got.patient_id() == "mrn-55") return 3;   // wrong key cannot recover it\n'
+        '    if (got.device_note() != "bay 3") return 4;   // non-phi still readable\n'
+        "    return 0;\n"
+    ).format(db=db_path, other=other_keks, h=HASH))
+
+    for name, binary in (("writer", writer), ("reader", reader),
+                         ("wrongkey", wrongkey)):
+        r = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+        assert r.returncode == 0, \
+            "a2 {} process failed at check #{}".format(name, r.returncode)
+
+
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="FK round-trip needs protoc + protobuf")
 def test_fk_roundtrip(generated, sqlite_obj, tmp_path):
