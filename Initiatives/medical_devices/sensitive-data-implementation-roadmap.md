@@ -143,11 +143,24 @@ path constant, + `UnitTests/test_delivery_runtime.py` (g++-gated, `-Werror`):
   (caller-synchronized) — a threaded send path is a Phase 3b concern.
 - Nothing copies it into generated output yet — that's Phase 3b.
 
-### Phase 3b — ZMQ wiring
-`ZmqAdapter/` emits the runtime and routes each message by modifier: a
-`critical` message type → the 4a rotating queue on the send path; others →
-4b mailbox or straight passthrough (unchanged behavior). `is_critical` from
-Phase 1a selects the path.
+### Phase 3b — ZMQ wiring  ✅ done (2026-08-27)
+`ZmqAdapter/` copies the runtime into `generated/cpp/delivery/` (only when a
+`critical` transport message exists) and routes a `critical` message type's
+sender/publisher send path through the 4a rotating `BoundedQueue`:
+`send()`/`publish()` stamps an `Envelope` (origin CRC + per-sender monotonic
+seq) and enqueues it, returning `std::optional<PushOutcome>`; a new `flush()`
+drains the queue to the socket oldest-first, stopping at the first send
+failure. Non-`critical` types keep the direct `bool send()` API,
+byte-for-byte unchanged (golden regen touched only `alarm_event`'s header).
+`Message.is_critical` (Phase 1a) selects the sender template
+(`templates/sender_critical.tmpl`); `header.h.tmpl` gained an
+`{extra_includes}` slot (empty for non-critical). The 4b `Mailbox` (routine
+latest-value-only telemetry) is deliberately still unwired — a later call.
+`BoundedQueue::peek()` was added to Phase 3a's header for the drain loop.
+C++ target only — `JavaZmqAdapter` does not read `is_critical` yet.
+Tests: `UnitTests/test_zmq_critical_delivery.py` (structural, pure Python),
+plus `test_stage13_zmq.py`'s existing compile-every-header pass now compiles
+the critical `alarm_event` publisher too.
 
 ### Phase 3c — `critical` send/receive integration test
 Real ZMQ socket (`inproc://` or `tcp://`) + a simulated stall: assert the
@@ -179,11 +192,14 @@ Phases are numbered by dependency layer, not by the order they're being
 built. Actual order taken:
 
 1. **1a** — `critical` modifier (`b433dd5`).
-2. **3a** — delivery-guarantee runtime. Taken right after 1a (its only
-   prerequisite) rather than waiting for 1b/1c, so the `critical` headline
-   test (3a→3b→3c) can be finished as one arc before pivoting to the `phi`
-   side (O→H→A→F).
-3. next: **3b** (ZmqAdapter wiring) → **3c** (critical send/receive test),
+2. **3a** — delivery-guarantee runtime (`3581933`). Taken right after 1a (its
+   only prerequisite) rather than waiting for 1b/1c, so the `critical`
+   headline test (3a→3b→3c) can be finished as one arc before pivoting to the
+   `phi` side (O→H→A→F).
+3. **3b** — ZmqAdapter wiring (`critical` → `BoundedQueue` on the send path;
+   runtime copied into `generated/cpp/delivery/`). Full Docker suite 227
+   passed, 4 skipped.
+4. next: **3c** (critical send/receive integration test over a real socket),
    then Track O.
 
 ## Notes carried from scoping

@@ -160,6 +160,14 @@ public:
         return e;
     }
 
+    // Non-destructive look at the oldest envelope (nullptr when empty). Lets
+    // a drain loop put the payload on the wire and only pop() once the
+    // transport has accepted it -- so a failed send leaves the queue, and
+    // its order, exactly as they were (Rule 4a: ordered/complete delivery).
+    const Envelope* peek() const {
+        return buf_.empty() ? nullptr : &buf_.front();
+    }
+
     std::size_t   size() const { return buf_.size(); }
     std::size_t   capacity() const { return capacity_; }
     bool          empty() const { return buf_.empty(); }

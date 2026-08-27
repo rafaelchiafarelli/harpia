@@ -96,8 +96,21 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `last_rotated_seq()` + a `"queue_rotated"` `AuditSink` record (via a
   counting test sink — proves it's never a silent drop); `Mailbox` latest-
   value-only, `put()` overwrites with `PutOutcome` + `"mailbox_overwritten"`
-  record; a Phase 3c rehearsal (stall overruns the queue, drain replays the
+  record; `peek()` is a non-destructive, order-stable look at the queue
+  front; a Phase 3c rehearsal (stall overruns the queue, drain replays the
   survivors in order, every loss audited). (g++)
+- `test_zmq_critical_delivery.py` — sensitive-data roadmap Phase 3b: pure
+  Python / structural. Runs the real pipeline (`run_pipeline.py`, no C++
+  toolchain) and asserts `alarm_event` (`critical event`) gets a
+  publisher that `#include`s `delivery/harpia_delivery.h`, holds a
+  `BoundedQueue queue_` + `next_seq_`, whose `publish()` returns
+  `std::optional<PushOutcome>` and enqueues an `Envelope::stamp(...)`
+  instead of firing the socket, with a separate `flush()` doing the
+  `peek()`/`pop()` drain; the subscriber half is untouched;
+  `courier`/`users` (non-critical) headers contain no `delivery::`/
+  `BoundedQueue` at all; `harpia_delivery.h` + `harpia_audit_sink.h` are
+  copied verbatim into `generated/cpp/delivery/`; and driving `ZmqAdapter`
+  directly with a lone non-critical message creates no `delivery/` dir.
 - `test_audit_sink.py` — Foundation F3's `Compliance/runtime/harpia_audit_sink.h`
   (hand-written C++, not Python -- unlike F1, this interface is injected
   into *generated* code by later tracks). Compiles/runs small standalone

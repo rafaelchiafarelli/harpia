@@ -13,7 +13,9 @@ Covers, from harpia_sensitive_data_design_rules.md:
   - Rule 4a -- BoundedQueue: FIFO, fixed capacity, overflow ROTATES (drops
                oldest) with an observable PushOutcome, a running rotations()
                count, last_rotated_seq(), and an AuditSink "queue_rotated"
-               record -- never a silent drop.
+               record -- never a silent drop. peek() is a non-destructive
+               look at the oldest, so a drain loop can send-then-pop and
+               keep order across a failed send.
   - Rule 4b -- Mailbox: latest-value-only, put() overwrites with an
                observable PutOutcome, overwrites() count, and an AuditSink
                "mailbox_overwritten" record.
@@ -164,6 +166,24 @@ def test_bounded_queue_overflow_rotates_oldest_and_audits(tmp_path):
         auto e = q.pop();
         if (!e || e->seq != expect[i]) return 57;
     }
+''')
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_bounded_queue_peek_is_nondestructive_and_ordered(tmp_path):
+    r = _run_case(tmp_path, "q_peek", '''
+    using namespace harpia::delivery;
+    CountingSink sink;
+    BoundedQueue q(4, sink);
+    if (q.peek() != nullptr) return 63;                // empty -> nullptr
+    q.push(Envelope::stamp(1, "a"));
+    q.push(Envelope::stamp(2, "b"));
+    const Envelope* p1 = q.peek();
+    if (!p1 || p1->seq != 1) return 64;                // oldest, not newest
+    if (q.size() != 2) return 65;                      // peek did not consume
+    if (q.peek()->seq != 1) return 66;                 // still there, stable
+    q.pop();
+    if (q.peek()->seq != 2) return 67;                 // advances after pop
 ''')
     assert r.returncode == 0, r.stdout + r.stderr
 

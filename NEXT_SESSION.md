@@ -22,131 +22,133 @@ work.
 
 ## What this session did
 
-### Phase 1a — `critical` message-type modifier  (commit `b433dd5`, full Docker suite 211 passed)
+### Phase 3b — wire `ZmqAdapter` to the delivery runtime  (this commit)
 
-The criticality axis of the design-rules doc §0 — message-type-level, never
-per-field, independent of `phi`. Landed as an **AST flag only** (mirrors how
-Foundation F2 landed `phi`); no behaviour yet.
+A `critical` message type's zmq **sender/publisher** now routes its send path
+through `harpia::delivery::BoundedQueue` (design-rules Rule 4a). Non-`critical`
+transports are byte-for-byte unchanged — the golden regen touched only
+`alarm_event`'s header.
 
-- `LexicalAnalizer/LexicalAnalyzer.py` — `('CRITICAL', r'critical ')`, a
-  keyword-only trailing-space token in the same slot as `EVENT`/`STREAM`.
-- `Message/Message.py` — `Message.is_critical` bool, set when `CRITICAL`
-  appears in `access_modifiers`. Composes with any transport kind
-  (`critical event message …`), order-independent. **Also fixed a latent
-  bug**: a leading message-type modifier on the *first* message in a token
-  stream was silently dropped (`tokens[j+1:j]` empty slice) — now
-  `modStart = 0 if curNewLine is None else curNewLine+1`.
-- `UnitTests/run_phi_check.py` — now also reports per-message
-  `is_critical`/`is_enum` in its JSON (`messages: [...]` key).
-- `UnitTests/test_critical_modifier.py` — 12 tests.
-- Fixture: `critical event message alarm_event` added to
-  `HarpiaTest/Include/file3.harpia` (carries a `phi` field too — the axes are
-  independent, Rule 0). Goldens regenerated: one new message, **zero drift on
-  existing messages**, root `HASH` unchanged (only `file3.harpia`'s own md5
-  changed, and only the root file's text feeds the pinned HASH — see
-  `HarpiaTest/CLAUDE.md`).
+- **`ZmqAdapter/ZmqAdapter.py`** — `Process()` reads `msg.is_critical`
+  (roadmap Phase 1a) and, per transport-bearing message, picks
+  `sender_critical.tmpl` vs `sender.tmpl` for the sender/publisher fragment
+  (the receiver/subscriber fragment is unchanged). When ≥1 critical
+  transport message exists, copies `harpia_delivery.h` **and**
+  `harpia_audit_sink.h` (its co-copy dependency, via
+  `Compliance.delivery_common.DELIVERY_RUNTIME_DEPS`) into a shared
+  `<dest>/generated/cpp/delivery/` — mirrors the capability runtime's
+  `generated/cpp/capability/` home. A project with no critical transport
+  message gets no new directory.
+- **`ZmqAdapter/templates/sender_critical.tmpl`** (new) — same origin-id /
+  CURVE / ORIGINATOR-stamp shape as `sender.tmpl`, but:
+  - `send()`/`publish()` returns
+    `::std::optional<::harpia::delivery::PushOutcome>` (empty iff the message
+    could not be serialized at all), and **enqueues** a
+    `harpia::delivery::Envelope::stamp(next_seq_++, bytes)` into a member
+    `BoundedQueue queue_` instead of touching the socket. `next_seq_` starts
+    at 1, per sender.
+  - a new **`flush()`** drains the queue to the socket oldest-first
+    (`peek()` → send → `pop()`), stopping at the first socket failure so a
+    transient outage costs latency, not messages. Returns the count sent.
+  - ctor gains `queue_capacity` (default 128) and
+    `AuditSink& audit` (default `default_audit_sink()`) params, *before* the
+    trailing defaulted CURVE-keys param. Audit subject is the message type
+    name (`"alarm_event"`), so a `"queue_rotated"` record identifies the
+    stream.
+  - extra accessors: `pending()`, `queue()`.
+- **`ZmqAdapter/templates/header.h.tmpl`** — gained an `{extra_includes}`
+  slot right after the `.pb.h` include. `""` for non-critical (output
+  identical to before); `#include "delivery/harpia_delivery.h"` for
+  critical.
+- **`Compliance/runtime/harpia_delivery.h`** — added
+  `const Envelope* BoundedQueue::peek()` (non-destructive front look), so the
+  `flush()` drain loop keeps queue order across a failed send. New assertion
+  block in `UnitTests/test_delivery_runtime.py`.
+- **`UnitTests/test_zmq_critical_delivery.py`** (new) — structural, pure
+  Python (runs `run_pipeline.py`, no toolchain): critical publisher wires
+  the queue + include + `flush()`; subscriber untouched;
+  `courier`/`users` headers have zero `delivery::`/`BoundedQueue`; both
+  runtime headers copied verbatim; a lone non-critical message creates no
+  `delivery/` dir.
+- Docs: `ZmqAdapter/CLAUDE.md`, `Compliance/CLAUDE.md`,
+  `Compliance/delivery_common.py`, `UnitTests/CLAUDE.md`, roadmap updated.
+- Goldens regenerated (`HARPIA_UPDATE_GOLDEN=1`): only
+  `UnitTests/golden/zmq/alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_zmq.h`
+  changed; root `HASH` unchanged (no `.harpia` edit).
+- **Full Docker suite: 227 passed, 4 skipped.** Host: 158 passed, 4 failed
+  (the known no-protoc/pkg-config/cmake host failures — not regressions), 69
+  skipped.
 
-### Phase 3a — delivery-guarantee runtime  (this commit; host-green, Docker suite was running at commit time)
-
-Hand-written transport-/payload-agnostic C++, same posture as
-`Capability/runtime/harpia_capability_dispatch.h` (copied verbatim into
-generated output later — Phase 3b's job; nothing copies it yet).
-
-- **`Compliance/runtime/harpia_delivery.h`** — namespace `harpia::delivery`:
-  - `Envelope{seq, crc, delivery_timestamp_ms, payload}` — `Envelope::stamp()`
-    computes a self-contained CRC-32 (IEEE, no zlib) at origin (Rule 3);
-    `crc_ok()` verifies at a boundary.
-  - `check_on_arrival(env, expected_seq)` → `Arrival{Ok, CrcMismatch, SeqGap,
-    SeqRegressed}` (crc checked first, then monotonic-seq gap detection).
-  - `BoundedQueue(capacity, AuditSink& = default_audit_sink(), subject)`
-    (Rule 4a, for `critical` types) — FIFO, fixed capacity, `push()` →
-    `PushOutcome{Accepted, RotatedOldest}`; on overflow drops the OLDEST,
-    bumps `rotations()`, exposes `last_rotated_seq()`, and calls
-    `audit.record("queue_rotated", subject, "dropped_seq=N")` — never a
-    silent drop, never grows, never blocks. `pop()` → `optional<Envelope>`.
-  - `Mailbox(AuditSink& = default_audit_sink(), subject)` (Rule 4b,
-    latest-value-only) — single pending slot, `put()` →
-    `PutOutcome{Stored, Overwrote}`; overwrite bumps `overwrites()`, calls
-    `audit.record("mailbox_overwritten", subject, "superseded_seq=N")`.
-    `take()` → `optional<Envelope>`.
-  - **NOT thread-safe** (caller-synchronized, same as
-    `harpia_capability_dispatch.h`). A threaded send path is a Phase 3b call.
-  - No payload parsing / range checks (Rule 2).
-  - `#include "harpia_audit_sink.h"` (its sibling in the same dir).
-- **`Compliance/delivery_common.py`** — `DELIVERY_RUNTIME_SRC` path constant
-  (mirrors `audit_common.py`); `DELIVERY_RUNTIME_DEPS` names the audit-sink
-  header as a co-copy dependency (both must land in the same output dir).
-- **`UnitTests/test_delivery_runtime.py`** — 10 g++-gated tests, `-Werror`,
-  standalone-compile pattern (no generated project), incl. a Phase 3c
-  rehearsal (stall overruns the queue → drain replays survivors in order →
-  every loss audited via a counting test `AuditSink`).
-- Docs: `Compliance/CLAUDE.md`, `UnitTests/CLAUDE.md`, roadmap updated.
-
-Purely additive — no existing generator code touched, so golden tests cannot
-drift from Phase 3a.
+### Earlier this branch
+- **Phase 1a** (`b433dd5`) — `critical` message-type modifier (lexer +
+  `Message.is_critical`), AST flag only.
+- **Phase 3a** (`3581933`) — `Compliance/runtime/harpia_delivery.h`:
+  `Envelope` (origin CRC-32 + monotonic seq, `crc_ok()`, `check_on_arrival`),
+  `BoundedQueue` (Rule 4a), `Mailbox` (Rule 4b). Transport-agnostic; nothing
+  consumed it until 3b.
 
 ---
 
 ## What the next session must do
 
-### Phase 3b — wire `ZmqAdapter` to the delivery runtime
+### Phase 3c — the `critical` send/receive integration test  ← next
 
-Goal: a generated ZMQ transport for a `critical` message type routes its send
-path through `BoundedQueue`; non-`critical` types are unchanged (or use
-`Mailbox` where latest-value-only makes sense — decide per the design-rules
-Rule 4 "ask the consumer" note, but the safe default for now is: `critical` →
-queue, everything else → today's direct send).
+This is one of the two headline deliverables. Real ZMQ socket (`inproc://` or
+`tcp://` — `libzmq`+`cppzmq` are in the Docker image; copy the compile/link
+pattern from `UnitTests/test_stage13_zmq.py`, especially `_pkgconfig()` and
+the `pb_cc` compile). The test targets the generated `alarm_event` publisher
+(`critical event`, from `HarpiaTest/Include/file3.harpia`).
 
-- `ZmqAdapter/ZmqAdapter.py` (`Stage 13`) generates
-  `<dest>/generated/cpp/zmq/<name>_<hash>_zmq.h`. Templates in
-  `ZmqAdapter/templates/`. `_is_one_to_many(mods)` already reads
-  `access_modifiers`; add the analogous `is_critical` read (`Message.is_critical`
-  is on the object; `mods` in the adapter is a `set` of token-type strings via
-  `_modifiers(msg)` — `"CRITICAL" in mods` also works).
-- Copy `harpia_delivery.h` **and** `harpia_audit_sink.h` into the generated
-  tree (use `Compliance.delivery_common.DELIVERY_RUNTIME_SRC` +
-  `DELIVERY_RUNTIME_DEPS`; `copy_if_different` from `Util.util`). Decide the
-  output dir — `generated/cpp/zmq/` alongside the transports, or a shared
-  `generated/cpp/delivery/`. The capability runtime went to a shared
-  `generated/cpp/capability/`; mirroring that is reasonable.
-- The generated `<name>_sender` for a `critical` type: instead of `send()`
-  serializing + firing the socket directly, it stamps an `Envelope`
-  (`seq` from a per-sender counter, `crc` auto, timestamp optional), pushes
-  into a `BoundedQueue` member, and a `flush()`/`pump()` drains the queue to
-  the socket — so a transient socket failure leaves messages queued rather
-  than lost. Keep the existing direct API working for non-critical types.
-- Golden regen: `HARPIA_UPDATE_GOLDEN=1 .venv/bin/python -m pytest
-  UnitTests/test_golden.py UnitTests/test_golden_java.py` then **review the
-  diff**. `alarm_event`'s `zmq/` output will change; existing messages'
-  `zmq/` output must NOT (they're not `critical`).
-- Structural unit test in `UnitTests/` (pure Python): the `alarm_event` zmq
-  header wires the queue; a non-critical message's doesn't; the runtime
-  headers are copied.
+Assert, on a real socket:
+1. **Held then replayed in order on reconnect.** Bind the subscriber late (or
+   don't bind it until after several `publish()` calls). Each `publish()`
+   returns `PushOutcome::Accepted` and `pending()` grows — nothing is on the
+   wire yet. After the subscriber is up, `flush()` drains; the subscriber
+   `receive()`s the envelopes **in seq order**. (Note the PUB/SUB "slow
+   joiner" — `test_java_zmq.py` retries around it; for a deterministic test
+   consider a short sleep after connect, or use PUSH/PULL by adding a
+   `critical push` fixture message instead. `alarm_event` is `event`, i.e.
+   PUB/SUB — decide whether to test it as-is with slow-joiner handling or add
+   a `critical push message` to `file3.harpia`. Adding a fixture message
+   means a golden regen + the "comments are lexed like code" gotcha below.)
+2. **Overflow rotates + audits.** Construct the publisher with a small
+   `queue_capacity` (e.g. 4), `publish()` more than that while "stalled",
+   pass a counting `AuditSink` subclass (see the `CountingSink` in
+   `test_delivery_runtime.py`) and assert `queue_rotated` fired exactly
+   `N - capacity` times, `queue().rotations()` matches, and the survivors
+   that `flush()` puts on the wire are the newest `capacity` in order.
+3. **A non-`critical` message on the same kind of path is dropped, not
+   queued.** e.g. `patient_vitals` (has no transport modifier though — you
+   may need `courier` (push) or `users`) — its `send()` returns `bool` and
+   fires the socket immediately, so with no receiver bound the message is
+   just gone. Contrast: no `pending()`, no queue, no replay.
 
-### Phase 3c — the `critical` send/receive integration test
+Wire it as a g+++libzmq-gated test (`test_stage13_zmq.py`'s `pytestmark`
+skipif is the template). If you add a fixture message, bump the golden and
+re-check the pinned-`HASH` file list (below) — though editing only
+`Include/file3.harpia` (not the root `test.harpia`) leaves the pinned `HASH`
+alone, only golden *content* moves.
 
-Real ZMQ socket (`inproc://` or `tcp://`, `libzmq`+`cppzmq` are in the Docker
-image — see `test_stage13_zmq.py` for the pattern). Simulate a stall
-(receiver not bound yet / socket briefly unavailable), assert the `critical`
-message is held in the bounded queue and replayed **in order** on reconnect, a
-rotation event is audited when the queue overflows, and a non-`critical`
-message on the same path is dropped rather than queued. This is one of the two
-headline deliverables.
+Then a one-paragraph traceability note: `alarm_event` carries a `phi` field,
+so Phase 3 is phi-adjacent per the roadmap DoD. `ComplianceReport/` doesn't
+exist yet (Track M, Phase 5) — either stand up a minimal
+`ComplianceReport/notes/` now or leave a TODO in the roadmap's Execution log
+and write the note when Track M lands. Confirm with the owner which.
 
 ### Then — pivot to the `phi` side
 
 Per the roadmap: **Track O** (key management — `Crypto/KeyProvider`, KEK/DEK
 envelope encryption, rotation, crypto-shred; the big prerequisite) → **Track H**
-(DB schema evolution — repeated-composed + non-additive transforms) → **Track A**
-(`EncryptedColumn<T>` on `is_phi` columns + audit-on-access) → **Track F**
-(`phi` redaction in JSON/XML/YAML `toString`; only needs F2, can be done any
-time). Track A's persist→restart→read round-trip is the second headline test.
+(DB schema evolution) → **Track A** (`EncryptedColumn<T>` on `is_phi` columns
++ audit-on-access) → **Track F** (`phi` redaction in JSON/XML/YAML `toString`;
+only needs F2, can be done any time). Track A's persist→restart→read
+round-trip is the second headline test.
 
-**Deferred groundwork**: a checked-in repo-root `project.harpia.yaml` — land it
-with Track O (the first code that actually branches on `ComplianceContext`).
+**Deferred groundwork**: a checked-in repo-root `project.harpia.yaml` — land
+it with Track O (the first code that actually branches on `ComplianceContext`).
 Adding it earlier risks silent interference with tests that assume the
-missing-file/strictest path. See the roadmap Phase 0 note and the F1 section of
-`epics/handoff-document.md`.
+missing-file/strictest path. See the roadmap Phase 0 note and the F1 section
+of `epics/handoff-document.md`.
 
 ---
 
@@ -157,23 +159,35 @@ missing-file/strictest path. See the roadmap Phase 0 note and the F1 section of
   harpia-gradle-cache:/tmp/.gradle -w /harpia -e HOME=/tmp -e
   GRADLE_USER_HOME=/tmp/.gradle harpia-build pytest -q -p no:cacheprovider`.
   Do **not** use `Docker/run.sh` non-interactively — it passes `-it` and dies
-  on non-TTY stdin. Baseline: **211 passed, ~4 skipped** (opt-in PG/KVM).
+  on non-TTY stdin. Baseline after Phase 3b: **227 passed, 4 skipped**
+  (opt-in PG/KVM).
+- **The critical zmq sender's API changed for critical types only**:
+  `publish()`/`send()` no longer return `bool` and no longer touch the
+  socket — they return `std::optional<PushOutcome>` and enqueue. Callers
+  must call `flush()` to transmit. Non-critical senders are exactly as
+  before. `test_stage13_zmq.py`'s `_CALLS` map does `(void)x.publish(m)`
+  which still compiles fine against the optional return.
 - **`.harpia` comments are lexed like code.** Backtick, apostrophe, `:`, `!`,
   `?`, `#`, `@`, `%`, `^`, `~` all hit `MISMATCH` and hard-error the whole
   file *even inside a `//` comment*. Stick to letters/digits/`. , ( ) { } [ ]
-  ; = < > + - * /` and spaces. (Bit me writing the `alarm_event` fixture.)
+  ; = < > + - * /` and spaces.
 - **Golden regen** honours `HARPIA_UPDATE_GOLDEN=1` on
   `test_golden.py`/`test_golden_java.py`. Editing `HarpiaTest/Include/*.harpia`
   is safe for the pinned `HASH` constants in `UnitTests/*.py` (only the ROOT
   `test.harpia`'s text feeds that hash) but does change golden content —
   regenerate and review. If you edit `test.harpia` itself, ~17 files pin the
   hash — see `UnitTests/CLAUDE.md` "The pinned HASH constant".
-- **`AuditSink` operation strings are caller-owned**, not a Foundation enum —
-  invent your own (`"message_sent"`, `"queue_rotated"`, …). `record()` has no
-  parameter that can carry a field value (Rule 5, structural).
+- **`AuditSink` operation strings are caller-owned**, not a Foundation enum.
+  The delivery runtime uses `"queue_rotated"` / `"mailbox_overwritten"`;
+  `record()` has no parameter that can carry a field value (Rule 5,
+  structural).
 - Host has `g++` but not `protoc`/`pkg-config`/`cmake`, so
   `test_stage9`/`test_stage14`/`test_message_versioning_wire` fail on the host
   and pass in Docker — not regressions.
+- The delivery runtime is **not thread-safe** (caller-synchronized). The zmq
+  critical sender is a plain member `BoundedQueue` with no lock — if Phase 3c
+  or a later track needs a background flush thread, that's where the
+  synchronization decision lands.
 - Hidden-field names (`ID_<hash>` etc.) are md5-suffixed off the whole
   `.harpia` file text, so they move on any edit; `Message/FieldMap.py` keys
   wire numbers by role to keep them stable. Don't be alarmed by hidden-field
