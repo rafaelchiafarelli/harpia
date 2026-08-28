@@ -257,20 +257,25 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `SerializeAsString()` equality, plus `from_yaml("not yaml at all")` →
   `false`. F.1 is output-parity only (redaction is F.3, the unified path
   is F.2).
-- `test_stage10_serialize.py` — Track F / Session F.2: the unified
-  `toString` façade (`SerializeAdapter/`, `harpia_serialize.h` +
-  per-message wrappers). `harpia::serialize::to_string(msg, Format::{JSON,
-  XML,YAML})` / `from_string` is one dispatch point over the three
-  unchanged engines (protobuf JSON util, `harpia_xml.h`, `harpia_yaml.h`).
-  protoc+g+++pkg-config-gated: every wrapper compiles; `users` (flat) and
-  `shipment`+`parcel` (nested/repeated) round-trip through all three
-  formats with `SerializeAsString()` equality; the façade's JSON is
-  byte-identical to `MessageToJsonString` and to the existing
-  `json/<name>_json.h` wrapper (the behavior-preserving proof — the
-  14.5/14.6 golden gate itself is `test_golden.py::test_json_adapters` /
-  `test_xml_adapters`, unchanged); default + odd-string (`:`, `<`, `"`)
-  inputs never yield empty output and always round-trip. F.2 adds no
-  redaction (that is F.3).
+- `test_stage10_serialize.py` — Track F / Sessions F.2 **and F.3**: the
+  unified `toString` façade + `phi` redaction (`SerializeAdapter/`,
+  `harpia_serialize.h` + `harpia_redaction.h` + generated
+  `harpia_phi_registry.h` + per-message wrappers). protoc+g+++pkg-config-gated.
+  **F.2:** `harpia::serialize::to_string(msg, Format::{JSON,XML,YAML})` /
+  `from_string` is one dispatch point over the three unchanged engines;
+  every wrapper compiles; `users` (flat) + `shipment`/`parcel`
+  (nested/repeated) round-trip through all three formats with
+  `SerializeAsString()` equality; the façade's JSON is byte-identical to
+  `MessageToJsonString` and to `json/<name>_json.h`; odd-string inputs
+  never yield empty output. **F.3:** `lab_result` (fully-`phi`, all four
+  scalar types — a fixture added to `HarpiaTest/Include/file3.harpia`)
+  renders `[REDACTED]` for every `phi` field in all three formats with the
+  real value (string, int, float) nowhere in the output and every key
+  still present; `patient_vitals` redacts only its `phi` fields and keeps
+  `device_note`; `parcel` (no `phi`) is byte-identical to the raw engines
+  (`MessageToJsonString` / `to_xml` / `to_yaml`) — the acceptance gate at
+  runtime; `harpia::redaction::set_redaction_enabled(false)` (F.4's seam)
+  reveals the real values and drops the placeholder, `true` restores it.
 - `test_stage11_soap.py` — SOAP-over-HTTP endpoint (credential gate).
 - `test_stage12_rest.py` — REST HTTP CRUD, credential-gated.
 - `test_stage13.py` — gRPC services compile, CRUDL-backed impl, metadata auth.

@@ -57,6 +57,7 @@ inline void register_capabilities(crow::SimpleApp& app, const std::string& base)
             "crew_quarters",
             "data",
             "journey",
+            "lab_result",
             "outpost",
             "parcel",
             "patient_vitals",

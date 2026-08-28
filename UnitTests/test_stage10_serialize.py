@@ -1,9 +1,10 @@
-"""Stage 10 -- unified serialization façade (Track F / Session F.2).
+"""Stage 10 -- unified serialization façade + phi redaction (Track F, F.2 & F.3).
 
 `harpia::serialize::to_string(msg, Format)` / `from_string(text, &msg, Format)`
 (SerializeAdapter/runtime/harpia_serialize.h) is the single toString path
-across JSON/XML/YAML, replacing three separate per-format entry points. This:
+across JSON/XML/YAML, replacing three separate per-format entry points.
 
+F.2 half:
   - compiles every generated <name>_serialize.h wrapper,
   - round-trips a flat and a nested/repeated non-`phi` message through all
     three formats via the unified path, and
@@ -11,9 +12,21 @@ across JSON/XML/YAML, replacing three separate per-format entry points. This:
     output is byte-identical to protobuf's own MessageToJsonString and to
     what the existing json/<name>_json.h wrapper produces.
 
+F.3 half (SerializeAdapter/runtime/harpia_redaction.h +
+generated serialize/harpia_phi_registry.h):
+  - a `phi` field renders as the fixed `[REDACTED]` placeholder by default in
+    JSON, XML and YAML alike, with the real value nowhere in the output,
+  - a message with no `phi` field is byte-for-byte the unchanged engine
+    output (the acceptance gate, checked at runtime here and in golden by
+    test_golden.py),
+  - a mixed message redacts only its `phi` fields,
+  - redaction_enabled(false) is the seam F.4 will drive behind
+    `--allow-phi-print` -- flipping it restores the real values.
+
 The JSON/XML golden-snapshot acceptance gate (14.5/14.6 unchanged) is covered
-by test_golden.py -- SerializeAdapter adds a new serialize/ dir and touches
-none of the json/ or xml/ wrappers.
+by test_golden.py -- SerializeAdapter adds a serialize/ dir and touches none
+of the json/ or xml/ wrappers, and redaction lives in the (non-snapshotted)
+runtime, not the wrappers.
 
 Skipped unless protoc + g++ + pkg-config(protobuf) are present.
 """
@@ -235,4 +248,144 @@ def test_never_crashes_and_keeps_structure(built):
         body=_ROBUST,
     )
     assert run.returncode == 0, "robustness check failed at code {}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
+
+
+# --------------------------------------------------------------------------
+# F.3 -- phi redaction
+# --------------------------------------------------------------------------
+_REDACT_ALL = r'''
+#include <iostream>
+using harpia::serialize::Format;
+static bool has(const std::string& h, const std::string& n) {
+    return h.find(n) != std::string::npos;
+}
+int main() {
+    ::lab_result m;
+    m.set_subject_ref("MRN-12345");
+    m.set_analyte_code("GLUCOSE");
+    m.set_value_scaled(910);
+    m.set_reference_high(6.5f);
+    const char* leaks[] = {"MRN-12345", "GLUCOSE", "910", "6.500000"};
+    for (Format fmt : {Format::JSON, Format::XML, Format::YAML}) {
+        const std::string s = harpia::serialize::to_string(m, fmt);
+        std::cerr << "[" << harpia::serialize::format_name(fmt) << "] " << s << "\n";
+        if (!has(s, "[REDACTED]")) return 10;
+        // every phi field's key is still in the structure
+        if (!has(s, "subject_ref") || !has(s, "analyte_code")
+            || !has(s, "value_scaled") || !has(s, "reference_high")) return 11;
+        // and no real value survived, in any of the four types
+        for (const char* leak : leaks) if (has(s, leak)) return 12;
+    }
+    return 0;
+}
+'''
+
+
+def test_phi_fields_redacted_in_all_three_formats(built):
+    run = _build_run(
+        built, "redact_all",
+        includes=["serialize/lab_result___HASH___serialize.h"],
+        pb_names=["lab_result"],
+        body=_REDACT_ALL,
+    )
+    assert run.returncode == 0, "redaction check failed at code {}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
+
+
+_REDACT_MIXED = r'''
+using harpia::serialize::Format;
+static bool has(const std::string& h, const std::string& n) {
+    return h.find(n) != std::string::npos;
+}
+int main() {
+    ::patient_vitals m;                       // phi: patient_id, heart_rate
+    m.set_patient_id("MRN-77");
+    m.set_heart_rate(88.0f);
+    m.set_device_note("cuff-A");              // NOT phi
+    for (Format fmt : {Format::JSON, Format::XML, Format::YAML}) {
+        const std::string s = harpia::serialize::to_string(m, fmt);
+        if (!has(s, "[REDACTED]")) return 1;
+        if (has(s, "MRN-77")) return 2;       // phi string gone
+        if (has(s, "88.000000")) return 3;    // phi number gone
+        if (!has(s, "cuff-A")) return 4;      // non-phi value kept
+        if (!has(s, "device_note")) return 5;
+        if (!has(s, "patient_id") || !has(s, "heart_rate")) return 6;
+    }
+    return 0;
+}
+'''
+
+
+def test_mixed_message_redacts_only_phi_fields(built):
+    run = _build_run(
+        built, "redact_mixed",
+        includes=["serialize/patient_vitals___HASH___serialize.h"],
+        pb_names=["patient_vitals"],
+        body=_REDACT_MIXED,
+    )
+    assert run.returncode == 0, "mixed-redaction check failed at code {}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
+
+
+_NON_PHI_UNCHANGED = r'''
+#include <google/protobuf/util/json_util.h>
+using harpia::serialize::Format;
+int main() {
+    ::parcel m; m.set_label("box"); m.set_weight(4);
+    // JSON: identical to the raw protobuf util (redaction path not taken)
+    std::string util;
+    ::google::protobuf::util::MessageToJsonString(m, &util);
+    if (harpia::serialize::to_string(m, Format::JSON) != util) return 1;
+    // XML / YAML: identical to the untouched engines
+    if (harpia::serialize::to_string(m, Format::XML) != harpia::xml::to_xml(m)) return 2;
+    if (harpia::serialize::to_string(m, Format::YAML) != harpia::yaml::to_yaml(m)) return 3;
+    return 0;
+}
+'''
+
+
+def test_non_phi_message_bypasses_redaction_path(built):
+    run = _build_run(
+        built, "nonphi_unchanged",
+        includes=["serialize/parcel___HASH___serialize.h"],
+        pb_names=["parcel"],
+        body=_NON_PHI_UNCHANGED,
+    )
+    assert run.returncode == 0, "non-phi bypass failed at code {}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
+
+
+_TOGGLE = r'''
+using harpia::serialize::Format;
+static bool has(const std::string& h, const std::string& n) {
+    return h.find(n) != std::string::npos;
+}
+int main() {
+    ::lab_result m; m.set_subject_ref("MRN-9"); m.set_analyte_code("NA");
+    // default: redacted
+    if (!has(harpia::serialize::to_string(m, Format::JSON), "[REDACTED]")) return 1;
+    if (has(harpia::serialize::to_string(m, Format::JSON), "MRN-9")) return 2;
+    // F.4's seam: turn redaction off -> real values, no placeholder
+    harpia::redaction::set_redaction_enabled(false);
+    for (Format fmt : {Format::JSON, Format::XML, Format::YAML}) {
+        const std::string s = harpia::serialize::to_string(m, fmt);
+        if (has(s, "[REDACTED]")) return 3;
+        if (!has(s, "MRN-9")) return 4;
+    }
+    harpia::redaction::set_redaction_enabled(true);
+    if (!has(harpia::serialize::to_string(m, Format::JSON), "[REDACTED]")) return 5;
+    return 0;
+}
+'''
+
+
+def test_redaction_toggle_is_the_f4_seam(built):
+    run = _build_run(
+        built, "toggle",
+        includes=["serialize/lab_result___HASH___serialize.h"],
+        pb_names=["lab_result"],
+        body=_TOGGLE,
+    )
+    assert run.returncode == 0, "redaction toggle failed at code {}\n{}".format(
         run.returncode, run.stdout + run.stderr)
