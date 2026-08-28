@@ -102,6 +102,18 @@ critical event message alarm_event{
     int severity;
 }alarm_event_table;
 
+// fully phi fixture for Track F redaction (F.3 uniform placeholder, F.5
+// round trip). every field is phi and the types span string, int and
+// float so the redacted placeholder is exercised across all of them, not
+// just strings. table less on purpose to keep the golden blast radius to
+// the serialization adapters only.
+message lab_result{
+    phi string subject_ref;
+    phi string analyte_code;
+    phi int value_scaled;
+    phi float reference_high;
+};
+
 // exercises Track H.1, repeated-scalar child-table schema migration.
 // add (a new child table for a new repeated field), rename (the repeated
 // field carries renamed from, so its child table is renamed rather than

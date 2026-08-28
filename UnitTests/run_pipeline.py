@@ -293,16 +293,19 @@ def _collect_yaml(build_dir, dest):
 
 
 def _collect_serialize(build_dir, dest):
-    # per-message wrappers only; harpia_serialize.h is the static runtime (lives
-    # in the repo under SerializeAdapter/runtime -- same convention as _collect_xml)
+    # the per-message wrappers + the generated harpia_phi_registry.h (schema-
+    # derived, worth snapshotting like db/harpia_db_registry.h). The static
+    # runtimes harpia_serialize.h / harpia_redaction.h live in the repo under
+    # SerializeAdapter/runtime -- same convention as _collect_xml.
     src = os.path.join(build_dir, "generated", "cpp", "serialize")
+    static = {"harpia_serialize.h", "harpia_redaction.h"}
     if os.path.exists(dest):
         shutil.rmtree(dest)
     os.makedirs(dest, exist_ok=True)
     if not os.path.isdir(src):
         return
     for name in sorted(os.listdir(src)):
-        if name.endswith(".h") and name != "harpia_serialize.h":
+        if name.endswith(".h") and name not in static:
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 

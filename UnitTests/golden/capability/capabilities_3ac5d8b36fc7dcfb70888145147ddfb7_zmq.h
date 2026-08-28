@@ -53,6 +53,7 @@ public:
         "crew_quarters",
         "data",
         "journey",
+        "lab_result",
         "outpost",
         "parcel",
         "patient_vitals",
