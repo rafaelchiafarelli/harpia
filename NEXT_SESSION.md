@@ -1,11 +1,11 @@
-# NEXT_SESSION — sensitive-data implementation (`phi` side: Track F, F.3 next)
+# NEXT_SESSION — sensitive-data implementation (`phi` side: Track F, F.4 next)
 
 **Branch model:** one session = one branch off `dev`, named
 `features/medical_devices/thread-<N>/<track-folder>/<n>-<task-name>` — see
 **`Initiatives/README.md` → "How to work an `epics/` thread"**, rules 8–11
 (branch & merge flow). `dev` is the integration branch; `main` is never
-touched here. `origin/dev` is current through the Track F / F.2 merge
-(`e6e62cb`, 2026-08-27).
+touched here. `origin/dev` is current through the Track F / F.3 merge
+(`37dc487`, 2026-08-27).
 
 ## Read first (in order)
 
@@ -122,24 +122,42 @@ touched here. `origin/dev` is current through the Track F / F.2 merge
   snapshotted); no existing golden moved. `UnitTests/test_stage10_serialize.py`.
   Docker: **307 passed, 4 skipped**.
 
+- **Track F / F.3 — uniform `phi` redaction — COMPLETE (2026-08-27).**
+  `3-phi-redaction-done.md`. `phi` fields now render as `[REDACTED]` by
+  default in JSON/XML/YAML — wired into the **one** F.2 hook, so the three
+  per-format engines are untouched and a no-`phi` message is byte-for-byte
+  unchanged. New `SerializeAdapter/runtime/harpia_redaction.h`
+  (`kPlaceholder`, `redaction_enabled()` default TRUE, `set_redaction_enabled()`
+  = F.4's seam, `should_redact(msg,field)`); generated
+  `serialize/harpia_phi_registry.h` (constexpr `(message,field)` phi table
+  from `variable.is_phi`); `harpia_serialize.h::to_string` takes a
+  redaction-aware, format-parameterised reflection walk when redaction is on
+  AND `detail::tree_has_phi(descriptor)` (recursive, cycle-guarded). New
+  fully-`phi` fixture `lab_result` in `HarpiaTest/Include/file3.harpia`
+  (four fields, string/int/float; table-less; include-md5 bumped
+  `c27dd76d…`, root HASH untouched). Golden: additive only (`lab_result`
+  artifacts + `harpia_phi_registry.h`; capability adverts + `telemetry`
+  line-shift); no pre-existing wrapper moved. `UnitTests/test_stage10_serialize.py`
+  +4. Docker: **311 passed, 4 skipped**.
+
 ## What to do next
 
-### 1. Track F / F.3 — `phi` redaction, uniform across all three formats
+### 1. Track F / F.4 — audited unredacted-output flag
 
-`histories/serialization/tasks/3-phi-redaction.md`. Branch
-`features/medical_devices/thread-3/serialization/3-phi-redaction` off `dev`.
-`phi` fields render as a fixed redacted placeholder **by default** in JSON,
-XML and YAML alike — never omitted from the structure, never an error. The
-one hook point is `SerializeAdapter/runtime/harpia_serialize.h` (F.2 built
-it for exactly this). **Fixture:** there is no `HarpiaTest/test_medical.harpia`
-despite the thread README naming it — add a *fully-`phi`* message to
-`HarpiaTest/Include/*.harpia` (e.g. `file3.harpia`, beside `patient_vitals`),
-NOT a new root file, so the root `HASH` and every golden it pins stay put
-(`patient_vitals` = mixed, `alarm_event` = has-`phi`; the gap is
-all-fields-`phi`). Expect golden movement in `json/`/`xml/`/`yaml/`/
-`serialize/` **only for the `phi`-bearing messages** — non-`phi` messages
-must stay byte-identical. Then F.4 (audited `--allow-phi-print`), F.5
-(round-trip + `ComplianceReport/` note).
+`histories/serialization/tasks/4-audited-unredacted-flag.md`. Branch
+`features/medical_devices/thread-3/serialization/4-audited-unredacted-flag`
+off `dev`. Unredacted `toString` output only when an explicit, non-default
+flag is set (`--allow-phi-print` style), and **using that flag is itself an
+audited event** (Foundation F3 `AuditSink`, `Compliance/runtime/harpia_audit_sink.h`).
+The seam already exists: `harpia::redaction::set_redaction_enabled(false)`
+(F.3). F.4 wraps it so the opt-out records one `AuditSink` entry (an
+operation string like `"phi_unredacted_output"`, value-free per Rule 5) —
+e.g. `harpia::redaction::allow_phi_print(AuditSink&)` — and never a silent
+toggle. Copy `harpia_audit_sink.h` into `generated/cpp/serialize/` (the
+`Compliance.audit_common` path constant), same as Track A/O did for their
+runtimes. Then F.5 (round-trip through all three formats + a one-paragraph
+`ComplianceReport/` note — see `4-*`/`5-*` task files and the thread
+README's per-track `ComplianceReport/` requirement).
 
 ## Conventions / gotchas
 
