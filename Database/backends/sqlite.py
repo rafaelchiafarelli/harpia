@@ -132,6 +132,157 @@ class SqliteBackend(DbBackend):
         return ('SELECT "name", "type" FROM pragma_table_info(\'{}\');'
                 .format(table))
 
+    # -- migration: child tables (repeated / map) --------------------------
+    def list_tables_sql(self, prefix):
+        # every "<prefix>__*" table; substr (not LIKE, whose _ is a wildcard)
+        # keeps the match exact, and the shape mirrors list_columns_sql --
+        # one selected column, read uniformly by the migration C++.
+        n = len(prefix) + 2
+        return ("SELECT \"name\" FROM sqlite_master WHERE type = 'table' "
+                "AND substr(\"name\", 1, {}) = '{}__';").format(n, prefix)
+
+    def rename_table(self, old, new):
+        return 'ALTER TABLE "{}" RENAME TO "{}";'.format(old, new)
+
+    def drop_table_dynamic(self, name_expr):
+        return '"DROP TABLE \\"" + {} + "\\";"'.format(name_expr)
+
+    def retype_rep_child_dynamic(self, child, owner_type, val_sql):
+        # No ALTER COLUMN ... TYPE in SQLite: rebuild the (owner, ordinal,
+        # value) child table with "value" at the current element type,
+        # CASTing every row across. Guarded by the child's live "value" type
+        # so an already-current table is untouched.
+        types_sql = self.list_column_types_sql(child)
+        tmp = "{}__retype_tmp".format(child)
+        create_sql = ('CREATE TABLE "{}" ("owner" {}, "ordinal" INTEGER, '
+                      '"value" {}, PRIMARY KEY("owner", "ordinal"));').format(
+                          tmp, owner_type, val_sql)
+        insert_sql = ('INSERT INTO "{}" ("owner", "ordinal", "value") SELECT '
+                      '"owner", "ordinal", CAST("value" AS {}) FROM "{}";').format(
+                          tmp, val_sql, child)
+        drop_sql = 'DROP TABLE "{}";'.format(child)
+        rename_sql = 'ALTER TABLE "{}" RENAME TO "{}";'.format(tmp, child)
+        return (
+            '        {{\n'
+            '            std::map<std::string, std::string> _rct;\n'
+            '            {{\n'
+            '                std::string _rn, _rt; ::soci::indicator _rni, _rti;\n'
+            '                ::soci::statement _rs = (db.prepare << "{types}",\n'
+            '                                         ::soci::into(_rn, _rni), ::soci::into(_rt, _rti));\n'
+            '                _rs.execute();\n'
+            '                while (_rs.fetch()) {{ if (_rni == ::soci::i_ok && _rti == ::soci::i_ok) _rct[_rn] = _rt; }}\n'
+            '            }}\n'
+            '            if (_rct.count("value") && _rct["value"] != "{val}") {{\n'
+            '                db << "{create}";\n'
+            '                db << "{insert}";\n'
+            '                db << "{drop}";\n'
+            '                db << "{rename}";\n'
+            '            }}\n'
+            '        }}'
+        ).format(types=_esc(types_sql), val=val_sql, create=_esc(create_sql),
+                 insert=_esc(insert_sql), drop=_esc(drop_sql),
+                 rename=_esc(rename_sql))
+
+    def retype_map_child_dynamic(self, child, owner_type, key_sql, val_sql):
+        # As retype_rep_child_dynamic, for a (owner, key, value) map child
+        # table: either the key or the value type may have moved, so guard
+        # on both. SQLite still has no ALTER COLUMN ... TYPE -> rebuild.
+        types_sql = self.list_column_types_sql(child)
+        tmp = "{}__retype_tmp".format(child)
+        create_sql = ('CREATE TABLE "{}" ("owner" {}, "key" {}, "value" {}, '
+                      'PRIMARY KEY("owner", "key"));').format(
+                          tmp, owner_type, key_sql, val_sql)
+        insert_sql = ('INSERT INTO "{}" ("owner", "key", "value") SELECT '
+                      '"owner", CAST("key" AS {}), CAST("value" AS {}) '
+                      'FROM "{}";').format(tmp, key_sql, val_sql, child)
+        drop_sql = 'DROP TABLE "{}";'.format(child)
+        rename_sql = 'ALTER TABLE "{}" RENAME TO "{}";'.format(tmp, child)
+        return (
+            '        {{\n'
+            '            std::map<std::string, std::string> _mct;\n'
+            '            {{\n'
+            '                std::string _mn, _mt; ::soci::indicator _mni, _mti;\n'
+            '                ::soci::statement _ms = (db.prepare << "{types}",\n'
+            '                                         ::soci::into(_mn, _mni), ::soci::into(_mt, _mti));\n'
+            '                _ms.execute();\n'
+            '                while (_ms.fetch()) {{ if (_mni == ::soci::i_ok && _mti == ::soci::i_ok) _mct[_mn] = _mt; }}\n'
+            '            }}\n'
+            '            if ((_mct.count("key") && _mct["key"] != "{key}") ||\n'
+            '                (_mct.count("value") && _mct["value"] != "{val}")) {{\n'
+            '                db << "{create}";\n'
+            '                db << "{insert}";\n'
+            '                db << "{drop}";\n'
+            '                db << "{rename}";\n'
+            '            }}\n'
+            '        }}'
+        ).format(types=_esc(types_sql), key=key_sql, val=val_sql,
+                 create=_esc(create_sql), insert=_esc(insert_sql),
+                 drop=_esc(drop_sql), rename=_esc(rename_sql))
+
+    def evolve_rep_composed_child_dynamic(self, child, owner_type, columns):
+        # A repeated-composed child table has one data column per the
+        # table-less target's own flattened field, so its columns evolve
+        # like a main table's: ADD any current data column an older table
+        # lacks (ALTER ADD COLUMN), then -- if a live data column is now a
+        # stray or a type drifted -- rebuild (owner, ordinal, <current data
+        # cols>), CASTing every row across (which also drops the strays,
+        # since they are simply not selected). owner/ordinal never change.
+        columns = list(columns)
+        types_sql = self.list_column_types_sql(child)
+        adds = "\n".join(
+            '                if (!_ec.count("{n}")) db << "{alter}";'.format(
+                n=name, alter=_esc(self.add_column(child, name, cdef)))
+            for name, _t, cdef in columns)
+        keep = ", ".join('"{}"'.format(n)
+                         for n in ["owner", "ordinal"] + [c[0] for c in columns])
+        type_checks = "".join(
+            '\n                if (_ect.count("{n}") && _ect["{n}"] != "{t}") '
+            '_erebuild = true;'.format(n=name, t=t) for name, t, _d in columns)
+        tmp = "{}__evolve_tmp".format(child)
+        data_defs = "".join(', "{}" {}'.format(n, t) for n, t, _d in columns)
+        create_sql = ('CREATE TABLE "{}" ("owner" {}, "ordinal" INTEGER{}, '
+                      'PRIMARY KEY("owner", "ordinal"));').format(
+                          tmp, owner_type, data_defs)
+        collist = ", ".join('"{}"'.format(n)
+                            for n in ["owner", "ordinal"] + [c[0] for c in columns])
+        sellist = ", ".join(['"owner"', '"ordinal"']
+                            + ['CAST("{}" AS {})'.format(n, t)
+                               for n, t, _d in columns])
+        insert_sql = 'INSERT INTO "{}" ({}) SELECT {} FROM "{}";'.format(
+            tmp, collist, sellist, child)
+        drop_sql = 'DROP TABLE "{}";'.format(child)
+        rename_sql = 'ALTER TABLE "{}" RENAME TO "{}";'.format(tmp, child)
+        return (
+            '        {{\n'
+            '            std::set<std::string> _ec;\n'
+            '            std::map<std::string, std::string> _ect;\n'
+            '            {{\n'
+            '                std::string _en, _et; ::soci::indicator _eni, _eti;\n'
+            '                ::soci::statement _es = (db.prepare << "{types}",\n'
+            '                                         ::soci::into(_en, _eni), ::soci::into(_et, _eti));\n'
+            '                _es.execute();\n'
+            '                while (_es.fetch()) {{\n'
+            '                    if (_eni == ::soci::i_ok) {{ _ec.insert(_en); if (_eti == ::soci::i_ok) _ect[_en] = _et; }}\n'
+            '                }}\n'
+            '            }}\n'
+            '            if (!_ec.empty()) {{\n'
+            '{adds}\n'
+            '                static const std::set<std::string> _ekeep = {{ {keep} }};\n'
+            '                bool _erebuild = false;\n'
+            '                for (const auto& _en2 : _ec) if (!_ekeep.count(_en2)) _erebuild = true;{type_checks}\n'
+            '                if (_erebuild) {{\n'
+            '                    db << "{create}";\n'
+            '                    db << "{insert}";\n'
+            '                    db << "{drop}";\n'
+            '                    db << "{rename}";\n'
+            '                }}\n'
+            '            }}\n'
+            '        }}'
+        ).format(types=_esc(types_sql), adds=adds, keep=keep,
+                 type_checks=type_checks, create=_esc(create_sql),
+                 insert=_esc(insert_sql), drop=_esc(drop_sql),
+                 rename=_esc(rename_sql))
+
     def retype_column_dynamic(self, table, columns):
         # SQLite has no ALTER COLUMN ... TYPE at all, so a real type change
         # needs a whole-table rebuild: create a tmp table with the CURRENT
@@ -194,4 +345,15 @@ if __name__ == "__main__":
     print(b.retype_column_dynamic("devices", [
         ("ID_abc", b.int_type, b.column_def(b.int_type, pk=True)),
         ("weight", b.sql_type("FLOAT"), b.column_def(b.sql_type("FLOAT"))),
+    ]))
+    print(b.list_tables_sql("devices"))
+    print(b.rename_table("devices__oldtags", "devices__tags"))
+    print(b.drop_table_dynamic("_dct"))
+    print(b.retype_rep_child_dynamic("devices__tags", b.int_type,
+                                     b.sql_type("STRING")))
+    print(b.retype_map_child_dynamic("devices__labels", b.int_type,
+                                     b.sql_type("STRING"), b.sql_type("INT32")))
+    print(b.evolve_rep_composed_child_dynamic("devices__events", b.int_type, [
+        ("kind", b.sql_type("STRING"), b.column_def(b.sql_type("STRING"))),
+        ("weight", b.sql_type("INT32"), b.column_def(b.sql_type("INT32"))),
     ]))

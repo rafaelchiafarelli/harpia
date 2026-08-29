@@ -444,6 +444,1063 @@ def test_migration_retype_column(generated, sqlite_obj, tmp_path):
         run.returncode)
 
 
+# -- Track H.1: repeated-scalar child-table schema migration ----------------
+#
+# telemetry (HarpiaTest/Include/file3.harpia) -> table "telemetry_table" with
+# two repeated-scalar child tables: "telemetry_table__samples" (value INTEGER)
+# and "telemetry_table__notes" (value TEXT), the latter carrying
+# renamed_from[old_notes]. migrate_telemetry must rename/add/drop/retype these
+# child tables the same way it does the main table's own columns.
+
+def _compile_run(tmp_path, cpp_root, name, source, pb_ccs):
+    """Compile a single migration program against the generated tree + the
+    named protobuf .cc files, run it, and assert a zero exit."""
+    prog = tmp_path / (name + ".cpp")
+    prog.write_text(source)
+    binary = str(tmp_path / name)
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, *_pkgconfig("--cflags"),
+         str(prog), *pb_ccs, "-o", binary, "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "{} failed to build:\n{}".format(name, c.stderr)
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "{} failed at check #{}".format(
+        name, run.returncode)
+
+
+def _telemetry_pb(cpp_root):
+    # telemetry's DAO pulls in trace_row (the table-less target of its
+    # repeated-composed `traces` field), so both .pb.cc must be linked.
+    return [os.path.join(cpp_root, "protofiles", "telemetry_{}.pb.cc".format(HASH)),
+            os.path.join(cpp_root, "protofiles", "trace_row_{}.pb.cc".format(HASH))]
+
+
+_TELEMETRY_HEAD = (
+    '#include "migrate/telemetry_{h}_migrate.h"\n'
+    "#include <soci/soci.h>\n"
+    "#include <soci/sqlite3/soci-sqlite3.h>\n"
+    "#include <string>\n"
+    "int main() {{\n"
+    '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+    "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }}"
+    " catch (...) {{ return false; }} }};\n"
+    "    auto has_table = [&db](const std::string& t) {{ int n = 0;"
+    " ::soci::indicator i;"
+    " db << (\"SELECT count(*) FROM sqlite_master WHERE type='table' AND name='\""
+    " + t + \"'\"), ::soci::into(n, i);"
+    " return n; }};\n"
+)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_child_scalar_add(generated, sqlite_obj, tmp_path):
+    """A repeated-scalar field with no live child table yet: migrate_telemetry
+    stands "telemetry_table__samples" up (via create_table) and it is
+    immediately usable through the DAO."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_child_add", _TELEMETRY_HEAD.format(h=HASH) + (
+        "    // an older version: parent + the 'notes' child table only, no 'samples'\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("CREATE TABLE \\"telemetry_table__notes\\" (\\"owner\\" INTEGER,'
+        ' \\"ordinal\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"ordinal\\"));"))'
+        " return 3;\n"
+        "    if (has_table(\"telemetry_table__samples\")) return 4;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 5;\n"
+        "    if (!has_table(\"telemetry_table__samples\")) return 6;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        '    ::telemetry t; t.set_id_{h}(1); t.set_label("dev");\n'
+        "    t.add_samples(11); t.add_samples(22); t.add_samples(33);\n"
+        "    if (!dao.create(t)) return 7;\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 8;\n"
+        "    if (got.samples_size() != 3 || got.samples(2) != 33) return 9;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_child_scalar_rename(generated, sqlite_obj, tmp_path):
+    """The repeated field 'notes' carries renamed_from[old_notes]:
+    migrate_telemetry moves "telemetry_table__old_notes" (with its rows) to
+    "telemetry_table__notes" instead of leaving it orphaned beside an empty
+    new one, and a second call is idempotent."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_child_rename", _TELEMETRY_HEAD.format(h=HASH) + (
+        "    // an older version: the repeated child table under its old name\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        " VALUES (1, 'dev');\")) return 3;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__old_notes\\" (\\"owner\\" INTEGER,'
+        ' \\"ordinal\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"ordinal\\"));"))'
+        " return 4;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__old_notes\\" VALUES (1, 0, \'alpha\'),'
+        " (1, 1, 'beta');\")) return 5;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 6;\n"
+        "    if (has_table(\"telemetry_table__old_notes\")) return 7;\n"
+        "    if (!has_table(\"telemetry_table__notes\")) return 8;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 9;\n"
+        '    if (got.notes_size() != 2 || got.notes(0) != "alpha" || got.notes(1) != "beta")'
+        " return 10;\n"
+        "    // idempotent: a second call is a no-op (old name already gone)\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 11;\n"
+        "    ::telemetry got2;\n"
+        "    if (!dao.read(1, &got2) || got2.notes_size() != 2) return 12;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_child_scalar_drop(generated, sqlite_obj, tmp_path):
+    """A "telemetry_table__*" child table the current schema no longer
+    declares (a repeated field removed between versions) is reaped, while the
+    child tables that ARE still declared are left intact."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_child_drop", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        "    // a child table for a repeated field that no longer exists\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__ghost\\" (\\"owner\\" INTEGER,'
+        ' \\"ordinal\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"ordinal\\"));"))'
+        " return 3;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__ghost\\" VALUES (1, 0, \'stale\');"))'
+        " return 4;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 5;\n"
+        "    if (has_table(\"telemetry_table__ghost\")) return 6;\n"
+        "    // the declared child tables were created, not reaped\n"
+        "    if (!has_table(\"telemetry_table__samples\")) return 7;\n"
+        "    if (!has_table(\"telemetry_table__notes\")) return 8;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_child_scalar_retype(generated, sqlite_obj, tmp_path):
+    """The element type of a repeated-scalar field changed: an older
+    "telemetry_table__samples" stored value as TEXT, the current schema is
+    INTEGER. migrate_telemetry rebuilds the child table (create/CAST-copy/
+    drop/rename), the values survive, and a second call is a no-op."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_child_retype", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        " VALUES (1, 'dev');\")) return 3;\n"
+        "    // older child table: value typed TEXT, not INTEGER\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__samples\\" (\\"owner\\" INTEGER,'
+        ' \\"ordinal\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"ordinal\\"));"))'
+        " return 4;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__samples\\" VALUES (1, 0, \'11\'),'
+        " (1, 1, '22');\")) return 5;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 6;\n"
+        "    int typed = 0; ::soci::indicator ti;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__samples')"
+        " WHERE name = 'value' AND type = 'INTEGER'\", ::soci::into(typed, ti);\n"
+        "    if (typed != 1) return 7;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 8;\n"
+        "    if (got.samples_size() != 2 || got.samples(0) != 11 || got.samples(1) != 22)"
+        " return 9;\n"
+        "    // idempotent: the type already matches, so no rebuild the 2nd time\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 10;\n"
+        "    ::telemetry got2;\n"
+        "    if (!dao.read(1, &got2) || got2.samples_size() != 2) return 11;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_child_scalar_roundtrip(generated, sqlite_obj, tmp_path):
+    """Integration: one old-database snapshot exercising all four child-table
+    transforms in a single migrate_telemetry call -- a renamed child table
+    ("old_notes"->"notes") with rows, a retyped one ("samples" TEXT->INTEGER)
+    with rows, an orphan one ("ghost") to reap, and the parent row -- then
+    verify every surviving value round-trips through the DAO."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_child_roundtrip", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        " VALUES (1, 'unit-7');\")) return 3;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__old_notes\\" (\\"owner\\" INTEGER,'
+        ' \\"ordinal\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"ordinal\\"));"))'
+        " return 4;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__old_notes\\" VALUES (1, 0, \'boot\'),'
+        " (1, 1, 'ready');\")) return 5;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__samples\\" (\\"owner\\" INTEGER,'
+        ' \\"ordinal\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"ordinal\\"));"))'
+        " return 6;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__samples\\" VALUES (1, 0, \'5\'),'
+        " (1, 1, '9');\")) return 7;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__ghost\\" (\\"owner\\" INTEGER,'
+        ' \\"ordinal\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"ordinal\\"));"))'
+        " return 8;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 9;\n"
+        "    if (has_table(\"telemetry_table__old_notes\")) return 10;\n"
+        "    if (has_table(\"telemetry_table__ghost\")) return 11;\n"
+        "    int typed = 0; ::soci::indicator ti;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__samples')"
+        " WHERE name = 'value' AND type = 'INTEGER'\", ::soci::into(typed, ti);\n"
+        "    if (typed != 1) return 12;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 13;\n"
+        '    if (got.label() != "unit-7") return 14;\n'
+        '    if (got.notes_size() != 2 || got.notes(0) != "boot" || got.notes(1) != "ready")'
+        " return 15;\n"
+        "    if (got.samples_size() != 2 || got.samples(0) != 5 || got.samples(1) != 9)"
+        " return 16;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+# -- Track H.2: map child-table schema migration ---------------------------
+#
+# telemetry also has two map fields -> child tables "telemetry_table__gauges"
+# (map<string,int> -> key TEXT, value INTEGER) and "telemetry_table__flags"
+# (map<int,string> -> key INTEGER, value TEXT, carrying renamed_from[old_flags]).
+# A map child table is (owner, key, value) PRIMARY KEY(owner, key), so a retype
+# has to check BOTH the key and the value column.
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_map_child_add(generated, sqlite_obj, tmp_path):
+    """A map field with no live child table yet: migrate_telemetry stands
+    "telemetry_table__gauges" up (via create_table) and it round-trips
+    through the DAO."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_map_add", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        "    if (has_table(\"telemetry_table__gauges\")) return 3;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 4;\n"
+        "    if (!has_table(\"telemetry_table__gauges\")) return 5;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        '    ::telemetry t; t.set_id_{h}(1); t.set_label("dev");\n'
+        '    (*t.mutable_gauges())["cpu"] = 5; (*t.mutable_gauges())["mem"] = 8;\n'
+        "    if (!dao.create(t)) return 6;\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 7;\n"
+        '    if (got.gauges_size() != 2 || got.gauges().at("cpu") != 5) return 8;\n'
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_map_child_rename(generated, sqlite_obj, tmp_path):
+    """The map field 'flags' carries renamed_from[old_flags]: migrate_telemetry
+    moves "telemetry_table__old_flags" (with its rows) to
+    "telemetry_table__flags", and a second call is idempotent."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_map_rename", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        " VALUES (1, 'dev');\")) return 3;\n"
+        "    // the map child table under its old name (map<int,string>)\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__old_flags\\" (\\"owner\\" INTEGER,'
+        ' \\"key\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
+        " return 4;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__old_flags\\" VALUES (1, 1, \'on\'),'
+        " (1, 2, 'off');\")) return 5;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 6;\n"
+        "    if (has_table(\"telemetry_table__old_flags\")) return 7;\n"
+        "    if (!has_table(\"telemetry_table__flags\")) return 8;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 9;\n"
+        '    if (got.flags_size() != 2 || got.flags().at(1) != "on" || got.flags().at(2) != "off")'
+        " return 10;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 11;\n"
+        "    ::telemetry got2;\n"
+        "    if (!dao.read(1, &got2) || got2.flags_size() != 2) return 12;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_map_child_drop(generated, sqlite_obj, tmp_path):
+    """A map "telemetry_table__*" child table the current schema no longer
+    declares is reaped; the declared map child tables are left intact."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_map_drop", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("CREATE TABLE \\"telemetry_table__phantom\\" (\\"owner\\" INTEGER,'
+        ' \\"key\\" TEXT, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
+        " return 3;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__phantom\\" VALUES (1, \'k\', \'v\');"))'
+        " return 4;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 5;\n"
+        "    if (has_table(\"telemetry_table__phantom\")) return 6;\n"
+        "    if (!has_table(\"telemetry_table__gauges\")) return 7;\n"
+        "    if (!has_table(\"telemetry_table__flags\")) return 8;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_map_child_retype(generated, sqlite_obj, tmp_path):
+    """The map's key AND value types changed: an older
+    "telemetry_table__gauges" stored key INTEGER / value TEXT, the current
+    schema is key TEXT / value INTEGER. migrate_telemetry rebuilds the child
+    table (both columns CAST), the entries survive, and a second call is a
+    no-op."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_map_retype", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        " VALUES (1, 'dev');\")) return 3;\n"
+        "    // older child table: key INTEGER / value TEXT, now TEXT / INTEGER\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__gauges\\" (\\"owner\\" INTEGER,'
+        ' \\"key\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
+        " return 4;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__gauges\\" VALUES (1, 7, \'42\'),'
+        " (1, 8, '99');\")) return 5;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 6;\n"
+        "    int kt = 0, vt = 0; ::soci::indicator ki, vi;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__gauges')"
+        " WHERE name = 'key' AND type = 'TEXT'\", ::soci::into(kt, ki);\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__gauges')"
+        " WHERE name = 'value' AND type = 'INTEGER'\", ::soci::into(vt, vi);\n"
+        "    if (kt != 1 || vt != 1) return 7;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 8;\n"
+        '    if (got.gauges_size() != 2 || got.gauges().at("7") != 42 || got.gauges().at("8") != 99)'
+        " return 9;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 10;\n"
+        "    ::telemetry got2;\n"
+        "    if (!dao.read(1, &got2) || got2.gauges_size() != 2) return 11;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_map_child_roundtrip(generated, sqlite_obj, tmp_path):
+    """Integration: one old-database snapshot exercising all four map
+    child-table transforms in a single migrate_telemetry call -- a renamed
+    child table ("old_flags"->"flags") with rows, a retyped one ("gauges",
+    key/value types swapped) with rows, an orphan ("phantom") to reap, and
+    the parent row -- then verify every surviving entry round-trips."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_map_roundtrip", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        " VALUES (1, 'unit-9');\")) return 3;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__old_flags\\" (\\"owner\\" INTEGER,'
+        ' \\"key\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
+        " return 4;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__old_flags\\" VALUES (1, 1, \'yes\'),'
+        " (1, 2, 'no');\")) return 5;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__gauges\\" (\\"owner\\" INTEGER,'
+        ' \\"key\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
+        " return 6;\n"
+        '    if (!exec("INSERT INTO \\"telemetry_table__gauges\\" VALUES (1, 3, \'30\'),'
+        " (1, 4, '40');\")) return 7;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__phantom\\" (\\"owner\\" INTEGER,'
+        ' \\"key\\" TEXT, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
+        " return 8;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 9;\n"
+        "    if (has_table(\"telemetry_table__old_flags\")) return 10;\n"
+        "    if (has_table(\"telemetry_table__phantom\")) return 11;\n"
+        "    int vt = 0; ::soci::indicator vi;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__gauges')"
+        " WHERE name = 'value' AND type = 'INTEGER'\", ::soci::into(vt, vi);\n"
+        "    if (vt != 1) return 12;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 13;\n"
+        '    if (got.label() != "unit-9") return 14;\n'
+        '    if (got.flags_size() != 2 || got.flags().at(1) != "yes" || got.flags().at(2) != "no")'
+        " return 15;\n"
+        '    if (got.gauges_size() != 2 || got.gauges().at("3") != 30 || got.gauges().at("4") != 40)'
+        " return 16;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+# -- Track H.3: repeated-composed child-table schema migration ------------
+#
+# telemetry.traces -> trace_row (table-less {kind string, weight int}) ->
+# child table "telemetry_table__traces" (owner, ordinal, kind, weight),
+# carrying renamed_from[old_traces]. Unlike a repeated-scalar / map child
+# table, the data columns (one per trace_row field) evolve independently:
+# a field ADDed / DROPped / RETYPEd on trace_row is an add/drop/retype of a
+# child-table column.
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_composed_child_add(generated, sqlite_obj, tmp_path):
+    """A repeated-composed field with no live child table yet:
+    migrate_telemetry stands "telemetry_table__traces" up (via
+    create_table) and it round-trips through the DAO."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_comp_add", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        "    if (has_table(\"telemetry_table__traces\")) return 3;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 4;\n"
+        "    if (!has_table(\"telemetry_table__traces\")) return 5;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        '    ::telemetry t; t.set_id_{h}(1); t.set_label("dev");\n'
+        '    auto* r = t.add_traces(); r->set_kind("boot"); r->set_weight(3);\n'
+        "    if (!dao.create(t)) return 6;\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 7;\n"
+        '    if (got.traces_size() != 1 || got.traces(0).kind() != "boot"'
+        " || got.traces(0).weight() != 3) return 8;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_composed_child_rename(generated, sqlite_obj, tmp_path):
+    """The repeated-composed field 'traces' carries renamed_from[old_traces]:
+    migrate_telemetry moves "telemetry_table__old_traces" (with its rows) to
+    "telemetry_table__traces", and a second call is idempotent."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_comp_rename", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        " VALUES (1, 'dev');\")) return 3;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__old_traces\\" (\\"owner\\" INTEGER,'
+        ' \\"ordinal\\" INTEGER, \\"kind\\" TEXT, \\"weight\\" INTEGER,'
+        ' PRIMARY KEY(\\"owner\\", \\"ordinal\\"));")) return 4;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table__old_traces\\" VALUES'
+        " (1, 0, 'boot', 3), (1, 1, 'ready', 7);\")) return 5;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 6;\n"
+        "    if (has_table(\"telemetry_table__old_traces\")) return 7;\n"
+        "    if (!has_table(\"telemetry_table__traces\")) return 8;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 9;\n"
+        '    if (got.traces_size() != 2 || got.traces(0).kind() != "boot"'
+        ' || got.traces(1).weight() != 7) return 10;\n'
+        "    if (!::harpia::db::migrate_telemetry(db)) return 11;\n"
+        "    ::telemetry got2;\n"
+        "    if (!dao.read(1, &got2) || got2.traces_size() != 2) return 12;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_composed_child_drop(generated, sqlite_obj, tmp_path):
+    """A repeated-composed "telemetry_table__*" child table the current
+    schema no longer declares is reaped; the declared child tables stay."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_comp_drop", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("CREATE TABLE \\"telemetry_table__spans\\" (\\"owner\\" INTEGER,'
+        ' \\"ordinal\\" INTEGER, \\"name\\" TEXT, \\"dur\\" INTEGER,'
+        ' PRIMARY KEY(\\"owner\\", \\"ordinal\\"));")) return 3;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table__spans\\" VALUES (1, 0, \'x\', 9);"))'
+        " return 4;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 5;\n"
+        "    if (has_table(\"telemetry_table__spans\")) return 6;\n"
+        "    if (!has_table(\"telemetry_table__traces\")) return 7;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_composed_child_retype(generated, sqlite_obj, tmp_path):
+    """The table-less target's fields evolved: an older
+    "telemetry_table__traces" had "kind" as INTEGER and an extra "note"
+    column and no "weight". migrate_telemetry ADDs "weight", DROPs "note",
+    and RETYPEs "kind" to TEXT (one child-table rebuild), the surviving
+    values carry across, and a second call is a no-op."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_comp_retype", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        " VALUES (1, 'dev');\")) return 3;\n"
+        "    // older shape: kind INTEGER, stray note, no weight\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__traces\\" (\\"owner\\" INTEGER,'
+        ' \\"ordinal\\" INTEGER, \\"kind\\" INTEGER, \\"note\\" TEXT,'
+        ' PRIMARY KEY(\\"owner\\", \\"ordinal\\"));")) return 4;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table__traces\\" VALUES'
+        " (1, 0, 5, 'legacy'), (1, 1, 8, 'stale');\")) return 5;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 6;\n"
+        "    int kt = 0, wc = 0, nc = 0; ::soci::indicator i0, i1, i2;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__traces')"
+        " WHERE name = 'kind' AND type = 'TEXT'\", ::soci::into(kt, i0);\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__traces')"
+        " WHERE name = 'weight'\", ::soci::into(wc, i1);\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__traces')"
+        " WHERE name = 'note'\", ::soci::into(nc, i2);\n"
+        "    if (kt != 1 || wc != 1 || nc != 0) return 7;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 8;\n"
+        '    if (got.traces_size() != 2 || got.traces(0).kind() != "5"'
+        ' || got.traces(1).kind() != "8") return 9;\n'
+        "    if (!::harpia::db::migrate_telemetry(db)) return 10;\n"
+        "    ::telemetry got2;\n"
+        "    if (!dao.read(1, &got2) || got2.traces_size() != 2) return 11;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migration_composed_child_roundtrip(generated, sqlite_obj, tmp_path):
+    """Integration: one old snapshot exercising every repeated-composed
+    child-table transform in a single migrate_telemetry call -- a renamed
+    child table ("old_traces"->"traces") whose data columns also need
+    evolving (kind INTEGER->TEXT, +weight, -note), an orphan ("spans") to
+    reap, and the parent row -- then verify the survivors round-trip."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "mig_comp_roundtrip", _TELEMETRY_HEAD.format(h=HASH) + (
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        ' \\"label\\" TEXT);")) return 2;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        " VALUES (1, 'unit-3');\")) return 3;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__old_traces\\" (\\"owner\\" INTEGER,'
+        ' \\"ordinal\\" INTEGER, \\"kind\\" INTEGER, \\"note\\" TEXT,'
+        ' PRIMARY KEY(\\"owner\\", \\"ordinal\\"));")) return 4;\n'
+        '    if (!exec("INSERT INTO \\"telemetry_table__old_traces\\" VALUES'
+        " (1, 0, 11, 'a'), (1, 1, 22, 'b');\")) return 5;\n"
+        '    if (!exec("CREATE TABLE \\"telemetry_table__spans\\" (\\"owner\\" INTEGER,'
+        ' \\"ordinal\\" INTEGER, \\"name\\" TEXT, PRIMARY KEY(\\"owner\\", \\"ordinal\\"));"))'
+        " return 6;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 7;\n"
+        "    if (has_table(\"telemetry_table__old_traces\")) return 8;\n"
+        "    if (has_table(\"telemetry_table__spans\")) return 9;\n"
+        "    int wc = 0, nc = 0; ::soci::indicator i1, i2;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__traces')"
+        " WHERE name = 'weight'\", ::soci::into(wc, i1);\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('telemetry_table__traces')"
+        " WHERE name = 'note'\", ::soci::into(nc, i2);\n"
+        "    if (wc != 1 || nc != 0) return 10;\n"
+        "    ::harpia::db::telemetry_dao dao(db);\n"
+        "    ::telemetry got;\n"
+        "    if (!dao.read(1, &got)) return 11;\n"
+        '    if (got.label() != "unit-3") return 12;\n'
+        '    if (got.traces_size() != 2 || got.traces(0).kind() != "11"'
+        ' || got.traces(1).kind() != "22") return 13;\n'
+        "    return 0;\n"
+        "}}\n").format(h=HASH), _telemetry_pb(cpp_root))
+
+
+# -- Track A / A.1: field-level `phi` column encryption -------------------
+#
+# patient_vitals (HarpiaTest/Include/file3.harpia) has phi columns
+# patient_id (string) and heart_rate (float). CrudlAdapter routes those
+# through harpia::crypto::encrypt_field on write / decrypt_field on read,
+# via a KeyProvider the DAO holds; the ciphertext is a marked hex blob that
+# stays in the column's existing type. Non-phi columns are untouched.
+
+def test_a1_encryption_runtime_copied(generated):
+    """The phi-column encryption runtime + its transitive deps are copied
+    into generated output when a message has a phi column."""
+    crypto_dir = os.path.join(generated, "generated", "cpp", "crypto")
+    for name in ("harpia_encrypted_column.h", "harpia_key_provider.h",
+                 "harpia_audit_sink.h"):
+        assert os.path.isfile(os.path.join(crypto_dir, name)), \
+            "{} not copied into generated crypto/".format(name)
+
+
+@pytest.mark.skipif(shutil.which("g++") is None, reason="needs g++")
+def test_a1_encrypt_field_roundtrip(generated, tmp_path):
+    """encrypt_field/decrypt_field round-trip every supported kind through a
+    real KeyProvider; the stored form is marker-prefixed and not plaintext;
+    a crypto-shredded DEK decrypts to "" rather than throwing (Rule 5)."""
+    crypto_dir = os.path.join(generated, "generated", "cpp", "crypto")
+    prog = tmp_path / "enc.cpp"
+    prog.write_text(
+        '#include "harpia_encrypted_column.h"\n'
+        "#include <string>\n"
+        "int main() {\n"
+        "    ::harpia::crypto::InMemoryKeyProvider kp;\n"
+        "    // text\n"
+        '    std::string blob = ::harpia::crypto::encrypt_field(kp, "the-mrn-42");\n'
+        '    if (blob.rfind("enc:v1:", 0) != 0) return 2;\n'
+        '    if (blob.find("the-mrn-42") != std::string::npos) return 3;\n'
+        '    if (::harpia::crypto::decrypt_field(kp, blob) != "the-mrn-42") return 4;\n'
+        "    // numeric kinds go through the *_double / *_ll helpers\n"
+        '    std::string d = ::harpia::crypto::encrypt_field(kp, std::to_string(98.6));\n'
+        "    if (::harpia::crypto::decrypt_field_double(kp, d) != 98.6) return 5;\n"
+        '    std::string n = ::harpia::crypto::encrypt_field(kp, std::to_string(-7));\n'
+        "    if (::harpia::crypto::decrypt_field_ll(kp, n) != -7) return 6;\n"
+        "    // an unmarked value passes through unchanged\n"
+        '    if (::harpia::crypto::decrypt_field(kp, "plain") != "plain") return 7;\n'
+        "    // a shredded DEK -> empty, never a throw (Rule 5)\n"
+        "    ::harpia::crypto::Dek dek = kp.generate_dek();\n"
+        '    ::harpia::crypto::WrappedDek w = kp.wrap_dek(dek);\n'
+        "    kp.shred_dek(w);\n"
+        "    std::string frame;\n"
+        "    ::harpia::crypto::detail::put_u64(frame, w.kek_version);\n"
+        "    ::harpia::crypto::detail::put_u32(frame, (uint32_t)w.bytes.size());\n"
+        '    frame += w.bytes; frame += dek.seal("x");\n'
+        '    std::string shredded = std::string("enc:v1:") + ::harpia::crypto::detail::to_hex(frame);\n'
+        '    if (!::harpia::crypto::decrypt_field(kp, shredded).empty()) return 8;\n'
+        "    return 0;\n"
+        "}\n")
+    binary = str(tmp_path / "enc")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-Werror", "-I", crypto_dir,
+         "-I", os.path.join(REPO_ROOT, "Compliance", "runtime"),
+         str(prog), "-o", binary],
+        capture_output=True, text=True, timeout=120)
+    assert c.returncode == 0, "enc program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "encrypt round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="phi encrypt-on-write needs protoc + protobuf")
+def test_a1_phi_persisted_as_ciphertext(generated, sqlite_obj, tmp_path):
+    """patient_vitals written through the DAO: a raw SQL query bypassing the
+    DAO shows ciphertext (marker-prefixed, not the plaintext) in every phi
+    column; a non-phi column (device_note) stays plaintext; and reading
+    back through the DAO decrypts to the original values."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "phi_write.cpp"
+    prog.write_text(
+        '#include "db/patient_vitals_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    ::harpia::db::patient_vitals_dao dao(db);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        '    a.set_patient_id("mrn-90210"); a.set_heart_rate(72.5f);\n'
+        '    a.set_device_note("sensor B");\n'
+        "    if (!dao.create(a)) return 3;\n"
+        "    // raw read, bypassing the DAO\n"
+        "    std::string pid, note; double hr = 0; ::soci::indicator i0, i1, i2;\n"
+        '    db << "SELECT \\"patient_id\\", \\"heart_rate\\", \\"device_note\\" '
+        'FROM \\"patient_vitals_table\\" WHERE \\"ID_{h}\\" = 1",\n'
+        "        ::soci::into(pid, i0), ::soci::into(hr, i1), ::soci::into(note, i2);\n"
+        '    if (pid.rfind("enc:v1:", 0) != 0) return 4;   // phi string is ciphertext\n'
+        '    if (pid.find("mrn-90210") != std::string::npos) return 5;\n'
+        "    // heart_rate column holds the marker text, not 72.5\n"
+        "    std::string hr_txt; ::soci::indicator i3;\n"
+        '    db << "SELECT CAST(\\"heart_rate\\" AS TEXT) FROM \\"patient_vitals_table\\" '
+        'WHERE \\"ID_{h}\\" = 1", ::soci::into(hr_txt, i3);\n'
+        '    if (hr_txt.rfind("enc:v1:", 0) != 0) return 6;\n'
+        '    if (note != "sensor B") return 7;            // non-phi untouched\n'
+        "    // DAO read decrypts\n"
+        "    ::patient_vitals got;\n"
+        "    if (!dao.read(1, &got)) return 8;\n"
+        '    if (got.patient_id() != "mrn-90210") return 9;\n'
+        "    if (got.heart_rate() != 72.5f) return 10;\n"
+        '    if (got.device_note() != "sensor B") return 11;\n'
+        "    // update re-encrypts\n"
+        '    got.set_patient_id("mrn-00001");\n'
+        "    if (!dao.update(got)) return 12;\n"
+        "    std::string pid2; ::soci::indicator i4;\n"
+        '    db << "SELECT \\"patient_id\\" FROM \\"patient_vitals_table\\" '
+        'WHERE \\"ID_{h}\\" = 1", ::soci::into(pid2, i4);\n'
+        '    if (pid2.rfind("enc:v1:", 0) != 0 || pid2.find("mrn-00001") != std::string::npos) return 13;\n'
+        "    ::patient_vitals got2; dao.read(1, &got2);\n"
+        '    if (got2.patient_id() != "mrn-00001") return 14;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+    pb_cc = os.path.join(cpp_root, "protofiles", "patient_vitals_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "phi_write")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, *_pkgconfig("--cflags"),
+         str(prog), pb_cc, "-o", binary, "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "phi-write program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "phi encrypt-on-write failed at check #{}".format(
+        run.returncode)
+
+
+# -- Track A / A.2: decrypt-on-read -- persist / restart / read ------------
+#
+# The DAO's default KeyProvider is an in-process dummy, so a genuine
+# "restart" test needs a persistent one: Track O's LocalKeyProvider
+# (file-backed KEKs), passed explicitly to the DAO ctor. CrudlAdapter ships
+# harpia_key_provider_local.h alongside for exactly this.
+
+def test_a2_key_provider_backends_shipped(generated):
+    """The Local + KMS KeyProvider backend headers ship alongside the
+    encryption runtime, so a deployment can hand the phi DAO a real,
+    persistent KeyProvider."""
+    crypto_dir = os.path.join(generated, "generated", "cpp", "crypto")
+    for name in ("harpia_key_provider_local.h", "harpia_key_provider_kms.h"):
+        assert os.path.isfile(os.path.join(crypto_dir, name)), \
+            "{} not shipped into generated crypto/".format(name)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="phi persist/restart needs protoc + protobuf")
+def test_a2_persist_restart_decrypt(generated, sqlite_obj, tmp_path):
+    """write -> persist (file DB + file-backed LocalKeyProvider) -> a
+    SEPARATE reader process opens the same DB + the same key store and
+    reads back the decrypted phi values; a reader pointed at a DIFFERENT
+    key store cannot recover the plaintext (the key, not the DB, gates the
+    data) and does not crash -- non-phi columns stay readable."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    pb_cc = os.path.join(cpp_root, "protofiles",
+                         "patient_vitals_{}.pb.cc".format(HASH))
+    db_path = str(tmp_path / "pv.db")
+    keks = str(tmp_path / "keks.store")
+    other_keks = str(tmp_path / "other.store")
+
+    common_head = (
+        '#include "db/patient_vitals_{h}_crudl.h"\n'
+        '#include "crypto/harpia_key_provider_local.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+    ).format(h=HASH)
+
+    def build(name, body):
+        prog = tmp_path / (name + ".cpp")
+        prog.write_text(common_head + "int main() {\n" + body + "}\n")
+        binary = str(tmp_path / name)
+        c = subprocess.run(
+            ["g++", "-std=c++17", "-I", cpp_root, *_pkgconfig("--cflags"),
+             str(prog), pb_cc, "-o", binary, "-lsoci_core", "-lsoci_sqlite3",
+             *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+            capture_output=True, text=True, timeout=180)
+        assert c.returncode == 0, "{} failed to build:\n{}".format(name, c.stderr)
+        return binary
+
+    writer = build("a2_writer", (
+        '    ::soci::session db(::soci::sqlite3, "{db}");\n'
+        '    ::harpia::crypto::LocalKeyProvider kp({{"{keks}"}});\n'
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        '    a.set_patient_id("mrn-55"); a.set_heart_rate(66.25f);\n'
+        '    a.set_device_note("bay 3");\n'
+        "    if (!dao.create(a)) return 3;\n"
+        "    return 0;\n"
+    ).format(db=db_path, keks=keks, h=HASH))
+
+    reader = build("a2_reader", (
+        '    ::soci::session db(::soci::sqlite3, "{db}");\n'
+        '    ::harpia::crypto::LocalKeyProvider kp({{"{keks}"}});\n'
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    ::patient_vitals got;\n"
+        "    if (!dao.read(1, &got)) return 2;\n"
+        '    if (got.patient_id() != "mrn-55") return 3;\n'
+        "    if (got.heart_rate() != 66.25f) return 4;\n"
+        '    if (got.device_note() != "bay 3") return 5;\n'
+        "    return 0;\n"
+    ).format(db=db_path, keks=keks, h=HASH))
+
+    wrongkey = build("a2_wrongkey", (
+        '    ::soci::session db(::soci::sqlite3, "{db}");\n'
+        '    ::harpia::crypto::LocalKeyProvider kp({{"{other}"}});\n'
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    ::patient_vitals got;\n"
+        "    if (!dao.read(1, &got)) return 2;\n"
+        '    if (got.patient_id() == "mrn-55") return 3;   // wrong key cannot recover it\n'
+        '    if (got.device_note() != "bay 3") return 4;   // non-phi still readable\n'
+        "    return 0;\n"
+    ).format(db=db_path, other=other_keks, h=HASH))
+
+    for name, binary in (("writer", writer), ("reader", reader),
+                         ("wrongkey", wrongkey)):
+        r = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+        assert r.returncode == 0, \
+            "a2 {} process failed at check #{}".format(name, r.returncode)
+
+
+# -- Track A / A.3: AuditSink wiring on phi CRUDL ops --------------------
+
+def test_a3_non_phi_dao_has_no_audit(generated):
+    """A DAO for a message with no phi column is byte-unchanged -- no
+    AuditSink member, no record() call."""
+    users = os.path.join(generated, "generated", "cpp", "db",
+                         "users_{}_crudl.h".format(HASH))
+    text = open(users).read()
+    assert "audit_" not in text and "AuditSink" not in text
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="phi audit wiring needs protoc + protobuf")
+def test_a3_phi_crudl_ops_audited(generated, sqlite_obj, tmp_path):
+    """Every DAO CRUDL op on a phi-bearing message emits EXACTLY ONE
+    AuditSink.record() -- correct operation name, subject = table, detail =
+    the phi column names (never a value, Rule 5). A not-found read audits
+    nothing."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "phi_audit.cpp"
+    prog.write_text(
+        '#include "db/patient_vitals_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n#include <vector>\n"
+        "struct RecordingSink : ::harpia::compliance::AuditSink {{\n"
+        "    struct Call {{ std::string op, subject, detail; }};\n"
+        "    std::vector<Call> calls;\n"
+        "    void record(const std::string& op, const std::string& subject,\n"
+        '               const std::string& detail = "") override {{\n'
+        "        calls.push_back({{op, subject, detail}});\n"
+        "    }}\n"
+        "}};\n"
+        "static int expect(RecordingSink& s, const char* op) {{\n"
+        "    if (s.calls.size() != 1) return 1;\n"
+        "    if (s.calls[0].op != op) return 2;\n"
+        '    if (s.calls[0].subject != "patient_vitals_table") return 3;\n'
+        '    if (s.calls[0].detail != "patient_id,heart_rate") return 4;\n'
+        "    return 0;\n"
+        "}}\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    RecordingSink sink;\n"
+        "    ::harpia::db::patient_vitals_dao dao(\n"
+        "        db, ::harpia::crypto::default_key_provider(), sink);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        "    if (!sink.calls.empty()) return 3;   // create_table is not a phi op\n"
+        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        '    a.set_patient_id("mrn-secret"); a.set_heart_rate(60.0f);\n'
+        "    if (!dao.create(a)) return 4;\n"
+        '    if (int e = expect(sink, "phi_create")) return 10 + e;\n'
+        '    if (sink.calls[0].detail.find("mrn-secret") != std::string::npos) return 19;\n'
+        "    sink.calls.clear();\n"
+        "    ::patient_vitals got;\n"
+        "    if (!dao.read(1, &got)) return 20;\n"
+        '    if (int e = expect(sink, "phi_read")) return 20 + e;\n'
+        "    sink.calls.clear();\n"
+        '    got.set_patient_id("mrn-2");\n'
+        "    if (!dao.update(got)) return 30;\n"
+        '    if (int e = expect(sink, "phi_update")) return 30 + e;\n'
+        "    sink.calls.clear();\n"
+        "    std::vector<::patient_vitals> all;\n"
+        "    if (!dao.list(&all)) return 40;\n"
+        '    if (int e = expect(sink, "phi_list")) return 40 + e;\n'
+        "    sink.calls.clear();\n"
+        "    std::vector<::patient_vitals> page;\n"
+        "    if (!dao.list(&page, 0, 10)) return 50;\n"
+        '    if (int e = expect(sink, "phi_list")) return 50 + e;\n'
+        "    sink.calls.clear();\n"
+        "    if (!dao.remove(1)) return 60;\n"
+        '    if (int e = expect(sink, "phi_delete")) return 60 + e;\n'
+        "    sink.calls.clear();\n"
+        "    ::patient_vitals gone;\n"
+        "    dao.read(999, &gone);\n"
+        "    if (!sink.calls.empty()) return 70;   // a not-found read audits nothing\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+    pb_cc = os.path.join(cpp_root, "protofiles",
+                         "patient_vitals_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "phi_audit")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, *_pkgconfig("--cflags"),
+         str(prog), pb_cc, "-o", binary, "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "phi-audit program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "phi audit wiring failed at check #{}".format(
+        run.returncode)
+
+
+# -- Track A / A.4: full round-trip + cross-track acceptance gates -------
+#
+# Nothing new is generated here. A.4 closes the two Track O integration
+# tests that could only be proven once a real phi DAO existed (deferred
+# from O.5): envelope KEK-rotation is O(keys) not O(data), and the
+# KeyProvider backend swaps with zero DAO-code change.
+
+def test_a4_non_phi_crudl_unchanged(generated):
+    """Acceptance gate: a non-phi message's DAO is entirely untouched by
+    Track A -- no crypto include, no kp_/audit_ member, no encrypt/decrypt
+    or record() call (14.1/14.2 goldens stay put)."""
+    for name in ("users", "top_users", "shipment"):
+        text = open(os.path.join(generated, "generated", "cpp", "db",
+                                 "{}_{}_crudl.h".format(name, HASH))).read()
+        for needle in ("crypto/", "kp_", "audit_", "KeyProvider",
+                       "AuditSink", "encrypt_field", "decrypt_field"):
+            assert needle not in text, \
+                "{}: non-phi DAO mentions {!r}".format(name, needle)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="KEK rotation round-trip needs protoc + protobuf")
+def test_a4_kek_rotation_roundtrip(generated, sqlite_obj, tmp_path):
+    """write -> persist -> rotate KEK -> read both pre- and post-rotation
+    rows. Both decrypt (the old KEK version is retained). The pre-rotation
+    row's stored ciphertext is byte-identical before and after rotate() --
+    rotation rewraps DEKs lazily, it does NOT re-encrypt the database."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    db_path = str(tmp_path / "rot.db")
+    keks = str(tmp_path / "rot.keks")
+
+    prog = tmp_path / "a4_rotate.cpp"
+    prog.write_text(
+        '#include "db/patient_vitals_{h}_crudl.h"\n'
+        '#include "crypto/harpia_key_provider_local.h"\n'
+        "#include <soci/soci.h>\n#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "static std::string raw_pid(::soci::session& db) {{\n"
+        "    std::string v; ::soci::indicator i;\n"
+        '    db << "SELECT \\"patient_id\\" FROM \\"patient_vitals_table\\" '
+        'WHERE \\"ID_{h}\\" = 1", ::soci::into(v, i);\n'
+        "    return v;\n"
+        "}}\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, "{db}");\n'
+        '    ::harpia::crypto::LocalKeyProvider kp({{"{keks}"}});\n'
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        '    a.set_patient_id("pre-rotate"); a.set_heart_rate(50.0f);\n'
+        "    if (!dao.create(a)) return 3;\n"
+        "    std::string blob_before = raw_pid(db);\n"
+        '    if (blob_before.rfind("enc:v1:", 0) != 0) return 4;\n'
+        "    // rotate the KEK\n"
+        "    std::uint64_t v0 = kp.active_kek_version();\n"
+        "    std::uint64_t v1 = kp.rotate();\n"
+        "    if (v1 <= v0) return 5;\n"
+        "    // a row written AFTER rotation uses the new active KEK\n"
+        "    ::patient_vitals b; b.set_id_{h}(2);\n"
+        '    b.set_patient_id("post-rotate"); b.set_heart_rate(51.0f);\n'
+        "    if (!dao.create(b)) return 6;\n"
+        "    // the pre-rotation row's stored ciphertext did not change\n"
+        "    if (raw_pid(db) != blob_before) return 7;\n"
+        "    // both rows still decrypt through the one provider\n"
+        "    ::patient_vitals g1; if (!dao.read(1, &g1)) return 8;\n"
+        '    if (g1.patient_id() != "pre-rotate") return 9;\n'
+        "    ::patient_vitals g2; if (!dao.read(2, &g2)) return 10;\n"
+        '    if (g2.patient_id() != "post-rotate") return 11;\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH, db=db_path, keks=keks))
+    pb_cc = os.path.join(cpp_root, "protofiles",
+                         "patient_vitals_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "a4_rotate")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, *_pkgconfig("--cflags"),
+         str(prog), pb_cc, "-o", binary, "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "a4 rotate program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "KEK-rotation round-trip failed at check #{}".format(
+        run.returncode)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="backend-swap proof needs protoc + protobuf")
+def test_a4_keyprovider_backend_swap(generated, sqlite_obj, tmp_path):
+    """The generated patient_vitals_dao round-trips phi values unchanged
+    whether it is handed a LocalKeyProvider (O.2) or a KmsKeyProvider over
+    MockKms (O.5) -- exact same DAO code, only the constructor argument
+    differs."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "a4_swap.cpp"
+    prog.write_text(
+        '#include "db/patient_vitals_{h}_crudl.h"\n'
+        '#include "crypto/harpia_key_provider_local.h"\n'
+        '#include "crypto/harpia_key_provider_kms.h"\n'
+        "#include <soci/soci.h>\n#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "static int roundtrip(::harpia::crypto::KeyProvider& kp) {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    if (!dao.create_table()) return 1;\n"
+        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        '    a.set_patient_id("swap-me"); a.set_heart_rate(42.0f);\n'
+        "    if (!dao.create(a)) return 2;\n"
+        "    std::string raw; ::soci::indicator ind;\n"
+        '    db << "SELECT \\"patient_id\\" FROM \\"patient_vitals_table\\" '
+        'WHERE \\"ID_{h}\\" = 1", ::soci::into(raw, ind);\n'
+        '    if (raw.rfind("enc:v1:", 0) != 0 || raw.find("swap-me") != std::string::npos) return 3;\n'
+        "    ::patient_vitals got;\n"
+        "    if (!dao.read(1, &got)) return 4;\n"
+        '    if (got.patient_id() != "swap-me" || got.heart_rate() != 42.0f) return 5;\n'
+        "    return 0;\n"
+        "}}\n"
+        "int main() {{\n"
+        '    ::harpia::crypto::LocalKeyProvider local({{"{keks}"}});\n'
+        "    if (int e = roundtrip(local)) return 10 + e;\n"
+        "    ::harpia::crypto::MockKms kms;\n"
+        "    ::harpia::crypto::KmsKeyProvider kp_kms(kms);\n"
+        "    if (int e = roundtrip(kp_kms)) return 20 + e;\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH, keks=str(tmp_path / "swap.keks")))
+    pb_cc = os.path.join(cpp_root, "protofiles",
+                         "patient_vitals_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "a4_swap")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, *_pkgconfig("--cflags"),
+         str(prog), pb_cc, "-o", binary, "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "a4 swap program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "backend-swap proof failed at check #{}".format(
+        run.returncode)
+
+
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="FK round-trip needs protoc + protobuf")
 def test_fk_roundtrip(generated, sqlite_obj, tmp_path):

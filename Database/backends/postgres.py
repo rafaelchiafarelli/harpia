@@ -132,6 +132,126 @@ class PostgresBackend(DbBackend):
         return ("SELECT column_name, data_type FROM information_schema.columns "
                 "WHERE table_name = '{}';").format(table)
 
+    # -- migration: child tables (repeated / map) --------------------------
+    def list_tables_sql(self, prefix):
+        # every "<prefix>__*" table; substr (not LIKE, whose _ is a wildcard)
+        # keeps the match exact, and the shape mirrors list_columns_sql.
+        n = len(prefix) + 2
+        return ("SELECT table_name FROM information_schema.tables "
+                "WHERE substr(table_name, 1, {}) = '{}__';").format(n, prefix)
+
+    def rename_table(self, old, new):
+        return 'ALTER TABLE "{}" RENAME TO "{}";'.format(old, new)
+
+    def drop_table_dynamic(self, name_expr):
+        return '"DROP TABLE \\"" + {} + "\\";"'.format(name_expr)
+
+    def retype_rep_child_dynamic(self, child, owner_type, val_sql):
+        # Postgres has a direct ALTER COLUMN ... TYPE, so the (owner, ordinal,
+        # value) child table's "value" column is fixed in place, guarded by
+        # its live type. information_schema.columns.data_type reports the
+        # canonical lower-case name, exactly as in retype_column_dynamic.
+        types_sql = self.list_column_types_sql(child)
+        alter_sql = ('ALTER TABLE "{}" ALTER COLUMN "value" TYPE {} '
+                     'USING "value"::{};').format(child, val_sql, val_sql)
+        return (
+            '        {{\n'
+            '            std::map<std::string, std::string> _rct;\n'
+            '            {{\n'
+            '                std::string _rn, _rt; ::soci::indicator _rni, _rti;\n'
+            '                ::soci::statement _rs = (db.prepare << "{types}",\n'
+            '                                         ::soci::into(_rn, _rni), ::soci::into(_rt, _rti));\n'
+            '                _rs.execute();\n'
+            '                while (_rs.fetch()) {{ if (_rni == ::soci::i_ok && _rti == ::soci::i_ok) _rct[_rn] = _rt; }}\n'
+            '            }}\n'
+            '            if (_rct.count("value") && _rct["value"] != "{val_lc}") {{\n'
+            '                db << "{alter}";\n'
+            '            }}\n'
+            '        }}'
+        ).format(types=_esc(types_sql), val_lc=val_sql.lower(),
+                 alter=_esc(alter_sql))
+
+    def retype_map_child_dynamic(self, child, owner_type, key_sql, val_sql):
+        # As retype_rep_child_dynamic, for a (owner, key, value) map child
+        # table: guard the key and the value column independently. Altering
+        # the type of "key" (part of PRIMARY KEY(owner, key)) is fine in
+        # Postgres -- it transparently rebuilds the backing index.
+        types_sql = self.list_column_types_sql(child)
+        key_alter = ('ALTER TABLE "{}" ALTER COLUMN "key" TYPE {} '
+                     'USING "key"::{};').format(child, key_sql, key_sql)
+        val_alter = ('ALTER TABLE "{}" ALTER COLUMN "value" TYPE {} '
+                     'USING "value"::{};').format(child, val_sql, val_sql)
+        return (
+            '        {{\n'
+            '            std::map<std::string, std::string> _mct;\n'
+            '            {{\n'
+            '                std::string _mn, _mt; ::soci::indicator _mni, _mti;\n'
+            '                ::soci::statement _ms = (db.prepare << "{types}",\n'
+            '                                         ::soci::into(_mn, _mni), ::soci::into(_mt, _mti));\n'
+            '                _ms.execute();\n'
+            '                while (_ms.fetch()) {{ if (_mni == ::soci::i_ok && _mti == ::soci::i_ok) _mct[_mn] = _mt; }}\n'
+            '            }}\n'
+            '            if (_mct.count("key") && _mct["key"] != "{key_lc}") {{\n'
+            '                db << "{key_alter}";\n'
+            '            }}\n'
+            '            if (_mct.count("value") && _mct["value"] != "{val_lc}") {{\n'
+            '                db << "{val_alter}";\n'
+            '            }}\n'
+            '        }}'
+        ).format(types=_esc(types_sql), key_lc=key_sql.lower(),
+                 val_lc=val_sql.lower(), key_alter=_esc(key_alter),
+                 val_alter=_esc(val_alter))
+
+    def evolve_rep_composed_child_dynamic(self, child, owner_type, columns):
+        # A repeated-composed child table's data columns (one per the
+        # table-less target's flattened field) evolve like a main table's:
+        # ADD any current column an older table lacks, DROP any live data
+        # column no longer in the target shape (owner/ordinal always kept),
+        # ALTER COLUMN ... TYPE the rest. All in place -- no rebuild.
+        columns = list(columns)
+        types_sql = self.list_column_types_sql(child)
+        adds = "\n".join(
+            '                if (!_ec.count("{n}")) db << "{alter}";'.format(
+                n=name, alter=_esc(self.add_column(child, name, cdef)))
+            for name, _t, cdef in columns)
+        keep = ", ".join('"{}"'.format(n)
+                         for n in ["owner", "ordinal"] + [c[0] for c in columns])
+        retypes = "\n".join(
+            '                if (_ect.count("{n}") && _ect["{n}"] != "{lc}") '
+            'db << "{alter}";'.format(
+                n=name, lc=t.lower(),
+                alter=_esc('ALTER TABLE "{}" ALTER COLUMN "{}" TYPE {} '
+                           'USING "{}"::{};'.format(child, name, t, name, t)))
+            for name, t, _d in columns)
+        return (
+            '        {{\n'
+            '            std::set<std::string> _ec;\n'
+            '            std::map<std::string, std::string> _ect;\n'
+            '            {{\n'
+            '                std::string _en, _et; ::soci::indicator _eni, _eti;\n'
+            '                ::soci::statement _es = (db.prepare << "{types}",\n'
+            '                                         ::soci::into(_en, _eni), ::soci::into(_et, _eti));\n'
+            '                _es.execute();\n'
+            '                while (_es.fetch()) {{\n'
+            '                    if (_eni == ::soci::i_ok) {{ _ec.insert(_en); if (_eti == ::soci::i_ok) _ect[_en] = _et; }}\n'
+            '                }}\n'
+            '            }}\n'
+            '            if (!_ec.empty()) {{\n'
+            '{adds}\n'
+            '                static const std::set<std::string> _ekeep = {{ {keep} }};\n'
+            '                for (auto _eit = _ec.begin(); _eit != _ec.end(); ) {{\n'
+            '                    if (!_ekeep.count(*_eit)) {{\n'
+            '                        const std::string& _edc = *_eit;\n'
+            '                        db << ("ALTER TABLE \\"{child}\\" DROP COLUMN \\"" + _edc + "\\";");\n'
+            '                        _eit = _ec.erase(_eit);\n'
+            '                    }} else {{ ++_eit; }}\n'
+            '                }}\n'
+            '{retypes}\n'
+            '            }}\n'
+            '        }}'
+        ).format(types=_esc(types_sql), adds=adds, keep=keep,
+                 child=_esc(child), retypes=retypes)
+
     def retype_column_dynamic(self, table, columns):
         # Postgres has a direct ALTER COLUMN ... TYPE, so (unlike SQLite) each
         # column is fixed independently, guarded by its own live-type check.
@@ -171,4 +291,15 @@ if __name__ == "__main__":
     print(b.retype_column_dynamic("devices", [
         ("ID_abc", b.int_type, b.column_def(b.int_type, pk=True)),
         ("weight", b.sql_type("FLOAT"), b.column_def(b.sql_type("FLOAT"))),
+    ]))
+    print(b.list_tables_sql("devices"))
+    print(b.rename_table("devices__oldtags", "devices__tags"))
+    print(b.drop_table_dynamic("_dct"))
+    print(b.retype_rep_child_dynamic("devices__tags", b.int_type,
+                                     b.sql_type("STRING")))
+    print(b.retype_map_child_dynamic("devices__labels", b.int_type,
+                                     b.sql_type("STRING"), b.sql_type("INT32")))
+    print(b.evolve_rep_composed_child_dynamic("devices__events", b.int_type, [
+        ("kind", b.sql_type("STRING"), b.column_def(b.sql_type("STRING"))),
+        ("weight", b.sql_type("INT32"), b.column_def(b.sql_type("INT32"))),
     ]))

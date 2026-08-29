@@ -38,14 +38,22 @@ import os
 
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
-from Util.util import loadTemplate, write_if_different
+from Util.util import loadTemplate, write_if_different, copy_if_different
+from Compliance.delivery_common import (
+    DELIVERY_RUNTIME, DELIVERY_RUNTIME_SRC, DELIVERY_RUNTIME_DEPS)
 
 ZMQ_EXT = "_zmq.h"
 
 # C++ transport templates (Python str.format placeholders); see templates/.
 _HEADER = loadTemplate(__file__, "header.h.tmpl")
 _SENDER = loadTemplate(__file__, "sender.tmpl")
+_SENDER_CRITICAL = loadTemplate(__file__, "sender_critical.tmpl")
 _RECEIVER = loadTemplate(__file__, "receiver.tmpl")
+
+# Injected at file scope (before `namespace harpia {`) only for a `critical`
+# message type; empty for every other message, so a non-critical transport
+# header is byte-identical to before this wiring landed.
+_DELIVERY_INCLUDE = '#include "delivery/{}"\n'.format(DELIVERY_RUNTIME)
 
 # CURVE (encryption-only, no ZAP allowlist) socket setup, applied before
 # bind/connect. Bind side (PULL receiver / PUB publisher) only needs its own
@@ -94,6 +102,10 @@ class ZmqAdapter:
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "zmq")
+        # Shared, transport-agnostic delivery-guarantee runtime -- copied here
+        # (mirroring the capability runtime's generated/cpp/capability/ home)
+        # only when at least one `critical` transport-bearing message exists.
+        self.deliveryDir = os.path.join(dest, "generated", "cpp", "delivery")
         self.log = logger(outFile=None, moduleName="ZmqAdapter")
 
     @staticmethod
@@ -104,6 +116,7 @@ class ZmqAdapter:
     def Process(self):
         os.makedirs(self.outDir, exist_ok=True)
         written = 0
+        critical = 0
         for msg in self.messages:
             if getattr(msg, "isEnum", False):
                 continue
@@ -112,12 +125,30 @@ class ZmqAdapter:
             pub_sub = bool(mods & {"EVENT", "STREAM"})
             if not (push_pull or pub_sub):
                 continue
+            is_critical = bool(getattr(msg, "is_critical", False))
             default_id_expr = ("origin_id()" if _is_one_to_many(mods)
                                else "runtime_origin_id()")
-            header = self._render(msg, push_pull, pub_sub, default_id_expr)
+            header = self._render(msg, push_pull, pub_sub, default_id_expr,
+                                  is_critical)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, ZMQ_EXT)
             write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
+            if is_critical:
+                critical += 1
+
+        if critical:
+            # The delivery header pulls in harpia_audit_sink.h at the same
+            # relative path, so both land in the one directory (Rule 4a
+            # runtime + its F3 AuditSink dependency).
+            os.makedirs(self.deliveryDir, exist_ok=True)
+            copy_if_different(DELIVERY_RUNTIME_SRC,
+                              os.path.join(self.deliveryDir, DELIVERY_RUNTIME))
+            for dep_name, dep_src in DELIVERY_RUNTIME_DEPS:
+                copy_if_different(dep_src,
+                                  os.path.join(self.deliveryDir, dep_name))
+            self.log.print("copied delivery-guarantee runtime into {} "
+                           "({} critical transport(s))".format(
+                               self.deliveryDir, critical))
 
         if written == 0:
             self.log.print("no transport-bearing messages; no ZMQ adapters")
@@ -129,7 +160,13 @@ class ZmqAdapter:
             written, self.outDir))
         return None
 
-    def _render(self, msg, push_pull, pub_sub, default_id_expr):
+    def _render(self, msg, push_pull, pub_sub, default_id_expr,
+                is_critical=False):
+        # A `critical` message routes its send path through the Rule 4a
+        # bounded rotating queue (sender_critical.tmpl); its receiving half
+        # is unchanged. Non-critical messages are byte-identical to before.
+        sender_tmpl = _SENDER_CRITICAL if is_critical else _SENDER
+        extra_includes = _DELIVERY_INCLUDE if is_critical else ""
         cls = "::{}".format(msg.name)
         guard = "HARPIA_ZMQ_{}_{}".format(msg.name.upper(), msg.md5Hash)
         pb = "protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash)
@@ -142,7 +179,7 @@ class ZmqAdapter:
 
         body = ""
         if push_pull:
-            body += _SENDER.format(
+            body += sender_tmpl.format(
                 comment="// push/pull: {n}_sender pushes (stamping origin), "
                         "{n}_receiver pulls.".format(n=msg.name),
                 name=msg.name, role="sender", sock="push",
@@ -155,7 +192,7 @@ class ZmqAdapter:
                 setup="socket_.bind(endpoint);", verb="recv", cls=cls,
                 curve_type="CurveServerKeys", curve_apply=_CURVE_SERVER_APPLY)
         if pub_sub:
-            body += _SENDER.format(
+            body += sender_tmpl.format(
                 comment="// pub/sub (streaming/event): {n}_publisher publishes "
                         "(stamping origin), {n}_subscriber receives.".format(n=msg.name),
                 name=msg.name, role="publisher", sock="pub",
@@ -169,4 +206,5 @@ class ZmqAdapter:
                       '        socket_.set(::zmq::sockopt::subscribe, "");',
                 verb="receive", cls=cls,
                 curve_type="CurveClientKeys", curve_apply=_CURVE_CLIENT_APPLY)
-        return _HEADER.format(guard=guard, pb_header=pb, body=body)
+        return _HEADER.format(guard=guard, pb_header=pb, body=body,
+                              extra_includes=extra_includes)

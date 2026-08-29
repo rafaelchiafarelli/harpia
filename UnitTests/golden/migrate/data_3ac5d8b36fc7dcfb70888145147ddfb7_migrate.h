@@ -13,6 +13,9 @@
 // Schema migration for data (spec 8 / 7.2 "validation/transformative functions
 // for versions"). Brings an existing database up to the current schema version
 // (3ac5d8b36fc7dcfb70888145147ddfb7) and records it in "_harpia_schema_version":
+//   - RENAMEs a "<table>__<old>" repeated/map child table to "<table>__<new>"
+//     when the field carries renamed_from[<old>] -- FIRST, so create_table
+//     below finds the populated table instead of making an empty new one,
 //   - ensures the table (and its map/repeated child tables) exist,
 //   - RENAMEs a column carrying the DSL's renamed_from[<old>] modifier (both
 //     names are known at generation time), before anything else runs,
@@ -28,6 +31,13 @@
 //     no DSL marker -- the name is unchanged, so a mismatch is unambiguous.
 //     Runs last among the structural steps, against the table already
 //     stabilized by the rename/add/drop steps above.
+//   - DROPs any "<table>__*" child table the current schema no longer declares
+//     (a repeated/map field removed between versions) -- same implicit,
+//     no-schema-history diff as the column drop -- and evolves a child
+//     table's own columns to the current element shape: a repeated-scalar
+//     "value" column, a map "key" / "value" column, or (repeated-composed)
+//     the full add/drop/retype of one data column per the table-less
+//     target message's own field.
 //   - stamps the current version hash.
 // Cross-version DATA transforms (deriving one column's value from another,
 // not just moving/CASTing structure) are handled via an optional
@@ -51,6 +61,23 @@ inline bool migrate_data(::soci::session& db,
                            std::function<void(::soci::session&)> data_transform = nullptr) {
     try {
         db << "CREATE TABLE IF NOT EXISTS \"_harpia_schema_version\" (\"name\" TEXT PRIMARY KEY, \"version\" TEXT);";
+
+        // child tables ("<table>__*", one per repeated/map field) the live
+        // database currently has -- for the child-table rename below and the
+        // orphan reap further down (Track H.1 / H.2). Same dialect-uniform
+        // shape as the column introspection: one selected column, a table name.
+        std::set<std::string> _child_have;
+        {
+            std::string _ctn; ::soci::indicator _ctni;
+            ::soci::statement _cts = (db.prepare << "SELECT \"name\" FROM sqlite_master WHERE type = 'table' AND substr(\"name\", 1, 12) = 'table_data__';",
+                                     ::soci::into(_ctn, _ctni));
+            _cts.execute();
+            while (_cts.fetch()) { if (_ctni == ::soci::i_ok) _child_have.insert(_ctn); }
+        }
+        // child-table renames: a repeated/map field carrying renamed_from[<old>]
+        // moves its "<table>__<old>" child table to "<table>__<new>" BEFORE
+        // create_table's CREATE IF NOT EXISTS would leave an empty new one
+        // beside the populated old. Idempotent, like the column rename above.
 
         // ensure the table + its map/repeated child tables exist at the current schema
         ::harpia::db::data_dao dao(db);
@@ -151,6 +178,109 @@ inline bool migrate_data(::soci::session& db,
             db << "DROP TABLE \"table_data\";";
             db << "ALTER TABLE \"table_data__retype_tmp\" RENAME TO \"table_data\";";
         }
+        }
+        // non-additive (child tables, Track H.1 / H.2 / H.3): reap any
+        // "<table>__*" child table the current schema no longer declares -- a
+        // repeated/map field removed between versions -- then evolve each
+        // surviving child table's own columns to the current shape
+        // (repeated-scalar "value", map "key"/"value", or a repeated-composed
+        // table's per-target-field add/drop/retype). Implicit, unconditional
+        // diff, same no-schema-history caveat as the column drop above; runs
+        // after the main table has been stabilized.
+        {
+            static const std::set<std::string> _child_current = { "table_data__val_a", "table_data__val_b", "table_data__val_c", "table_data__tags", "table_data__val_scores" };
+            for (auto _cit = _child_have.begin(); _cit != _child_have.end(); ) {
+                if (!_child_current.count(*_cit)) {
+                    const std::string& _dct = *_cit;
+                    db << "DROP TABLE \"" + _dct + "\";";
+                    _cit = _child_have.erase(_cit);
+                } else {
+                    ++_cit;
+                }
+            }
+        }
+        {
+            std::map<std::string, std::string> _rct;
+            {
+                std::string _rn, _rt; ::soci::indicator _rni, _rti;
+                ::soci::statement _rs = (db.prepare << "SELECT \"name\", \"type\" FROM pragma_table_info('table_data__tags');",
+                                         ::soci::into(_rn, _rni), ::soci::into(_rt, _rti));
+                _rs.execute();
+                while (_rs.fetch()) { if (_rni == ::soci::i_ok && _rti == ::soci::i_ok) _rct[_rn] = _rt; }
+            }
+            if (_rct.count("value") && _rct["value"] != "INTEGER") {
+                db << "CREATE TABLE \"table_data__tags__retype_tmp\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));";
+                db << "INSERT INTO \"table_data__tags__retype_tmp\" (\"owner\", \"ordinal\", \"value\") SELECT \"owner\", \"ordinal\", CAST(\"value\" AS INTEGER) FROM \"table_data__tags\";";
+                db << "DROP TABLE \"table_data__tags\";";
+                db << "ALTER TABLE \"table_data__tags__retype_tmp\" RENAME TO \"table_data__tags\";";
+            }
+        }
+        {
+            std::map<std::string, std::string> _rct;
+            {
+                std::string _rn, _rt; ::soci::indicator _rni, _rti;
+                ::soci::statement _rs = (db.prepare << "SELECT \"name\", \"type\" FROM pragma_table_info('table_data__val_scores');",
+                                         ::soci::into(_rn, _rni), ::soci::into(_rt, _rti));
+                _rs.execute();
+                while (_rs.fetch()) { if (_rni == ::soci::i_ok && _rti == ::soci::i_ok) _rct[_rn] = _rt; }
+            }
+            if (_rct.count("value") && _rct["value"] != "INTEGER") {
+                db << "CREATE TABLE \"table_data__val_scores__retype_tmp\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));";
+                db << "INSERT INTO \"table_data__val_scores__retype_tmp\" (\"owner\", \"ordinal\", \"value\") SELECT \"owner\", \"ordinal\", CAST(\"value\" AS INTEGER) FROM \"table_data__val_scores\";";
+                db << "DROP TABLE \"table_data__val_scores\";";
+                db << "ALTER TABLE \"table_data__val_scores__retype_tmp\" RENAME TO \"table_data__val_scores\";";
+            }
+        }
+        {
+            std::map<std::string, std::string> _mct;
+            {
+                std::string _mn, _mt; ::soci::indicator _mni, _mti;
+                ::soci::statement _ms = (db.prepare << "SELECT \"name\", \"type\" FROM pragma_table_info('table_data__val_a');",
+                                         ::soci::into(_mn, _mni), ::soci::into(_mt, _mti));
+                _ms.execute();
+                while (_ms.fetch()) { if (_mni == ::soci::i_ok && _mti == ::soci::i_ok) _mct[_mn] = _mt; }
+            }
+            if ((_mct.count("key") && _mct["key"] != "TEXT") ||
+                (_mct.count("value") && _mct["value"] != "TEXT")) {
+                db << "CREATE TABLE \"table_data__val_a__retype_tmp\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));";
+                db << "INSERT INTO \"table_data__val_a__retype_tmp\" (\"owner\", \"key\", \"value\") SELECT \"owner\", CAST(\"key\" AS TEXT), CAST(\"value\" AS TEXT) FROM \"table_data__val_a\";";
+                db << "DROP TABLE \"table_data__val_a\";";
+                db << "ALTER TABLE \"table_data__val_a__retype_tmp\" RENAME TO \"table_data__val_a\";";
+            }
+        }
+        {
+            std::map<std::string, std::string> _mct;
+            {
+                std::string _mn, _mt; ::soci::indicator _mni, _mti;
+                ::soci::statement _ms = (db.prepare << "SELECT \"name\", \"type\" FROM pragma_table_info('table_data__val_b');",
+                                         ::soci::into(_mn, _mni), ::soci::into(_mt, _mti));
+                _ms.execute();
+                while (_ms.fetch()) { if (_mni == ::soci::i_ok && _mti == ::soci::i_ok) _mct[_mn] = _mt; }
+            }
+            if ((_mct.count("key") && _mct["key"] != "TEXT") ||
+                (_mct.count("value") && _mct["value"] != "INTEGER")) {
+                db << "CREATE TABLE \"table_data__val_b__retype_tmp\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"key\"));";
+                db << "INSERT INTO \"table_data__val_b__retype_tmp\" (\"owner\", \"key\", \"value\") SELECT \"owner\", CAST(\"key\" AS TEXT), CAST(\"value\" AS INTEGER) FROM \"table_data__val_b\";";
+                db << "DROP TABLE \"table_data__val_b\";";
+                db << "ALTER TABLE \"table_data__val_b__retype_tmp\" RENAME TO \"table_data__val_b\";";
+            }
+        }
+        {
+            std::map<std::string, std::string> _mct;
+            {
+                std::string _mn, _mt; ::soci::indicator _mni, _mti;
+                ::soci::statement _ms = (db.prepare << "SELECT \"name\", \"type\" FROM pragma_table_info('table_data__val_c');",
+                                         ::soci::into(_mn, _mni), ::soci::into(_mt, _mti));
+                _ms.execute();
+                while (_ms.fetch()) { if (_mni == ::soci::i_ok && _mti == ::soci::i_ok) _mct[_mn] = _mt; }
+            }
+            if ((_mct.count("key") && _mct["key"] != "INTEGER") ||
+                (_mct.count("value") && _mct["value"] != "TEXT")) {
+                db << "CREATE TABLE \"table_data__val_c__retype_tmp\" (\"owner\" INTEGER, \"key\" INTEGER, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));";
+                db << "INSERT INTO \"table_data__val_c__retype_tmp\" (\"owner\", \"key\", \"value\") SELECT \"owner\", CAST(\"key\" AS INTEGER), CAST(\"value\" AS TEXT) FROM \"table_data__val_c\";";
+                db << "DROP TABLE \"table_data__val_c\";";
+                db << "ALTER TABLE \"table_data__val_c__retype_tmp\" RENAME TO \"table_data__val_c\";";
+            }
         }
         // stamp the current version
         db << "INSERT OR REPLACE INTO \"_harpia_schema_version\" (\"name\", \"version\") VALUES ('table_data', '3ac5d8b36fc7dcfb70888145147ddfb7');";

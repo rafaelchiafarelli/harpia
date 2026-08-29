@@ -13,6 +13,9 @@
 // Schema migration for shipment (spec 8 / 7.2 "validation/transformative functions
 // for versions"). Brings an existing database up to the current schema version
 // (3ac5d8b36fc7dcfb70888145147ddfb7) and records it in "_harpia_schema_version":
+//   - RENAMEs a "<table>__<old>" repeated/map child table to "<table>__<new>"
+//     when the field carries renamed_from[<old>] -- FIRST, so create_table
+//     below finds the populated table instead of making an empty new one,
 //   - ensures the table (and its map/repeated child tables) exist,
 //   - RENAMEs a column carrying the DSL's renamed_from[<old>] modifier (both
 //     names are known at generation time), before anything else runs,
@@ -28,6 +31,13 @@
 //     no DSL marker -- the name is unchanged, so a mismatch is unambiguous.
 //     Runs last among the structural steps, against the table already
 //     stabilized by the rename/add/drop steps above.
+//   - DROPs any "<table>__*" child table the current schema no longer declares
+//     (a repeated/map field removed between versions) -- same implicit,
+//     no-schema-history diff as the column drop -- and evolves a child
+//     table's own columns to the current element shape: a repeated-scalar
+//     "value" column, a map "key" / "value" column, or (repeated-composed)
+//     the full add/drop/retype of one data column per the table-less
+//     target message's own field.
 //   - stamps the current version hash.
 // Cross-version DATA transforms (deriving one column's value from another,
 // not just moving/CASTing structure) are handled via an optional
@@ -51,6 +61,23 @@ inline bool migrate_shipment(::soci::session& db,
                            std::function<void(::soci::session&)> data_transform = nullptr) {
     try {
         db << "CREATE TABLE IF NOT EXISTS \"_harpia_schema_version\" (\"name\" TEXT PRIMARY KEY, \"version\" TEXT);";
+
+        // child tables ("<table>__*", one per repeated/map field) the live
+        // database currently has -- for the child-table rename below and the
+        // orphan reap further down (Track H.1 / H.2). Same dialect-uniform
+        // shape as the column introspection: one selected column, a table name.
+        std::set<std::string> _child_have;
+        {
+            std::string _ctn; ::soci::indicator _ctni;
+            ::soci::statement _cts = (db.prepare << "SELECT \"name\" FROM sqlite_master WHERE type = 'table' AND substr(\"name\", 1, 16) = 'shipment_table__';",
+                                     ::soci::into(_ctn, _ctni));
+            _cts.execute();
+            while (_cts.fetch()) { if (_ctni == ::soci::i_ok) _child_have.insert(_ctn); }
+        }
+        // child-table renames: a repeated/map field carrying renamed_from[<old>]
+        // moves its "<table>__<old>" child table to "<table>__<new>" BEFORE
+        // create_table's CREATE IF NOT EXISTS would leave an empty new one
+        // beside the populated old. Idempotent, like the column rename above.
 
         // ensure the table + its map/repeated child tables exist at the current schema
         ::harpia::db::shipment_dao dao(db);
@@ -131,6 +158,54 @@ inline bool migrate_shipment(::soci::session& db,
             db << "DROP TABLE \"shipment_table\";";
             db << "ALTER TABLE \"shipment_table__retype_tmp\" RENAME TO \"shipment_table\";";
         }
+        }
+        // non-additive (child tables, Track H.1 / H.2 / H.3): reap any
+        // "<table>__*" child table the current schema no longer declares -- a
+        // repeated/map field removed between versions -- then evolve each
+        // surviving child table's own columns to the current shape
+        // (repeated-scalar "value", map "key"/"value", or a repeated-composed
+        // table's per-target-field add/drop/retype). Implicit, unconditional
+        // diff, same no-schema-history caveat as the column drop above; runs
+        // after the main table has been stabilized.
+        {
+            static const std::set<std::string> _child_current = { "shipment_table__cargo" };
+            for (auto _cit = _child_have.begin(); _cit != _child_have.end(); ) {
+                if (!_child_current.count(*_cit)) {
+                    const std::string& _dct = *_cit;
+                    db << "DROP TABLE \"" + _dct + "\";";
+                    _cit = _child_have.erase(_cit);
+                } else {
+                    ++_cit;
+                }
+            }
+        }
+        {
+            std::set<std::string> _ec;
+            std::map<std::string, std::string> _ect;
+            {
+                std::string _en, _et; ::soci::indicator _eni, _eti;
+                ::soci::statement _es = (db.prepare << "SELECT \"name\", \"type\" FROM pragma_table_info('shipment_table__cargo');",
+                                         ::soci::into(_en, _eni), ::soci::into(_et, _eti));
+                _es.execute();
+                while (_es.fetch()) {
+                    if (_eni == ::soci::i_ok) { _ec.insert(_en); if (_eti == ::soci::i_ok) _ect[_en] = _et; }
+                }
+            }
+            if (!_ec.empty()) {
+                if (!_ec.count("label")) db << "ALTER TABLE \"shipment_table__cargo\" ADD COLUMN \"label\" TEXT;";
+                if (!_ec.count("weight")) db << "ALTER TABLE \"shipment_table__cargo\" ADD COLUMN \"weight\" INTEGER;";
+                static const std::set<std::string> _ekeep = { "owner", "ordinal", "label", "weight" };
+                bool _erebuild = false;
+                for (const auto& _en2 : _ec) if (!_ekeep.count(_en2)) _erebuild = true;
+                if (_ect.count("label") && _ect["label"] != "TEXT") _erebuild = true;
+                if (_ect.count("weight") && _ect["weight"] != "INTEGER") _erebuild = true;
+                if (_erebuild) {
+                    db << "CREATE TABLE \"shipment_table__cargo__evolve_tmp\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"label\" TEXT, \"weight\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));";
+                    db << "INSERT INTO \"shipment_table__cargo__evolve_tmp\" (\"owner\", \"ordinal\", \"label\", \"weight\") SELECT \"owner\", \"ordinal\", CAST(\"label\" AS TEXT), CAST(\"weight\" AS INTEGER) FROM \"shipment_table__cargo\";";
+                    db << "DROP TABLE \"shipment_table__cargo\";";
+                    db << "ALTER TABLE \"shipment_table__cargo__evolve_tmp\" RENAME TO \"shipment_table__cargo\";";
+                }
+            }
         }
         // stamp the current version
         db << "INSERT OR REPLACE INTO \"_harpia_schema_version\" (\"name\", \"version\") VALUES ('shipment_table', '3ac5d8b36fc7dcfb70888145147ddfb7');";

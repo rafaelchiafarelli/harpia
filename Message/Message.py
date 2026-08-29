@@ -17,6 +17,12 @@ class Message():
     md5Hash = None
     dependency = None
     isEnum = False
+    # sensitive-data design rules §0, criticality axis: True when the message
+    # type carries the `critical` modifier. Message-type-level (never
+    # per-field, never a payload value) and independent of any field's
+    # `is_phi`. Flag only for now -- later stages read this instead of
+    # re-scanning access_modifiers, same rationale as variable.is_phi.
+    is_critical = False
     def __init__(self, fileName,availableMessages, md5Hash, compliance=None) -> None:
 
         self.compliance = compliance
@@ -24,6 +30,7 @@ class Message():
         self.availableMessages = availableMessages
         self.variables = []
         self.access_modifiers = []
+        self.is_critical = False
         self.log = logger(outFile=None, moduleName="Message")
         self.tableName = ""
         self.visibility = "PUBLIC"
@@ -46,14 +53,28 @@ class Message():
                 if token[0] == "ENUM":
                     isEnum = True
 
-                if curNewLine is None:
-                    curNewLine = j
                 if isEnum is False:
-                    self.access_modifiers = tokens[curNewLine+1:j]
+                    # tokens between the previous line break and `message` are
+                    # the message-type modifiers (event/stream/pull/push/
+                    # pushpull/critical). When the message is the very first
+                    # thing in the token stream there is no preceding NEWLINE,
+                    # so fall back to the start of the slice -- the old code
+                    # forced curNewLine = j here, yielding tokens[j+1:j] (an
+                    # empty range) and silently dropping a leading modifier.
+                    modStart = 0 if curNewLine is None else curNewLine + 1
+                    self.access_modifiers = tokens[modStart:j]
                     ##check if is a pull msg
                     for access in self.access_modifiers:
                         if access[0] == 'PULL' or access[0] == 'EVENT' or access[0] =='STREAM':
                             isOneToMany = True
+                            break
+                    ##criticality axis (sensitive-data design rules §0):
+                    ##independent of the transport kind above, so a separate
+                    ##scan -- `critical` can appear with or without event/
+                    ##stream/push/pull.
+                    for access in self.access_modifiers:
+                        if access[0] == 'CRITICAL':
+                            self.is_critical = True
                             break
             if lastToken == "MESSAGE" or  lastToken == "ENUM":
                 if token[0] == "ID":

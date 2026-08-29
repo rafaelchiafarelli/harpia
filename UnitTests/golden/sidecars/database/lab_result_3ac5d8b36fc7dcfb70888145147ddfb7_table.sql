@@ -1,0 +1,1 @@
+-- lab_result: no table declared

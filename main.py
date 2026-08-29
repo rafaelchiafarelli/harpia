@@ -12,8 +12,11 @@ from ProtoFile.GrpcCompiler import GrpcCompiler
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
+from YamlAdapter.YamlAdapter import YamlAdapter
+from SerializeAdapter.SerializeAdapter import SerializeAdapter
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
+from Database.DbRegistryAdapter import DbRegistryAdapter
 from Database.MigrationAdapter import MigrationAdapter
 from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
@@ -305,6 +308,16 @@ if __name__ == '__main__':
     if xmlError is not None:
         log.print(xmlError.__str__())
 
+    #10 (yaml). generate the YAML adapters (reflection-based runtime + wrappers)
+    yamlError = YamlAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    if yamlError is not None:
+        log.print(yamlError.__str__())
+
+    #10 (serialize). unified JSON/XML/YAML toString façade (Track F / F.2)
+    serializeError = SerializeAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    if serializeError is not None:
+        log.print(serializeError.__str__())
+
     #8. generate the SQL schema (supersedes the FileCreator stub)
     sqlError = SqlAdapter(messages=msgFactory.messages, dest=testDestination,
                           backend=dbBackend, compliance=complianceContext).Process()
@@ -316,6 +329,14 @@ if __name__ == '__main__':
                               backend=dbBackend, compliance=complianceContext).Process()
     if crudlError is not None:
         log.print(crudlError.__str__())
+
+    #8 (registry). environment-level public/private DB registry + cross-project
+    # access check (Track K); one project-wide header, additive.
+    registryError = DbRegistryAdapter(messages=msgFactory.messages,
+                                      dest=testDestination,
+                                      compliance=complianceContext).Process()
+    if registryError is not None:
+        log.print(registryError.__str__())
 
     #8 (migrate). generate schema-migration / version-transform functions
     migrateError = MigrationAdapter(messages=msgFactory.messages,

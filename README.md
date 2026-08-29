@@ -91,7 +91,7 @@ design vision, not current status):
   multi-tier RBAC, key management, FHIR facade — are **not started**. Scoped
   at `Initiatives/medical_devices/` (see `harpia_medical_master_plan.md` for
   the dependency graph and
-  `Initiatives/medical_devices/epics/handoff-document.md` for what
+  `Initiatives/medical_devices/epics/foundation-handoff.md` for what
   Foundation concretely shipped).
 
 **Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the

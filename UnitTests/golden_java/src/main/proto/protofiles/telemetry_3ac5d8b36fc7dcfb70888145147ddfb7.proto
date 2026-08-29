@@ -1,0 +1,17 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+
+import "protofiles/trace_row_3ac5d8b36fc7dcfb70888145147ddfb7.proto";
+message telemetry {
+int32 ID_3ac5d8b36fc7dcfb70888145147ddfb7 = 1;
+string label = 2;
+repeated int32 samples = 3;
+repeated string notes = 4;
+map<string, int32> gauges = 8;
+map<int32, string> flags = 9;
+repeated trace_row traces = 10;
+string STATUS_3ac5d8b36fc7dcfb70888145147ddfb7 = 5;
+string ERROR_3ac5d8b36fc7dcfb70888145147ddfb7 = 6;
+string ORIGINATOR = 7;
+}

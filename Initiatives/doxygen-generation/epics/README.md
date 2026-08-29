@@ -1,101 +1,80 @@
-# Doxygen Doc-Comment Coverage — Epic
+# doxygen-generation — epics
 
-Restructured 2026-08-24 from `../doxygen-generation.md`, mirroring the
-per-track breakdown used in `Initiatives/medical_devices/epics/`: a
-`README.md` (this file) plus `histories/<topic>/track-X-<name>.md` +
-`histories/<topic>/tasks/*.md`, one small session per file, each sized to
-fit a single sitting.
+One epic: **doc-comment-coverage** (`doc-comment-coverage/tasks/`).
 
-Only one track here (**Track D**), because only one body of work is left.
-`../doxygen-generation.md`'s own status note explains why: **F6** (the
-mechanical Doxyfile/CMake/mainpage plumbing) already shipped and merged to
-`dev` 2026-08-23 — see `../../medical_devices/epics/handoff-document.md`'s
-F6 section. What's left is `../doxygen-generation.md` §3/§4: real,
-per-template Doxygen doc-comments (not generic boilerplate) landing in the
-consumer-facing headers the generator emits.
+`../doxygen-generation.md`'s status note explains why only one body of
+work is left: **F6** (the mechanical Doxyfile / CMake target /
+`Doxygen/mainpage.py` plumbing, plus the gated
+`UnitTests/test_doxygen_docs.py` zero-warnings check) already shipped and
+merged to `dev` on 2026-08-23 — see
+`../../medical_devices/epics/foundation-handoff.md`'s F6 section. What
+remains is `../doxygen-generation.md` §3/§4: real, per-template Doxygen
+doc-comments (not generic boilerplate) landing in the consumer-facing
+headers the generator emits, plus a golden-style snapshot test per landed
+comment (§6).
 
-- [track-d-doc-comment-coverage.md](histories/doc-comment-coverage/track-d-doc-comment-coverage.md) —
-  doc-comment content for every consumer-facing template/adapter, keyed off
-  `../doxygen-generation.md` §4's pitfall table.
+## Why this is a *fallback* epic
 
----
+Ground Rule 6 says this work is supposed to happen incrementally, inside
+whichever `medical_devices` epic next touches a given adapter / template —
+not as a separate deferred effort. That is still the preferred path: a
+task in db-encryption, transport-authn, serialization, etc. that touches
+`CrudlAdapter` / `XmlAdapter` / `ZmqAdapter` / etc. should land the
+matching doc-comment in the same sitting, per that epic's Definition of
+Done.
 
-## Why this is a *fallback* track, not a normal one
+This epic exists for two things Ground Rule 6 alone doesn't cover:
 
-`../doxygen-generation.md`'s **Ground Rule 6** says this work is supposed
-to happen incrementally, inside whichever `medical_devices` track next
-touches a given adapter/template — not as a separate deferred effort.
-That's still the preferred path: a session in Track A, B, C, F, etc. that
-touches `CrudlAdapter`/`XmlAdapter`/`ZmqAdapter`/etc. should land the
-matching doc-comment in the same sitting, per that track's own Definition
-of Done.
+1. **A checklist.** Without it, "did the doc-comment land" is only
+   answerable by re-reading every other epic's diffs. The tasks below
+   double as that checklist — one per adapter / template group,
+   cross-referencing which `medical_devices` epic is expected to cover it.
+2. **An owner for gaps.** Some templates (`ProtoFile/FileCreator.py`'s
+   message / field templates, the shared generated-file banner) aren't in
+   *any* `medical_devices` epic's Files-touched list — nobody's task will
+   land them opportunistically. This epic is where those get done directly.
 
-This track exists for two reasons Ground Rule 6 alone doesn't cover:
+**Before picking up any task:** check whether the "expected covered by"
+epic named in it already merged the work (`git log`, that epic's
+`ComplianceReport/` note, or a grep for the doc-comment text). Only do it
+here if it hasn't landed, or if the task says no other epic is expected to
+cover it.
 
-1. **A trackable checklist.** Without it, "did the doc-comment land" is
-   only answerable by re-reading every other track's diffs. Track D's
-   sessions below double as that checklist — one per adapter/template
-   group, cross-referencing which `medical_devices` track is expected to
-   cover it.
-2. **A real owner for gaps.** Some templates (`ProtoFile/FileCreator.py`'s
-   message/field templates, the shared generated-file banner) aren't in
-   *any* medical_devices track's Files-touched list — nobody's session
-   will land them opportunistically. Track D is where those get done
-   directly.
+## Task order
 
-**Before picking up any session below:** check whether the "expected
-covered by" track named in that session has already merged the work
-(`git log`, that track's own `ComplianceReport/` note, or a quick grep for
-the doc-comment text). Only do it here if it hasn't landed, or if the
-session says no other track is expected to cover it.
-
----
-
-## What this epic receives
-
-- **F6, shipped** — `Assets/Doxyfile`, the CMake `doxygen` target,
-  `Doxygen/mainpage.py` (assembles `USAGE_EXCERPT.md` from `USAGE.md`
-  §4/§6/§11 at generation time), and the gated `UnitTests/test_doxygen_docs.py`
-  zero-warnings check. **Flag, still true as of this restructuring:** that
-  test is proven only against a synthetic fixture — no generated template
-  in the repo emits real `///`/`/** */` doc-comments yet. Track D's own
-  sessions are what eventually gives it a real generated tree to point at
-  (closed out in D's last session).
-
-## Execution order across sessions
-
-Sessions are independent of each other (different files) except the last,
-which is a closing sweep:
+Tasks are independent (different files) except the closing sweep:
 
 ```
-D.1 -> ) all independent, any order/parallel
-D.2 -> )
-D.3 -> )
-D.4 -> )
-D.5 -> )
-D.6 -> )
-              v
-             D.7  (closing sweep — needs D.1-D.6, or their
-                    Ground-Rule-6 equivalents elsewhere, merged)
+shared-generated-file-banner  ─┐  all independent, any order / parallel
+message-class-comments         │
+field-modifier-comments        │
+json-xml-adapter-comments      │
+database-dao-comments          │
+zmq-adapter-comments          ─┘
+              │
+              ▼
+closing-sweep-and-status   (needs the six above, or their Ground-Rule-6
+                            equivalents elsewhere, merged)
 ```
 
-## Definition of done (every session in this track)
+## Definition of done (every task)
 
 - The doc-comment's *content* matches the specific pitfall text in
-  `../doxygen-generation.md` §4 (or the session's own description) — not
+  `../doxygen-generation.md` §4 (or the task's own description) — not
   generic boilerplate copy-pasted across templates.
 - A golden-style snapshot test (mirroring `test_golden.py`) asserting that
-  specific content, per `../doxygen-generation.md` §6 — so a later
-  refactor can't silently regress it back to boilerplate without a test
-  noticing.
-- If the session's work surfaces a consumer-relevant pitfall not already
-  in `../doxygen-generation.md` §4, add a row there in the same session
-  (living-reference instruction, §4's preamble).
+  specific content, per `../doxygen-generation.md` §6, so a later refactor
+  can't silently regress it back to boilerplate without a test noticing.
+- If the work surfaces a consumer-relevant pitfall not already in
+  `../doxygen-generation.md` §4, add a row there in the same task.
 
 ## Watch for
 
-- Don't duplicate work another track already did under Ground Rule 6 —
-  see "Why this is a fallback track" above.
-- `WsdlAdapter` (D.5) has no clearly expected owner among the current
-  medical_devices tracks — flag this again if you pick it up and nothing's
-  changed.
+- Don't duplicate work another epic already did under Ground Rule 6 — see
+  "Why this is a fallback epic" above.
+- `WsdlAdapter` (in `database-dao-comments`) has no clearly expected owner
+  among the current `medical_devices` epics — flag it again if you pick it
+  up and nothing has changed.
+- `closing-sweep-and-status` checks that each of the other six actually
+  happened (here or as a Ground-Rule-6 equivalent in another epic) before
+  it can be treated as done.

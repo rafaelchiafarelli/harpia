@@ -2,15 +2,33 @@
 
 **Pipeline role:** Stage 13 (zmq). For each message with a transport modifier, emits a header-only cppzmq transport that moves the message as a serialized-protobuf frame.
 **Entry points (from main.py):** `ZmqAdapter(messages=msgFactory.messages, dest=testDestination).Process()`. Returns `None` or `Error` (non-fatal).
-**Inputs → Outputs:** consumes message objects (`msg.name`, `msg.md5Hash`, `msg.isEnum`, `msg.access_modifiers`, `msg.variables`). Emits `<dest>/generated/cpp/zmq/<name>_<hash>_zmq.h` ONLY for messages that declare a transport modifier. Enums skipped.
+**Inputs → Outputs:** consumes message objects (`msg.name`, `msg.md5Hash`, `msg.isEnum`, `msg.access_modifiers`, `msg.variables`, `msg.is_critical`). Emits `<dest>/generated/cpp/zmq/<name>_<hash>_zmq.h` ONLY for messages that declare a transport modifier. Enums skipped. When at least one such message is `critical`, also copies the delivery-guarantee runtime into `<dest>/generated/cpp/delivery/` (`harpia_delivery.h` + its `harpia_audit_sink.h` dependency).
 
 ## Files
-- `ZmqAdapter.py` — `Process()` filters messages by modifier set (`_modifiers` reads `msg.access_modifiers`, each `m[0]`). PUSH/PULL modifiers → sender/receiver pair; EVENT/STREAM → publisher/subscriber pair; messages with neither are skipped. Also computes `_is_one_to_many(mods)` (PULL/EVENT/STREAM present, mirrors `Message.py`'s classification) to pick the sender's default origin id. `_render()` assembles the header from sender/receiver template fragments. `_origin_id(md5_hash, name)` is a module-level helper for the compile-time id.
-- `templates/header.h.tmpl` — outer header (guard, pb include, body slot); also defines the shared `CurveServerKeys`/`CurveClientKeys` structs once (own separate include guard, see below).
-- `templates/sender.tmpl` — PUSH (`connect`, `send`) / PUB (`bind`, `publish`) socket class; stamps origin id.
-- `templates/receiver.tmpl` — PULL (`bind`, `recv`) / SUB (`connect`+subscribe, `receive`) socket class.
+- `ZmqAdapter.py` — `Process()` filters messages by modifier set (`_modifiers` reads `msg.access_modifiers`, each `m[0]`). PUSH/PULL modifiers → sender/receiver pair; EVENT/STREAM → publisher/subscriber pair; messages with neither are skipped. Also computes `_is_one_to_many(mods)` (PULL/EVENT/STREAM present, mirrors `Message.py`'s classification) to pick the sender's default origin id, and reads `msg.is_critical` (roadmap Phase 1a) to pick the sender template. `_render()` assembles the header from sender/receiver template fragments. `_origin_id(md5_hash, name)` is a module-level helper for the compile-time id.
+- `templates/header.h.tmpl` — outer header (guard, pb include, `{extra_includes}` slot, body slot); also defines the shared `CurveServerKeys`/`CurveClientKeys` structs once (own separate include guard, see below). `{extra_includes}` is `""` for a non-critical message (byte-identical to before Phase 3b) and `#include "delivery/harpia_delivery.h"` for a critical one.
+- `templates/sender.tmpl` — non-critical PUSH (`connect`, `send`) / PUB (`bind`, `publish`) socket class; `send`/`publish` returns `bool`, fires the socket directly; stamps origin id.
+- `templates/sender_critical.tmpl` — the `critical`-message sender/publisher (roadmap Phase 3b). Same origin-id / CURVE / stamp shape as `sender.tmpl`, but `send`/`publish` returns `::std::optional<::harpia::delivery::PushOutcome>` and *enqueues* a CRC+seq-stamped `harpia::delivery::Envelope` into a member `BoundedQueue` instead of touching the socket; a separate `flush()` drains the queue to the wire oldest-first, stopping at the first socket failure (transient outage → latency, not loss). Ctor gains `queue_capacity` (default 128) and `AuditSink&` (default `default_audit_sink()`) params, before the trailing CURVE-keys param. Extra accessors: `pending()`, `queue()`.
+- `templates/receiver.tmpl` — PULL (`bind`, `recv`) / SUB (`connect`+subscribe, `receive`) socket class. Unchanged by Phase 3b — the receiving half of a `critical` type is not queued (arrival-side `check_on_arrival` is a Phase 3c concern).
 
 ## Key facts / gotchas
+- **`critical` send path (roadmap Phase 3b, design-rules Rule 4a):** a
+  `critical` message type's sender/publisher routes through
+  `harpia::delivery::BoundedQueue` — `send()`/`publish()` stamps an
+  `Envelope` (origin CRC-32 + per-sender monotonic `next_seq_`, starting at
+  1) and pushes it; the queue rotates its oldest entry on overflow with a
+  `"queue_rotated"` `AuditSink` record (never a silent drop); `flush()` is
+  what actually puts bytes on the socket. Non-`critical` types keep the
+  direct `bool send()` API, byte-for-byte unchanged (golden regen touched
+  only `alarm_event`'s header). The delivery runtime is copied to a shared
+  `generated/cpp/delivery/` (mirrors the capability runtime's
+  `generated/cpp/capability/` home) and only when a critical transport
+  message actually exists — a project with none gets no new directory.
+  `Compliance.delivery_common` supplies the source paths
+  (`DELIVERY_RUNTIME_SRC` + `DELIVERY_RUNTIME_DEPS`, the latter naming
+  `harpia_audit_sink.h` as a co-copy since the delivery header `#include`s
+  it at the same relative path). This is the C++ target only — `JavaZmqAdapter`
+  does not read `is_critical` yet.
 - **CURVE encryption (encryption-only, no ZAP allowlist):** every generated
   constructor takes a trailing, defaulted curve-keys struct
   (`CurveServerKeys{secret_key}` for the bind side -- PULL receiver / PUB
@@ -37,4 +55,4 @@
 
 ## Touchpoints
 - Called by: `main.py` (step 13, zmq path — parallel to `GrpcCompiler`/`GrpcServiceAdapter`).
-- Depends on: `Util.util.loadTemplate`, `Logger.logger`, `Errors.Error`, `hashlib`. Consumes `MessageCreator` messages; runtime depends on cppzmq + protobuf.
+- Depends on: `Util.util.loadTemplate`/`write_if_different`/`copy_if_different`, `Logger.logger`, `Errors.Error`, `hashlib`, and `Compliance.delivery_common` (`DELIVERY_RUNTIME`/`_SRC`/`_DEPS`, for the critical-message runtime copy). Consumes `MessageCreator` messages; runtime depends on cppzmq + protobuf, plus `harpia::delivery`/`harpia::compliance` (header-only) for a critical transport.

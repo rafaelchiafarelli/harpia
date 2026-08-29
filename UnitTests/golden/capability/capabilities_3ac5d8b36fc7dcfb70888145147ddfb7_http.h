@@ -49,6 +49,7 @@ inline void register_capabilities(crow::SimpleApp& app, const std::string& base)
     app.route_dynamic(base + "/capabilities").methods(crow::HTTPMethod::GET)(
         [](const crow::request&, crow::response& res) {
             static const std::vector<std::string> kTypes = {
+            "alarm_event",
             "another_sage",
             "beacon_log",
             "courier",
@@ -56,6 +57,7 @@ inline void register_capabilities(crow::SimpleApp& app, const std::string& base)
             "crew_quarters",
             "data",
             "journey",
+            "lab_result",
             "outpost",
             "parcel",
             "patient_vitals",
@@ -63,7 +65,9 @@ inline void register_capabilities(crow::SimpleApp& app, const std::string& base)
             "queen",
             "route",
             "shipment",
+            "telemetry",
             "top_users",
+            "trace_row",
             "users",
             "vip_users",
             "waypoint"
