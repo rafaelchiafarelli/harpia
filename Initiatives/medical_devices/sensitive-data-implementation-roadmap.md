@@ -1,9 +1,9 @@
 # Sensitive-data implementation roadmap (`phi` + `critical`)
 
 Execution order for making `harpia_sensitive_data_design_rules.md` real. This
-doc sequences the master-plan tracks (`harpia_medical_master_plan.md` §5) into
+doc sequences the master-plan epics (`harpia_medical_master_plan.md` §5) into
 one dependency-ordered path and fills the one hole the master plan assumes away:
-**`critical` has no track** — the plan says "the existing `phi`/`critical`
+**`critical` has no epic of its own** — the plan says "the existing `phi`/`critical`
 modifiers" everywhere, but Foundation F2 only ever shipped `phi`.
 
 Scope for this effort: **full** — redaction AND envelope encryption AND
@@ -33,7 +33,7 @@ project owner, every phase below is done only when:
 3. `UnitTests/test_golden.py` (+ `test_golden_java.py`) regenerated and the
    diff reviewed.
 4. A one-paragraph traceability note into `ComplianceReport/` for any phase
-   touching `phi`-adjacent code (F, A, C, E).
+   touching `phi`-adjacent code (serialization, db-encryption, transport-authn, events-callbacks).
 
 Fixture: `HarpiaTest/Include/file3.harpia` — `patient_vitals` (the `phi`
 fixture) and `alarm_event` (`critical event`, added Phase 1a). Extend these two
@@ -49,17 +49,17 @@ Foundation F1-F6  .......................................  DONE (plumbing only)
 1a  critical modifier (lexer + AST)  ── no prereqs
         └─► 3a delivery-guarantee runtime ─► 3b ZMQ wiring ─► 3c critical send/receive test
 
-1b  Track O  key management (KeyProvider, KEK/DEK envelope, rotation, shred)  ── F1,F3,F5
-1c  Track H  DB schema-evolution (repeated-composed, non-additive transforms)  ── none
-        1b + 1c ─► 2b Track A  encrypt phi columns + audit-on-access ─► 2c Track K
+1b  key-management (KeyProvider, KEK/DEK envelope, rotation, shred)  ── F1,F3,F5
+1c  schema-evolution (repeated-composed, non-additive transforms)  ── none
+        1b + 1c ─► 2b db-encryption: encrypt phi columns + audit-on-access ─► 2c db-segregation
 
-2a  Track F  phi redaction in JSON/XML/YAML toString  ── F2 only  (independent, early)
+2a  serialization: phi redaction in JSON/XML/YAML toString  ── F2 only  (independent, early)
 
-4   Track C  mTLS + RBAC   ── F1,F3,F5   }  arm the risk_class floor
-    Track B  ZMQ CURVE + stream lifecycle ── F1  }
+4   transport-authn: mTLS + RBAC   ── F1,F3,F5   }  arm the risk_class floor
+    zmq-lifecycle: ZMQ CURVE + stream lifecycle ── F1  }
 
-5   Track M skeleton (ComplianceReport/, needed early for traceability notes)  ── F1
-    Track N  static/fuzz CI gate on generated output  ── none
+5   process-artifacts skeleton (ComplianceReport/, needed early for traceability notes)  ── F1
+    static-fuzz-ci: static/fuzz CI gate on generated output  ── none
 ```
 
 Reaching *just the two headline tests*: **1a + 1b + 1c + 2a + 2b + 3a + 3b +
@@ -75,7 +75,7 @@ Reaching *just the two headline tests*: **1a + 1b + 1c + 2a + 2b + 3a + 3b +
   independent axes, so `alarm_event` carries both). Regenerate goldens.
 - **`project.harpia.yaml`** — a checked-in repo-root config so a real
   generation run sees non-default `risk_class`/`topology` flow through instead
-  of the missing-file/strictest fallback. **Deferred to Phase 1b** (Track O is
+  of the missing-file/strictest fallback. **Deferred to Phase 1b** (key-management is
   the first code that actually branches on `ComplianceContext`; adding the
   file earlier, ahead of any consumer, only risks silent test interference for
   no functional gain — F1 is plumbing-only today).
@@ -94,8 +94,8 @@ Mirror Foundation F2's `phi` work, one level up (message-type, not field):
   + `phi` on one message; `.proto` unaffected. Via an extended
   `run_phi_check.py` (now also reports per-message `is_critical`).
 
-### Phase 1b — Track O: key management
-Contract: master-plan §5 "O". `Crypto/KeyProvider` ABC (generate/fetch KEK,
+### Phase 1b — key-management
+Contract: master-plan §5 key-management. `Crypto/KeyProvider` ABC (generate/fetch KEK,
 wrap/unwrap DEK, rotate), envelope encryption (per-record DEK, KEK wraps DEKs),
 crypto-shred, key zeroization, every key op through `AuditSink`, a default
 TPM/keystore provider that forces acknowledgment under a PHI-at-scale profile,
@@ -103,25 +103,25 @@ one mock-KMS reference adapter. FIPS certification explicitly out of scope
 (document the crypto-module choice, don't complete certification).
 Also lands the deferred `project.harpia.yaml`.
 
-### Phase 1c — Track H: DB schema evolution
-Contract: §5 "H". Repeated-composed-field migration; non-additive transforms
+### Phase 1c — schema-evolution
+Contract: §5 schema-evolution. Repeated-composed-field migration; non-additive transforms
 (rename/drop/type-change) in `migrate_<table>()`. Pre-existing debt, no
 compliance dependency.
 
-### Phase 2a — Track F: serialization + redaction
-Contract: §5 "F". `YamlAdapter/`; unified `toString` across JSON/XML/YAML;
+### Phase 2a — serialization + redaction
+Contract: §5 serialization. `YamlAdapter/`; unified `toString` across JSON/XML/YAML;
 `phi` values redacted by default in all three; the unredacted-output flag
 emits an `AuditSink` record. Only needs F2 — can run in parallel with 1b/1c.
 Delivers the serialization half of the `phi` send/receive test.
 
-### Phase 2b — Track A: DB field-level encryption + audit
-Contract: §5 "A". `EncryptedColumn<T>` on `is_phi` columns via Track O's
+### Phase 2b — db-encryption
+Contract: §5 db-encryption. `EncryptedColumn<T>` on `is_phi` columns via key-management's
 envelope scheme; DAO encrypt-on-write / decrypt-on-read through `KeyProvider`;
 exactly one `AuditSink.record()` per DAO CRUDL op touching a `phi` field.
 Delivers the `phi` send/receive test.
 
-### Phase 2c — Track K: public/private DB segregation
-Contract: §5 "K". Environment-level public/private DB registry; cross-project
+### Phase 2c — db-segregation
+Contract: §5 db-segregation. Environment-level public/private DB registry; cross-project
 private access denied.
 
 ### Phase 3a — delivery-guarantee runtime (transport-agnostic)  ✅ done (2026-08-27)
@@ -169,20 +169,20 @@ event is logged when the bounded queue overflows, and a non-`critical`
 message on the same path is dropped rather than queued.
 
 ### Phase 4 — the `risk_class` floor
-- **Track C** (§5 "C"): mTLS on gRPC/REST/SOAP; admin/main/guest RBAC
+- **transport-authn** (§5 transport-authn): mTLS on gRPC/REST/SOAP; admin/main/guest RBAC
   replacing the flat `X-User`/`X-Pswd` gate; token sessions with
   expiry/revocation; cert-provisioning scripts in `Assets/`. Plaintext
   refused once `risk_class` implies medical-device-grade — for *every*
   message, not just tagged ones (§6a).
-- **Track B** (§5 "B"): ZMQ CURVE + full `stream[#]` lifecycle
+- **zmq-lifecycle** (§5 zmq-lifecycle): ZMQ CURVE + full `stream[#]` lifecycle
   (setup/read/stop, timeout, dead-connection reclamation).
 
 ### Phase 5 — traceability + CI gate
-- **Track M** skeleton: `ComplianceReport/` module (SBOM, traceability
+- **process-artifacts** skeleton: `ComplianceReport/` module (SBOM, traceability
   matrix). Stand up early so Phases F/A/C/E notes have a real home.
-- **Track N**: cppcheck/clang-tidy CERT ruleset + fuzz harness for the
+- **static-fuzz-ci**: cppcheck/clang-tidy CERT ruleset + fuzz harness for the
   JSON/XML/SOAP parsers, as a CI gate on generated output. Required clean for
-  Tracks A/C/K once the floor is in place.
+  db-encryption / transport-authn / db-segregation once the floor is in place.
 
 ---
 
@@ -200,7 +200,7 @@ built. Actual order taken:
    runtime copied into `generated/cpp/delivery/`). Full Docker suite 227
    passed, 4 skipped.
 4. next: **3c** (critical send/receive integration test over a real socket),
-   then Track O.
+   then key-management.
 
 ## Notes carried from scoping
 
@@ -210,6 +210,6 @@ built. Actual order taken:
   reading with routine telemetry, the fix is two message types, not a runtime
   criticality field.
 - One code path, never per-jurisdiction (§0a). `jurisdiction[]` only selects
-  Track M's paperwork template.
+  process-artifacts's paperwork template.
 - ECC-RAM assumption behind "no CRC re-check between internal steps" (Rule 3):
   document the target-hardware dependency, don't silently assume it.

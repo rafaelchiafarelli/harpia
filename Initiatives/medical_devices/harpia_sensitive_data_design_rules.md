@@ -4,7 +4,7 @@ Derived from a worked example (heart rate monitoring: `sendHeartRate`). The exam
 
 Status: **working draft** — rules are stated as currently agreed; open questions are marked explicitly and should not be treated as decided.
 
-Examples below are written as `.harpia` DSL snippets, not C++ — this doc describes what gets *declared in the schema*; the C++ that implements each rule is generated from it, once, in the adapters (`Database/`, `ZmqAdapter/`, `Message/toString` templates), not hand-written per message. Modifiers shown as **proposed** (`phi`, `critical`) don't exist in the grammar yet — see `schedule/foundation.md` F2 for `phi`'s planned landing; `critical` (name not final) isn't scoped as a track yet.
+Examples below are written as `.harpia` DSL snippets, not C++ — this doc describes what gets *declared in the schema*; the C++ that implements each rule is generated from it, once, in the adapters (`Database/`, `ZmqAdapter/`, `Message/toString` templates), not hand-written per message. Modifiers shown as **proposed** (`phi`, `critical`) don't exist in the grammar yet — see `schedule/foundation.md` F2 for `phi`'s planned landing; `critical` (name not final) isn't scoped as an epic yet.
 
 ---
 
@@ -157,7 +157,7 @@ FDA, EU MDR, and ANVISA all converge on the same underlying standards (IEC 62304
 - **Code and architecture do not need to branch per jurisdiction.** The mitigations above (validated input at the right boundary, explicit failure modes, tamper-evident audit trail, no PHI in logs, criticality decided statically rather than from content) satisfy all three regimes simultaneously, because they derive from the same harmonized standards.
 - **What differs per jurisdiction is paperwork, not code**: which document package the hazard/risk table is filed into (DHF vs Technical Documentation vs technical dossier), who reviews it, and post-market reporting obligations if a hazard materializes in the field.
 - **One exception worth tracking:** EU MDR's cybersecurity annex (IEC 81001-5-1) is currently more prescriptive about audit-log integrity (tamper-evidence) than FDA/ANVISA. Treating tamper-evident/append-only audit storage as the default everywhere — not gated behind an EU-only flag — satisfies the strictest requirement without needing jurisdiction-specific branches. A `critical` message failing to deliver is itself exactly the kind of event that belongs in that tamper-evident trail, same as a `phi` access.
-- **Consequence for the master plan (2026-08-19):** since jurisdictions converge on the same underlying standards, code generation never forks per jurisdiction — there is one hardened profile, not one build variant per FDA/EU MDR/ANVISA. `jurisdiction[]` in `project.harpia.yaml` only selects which paperwork template Track M stamps the same evidence into. See `harpia_medical_master_plan.md` §0a for the full consequence on the Foundation/track plan.
+- **Consequence for the master plan (2026-08-19):** since jurisdictions converge on the same underlying standards, code generation never forks per jurisdiction — there is one hardened profile, not one build variant per FDA/EU MDR/ANVISA. `jurisdiction[]` in `project.harpia.yaml` only selects which paperwork template the process-artifacts epic stamps the same evidence into. See `harpia_medical_master_plan.md` §0a for the full consequence on the Foundation and epic plan.
 
 ### 6a. `risk_class` is a project-wide floor; `phi`/`critical` are opt-in on top of it
 
@@ -186,5 +186,5 @@ This is not legal/regulatory advice — confirm with actual regulatory affairs e
 
 ## 9. Resolved this session (2026-08-19) — kept here for the record
 
-- **Jurisdiction is not a code-generation axis.** The master plan's earlier "one compile-time build variant per jurisdiction" strategy is dropped; `jurisdiction[]` now only selects Track M's paperwork template. See §6/§6a and `harpia_medical_master_plan.md` §0a.
+- **Jurisdiction is not a code-generation axis.** The master plan's earlier "one compile-time build variant per jurisdiction" strategy is dropped; `jurisdiction[]` now only selects the process-artifacts epic's paperwork template. See §6/§6a and `harpia_medical_master_plan.md` §0a.
 - **`risk_class` is a project-wide floor, `phi`/`critical` are opt-in on top of it** — not three independent, equally-weighted axes. See §6a, grounded in IEC 62304 §4.3's segregation rule.
