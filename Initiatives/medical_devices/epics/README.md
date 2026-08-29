@@ -22,7 +22,7 @@ Doxygen infrastructure) shipped first and was removed as its own epic —
 | [db-segregation](db-segregation/) | public/private DB segregation, project-scoped access check | **done** |
 | [critical-delivery](critical-delivery/) | `critical` message modifier + delivery-guarantee runtime + first transport wiring | **done** |
 | [serialization](serialization/) | YAML adapter, unified `toString`, `phi` redaction + audited unredacted-output flag | **done** (tasks 1–5; `ComplianceReport/` note folded into `ComplianceReport/requirements.py` by the traceability-matrix task) |
-| [zmq-lifecycle](zmq-lifecycle/) | ZMQ CURVE security (shipped, verify only) + full `stream` lifecycle | 3-task epic (was 4). Tasks 1–2 **done** (`stream-control` → `<name>_stream` setup/read/stop + stop-deadline watchdog; `data-connection-reclamation` → dead-connection sweep on `reclaim_after_ms`, synchronous in read/stop/dtor); `windows-build-verification` env-blocked → Windows session-line. The old task 3 `authentication-layer` (ZAP allowlist) was **folded into transport-authn** 2026-08-29 |
+| [zmq-lifecycle](zmq-lifecycle/) | ZMQ CURVE security (shipped, verify only) + full `stream` lifecycle | **all 3 tasks done** (was 4). `stream-control` → `<name>_stream` setup/read/stop + stop-deadline watchdog; `data-connection-reclamation` → dead-connection sweep on `reclaim_after_ms`, synchronous in read/stop/dtor; `windows-build-verification` → CURVE demo built + run on MSVC 2022/vcpkg, fixed 2 Windows-only CMake bugs (`Assets/CMakeLists.txt`). The old task 3 `authentication-layer` (ZAP allowlist) was **folded into transport-authn** 2026-08-29 |
 | [transport-authn](transport-authn/) | mTLS transport (gRPC/REST/SOAP) + RBAC / AuthN / AuthZ + **ZMQ CURVE ZAP allowlist** (absorbed from zmq-lifecycle 2026-08-29) | not started (scoping doc only) |
 | [events-callbacks](events-callbacks/) | `event[cached/not-cached]`, detached-thread callback dispatch | not started |
 | [process-artifacts](process-artifacts/) | SBOM, traceability matrix, jurisdiction-selected doc templates, `ComplianceReport/` module | **done** (`sbom-emission` → CycloneDX SBOM; `traceability-matrix` → `requirements.py` catalog + `traceability.{json,md}`, 3 `*-note.md` folded in; `jurisdiction-template-selection` → `compliance_report[.<jur>].md` shells, same evidence) |
@@ -54,12 +54,11 @@ serialization  (needs the phi field tag only, independent)             |
   session-line — it shares the `Database/` generator files db-encryption
   just modified; don't hand it to a fresh session.
 - **serialization** needs only the `phi` field tag; run it any time.
-- **zmq-lifecycle** tasks 1–2 (the `stream` lifecycle) are done and needed
-  nothing from transport-authn. Its remaining `windows-build-verification`
-  is env-blocked, not ordered. The one real transport-authn ordering
-  dependency that lived here — the ZAP client-key allowlist — is now a
-  transport-authn deliverable (absorbed 2026-08-29): scope it after that
-  epic's credential model exists.
+- **zmq-lifecycle** is fully done (all 3 tasks) and needed nothing from
+  transport-authn. The one real transport-authn ordering dependency that
+  lived here — the ZAP client-key allowlist — is now a transport-authn
+  deliverable (absorbed 2026-08-29): scope it after that epic's credential
+  model exists.
 - **process-artifacts before versioning** — versioning was folded into
   process-artifacts' `ComplianceReport/` output; merge at least
   `process-artifacts`' first task before picking up versioning.
