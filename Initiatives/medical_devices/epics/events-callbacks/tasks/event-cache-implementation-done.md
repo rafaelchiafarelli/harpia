@@ -1,5 +1,17 @@
 ## `event[cached/not-cached]` implementation
 
+**Done 2026-08-29** — implemented exactly as scoped below. Lexer `EVENT`
+rule carries the optional `[cached|not-cached]` bracket in its lexeme;
+`Message.event_cache_mode`; new `Callback/` module (`harpia_event_cache.h`
+`EventChannel<T>` runtime + `callback_common.py` + `CallbackAdapter`
+emitting `events/<name>_<hash>_events.h` channel singletons); CRUDL DAO
+fires `<name>_channel().publish(msg)` on create/update for table-bearing
+event messages; `bed_state` (`event[cached]`) + `pump_tick`
+(`event[not-cached]`) fixtures in `file3.harpia`;
+`UnitTests/test_events_callbacks.py` + `test_golden.py::test_event_channel_wrappers`.
+Task 2 (detached dispatch + exception isolation) and task 3 (AuditSink on
+OnChange + integration) remain.
+
 - **Depends on:** F1 (Foundation) — present on `dev`. No other epic.
 
 ### Contract
