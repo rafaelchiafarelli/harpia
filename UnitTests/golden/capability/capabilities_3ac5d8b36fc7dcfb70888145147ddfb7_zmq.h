@@ -60,6 +60,7 @@ public:
         "prince",
         "queen",
         "route",
+        "sensor_feed",
         "shipment",
         "telemetry",
         "top_users",
