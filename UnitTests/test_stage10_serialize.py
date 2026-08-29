@@ -31,6 +31,13 @@ serialization task 4 half (SerializeAdapter/runtime/harpia_redaction_audit.h):
     audits that edge too. This is the one place the serialize runtime pulls
     in Foundation F3's compliance/harpia_audit_sink.h.
 
+serialization task 5 half (the epic's headline round-trip):
+  - a `phi`-bearing fixture goes to_string -> from_string -> to_string in
+    every format; structure and keys survive every hop, `phi` values are
+    redacted by default in every direction, non-`phi` values round-trip
+    intact, and parsing a redacted document never crashes (redacted output
+    is a lossy view, not a wire format).
+
 The JSON/XML golden-snapshot acceptance gate (14.5/14.6 unchanged) is covered
 by test_golden.py -- SerializeAdapter adds a serialize/ dir and touches none
 of the json/ or xml/ wrappers, and redaction lives in the (non-snapshotted)
@@ -472,3 +479,64 @@ def test_unredacted_flag_reveals_value_and_emits_audit_record(built):
     )
     assert run.returncode == 0, "audited unredacted flag failed at code {}\n{}".format(
         run.returncode, run.stdout + run.stderr)
+
+
+# serialization task 5 -- the epic's headline round-trip. A `phi`-bearing
+# fixture (alarm_event: `phi string patient_id` + non-phi alarm_type/severity,
+# from HarpiaTest/Include/file3.harpia) goes to_string -> from_string ->
+# to_string in every format. Redacted output is a lossy VIEW, not a wire
+# format: structure and keys survive every hop, `phi` values are redacted by
+# default in every direction, non-`phi` values round-trip intact, and parsing
+# a redacted document never crashes.
+_PHI_ROUNDTRIP = r'''
+#include <iostream>
+using harpia::serialize::Format;
+static bool has(const std::string& h, const std::string& n) {
+    return h.find(n) != std::string::npos;
+}
+int main() {
+    ::alarm_event m;
+    m.set_patient_id("MRN-5150");   // phi
+    m.set_alarm_type("apnea");      // NOT phi
+    m.set_severity(3);              // NOT phi
+    for (Format fmt : {Format::JSON, Format::XML, Format::YAML}) {
+        // 1. redacted-by-default: every key present, phi value gone, non-phi kept
+        const std::string s1 = harpia::serialize::to_string(m, fmt);
+        std::cerr << "[" << harpia::serialize::format_name(fmt) << "] " << s1 << "\n";
+        if (s1.empty()) return 10;
+        if (!has(s1, "[REDACTED]")) return 11;
+        if (has(s1, "MRN-5150")) return 12;
+        if (!has(s1, "patient_id") && !has(s1, "patientId")) return 13;
+        if (!has(s1, "alarm_type") && !has(s1, "alarmType")) return 14;
+        if (!has(s1, "severity")) return 15;
+        if (!has(s1, "apnea")) return 16;
+
+        // 2. the redacted document parses back without error or crash
+        ::alarm_event m2;
+        if (!harpia::serialize::from_string(s1, &m2, fmt)) return 20;
+        if (m2.patient_id() == "MRN-5150") return 21;   // real value never returns
+        if (m2.alarm_type() != "apnea") return 22;      // non-phi survives
+        if (m2.severity() != 3) return 23;
+
+        // 3. re-serialising the parsed message is still redacted + whole
+        const std::string s2 = harpia::serialize::to_string(m2, fmt);
+        if (!has(s2, "[REDACTED]")) return 30;
+        if (has(s2, "MRN-5150")) return 31;
+        if (!has(s2, "severity") || !has(s2, "apnea")) return 32;
+    }
+    std::cout << "ok\n";
+    return 0;
+}
+'''
+
+
+def test_phi_message_round_trips_redacted_through_all_three_formats(built):
+    run = _build_run(
+        built, "phi_roundtrip",
+        includes=["serialize/alarm_event___HASH___serialize.h"],
+        pb_names=["alarm_event"],
+        body=_PHI_ROUNDTRIP,
+    )
+    assert run.returncode == 0, "phi round-trip failed at code {}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
+    assert run.stdout.strip() == "ok"
