@@ -54,6 +54,7 @@ public:
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6);
             audit_.record("phi_create", "alarm_event_table", "patient_id");
             ::harpia::events::alarm_event_channel().publish(msg);
+            audit_.record("phi_event_onchange", "alarm_event_table", "patient_id");
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -95,6 +96,7 @@ public:
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(cid);
             audit_.record("phi_update", "alarm_event_table", "patient_id");
             ::harpia::events::alarm_event_channel().publish(msg);
+            audit_.record("phi_event_onchange", "alarm_event_table", "patient_id");
             return true;
         } catch (const std::exception&) { return false; }
     }

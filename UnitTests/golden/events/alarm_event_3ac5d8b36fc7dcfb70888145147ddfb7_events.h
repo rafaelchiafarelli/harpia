@@ -19,8 +19,14 @@ namespace events {
 //       [](const ::alarm_event& v) { /* ... */ });
 //   harpia::events::alarm_event_channel().publish(msg);
 //   harpia::events::alarm_event_channel().unsubscribe(id);
+//
+// The subject / phi-field strings drive the channel's OnChange AuditSink
+// record for a phi-bearing type (task 3); both empty here means this type
+// carries no phi and the channel never audits. Point it at a real sink
+// once at startup with alarm_event_channel().set_audit_sink(sink).
 inline EventChannel<::alarm_event>& alarm_event_channel() {
-    static EventChannel<::alarm_event> channel(CacheMode::Cached);
+    static EventChannel<::alarm_event> channel(
+        CacheMode::Cached, "alarm_event_table", "patient_id");
     return channel;
 }
 

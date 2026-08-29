@@ -19,8 +19,14 @@ namespace events {
 //       [](const ::bed_state& v) { /* ... */ });
 //   harpia::events::bed_state_channel().publish(msg);
 //   harpia::events::bed_state_channel().unsubscribe(id);
+//
+// The subject / phi-field strings drive the channel's OnChange AuditSink
+// record for a phi-bearing type (task 3); both empty here means this type
+// carries no phi and the channel never audits. Point it at a real sink
+// once at startup with bed_state_channel().set_audit_sink(sink).
 inline EventChannel<::bed_state>& bed_state_channel() {
-    static EventChannel<::bed_state> channel(CacheMode::Cached);
+    static EventChannel<::bed_state> channel(
+        CacheMode::Cached, "", "");
     return channel;
 }
 
