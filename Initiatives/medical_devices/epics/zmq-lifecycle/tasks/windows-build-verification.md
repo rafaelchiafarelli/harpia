@@ -23,10 +23,11 @@
 ---
 ## Epic context — zmq-lifecycle
 
-**Contract.** Full `stream[#]` lifecycle (setup/read/stop, timeout, dead-connection
-reclamation) on top of the already-shipped CURVE transport, plus a ZAP
-authentication layer if this compliance context requires authenticated ZMQ.
-Needs only `ComplianceContext` from Foundation. No downstream consumer named.
+**Contract.** Full `stream` lifecycle (setup/read/stop, timeout, dead-connection
+reclamation) on top of the already-shipped CURVE transport. Needs only
+`ComplianceContext` from Foundation. No downstream consumer named. (The ZAP
+client-key allowlist that used to round out this epic moved to the
+transport-authn epic on 2026-08-29 — see that epic's README.)
 
 **Already shipped, verify only:** CURVE-secured sockets + ephemeral keypair
 provisioning (`-DUSE_ZMQ_CURVE=ON`, `Assets/cmake/curve_keygen_probe.cpp`). See
@@ -40,4 +41,4 @@ provisioning (`-DUSE_ZMQ_CURVE=ON`, `Assets/cmake/curve_keygen_probe.cpp`). See
 `target_compile_definitions` — use a generated header, never compile-definitions
 for key material. (b) `ZMQ_LINGER` defaults to `-1`: a socket with an undelivered
 message from a failed handshake hangs on destruction forever — applies to
-dead-connection reclamation and the ZAP handler both.
+the dead-connection reclamation sweep.
