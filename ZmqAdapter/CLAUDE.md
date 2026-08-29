@@ -7,7 +7,7 @@
 ## Files
 - `ZmqAdapter.py` — `Process()` filters messages by modifier set (`_modifiers` reads `msg.access_modifiers`, each `m[0]`). PUSH/PULL modifiers → sender/receiver pair; EVENT/STREAM → publisher/subscriber pair; messages with neither are skipped. Also computes `_is_one_to_many(mods)` (PULL/EVENT/STREAM present, mirrors `Message.py`'s classification) to pick the sender's default origin id, reads `msg.is_critical` (roadmap Phase 1a) to pick the sender template, and checks `"STREAM" in mods` (`has_stream`) to decide whether to also emit the `<name>_stream` lifecycle consumer. `_render()` assembles the header from sender/receiver/stream template fragments. `_origin_id(md5_hash, name)` is a module-level helper for the compile-time id.
 - `templates/header.h.tmpl` — outer header (guard, pb include, `{extra_includes}` + `{stream_includes}` slots, `{stream_shared}` slot, body slot); also defines the shared `CurveServerKeys`/`CurveClientKeys` structs once (own separate include guard, see below). `{extra_includes}` is `""` for a non-critical message (byte-identical to before Phase 3b) and `#include "delivery/harpia_delivery.h"` for a critical one. `{stream_includes}` (`<chrono>`/`<cstddef>`/`<optional>`, file scope) and `{stream_shared}` (`StreamStatus` / `StreamConfig` / `stream_config_valid()`, inside the namespace behind a `HARPIA_ZMQ_STREAM_DEFINED` guard) are both `""` unless the message carries `stream` — an `event`-only or push/pull-only header is byte-identical to before.
-- `templates/stream.tmpl` — the `stream`-message consumer lifecycle (zmq-lifecycle epic task 1, process.md 13.2). Emitted after `<name>_subscriber` only when the message has the `stream` modifier. A per-message `<name>_read_result` (carries a concrete message type) plus `<name>_stream`: `setup(StreamConfig, CurveClientKeys = {})` → `StreamStatus` (INVALID on a bad config, opens nothing); `read()` / `read(int timeout_ms)` → `ReadResult` (`OK`+msg / `TIMEOUT` / `STOPPED` / `INVALID`), always timed via `ZMQ_RCVTIMEO`, never blocking; `stop()` → `STOPPED`, idempotent; an idle-past-`stop_deadline_ms` watchdog checked synchronously inside `read()` force-kills and latches `INVALID`; RAII destructor closes with `ZMQ_LINGER=0`. Not thread-safe (caller-synchronized, same contract as the delivery runtime). `reclaim_after_ms` in `StreamConfig` is declared here but enforced by this epic's task 2.
+- `templates/stream.tmpl` — the `stream`-message consumer lifecycle (zmq-lifecycle epic tasks 1–2, process.md 13.2). Emitted after `<name>_subscriber` only when the message has the `stream` modifier. A per-message `<name>_read_result` (carries a concrete message type) plus `<name>_stream`: `setup(StreamConfig, CurveClientKeys = {})` → `StreamStatus` (INVALID on a bad config, opens nothing); `read()` / `read(int timeout_ms)` → `ReadResult` (`OK`+msg / `TIMEOUT` / `STOPPED` / `INVALID`), always timed via `ZMQ_RCVTIMEO`, never blocking; `stop()` → `STOPPED`, idempotent; RAII destructor closes with `ZMQ_LINGER=0`. Not thread-safe (caller-synchronized, same contract as the delivery runtime). **Two independent time-based teardowns, both synchronous inside `read()`/`stop()`/dtor — no timer thread:** (1) task 1's *stop-deadline watchdog* — `stop_deadline_ms` since the last **usable** message (`last_read_ok_`) → kill + latch INVALID; (2) task 2's *dead-connection reclamation* (`reclaim_if_dead()`) — `reclaim_after_ms` since **any inbound frame** (`last_activity_`, updated on every received frame whether or not it decodes) → kill + latch INVALID. Reclamation is checked first in `read()`, so whichever window is shorter wins; `stop()` runs it too but still returns STOPPED. Defaults: `reclaim_after_ms` 60000 > `stop_deadline_ms` 30000, so a purely idle stream trips the watchdog first; a stream fed garbage frames keeps `last_activity_` fresh but not `last_read_ok_`, so the watchdog is what catches it.
 - `templates/sender.tmpl` — non-critical PUSH (`connect`, `send`) / PUB (`bind`, `publish`) socket class; `send`/`publish` returns `bool`, fires the socket directly; stamps origin id.
 - `templates/sender_critical.tmpl` — the `critical`-message sender/publisher (roadmap Phase 3b). Same origin-id / CURVE / stamp shape as `sender.tmpl`, but `send`/`publish` returns `::std::optional<::harpia::delivery::PushOutcome>` and *enqueues* a CRC+seq-stamped `harpia::delivery::Envelope` into a member `BoundedQueue` instead of touching the socket; a separate `flush()` drains the queue to the wire oldest-first, stopping at the first socket failure (transient outage → latency, not loss). Ctor gains `queue_capacity` (default 128) and `AuditSink&` (default `default_audit_sink()`) params, before the trailing CURVE-keys param. Extra accessors: `pending()`, `queue()`.
 - `templates/receiver.tmpl` — PULL (`bind`, `recv`) / SUB (`connect`+subscribe, `receive`) socket class. Unchanged by Phase 3b — the receiving half of a `critical` type is not queued (arrival-side `check_on_arrival` is a Phase 3c concern).
@@ -48,17 +48,20 @@
   blocks on destruction forever unless linger is set to 0). This is
   encryption only, not identity -- ZAP client-key allowlisting (mTLS's
   analogue) was explicitly out of scope.
-- **`stream` lifecycle (zmq-lifecycle epic task 1, process.md 13.2):** a
+- **`stream` lifecycle (zmq-lifecycle epic tasks 1–2, process.md 13.2):** a
   message with the `stream` modifier gets a `<name>_stream` class on top of
   its SUB socket, in addition to the unchanged `<name>_subscriber`. It adds
   the spec's explicit consumer lifecycle — `setup()` may reject a config
   with `INVALID`; `read()` is always timed (`TIMEOUT`, never a block);
-  `stop()` is idempotent; an un-`stop()`'d idle connection is force-killed
-  after `stop_deadline_ms` (watchdog checked synchronously in `read()`, no
-  background thread — matches the not-thread-safe contract) and `read()`
-  latches `INVALID`; the destructor releases the socket with
-  `ZMQ_LINGER=0`. `StreamStatus`/`StreamConfig`/`stream_config_valid()` are
-  shared per translation unit (`HARPIA_ZMQ_STREAM_DEFINED` guard);
+  `stop()` is idempotent; the destructor releases the socket with
+  `ZMQ_LINGER=0`. Two synchronous (no background thread) time-based
+  teardowns, both latching `INVALID`: the **stop-deadline watchdog**
+  (`stop_deadline_ms` since the last *usable* message) and **dead-connection
+  reclamation** (`reclaim_after_ms` since *any* inbound frame — catches a
+  connection whose handshake never completed or whose peer vanished, even
+  while the caller is still polling). Both run inside `read()` / `stop()` /
+  the dtor. `StreamStatus`/`StreamConfig`/`stream_config_valid()` are shared
+  per translation unit (`HARPIA_ZMQ_STREAM_DEFINED` guard);
   `<name>_read_result` is per-message. `event`-only messages are untouched
   (no stream surface, byte-identical golden). The `HarpiaTest/Include/
   file3.harpia` fixture for this is `sensor_feed` (`stream`-only, table-less).
