@@ -7,7 +7,7 @@
 #include <vector>
 
 #include <soci/soci.h>
-#include "{pb_header}"{fk_includes}{crypto_include}
+#include "{pb_header}"{fk_includes}{crypto_include}{event_include}
 
 namespace harpia {{
 namespace db {{
@@ -42,7 +42,7 @@ public:
     bool create(const ::{cls}& msg) {{
         try {{
 {fk_precreate}{create_locals}            db_ << "INSERT INTO \"{table}\" ({insert_cols}) VALUES ({insert_ph})"{create_use};
-{map_create}{audit_create}            return true;
+{map_create}{audit_create}{event_publish_create}            return true;
         }} catch (const std::exception&) {{ return false; }}
     }}
 
@@ -57,7 +57,7 @@ public:
     bool update(const ::{cls}& msg) {{
         try {{
 {fk_preupdate}{update_locals}            db_ << "UPDATE \"{table}\" SET {update_set} WHERE \"{id_col}\" = :cid"{update_use};
-{map_update}{audit_update}            return true;
+{map_update}{audit_update}{event_publish_update}            return true;
         }} catch (const std::exception&) {{ return false; }}
     }}
 

@@ -9,6 +9,7 @@
 #include <soci/soci.h>
 #include "protofiles/alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7.pb.h"
 #include "crypto/harpia_encrypted_column.h"
+#include "events/alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_events.h"
 
 namespace harpia {
 namespace db {
@@ -52,6 +53,7 @@ public:
             db_ << "INSERT INTO \"alarm_event_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"alarm_type\", \"severity\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6)",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6);
             audit_.record("phi_create", "alarm_event_table", "patient_id");
+            ::harpia::events::alarm_event_channel().publish(msg);
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -92,6 +94,7 @@ public:
             db_ << "UPDATE \"alarm_event_table\" SET \"patient_id\" = :c0, \"alarm_type\" = :c1, \"severity\" = :c2, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c3, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c4, \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c5 WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :cid",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(cid);
             audit_.record("phi_update", "alarm_event_table", "patient_id");
+            ::harpia::events::alarm_event_channel().publish(msg);
             return true;
         } catch (const std::exception&) { return false; }
     }
