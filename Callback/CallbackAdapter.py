@@ -1,5 +1,4 @@
-"""events-callbacks epic, task 1 -- the generated in-process event/callback
-layer.
+"""events-callbacks epic -- the generated in-process event/callback layer.
 
 For every message carrying the `event` message-type modifier, emit a
 header-only accessor (events/<name>_<hash>_events.h) that hands out the one
@@ -20,8 +19,8 @@ import os
 from Logger.logger import logger
 from Util.util import loadTemplate, write_if_different, copy_if_different
 from Callback.callback_common import (
-    EVENT_CACHE_RUNTIME, EVENT_CACHE_RUNTIME_SRC,
-    is_event_message, cache_mode_enum)
+    EVENT_RUNTIME_COPIES, is_event_message, cache_mode_enum,
+    phi_field_names, audit_subject)
 
 EVENTS_EXT = "_events.h"
 
@@ -45,6 +44,7 @@ class CallbackAdapter:
         cache_mode = cache_mode_enum(msg)
         modifier = ("event[not-cached]" if cache_mode == "NotCached"
                     else "event[cached]")
+        phi = phi_field_names(msg)
         return _TEMPLATE.format(
             guard="HARPIA_EVENTS_{}_{}".format(msg.name.upper(), msg.md5Hash),
             pb_header="protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash),
@@ -52,7 +52,11 @@ class CallbackAdapter:
             name=msg.name,
             cache_mode=cache_mode,
             modifier=modifier,
-            mode_doc=_MODE_DOC[cache_mode])
+            mode_doc=_MODE_DOC[cache_mode],
+            # task 3: value-free OnChange audit metadata -- both empty for a
+            # non-phi type, which makes the channel never audit.
+            audit_subject=(audit_subject(msg) if phi else ""),
+            audit_phi_fields=(",".join(phi)))
 
     def Process(self):
         event_msgs = [m for m in self.messages if is_event_message(m)]
@@ -68,12 +72,14 @@ class CallbackAdapter:
                                self._render(msg))
             written += 1
 
-        # The generic EventChannel<T> runtime, copied verbatim (same split
-        # as harpia_xml.h / the capability Dispatcher). Stale per-message
-        # wrappers from a renamed/removed message are reaped by main.py's
-        # one global prune_stale_outputs pass over generated/.
-        copy_if_different(EVENT_CACHE_RUNTIME_SRC,
-                          os.path.join(self.outDir, EVENT_CACHE_RUNTIME))
+        # The generic EventChannel<T> runtime + its harpia_audit_sink.h
+        # dependency (task 3), copied verbatim (same split as harpia_xml.h /
+        # the capability Dispatcher, and the same runtime+audit pair
+        # ZmqAdapter ships into delivery/). Stale per-message wrappers from a
+        # renamed/removed message are reaped by main.py's one global
+        # prune_stale_outputs pass over generated/.
+        for name, src in EVENT_RUNTIME_COPIES:
+            copy_if_different(src, os.path.join(self.outDir, name))
 
         self.log.print("generated {} event channel(s) into {}".format(
             written, self.outDir))
