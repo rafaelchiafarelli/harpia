@@ -10,17 +10,22 @@ Emitted per generation:
   - one thin per-message wrapper `<name>_<hash>_serialize.h`,
   - `serialize/harpia_phi_registry.h` -- a generated `constexpr` table of the
     schema's `(message, field)` `phi` pairs (from `variable.is_phi`, F2),
-  - copies of the static runtimes `harpia_serialize.h` + `harpia_redaction.h`.
+  - copies of the static runtimes `harpia_serialize.h`, `harpia_redaction.h`
+    and `harpia_redaction_audit.h` (serialization task 4 -- the audited
+    opt-out from redaction), plus a co-copy of Foundation F3's
+    `compliance/harpia_audit_sink.h` that the audit runtime #includes.
 """
 import os
 
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
 from Util.util import loadTemplate, write_if_different, copy_if_different
+from Compliance.audit_common import AUDIT_SINK_RUNTIME, AUDIT_SINK_RUNTIME_SRC
 
 SERIALIZE_EXT = "_serialize.h"
 RUNTIME = "harpia_serialize.h"
 REDACTION_RUNTIME = "harpia_redaction.h"
+REDACTION_AUDIT_RUNTIME = "harpia_redaction_audit.h"
 PHI_REGISTRY = "harpia_phi_registry.h"
 _PHI_GUARD = "HARPIA_PHI_REGISTRY_H"
 
@@ -38,9 +43,17 @@ class SerializeAdapter:
 
     def Process(self):
         os.makedirs(self.outDir, exist_ok=True)
-        for name in (RUNTIME, REDACTION_RUNTIME):
+        for name in (RUNTIME, REDACTION_RUNTIME, REDACTION_AUDIT_RUNTIME):
             copy_if_different(os.path.join(_RUNTIME_DIR, name),
                              os.path.join(self.outDir, name))
+        # serialization task 4: harpia_redaction_audit.h #includes Foundation
+        # F3's AuditSink as "compliance/harpia_audit_sink.h" -- co-copy it so
+        # the include resolves from generated/cpp/ (same idea as Crypto's
+        # KEY_PROVIDER_RUNTIME_DEPS co-copy).
+        compliance_dir = os.path.join(self.dest, "generated", "cpp", "compliance")
+        os.makedirs(compliance_dir, exist_ok=True)
+        copy_if_different(AUDIT_SINK_RUNTIME_SRC,
+                         os.path.join(compliance_dir, AUDIT_SINK_RUNTIME))
         write_if_different(os.path.join(self.outDir, PHI_REGISTRY),
                            self._render_phi_registry())
 
