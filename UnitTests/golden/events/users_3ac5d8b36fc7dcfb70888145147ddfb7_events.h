@@ -19,8 +19,14 @@ namespace events {
 //       [](const ::users& v) { /* ... */ });
 //   harpia::events::users_channel().publish(msg);
 //   harpia::events::users_channel().unsubscribe(id);
+//
+// The subject / phi-field strings drive the channel's OnChange AuditSink
+// record for a phi-bearing type (task 3); both empty here means this type
+// carries no phi and the channel never audits. Point it at a real sink
+// once at startup with users_channel().set_audit_sink(sink).
 inline EventChannel<::users>& users_channel() {
-    static EventChannel<::users> channel(CacheMode::Cached);
+    static EventChannel<::users> channel(
+        CacheMode::Cached, "", "");
     return channel;
 }
 

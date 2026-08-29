@@ -19,8 +19,14 @@ namespace events {
 //       [](const ::pump_tick& v) { /* ... */ });
 //   harpia::events::pump_tick_channel().publish(msg);
 //   harpia::events::pump_tick_channel().unsubscribe(id);
+//
+// The subject / phi-field strings drive the channel's OnChange AuditSink
+// record for a phi-bearing type (task 3); both empty here means this type
+// carries no phi and the channel never audits. Point it at a real sink
+// once at startup with pump_tick_channel().set_audit_sink(sink).
 inline EventChannel<::pump_tick>& pump_tick_channel() {
-    static EventChannel<::pump_tick> channel(CacheMode::NotCached);
+    static EventChannel<::pump_tick> channel(
+        CacheMode::NotCached, "", "");
     return channel;
 }
 

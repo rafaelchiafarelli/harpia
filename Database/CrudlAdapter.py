@@ -177,12 +177,22 @@ class CrudlAdapter:
         is_event = is_event_message(msg)
         event_publish = (_EVENT_PUBLISH.format(name=msg.name) if is_event
                          else "")
+        # task 3: a message that is BOTH `event` and phi-bearing records one
+        # extra value-free "phi_event_onchange" right after the publish call
+        # in create/update -- "a persisted phi change reached the event bus"
+        # (distinct from the channel's own "phi_event_dispatch").
+        event_audit = (
+            '            audit_.record("phi_event_onchange", "{t}", "{f}");\n'
+            .format(t=msg.tableName, f=",".join(c.name for c in phi_cols))
+            if (is_event and has_phi) else "")
 
         return _CRUDL.format(
             event_include=(_EVENT_INCLUDE.format(msg.name, msg.md5Hash)
                            if is_event else ""),
             event_publish_create=event_publish,
             event_publish_update=event_publish,
+            event_audit_create=event_audit,
+            event_audit_update=event_audit,
             guard="HARPIA_CRUDL_{}_{}".format(msg.name.upper(), msg.md5Hash),
             pb_header="protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash),
             crypto_include=_CRYPTO_INCLUDE if has_phi else "",

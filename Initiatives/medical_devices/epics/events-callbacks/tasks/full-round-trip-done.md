@@ -1,5 +1,18 @@
 ## `AuditSink` hook on `OnChange` + full round-trip
 
+**Done 2026-08-29** — implemented as scoped. `EventChannel<T>` gained an
+`AuditSink*` + `set_audit_sink()` + baked-in `audit_subject_` /
+`audit_phi_fields_`; `publish()` records `phi_event_dispatch` for a phi
+type, the swallowed-exception catch records `event_callback_exception`.
+The CRUDL DAO of an `event`+`phi` message records `phi_event_onchange`
+after `publish()`. `harpia_audit_sink.h` ships into `generated/cpp/events/`.
+`UnitTests/test_events_callbacks.py` gained the structural + runtime +
+protoc-gated headline round-trip coverage. The `ComplianceReport/` note is
+`../../process-artifacts/tasks/events-callbacks-phi-audit-note.md`.
+**This is the last task of the events-callbacks epic** — once `tasks`
+carries all three, it merges up to `events-callbacks` and (per the
+epic acceptance gate: 100% on its own new tests) the epic is done.
+
 - **Depends on:** task 1 + task 2 merged (both done); F3's `AuditSink`
   (`Compliance/runtime/harpia_audit_sink.h`, present on `dev`).
 

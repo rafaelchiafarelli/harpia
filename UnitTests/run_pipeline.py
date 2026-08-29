@@ -270,9 +270,11 @@ def _collect_zmq(build_dir, dest):
 
 
 def _collect_events(build_dir, dest):
-    # per-message event-channel wrappers only; harpia_event_cache.h is the
-    # static runtime (lives in the repo under Callback/runtime -- same
-    # convention as _collect_xml / _collect_capability)
+    # per-message event-channel wrappers only; harpia_event_cache.h and its
+    # harpia_audit_sink.h dependency are static runtime copies (live in the
+    # repo under Callback/runtime and Compliance/runtime) -- same convention
+    # as _collect_xml / _collect_capability
+    static = {"harpia_event_cache.h", "harpia_audit_sink.h"}
     src = os.path.join(build_dir, "generated", "cpp", "events")
     if os.path.exists(dest):
         shutil.rmtree(dest)
@@ -280,7 +282,7 @@ def _collect_events(build_dir, dest):
     if not os.path.isdir(src):
         return
     for name in sorted(os.listdir(src)):
-        if name.endswith(".h") and name != "harpia_event_cache.h":
+        if name.endswith(".h") and name not in static:
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
