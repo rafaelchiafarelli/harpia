@@ -13,8 +13,8 @@
 #   Docker/run_android_emulator_tests.sh
 set -euo pipefail
 
-IMAGE=harpia-build
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$REPO_ROOT/Docker/_env.sh"
 
 if [ ! -e /dev/kvm ]; then
     echo "Docker/run_android_emulator_tests.sh: /dev/kvm not found -- this host" >&2
@@ -27,7 +27,7 @@ fi
 
 KVM_GID="$(stat -c '%g' /dev/kvm)"
 
-docker build -t "$IMAGE" "$REPO_ROOT"
+harpia_ensure_image
 
 # ANDROID_AVD_HOME is explicit (not just HOME=/tmp below) because the
 # `emulator` binary resolves it directly -- but `avdmanager create avd`
@@ -40,11 +40,11 @@ docker run --rm -i \
     --group-add "$KVM_GID" \
     -u "$(id -u):$(id -g)" \
     -v "$REPO_ROOT":/harpia \
-    -v harpia-gradle-cache:/tmp/.gradle \
+    -v "$HARPIA_GRADLE_VOLUME":/tmp/.gradle \
     -w /harpia \
     -e HOME=/tmp \
     -e GRADLE_USER_HOME=/tmp/.gradle \
     -e ANDROID_AVD_HOME=/tmp/.android/avd \
     -e JAVA_OPTS="-Duser.home=/tmp" \
-    "$IMAGE" \
+    "$HARPIA_IMAGE" \
     bash /harpia/Docker/_android_emulator_test_entrypoint.sh
