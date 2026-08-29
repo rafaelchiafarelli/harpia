@@ -360,6 +360,21 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `CryptoBackend` seam); one sample crosses a publisher/subscriber pair.
   cmake+g+++installed-`CycloneDDS-CXX`-gated. Not wired into the generator —
   the real `DdsAdapter` codegen is task 2b.
+- `test_dds_phi_audit.py` — the dds-transport epic / task 4: a `phi` field
+  crossing DDS triggers the same `AuditSink` pattern the db-encryption epic
+  established for the DB path. Structural (pure Python): a `dds` message with
+  a `phi` field (`alarm_event`, `vitals_publication`) gets a publisher taking
+  a defaulted `::harpia::compliance::AuditSink&` whose `publish()` records
+  exactly one value-free entry — operation `"phi_publish"`, subject = the DDS
+  topic name, detail = the comma-joined `phi` field names (Rule 5); the
+  `<name>_subscriber` half is untouched; `harpia_audit_sink.h` is copied
+  verbatim next to the headers; driving `DdsAdapter` directly with a no-`phi`
+  `dds` message emits no `AuditSink` reference at all. Integration
+  (cmake+g+++protoc+installed-`CycloneDDS-CXX`-gated): builds a driver against
+  the generated publisher + a recording sink, publishes N times per message
+  with an identifiable `phi` value, asserts N `record("phi_publish", <topic>,
+  <names>)` calls and that the value never reaches the sink — the
+  `test_stage8_db.py::test_a3_*` shape for DDS.
 - `test_stage8_pg.py` — **opt-in** live-PostgreSQL CRUDL round-trip (generates with
   `HARPIA_DB_BACKEND=postgresql`); skipped unless `HARPIA_PG_DSN` points at a
   reachable server.
