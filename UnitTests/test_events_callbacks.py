@@ -1,13 +1,15 @@
-"""events-callbacks epic, task 1 -- `event[cached/not-cached]` implementation.
+"""events-callbacks epic, tasks 1 & 2.
 
 Two halves, same split as test_zmq_critical_delivery.py + test_audit_sink.py:
 
   - Structural (pure Python, always run): drive the real pipeline
     (UnitTests/run_pipeline.py) and inspect the parsed model + the emitted
-    events/ channel headers + the CRUDL publish wiring.
+    events/ channel headers + the CRUDL publish wiring.  [task 1]
   - Runtime (g++-gated): compile & run a small standalone program against
-    Callback/runtime/harpia_event_cache.h, proving the cached vs not-cached
-    delivery semantics.
+    Callback/runtime/harpia_event_cache.h -- cached vs not-cached delivery
+    [task 1], plus detached-thread dispatch + callback-exception isolation
+    [task 2]. Delivery is asynchronous since task 2, so these poll an
+    atomic with a bounded deadline instead of asserting inline.
 
 Fixture: HarpiaTest/Include/file3.harpia -- `bed_state` is `event[cached]`,
 `pump_tick` is `event[not-cached]`, `alarm_event` is bare `critical event`
@@ -151,18 +153,47 @@ def test_callback_adapter_makes_no_events_dir_without_event_messages(tmp_path):
 # --------------------------------------------------------------------------
 _g = pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not available")
 
+# Delivery is asynchronous since task 2, so every runtime test polls an
+# atomic against a hard deadline instead of asserting right after publish.
+_PROLOGUE = r'''
+#include "harpia_event_cache.h"
+#include <atomic>
+#include <cassert>
+#include <chrono>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <vector>
+using harpia::events::EventChannel;
+using harpia::events::CacheMode;
 
-def _compile_and_run(tmp_path, cpp_source):
+template <class F>
+static bool wait_for(F pred) {
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (std::chrono::steady_clock::now() < deadline) {
+        if (pred()) return true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    return pred();
+}
+inline void settle() {   // inline, not static: unused-in-a-TU must not -Werror
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+'''
+
+
+def _compile_and_run(tmp_path, body):
     src = tmp_path / "ec.cpp"
-    src.write_text(cpp_source, encoding="utf-8")
+    src.write_text(_PROLOGUE + "\nint main() {\n" + body + "\n    return 0;\n}\n",
+                   encoding="utf-8")
     binp = tmp_path / "ec"
     c = subprocess.run(
-        ["g++", "-std=c++17", "-Wall", "-Wextra", "-Werror",
+        ["g++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-pthread",
          "-I", os.path.dirname(EVENT_CACHE_RUNTIME_SRC),
          str(src), "-o", str(binp)],
         capture_output=True, text=True)
     assert c.returncode == 0, "compile failed:\n" + c.stdout + c.stderr
-    r = subprocess.run([str(binp)], capture_output=True, text=True)
+    r = subprocess.run([str(binp)], capture_output=True, text=True, timeout=30)
     assert r.returncode == 0, "run failed:\n" + r.stdout + r.stderr
     return r
 
@@ -173,68 +204,113 @@ def test_runtime_header_file_exists():
 
 
 @_g
-def test_cached_late_subscriber_gets_the_last_value_immediately(tmp_path):
+def test_cached_late_subscriber_gets_the_last_value(tmp_path):
     _compile_and_run(tmp_path, r'''
-#include "harpia_event_cache.h"
-#include <cassert>
-using harpia::events::EventChannel;
-using harpia::events::CacheMode;
-int main() {
     EventChannel<int> c(CacheMode::Cached);
     c.publish(11);                       // publish BEFORE anyone subscribes
-    int got = 0, calls = 0;
+    std::atomic<int> got{0}, calls{0};
     c.subscribe([&](const int& v){ got = v; ++calls; });
-    assert(calls == 1 && got == 11);     // fired immediately with last value
+    assert(wait_for([&]{ return calls.load() >= 1; }));   // replayed
+    assert(got.load() == 11);
     c.publish(22);
-    assert(calls == 2 && got == 22);
+    assert(wait_for([&]{ return calls.load() >= 2; }));
+    assert(got.load() == 22);
     assert(c.cached() && c.has_last());
-    return 0;
-}
 ''')
 
 
 @_g
 def test_not_cached_late_subscriber_gets_nothing_until_next_publish(tmp_path):
     _compile_and_run(tmp_path, r'''
-#include "harpia_event_cache.h"
-#include <cassert>
-#include <string>
-using harpia::events::EventChannel;
-using harpia::events::CacheMode;
-int main() {
     EventChannel<std::string> n(CacheMode::NotCached);
     n.publish("first");                  // retained by nothing
-    int calls = 0; std::string last;
-    n.subscribe([&](const std::string& s){ ++calls; last = s; });
-    assert(calls == 0);                  // late subscriber gets nothing
+    std::atomic<int> calls{0};
+    n.subscribe([&](const std::string&){ ++calls; });
+    settle();                            // any bogus replay would land here
+    assert(calls.load() == 0);           // late subscriber got nothing
     n.publish("second");
-    assert(calls == 1 && last == "second");
+    assert(wait_for([&]{ return calls.load() >= 1; }));
     assert(!n.cached() && !n.has_last());
-    return 0;
-}
 ''')
 
 
 @_g
-def test_subscribers_fire_in_order_and_unsubscribe_stops_delivery(tmp_path):
+def test_order_within_one_publish_and_unsubscribe_stops_delivery(tmp_path):
     _compile_and_run(tmp_path, r'''
-#include "harpia_event_cache.h"
-#include <cassert>
-#include <vector>
-using harpia::events::EventChannel;
-using harpia::events::CacheMode;
-int main() {
     EventChannel<int> c(CacheMode::NotCached);
-    std::vector<int> order;
-    c.subscribe([&](const int&){ order.push_back(1); });
-    auto b = c.subscribe([&](const int&){ order.push_back(2); });
-    c.subscribe([&](const int&){ order.push_back(3); });
+    std::vector<int> order;              // one dispatch thread touches this
+    std::atomic<int> fired{0};
+    c.subscribe([&](const int&){ order.push_back(1); ++fired; });
+    auto b = c.subscribe([&](const int&){ order.push_back(2); ++fired; });
+    c.subscribe([&](const int&){ order.push_back(3); ++fired; });
     c.publish(0);
+    assert(wait_for([&]{ return fired.load() >= 3; }));
     assert((order == std::vector<int>{1, 2, 3}));   // subscription order
     c.unsubscribe(b);
     order.clear();
+    fired = 0;
     c.publish(0);
-    assert((order == std::vector<int>{1, 3}));      // b no longer delivered
-    return 0;
-}
+    assert(wait_for([&]{ return fired.load() >= 2; }));
+    settle();                            // a stray 3rd delivery would show
+    assert((order == std::vector<int>{1, 3}));
+''')
+
+
+@_g
+def test_a_throwing_callback_is_isolated(tmp_path):
+    # task 2: an exception inside a callback neither propagates to publish()
+    # nor terminates the process, and its siblings still run.
+    _compile_and_run(tmp_path, r'''
+    EventChannel<int> c(CacheMode::NotCached);
+    std::atomic<int> good{0};
+    c.subscribe([](const int&){ throw std::runtime_error("boom"); });
+    c.subscribe([&](const int&){ ++good; });
+    c.publish(0);                        // must not throw on the caller thread
+    assert(wait_for([&]{ return good.load() >= 1; }));   // sibling still ran
+    c.publish(0);                        // process survived the first throw
+    assert(wait_for([&]{ return good.load() >= 2; }));
+''')
+
+
+@_g
+def test_publish_is_asynchronous(tmp_path):
+    # task 2: publish() returns well before a slow callback finishes.
+    _compile_and_run(tmp_path, r'''
+    EventChannel<int> c(CacheMode::NotCached);
+    std::atomic<bool> done{false};
+    c.subscribe([&](const int&){
+        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        done = true;
+    });
+    auto t0 = std::chrono::steady_clock::now();
+    c.publish(0);
+    auto elapsed = std::chrono::steady_clock::now() - t0;
+    assert(elapsed < std::chrono::milliseconds(200));   // did not block
+    assert(!done.load());                               // still running
+    assert(wait_for([&]{ return done.load(); }));       // finishes later
+''')
+
+
+@_g
+def test_concurrent_publish_and_subscribe_churn_do_not_crash(tmp_path):
+    # task 2: the internal mutex holds up under contention.
+    _compile_and_run(tmp_path, r'''
+    EventChannel<int> c(CacheMode::NotCached);
+    std::atomic<int> delivered{0};
+    auto keep = c.subscribe([&](const int&){ ++delivered; });
+    (void)keep;
+    std::atomic<bool> stop{false};
+    std::thread churn([&]{
+        while (!stop.load()) {
+            auto id = c.subscribe([](const int&){});
+            c.unsubscribe(id);
+        }
+    });
+    const int N = 200;
+    for (int i = 0; i < N; ++i) c.publish(i);
+    stop = true;
+    churn.join();
+    assert(wait_for([&]{ return delivered.load() >= 1; }));
+    int d = delivered.load();
+    assert(d >= 1 && d <= N);
 ''')
