@@ -18,8 +18,8 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 
 ## Harnesses (standalone, driven in a fresh subprocess)
 - `run_pipeline.py` — mirrors `main.py`'s full orchestration, then dumps the
-  intermediate artifacts (tokens, messages, proto/, json/, zmq/, grpc/,
-  capability/, xml/, db/, migrate/, dbio/, rest/, soap/, wsdl/, gen_tests/,
+  intermediate artifacts (tokens, messages, proto/, json/, zmq/, events/,
+  grpc/, capability/, xml/, db/, migrate/, dbio/, rest/, soap/, wsdl/, gen_tests/,
   sidecars/) into an output
   dir for snapshotting. `python3 UnitTests/run_pipeline.py <output_dir>`. **rmtrees
   `<output_dir>/build` on every run.** Also loads a `ComplianceContext` (via
@@ -133,6 +133,22 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   returns the same shared instance every call, and a dummy generated-shaped
   class can take `AuditSink&` (defaulted or explicit) in its constructor
   and call `record()` without the sensitive value ever reaching it. (g++)
+- `test_events_callbacks.py` — the events-callbacks epic / task 1
+  (`event[cached/not-cached]` implementation). Structural (pure Python, via
+  `run_pipeline.py`): `Message.event_cache_mode` is parsed onto the model
+  (`pump_tick` not-cached, `bed_state` / bare-`event` `alarm_event` cached,
+  non-event `beacon_log` none); the bracket is flag-only in the `.proto`;
+  `events/<name>_<hash>_events.h` names the right `CacheMode` and the
+  `harpia_event_cache.h` runtime is copied but not snapshotted;
+  `alarm_event`'s CRUDL DAO `#include`s its events header and calls
+  `alarm_event_channel().publish(` in `create`/`update` only (not
+  `read`/`list`/`remove`), while non-event `beacon_log`'s DAO is untouched;
+  `CallbackAdapter` makes no `events/` dir for a lone non-event message.
+  Runtime (g++, `-Werror`, standalone against `Callback/runtime/
+  harpia_event_cache.h` — same harness shape as `test_audit_sink.py`):
+  cached late subscriber gets the last value immediately, not-cached gets
+  nothing until the next publish, subscribers fire in subscription order,
+  `unsubscribe` stops delivery.
 - `test_crypto_backend.py` — Foundation F5's `Crypto/backend.py`
   `CryptoBackend` selection point: explicit name / alias resolution /
   unknown-name hard error (same shape as `Database.backends.get_backend`);
@@ -401,7 +417,10 @@ old `c96f8fd7…` hash.)
 
 ## Golden snapshots (UnitTests/golden/)
 Committed reference output keyed by the input hash. Files: `tokens.txt`,
-`messages.txt`; dirs: `proto/`, `json/`, `zmq/`, `grpc/`, `capability/`
+`messages.txt`; dirs: `proto/`, `json/`, `zmq/`, `events/` (per-message
+`<name>_<hash>_events.h` event-channel wrappers — the events-callbacks epic;
+the `harpia_event_cache.h` runtime is not snapshotted, same convention as
+`harpia_xml.h`), `grpc/`, `capability/`
 (whole-project gRPC/HTTP/ZMQ capability advertisements, S5), `xml/`,
 `yaml/` (per-message YAML adapter wrappers — the serialization epic; the `harpia_yaml.h`
 runtime is not snapshotted, same convention as `harpia_xml.h`),
