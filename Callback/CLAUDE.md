@@ -45,15 +45,26 @@ Returns `None`.
 ## Key facts / gotchas
 - **Cache mode is fixed at construction.** `Cached` retains the most
   recently published value; a callback that `subscribe`s *after* a publish
-  is invoked once, immediately, with that retained value. `NotCached`
-  retains nothing. Bare `event` means `Cached`.
-- **Delivery is synchronous, on the calling thread, in subscription order.**
-  A throwing callback propagates straight out of `publish()` / `subscribe()`.
-  Detached-thread dispatch and callback-exception isolation are **task 2**
-  of the epic — do not add a dispatch thread or locking to
-  `harpia_event_cache.h`; task 2 owns that seam.
-- **Caller-synchronised, no internal locking** — same contract as
-  `harpia_capability_dispatch.h` / `harpia_delivery.h`.
+  is dispatched once with that retained value. `NotCached` retains nothing.
+  Bare `event` means `Cached`.
+- **Dispatch is detached-thread + exception-isolated (task 2).** `publish()`
+  updates the cached value and snapshots the subscriber list under a
+  `std::mutex`, then hands the snapshot + a **copy** of the value to one
+  `std::thread` it `detach()`es and returns — it does **not** run callbacks
+  on the calling thread. `subscribe()`'s cached replay is dispatched the
+  same way. Each callback runs inside `try { … } catch (...) {}`, so a
+  throwing callback neither propagates to the `publish()`/`subscribe()`
+  caller nor `std::terminate`s the process, and its siblings still run.
+  (Recording a swallowed exception via `AuditSink` is **task 3**.)
+- **Delivery is asynchronous.** A caller that needs to observe an effect
+  synchronises itself. Order is preserved **within** one `publish` (a
+  single sequential dispatch thread); order **across** two `publish` calls
+  is not guaranteed. `std::thread` needs pthread on old toolchains (modern
+  glibc folds it in); the tested compile paths already link it.
+- **Thread-safe.** `subs_` / `last_` / `has_last_` / `last_id_` are guarded
+  by one `std::mutex`; `subscribe` / `unsubscribe` / `publish` / `has_last`
+  / `subscriber_count` are safe to call concurrently. (`cached()` is
+  lock-free — `mode_` is `const`.)
 - **`read` never fires an event.** For an `event` message that also owns a
   table, `Database/CrudlAdapter.py` makes the generated DAO `#include` this
   module's `events/<name>_<hash>_events.h` and call
