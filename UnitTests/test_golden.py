@@ -20,6 +20,8 @@ committed snapshots in UnitTests/golden/:
   - soap/*.h         every emitted SOAP endpoint header (Stage 11)
   - gen_tests/       every emitted unit-test program + CTest CMakeLists (Stage 14)
   - sidecars/        the SQL schema + access/modifier flag files per message
+  - compliancereport/bom.json   the CycloneDX SBOM (process-artifacts epic;
+                     metadata.timestamp normalized by the collector)
 
 To (re)generate the golden snapshots after an intentional change:
 
@@ -205,6 +207,26 @@ def test_serialize_adapters(artifacts):
     assert produced == expected, "set of generated serialization wrappers changed"
     for rel in produced:
         _check(os.path.join(produced_dir, rel), os.path.join("serialize", rel))
+
+
+def test_compliancereport(artifacts):
+    produced_dir = os.path.join(artifacts, "compliancereport")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "compliancereport")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel),
+                   os.path.join("compliancereport", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "compliancereport"))
+    assert produced == expected, "compliancereport artifact set changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel),
+               os.path.join("compliancereport", rel))
 
 
 def test_crudl_daos(artifacts):
