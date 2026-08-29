@@ -21,9 +21,51 @@ if(USE_ZMQ_CURVE)
         # find_library("zmq") equivalent doesn't resolve on the vcpkg layout,
         # same gotcha server_template/client_template's CMakeLists already
         # document for the demo targets themselves.
+        #
+        # try_run() below builds an ISOLATED sub-project that does NOT re-run
+        # find_package, so handing it the imported target *name* `libzmq` is
+        # useless there -- MSVC's linker then looks for a plain `libzmq.lib`
+        # on the default search path and fails with LNK1104 (vcpkg's shared
+        # build actually produces e.g. `libzmq-mt-4_3_5.lib`). Resolve the
+        # imported target to a concrete import-lib path + include dir here and
+        # pass those instead. Also prepend the DLL dir to PATH so the probe
+        # (which try_run *executes* at configure time) can load libzmq.
         find_package(ZeroMQ CONFIG REQUIRED)
-        set(HARPIA_CURVE_PROBE_LIBS libzmq)
-        set(HARPIA_CURVE_PROBE_INCLUDES "${ZeroMQ_INCLUDE_DIR}")
+        set(_harpia_zmq_tgt libzmq)
+        if(NOT TARGET ${_harpia_zmq_tgt})
+            set(_harpia_zmq_tgt libzmq-static)
+        endif()
+        if(NOT TARGET ${_harpia_zmq_tgt})
+            message(FATAL_ERROR "USE_ZMQ_CURVE: find_package(ZeroMQ CONFIG) defined no libzmq/libzmq-static target")
+        endif()
+        set(HARPIA_CURVE_PROBE_LIBS "")
+        foreach(_prop
+                IMPORTED_IMPLIB_RELEASE IMPORTED_IMPLIB_DEBUG IMPORTED_IMPLIB
+                IMPORTED_LOCATION_RELEASE IMPORTED_LOCATION_DEBUG IMPORTED_LOCATION
+                LOCATION_RELEASE LOCATION_DEBUG LOCATION)
+            if(NOT HARPIA_CURVE_PROBE_LIBS)
+                get_target_property(_v ${_harpia_zmq_tgt} ${_prop})
+                if(_v)
+                    set(HARPIA_CURVE_PROBE_LIBS "${_v}")
+                endif()
+            endif()
+        endforeach()
+        if(NOT HARPIA_CURVE_PROBE_LIBS)
+            message(FATAL_ERROR "USE_ZMQ_CURVE: could not resolve a link library from the ${_harpia_zmq_tgt} CONFIG target")
+        endif()
+        get_target_property(HARPIA_CURVE_PROBE_INCLUDES ${_harpia_zmq_tgt} INTERFACE_INCLUDE_DIRECTORIES)
+        if(NOT HARPIA_CURVE_PROBE_INCLUDES)
+            set(HARPIA_CURVE_PROBE_INCLUDES "")
+        endif()
+        # DLL dir for the executed probe: sibling `bin/` of the resolved lib,
+        # or vcpkg_installed's bin. Best-effort -- harmless if it doesn't exist.
+        get_filename_component(_harpia_zmq_libdir "${HARPIA_CURVE_PROBE_LIBS}" DIRECTORY)
+        get_filename_component(_harpia_zmq_prefix "${_harpia_zmq_libdir}" DIRECTORY)
+        foreach(_bindir "${_harpia_zmq_prefix}/bin" "${_harpia_zmq_prefix}/debug/bin" "${_harpia_zmq_libdir}")
+            if(EXISTS "${_bindir}")
+                set(ENV{PATH} "${_bindir};$ENV{PATH}")
+            endif()
+        endforeach()
     else()
         find_library(HARPIA_ZMQ_LIB NAMES zmq)
         if(NOT HARPIA_ZMQ_LIB)
@@ -48,6 +90,15 @@ if(USE_ZMQ_CURVE)
     if(NOT HARPIA_CURVE_KEYGEN_RUN_RESULT EQUAL 0)
         message(FATAL_ERROR "USE_ZMQ_CURVE: keygen probe exited non-zero -- libzmq may have been built without CURVE support")
     endif()
+
+    # RUN_OUTPUT_VARIABLE keeps the probe's platform line endings: on Windows
+    # that is \r\n, and the greedy [^ \n]+ captures below would fold the
+    # trailing \r into each Z85 key. A 41-byte "key" is neither 32 (binary)
+    # nor 40 (Z85), so libzmq rejects it -- cppzmq then throws from the
+    # curve_*key setsockopt and the demo dies at startup with 0xC0000409
+    # (STATUS_STACK_BUFFER_OVERRUN, an uncaught-exception fastfail). Strip CR
+    # before parsing so the keys are clean on every platform.
+    string(REPLACE "\r" "" HARPIA_CURVE_KEYGEN_OUTPUT "${HARPIA_CURVE_KEYGEN_OUTPUT}")
 
     # Probe stdout: line 1 "<server_pub> <server_sec>", line 2 "<client_pub> <client_sec>"
     string(REGEX MATCH "^([^ \n]+) ([^ \n]+)\n([^ \n]+) ([^ \n]+)" _ "${HARPIA_CURVE_KEYGEN_OUTPUT}")
