@@ -1,7 +1,7 @@
-## Session D.1 — Shared auto-generated-file banner
+## Shared auto-generated-file banner
 
 - **Depends on:** F6 (shipped).
-- **Expected covered by:** no medical_devices track lists the shared
+- **Expected covered by:** no medical_devices epic lists the shared
   file-header preamble in its Files-touched section — do this directly,
   not a Ground Rule 6 fallback.
 - **Deliverable:** a short top-of-file banner comment, emitted on every

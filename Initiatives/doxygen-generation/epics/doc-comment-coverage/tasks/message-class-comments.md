@@ -1,7 +1,7 @@
-## Session D.2 — Message class doc comments
+## Message class doc comments
 
 - **Depends on:** F6 (shipped).
-- **Expected covered by:** no medical_devices track lists
+- **Expected covered by:** no medical_devices epic lists
   `ProtoFile/FileCreator.py` in its Files-touched section — do this
   directly.
 - **Deliverable:** a class-level doc comment on every generated message
@@ -14,7 +14,7 @@
   - `table_name` trailing `;` means private (owner-only) vs public
     visibility — substituted per message, not generic (source:
     `README.md:315-320`).
-- **Out of scope:** per-field doc comments (D.3).
+- **Out of scope:** per-field doc comments (task 3).
 - **Tests:**
   - Golden snapshot: one message with a private (`;`-suffixed)
     `table_name` and one without, asserting the visibility note differs

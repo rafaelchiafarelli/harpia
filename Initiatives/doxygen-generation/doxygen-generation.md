@@ -1,34 +1,33 @@
 # Doxygen Generation: Teaching Consumers to Use the Generated Library, Not Just Decorating It
 
 **Status, updated 2026-08-23: folded into Foundation's F6 (one-time
-plumbing) plus Ground Rule 6 (an ongoing discipline every future track
-follows, not a deferred track of its own).** This file is no longer
-"scoped, not started" waiting for its own session — the mechanical setup
+plumbing) plus Ground Rule 6 (an ongoing discipline every future epic
+follows, not a deferred epic of its own).** This file is no longer
+"scoped, not started" waiting for its own epic — the mechanical setup
 (§2 below) is F6, and §3's "comments emitted by the templates" work
-happens incrementally, one track at a time, as each track touches its own
+happens incrementally, one epic at a time, as each epic touches its own
 consumer-facing templates, per Ground Rule 6. This file now lives on as
-the **pitfall table in §4** — a living reference every track adds to when
+the **pitfall table in §4** — a living reference every epic adds to when
 its own work introduces a consumer-relevant pitfall not already listed,
 so the table (and the doc-comments built from it) don't go stale.
-`Initiatives/medical_devices/epics/handoff-document.md`'s F6 section is
-the current source of truth for what actually shipped (the Foundation
-thread itself, including Ground Rule 6's original text, was merged to
+`Initiatives/medical_devices/epics/foundation-handoff.md`'s F6 section is
+the current source of truth for what actually shipped (the Foundation epic itself, including Ground Rule 6's original text, was merged to
 `dev` and removed — see git history). This file keeps the *why* (§1) and
 the *what to watch for* (§4), not duplicated there.
 
 **F6 shipped and merged to `dev` 2026-08-23** (`Assets/Doxyfile` + CMake
 `doxygen` target + `Doxygen/mainpage.py`'s USAGE.md §4/§6/§11 extraction)
 — see the F6 section of
-`Initiatives/medical_devices/epics/handoff-document.md` for the
+`Initiatives/medical_devices/epics/foundation-handoff.md` for the
 implementation notes and the one scoping decision worth knowing about (the
 "zero warnings" test is proven against a synthetic fixture, not
 against this repo's real, not-yet-Ground-Rule-6-compliant generated
 headers). §4's pitfall table below is still exactly what it was: a living
 reference for the *content* of future doc-comments, which remains
-per-track, ongoing work — F6 only built the machinery that displays them.
+per-epic, ongoing work — F6 only built the machinery that displays them.
 
 Replaces the narrower framing that used to
-live in `Initiatives/medical_devices/epics/thread-x-gaps/gaps-not-yet-tracked.md` ("Doxygen-
+live in `Initiatives/medical_devices/epics/gaps-not-yet-tracked.md` ("Doxygen-
 style comment emission ... + a Doxyfile/CMake target" — treated as a pure
 documentation-quality/cosmetic gap). That framing undersells the job.
 
@@ -85,7 +84,7 @@ emit a doc comment block, not just the wrapper it already generates.
 ## 4. Known pitfalls to surface, and where they land
 
 **This table is now a living reference, per Ground Rule 6 — append to it,
-don't just consult it.** When a track's own session adds a
+don't just consult it.** When an epic's own session adds a
 consumer-facing template/adapter behavior a future consumer could get
 wrong, add a row here in that same session, then emit the corresponding
 doc-comment. The starting set below was pulled from what was already
@@ -108,14 +107,14 @@ consumer (not a harpia contributor) could hit:
 (See the living-reference note above the table — this was originally
 written as a one-time starting set; per Ground Rule 6 it isn't anymore.)
 
-**Restructured 2026-08-24** into a trackable session breakdown, mirroring
-`Initiatives/medical_devices/epics/`'s per-track format — see
+**Restructured 2026-08-24** into a task breakdown, mirroring
+`Initiatives/medical_devices/epics/`'s per-epic format — see
 `epics/README.md` and, underneath it,
-`epics/histories/doc-comment-coverage/track-d-doc-comment-coverage.md`.
-That structure is a *fallback/audit* track, not a replacement for Ground
-Rule 6: each session there names which medical_devices track is expected
+`epics/doc-comment-coverage/`.
+That structure is a *fallback/audit* epic, not a replacement for Ground
+Rule 6: each task there names which medical_devices epic is expected
 to land it opportunistically, and exists so the still-unaddressed rows in
-this table stay checkable even if no other track ever touches the
+this table stay checkable even if no other epic ever touches the
 matching file.
 
 ## 5. Non-goals
@@ -137,13 +136,13 @@ matching file.
 
 - The `doxygen`-gated zero-warnings test (skipped when the `doxygen`
   binary is absent, same pattern as the C++-toolchain-gated tests in
-  `UnitTests/CLAUDE.md`) is F6's job — see `foundation.md`'s F6 contract.
+  `UnitTests/CLAUDE.md`) is F6's job — see `medical_devices/epics/foundation-handoff.md`'s F6 section.
   It's what makes Ground Rule 6 mechanically enforceable rather than a
-  written convention only: a track that forgets a doc-comment fails this
+  written convention only: an epic that forgets a doc-comment fails this
   test.
-- **Per-track job, not F6's:** at least one golden-style snapshot
-  assertion (mirroring `test_golden.py`) on that track's own generated
+- **Per-epic job, not F6's:** at least one golden-style snapshot
+  assertion (mirroring `test_golden.py`) on that epic's own generated
   header's doc-comment block, so the *content* of a pitfall note (e.g.,
   the `HasField` warning) can't silently regress to generic boilerplate
   in a later refactor without the test noticing. Add one alongside
-  whatever pitfall-table row (§4) the track's own session adds.
+  whatever pitfall-table row (§4) the epic's own session adds.

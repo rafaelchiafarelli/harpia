@@ -1,19 +1,19 @@
-## Session D.5 — Database DAO doc comments
+## Database DAO doc comments
 
 - **Depends on:** F6 (shipped).
 - **Expected covered by, per sub-item — check each independently:**
-  - `CrudlAdapter` (the `ID_*` pitfall below) — Track A
-    (`../../../../../medical_devices/epics/thread-1-data-and-keys/histories/db-encryption/track-a-db-encryption.md`),
+  - `CrudlAdapter` (the `ID_*` pitfall below) — the db-encryption epic
+    (`../../../../medical_devices/epics/db-encryption/`),
     whose `create()`/`update()` DAO wiring is exactly where this comment
     belongs.
-  - `SqlAdapter`, `DbIoAdapter` — Track A/Track K share `Database/`
+  - `SqlAdapter`, `DbIoAdapter` — the db-encryption & db-segregation epics share `Database/`
     generator files
-    (`../../../../../medical_devices/epics/thread-1-data-and-keys/histories/db-segregation/track-k-db-segregation.md`).
-  - `RestAdapter`, `SoapAdapter`, `GrpcServiceAdapter` — Track C
-    (`../../../../../medical_devices/epics/thread-2-transport-and-access/track-c-transport-authn.md`),
+    (`../../../../medical_devices/epics/db-segregation/`).
+  - `RestAdapter`, `SoapAdapter`, `GrpcServiceAdapter` — the transport-authn epic
+    (`../../../../medical_devices/epics/transport-authn/README.md`),
     which touches "generated gate code" across all three transports.
   - `WsdlAdapter` — **no clearly expected owner among current
-    medical_devices tracks.** Flag this again if still true when picked
+    medical_devices epics.** Flag this again if still true when picked
     up; do it here regardless.
 - **Deliverable:**
   - `CrudlAdapter`'s `create()` doc comment carrying the `ID_*` pitfall:
@@ -27,7 +27,7 @@
     consumer-relevant pitfall (not just "no pitfall found yet"), add a row
     to `../../../../doxygen-generation.md` §4 in the same session
     (living-reference instruction).
-- **Out of scope:** `ZmqAdapter` (D.6).
+- **Out of scope:** `ZmqAdapter` (task 6).
 - **Tests:**
   - Golden snapshot: `CrudlAdapter.create()` comment text.
   - Presence check (non-empty, non-generic doc comment) for each of the
