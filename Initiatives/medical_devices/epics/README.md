@@ -21,7 +21,7 @@ Doxygen infrastructure) shipped first and was removed as its own epic —
 | [db-encryption](db-encryption/) | field-level encryption for `phi` columns + audit-on-access wiring | **done** |
 | [db-segregation](db-segregation/) | public/private DB segregation, project-scoped access check | **done** |
 | [critical-delivery](critical-delivery/) | `critical` message modifier + delivery-guarantee runtime + first transport wiring | **done** |
-| [serialization](serialization/) | YAML adapter, unified `toString`, `phi` redaction + audited unredacted-output flag | **in progress** (tasks 1–3 done; 4 `audited-unredacted-flag`, 5 `full-round-trip-and-note` open) |
+| [serialization](serialization/) | YAML adapter, unified `toString`, `phi` redaction + audited unredacted-output flag | **done** (tasks 1–5; `ComplianceReport/` note filed at `process-artifacts/tasks/serialization-redaction-note.md`) |
 | [zmq-lifecycle](zmq-lifecycle/) | ZMQ CURVE security (shipped, verify only) + full `stream[#]` lifecycle | not started |
 | [transport-authn](transport-authn/) | mTLS transport (gRPC/REST/SOAP) + RBAC / AuthN / AuthZ | not started (scoping doc only) |
 | [events-callbacks](events-callbacks/) | `event[cached/not-cached]`, detached-thread callback dispatch | not started |
