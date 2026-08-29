@@ -208,3 +208,57 @@ def test_demo_stream_read_times_out(demo_curve):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, \
         "stream read timeout check failed at #{}".format(run.returncode)
+
+
+def test_demo_stream_reclaims_dead_connection(demo_curve):
+    """zmq-lifecycle epic task 2, integration side: against the same
+    CURVE-configured generated project, a `stream` pointed at a dead endpoint
+    (nothing bound -- the handshake never completes, no frame ever arrives)
+    is reclaimed once `reclaim_after_ms` elapses: the next `read()` returns
+    INVALID and stays there, and the object destructs without hanging. Uses a
+    short `reclaim_after_ms` and the default long `stop_deadline_ms` so the
+    dead-connection sweep, not task 1's watchdog, is what fires."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=demo_curve["proj"]).Process() is None, \
+        "Stage 7 (.pb.cc) generation failed"
+
+    cpp_root = demo_curve["cpp_root"]
+    adapter = os.path.join(cpp_root, "zmq", "sensor_feed_{}_zmq.h".format(HASH))
+    assert os.path.exists(adapter), "sensor_feed stream transport missing"
+
+    prog = os.path.join(demo_curve["tmp"], "demo_stream_reclaim.cc")
+    with open(prog, "w") as f:
+        f.write(
+            '#include "zmq/sensor_feed_{h}_zmq.h"\n'
+            "#include <unistd.h>\n"
+            "namespace zt = harpia::zmq_transport;\n"
+            "int main() {{\n"
+            "    ::zmq::context_t ctx{{1}};\n"
+            "    zt::sensor_feed_stream s(ctx);\n"
+            "    zt::StreamConfig c;\n"
+            '    c.endpoint = "tcp://127.0.0.1:5798";   // nothing bound here\n'
+            "    c.read_timeout_ms = 10;\n"
+            "    c.reclaim_after_ms = 150;\n"
+            "    c.stop_deadline_ms = 30000;\n"
+            "    if (s.setup(c) != zt::StreamStatus::OK) return 1;\n"
+            "    if (s.read(10).status != zt::StreamStatus::TIMEOUT) return 2;\n"
+            "    ::usleep(200000);   // past reclaim_after_ms\n"
+            "    if (s.read(10).status != zt::StreamStatus::INVALID) return 3;\n"
+            "    if (s.read(10).status != zt::StreamStatus::INVALID) return 4;\n"
+            "    // scope exit: reclaimed stream must not hang on close\n"
+            "    return 0;\n"
+            "}}\n".format(h=HASH)
+        )
+
+    pb_cc = os.path.join(cpp_root, "protofiles",
+                         "sensor_feed_{}.pb.cc".format(HASH))
+    binary = os.path.join(demo_curve["tmp"], "demo_stream_reclaim")
+    cmd = ["g++", "-std=c++17", "-I", cpp_root, *_pkgconfig("--cflags"),
+           prog, pb_cc, "-o", binary, *_pkgconfig("--libs")]
+    c = subprocess.run(cmd, capture_output=True, text=True)
+    assert c.returncode == 0, "stream reclaim program failed to build:\n" + c.stderr
+
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, \
+        "stream dead-connection reclamation check failed at #{}".format(
+            run.returncode)

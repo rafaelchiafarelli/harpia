@@ -385,3 +385,90 @@ def test_zmq_stream_lifecycle(built):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, "zmq stream lifecycle check failed at #{}".format(
         run.returncode)
+
+
+def test_zmq_stream_dead_connection_reclaimed(built):
+    """zmq-lifecycle epic task 2 -- dead-connection reclamation. A stream
+    that has produced no inbound frame at all for `reclaim_after_ms` (its
+    peer never showed / the handshake never completed) is torn down on the
+    next read() / stop() / destructor and every later read() returns INVALID.
+    The config uses a short `reclaim_after_ms` and the default (long)
+    `stop_deadline_ms`, so the reclamation path -- not task 1's stop-deadline
+    watchdog -- is what fires.
+
+      - before the window: read() still just TIMEOUTs (nothing to reclaim yet)
+      - past the window: read() -> INVALID, and stays INVALID (latched)
+      - stop() past the window also reclaims (state -> INVALID) but still
+        returns STOPPED; a read() after that -> INVALID
+      - a reclaimed stream destructs without hanging
+    """
+    adapter = "sensor_feed_{}_zmq.h".format(HASH)
+    assert os.path.exists(os.path.join(built["zmq_dir"], adapter)), \
+        "sensor_feed stream transport missing"
+
+    prog = os.path.join(built["tmp"], "zmq_stream_reclaim.cc")
+    with open(prog, "w") as f:
+        f.write(
+            '#include "zmq/{adapter}"\n'
+            "#include <unistd.h>\n"
+            "namespace zt = harpia::zmq_transport;\n"
+            "using S = zt::StreamStatus;\n"
+            "static zt::StreamConfig dead_cfg() {{\n"
+            "    zt::StreamConfig c;\n"
+            "    // nothing is bound here -- the SUB connect succeeds async but no\n"
+            "    // frame ever arrives, so last_activity_ never advances.\n"
+            '    c.endpoint = "tcp://127.0.0.1:5799";\n'
+            "    c.read_timeout_ms = 10;\n"
+            "    c.reclaim_after_ms = 150;      // short: this is what should fire\n"
+            "    c.stop_deadline_ms = 30000;    // long: keep task 1's watchdog out of it\n"
+            "    return c;\n"
+            "}}\n"
+            "int main() {{\n"
+            "    ::zmq::context_t ctx{{1}};\n"
+            "\n"
+            "    // read() path\n"
+            "    {{\n"
+            "        zt::sensor_feed_stream s(ctx);\n"
+            "        if (s.setup(dead_cfg()) != S::OK) return 1;\n"
+            "        if (s.read(10).status != S::TIMEOUT) return 2;   // window not up yet\n"
+            "        ::usleep(200000);                                 // exceed 150 ms\n"
+            "        if (s.read(10).status != S::INVALID) return 3;   // reclaimed\n"
+            "        if (s.read(10).status != S::INVALID) return 4;   // latched\n"
+            "        if (s.state() != S::INVALID) return 5;\n"
+            "    }}\n"
+            "\n"
+            "    // stop() path: reclaims (state -> INVALID) but still returns STOPPED\n"
+            "    {{\n"
+            "        zt::sensor_feed_stream s(ctx);\n"
+            "        if (s.setup(dead_cfg()) != S::OK) return 6;\n"
+            "        ::usleep(200000);\n"
+            "        if (s.stop() != S::STOPPED) return 7;\n"
+            "        if (s.state() != S::INVALID) return 8;\n"
+            "        if (s.read().status != S::INVALID) return 9;\n"
+            "    }}\n"
+            "\n"
+            "    // destructor path: a reclaimed-by-age stream must not hang on close\n"
+            "    {{\n"
+            "        zt::sensor_feed_stream s(ctx);\n"
+            "        if (s.setup(dead_cfg()) != S::OK) return 10;\n"
+            "        ::usleep(200000);\n"
+            "        // no read(), no stop(); ~sensor_feed_stream() runs reclaim_if_dead()\n"
+            "        // then kill() with ZMQ_LINGER=0\n"
+            "    }}\n"
+            "    return 0;\n"
+            "}}\n".format(adapter=adapter)
+        )
+
+    pb_cc = os.path.join(built["proto_dir"],
+                         "sensor_feed_{}.pb.cc".format(HASH))
+    binary = os.path.join(built["tmp"], "zmq_stream_reclaim")
+    cmd = ["g++", "-std=c++17", "-I", built["cpp_root"],
+           *_pkgconfig("--cflags"), prog, pb_cc, "-o", binary,
+           *_pkgconfig("--libs")]
+    c = subprocess.run(cmd, capture_output=True, text=True)
+    assert c.returncode == 0, "zmq stream reclaim program failed to build:\n" + c.stderr
+
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, \
+        "zmq stream dead-connection reclamation check failed at #{}".format(
+            run.returncode)

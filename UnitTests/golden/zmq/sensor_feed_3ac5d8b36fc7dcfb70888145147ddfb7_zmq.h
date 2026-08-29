@@ -170,16 +170,27 @@ private:
 // `stream` message type (process.md 13.2, "streamming functions"): a
 // hardware-interface-like consumer surface layered on the SUB socket. It is
 // NOT the pub/sub `sensor_feed_subscriber` above -- it adds the spec's explicit
-// lifecycle: `setup()` may reject a bad config with INVALID; `read()` is
-// always timed and reports TIMEOUT rather than blocking; `stop()` tears the
-// connection down and is idempotent; and if `stop()` is never called, a
-// watchdog force-kills the connection `stop_deadline_ms` after the last
-// successful read and every subsequent `read()` returns INVALID. Destroying
-// the object releases the socket with ZMQ_LINGER=0 (a half-open CURVE
-// handshake would otherwise block forever on close).
+// lifecycle:
+//   * `setup()` may reject a bad config with INVALID;
+//   * `read()` is always timed and reports TIMEOUT rather than blocking;
+//   * `stop()` tears the connection down and is idempotent;
+//   * if `stop()` is never called, a watchdog force-kills the connection
+//     `stop_deadline_ms` after the last successful read and every later
+//     `read()` returns INVALID;
+//   * a dead connection -- one that has produced no inbound frame at all
+//     (handshake never completed, or the peer went away) for
+//     `reclaim_after_ms` -- is reclaimed on the next `read()` / `stop()` /
+//     destructor and every later `read()` returns INVALID. This is separate
+//     from the `stop_deadline_ms` watchdog above: that one measures time
+//     since the caller last got a usable message; this one measures time
+//     since ANY wire activity, so it fires for a connection that is
+//     genuinely gone even while the caller is still polling.
+// Destroying the object releases the socket with ZMQ_LINGER=0 (a half-open
+// CURVE handshake would otherwise block forever on close).
 //
 // NOT thread-safe -- caller-synchronized, same contract as the delivery
-// runtime and harpia_capability_dispatch.h.
+// runtime and harpia_capability_dispatch.h. All reclamation is synchronous,
+// inside the caller's read()/stop()/dtor -- there is no timer thread.
 //
 // `read()` returns the outcome alongside the decoded message. `msg` is
 // engaged only when `status == OK`; it is empty for TIMEOUT / STOPPED /
@@ -196,7 +207,7 @@ public:
     using ReadResult = sensor_feed_read_result;
 
     explicit sensor_feed_stream(::zmq::context_t& ctx) : ctx_(ctx) {}
-    ~sensor_feed_stream() { kill(); }
+    ~sensor_feed_stream() { reclaim_if_dead(); kill(); }
 
     sensor_feed_stream(const sensor_feed_stream&) = delete;
     sensor_feed_stream& operator=(const sensor_feed_stream&) = delete;
@@ -221,24 +232,28 @@ public:
         socket_.set(::zmq::sockopt::subscribe, config_.topic);
         open_ = true;
         state_ = StreamStatus::OK;
-        last_read_ok_ = ::std::chrono::steady_clock::now();
+        const auto now = ::std::chrono::steady_clock::now();
+        last_read_ok_ = now;
+        last_activity_ = now;
         return StreamStatus::OK;
     }
 
     // Timed read. OK + msg on data; TIMEOUT (no msg) when nothing arrives
     // within the timeout; STOPPED once stop() has run; INVALID before a
-    // successful setup(), after the stop_deadline_ms watchdog fires, or on
-    // an undecodable frame. The no-arg form uses config.read_timeout_ms.
+    // successful setup(), after the stop_deadline_ms watchdog or the
+    // reclaim_after_ms dead-connection sweep fires, or on an undecodable
+    // frame. The no-arg form uses config.read_timeout_ms.
     ReadResult read() { return read(config_.read_timeout_ms); }
 
     ReadResult read(int timeout_ms) {
         if (state_ == StreamStatus::STOPPED) return {StreamStatus::STOPPED, ::std::nullopt};
         if (state_ != StreamStatus::OK)      return {StreamStatus::INVALID, ::std::nullopt};
-        // watchdog: stop() was never called and the connection has been idle
-        // past its deadline -> reclaim it now, and stay INVALID from here on.
-        const auto idle_ms = ::std::chrono::duration_cast<::std::chrono::milliseconds>(
-            ::std::chrono::steady_clock::now() - last_read_ok_).count();
-        if (idle_ms >= config_.stop_deadline_ms) {
+        // dead-connection reclamation: no inbound frame at all within
+        // reclaim_after_ms -> the connection is gone; reclaim and latch INVALID.
+        if (reclaim_if_dead()) return {StreamStatus::INVALID, ::std::nullopt};
+        // watchdog: stop() was never called and no usable message has been
+        // read within stop_deadline_ms -> reclaim it, and stay INVALID.
+        if (elapsed_ms(last_read_ok_) >= config_.stop_deadline_ms) {
             kill();
             state_ = StreamStatus::INVALID;
             return {StreamStatus::INVALID, ::std::nullopt};
@@ -248,6 +263,8 @@ public:
         ::zmq::message_t frame;
         if (!socket_.recv(frame, ::zmq::recv_flags::none).has_value())
             return {StreamStatus::TIMEOUT, ::std::nullopt};
+        // a frame on the wire is liveness even if it does not decode.
+        last_activity_ = ::std::chrono::steady_clock::now();
         ::sensor_feed decoded;
         if (!decoded.ParseFromArray(frame.data(), static_cast<int>(frame.size())))
             return {StreamStatus::INVALID, ::std::nullopt};
@@ -256,10 +273,13 @@ public:
     }
 
     // Kill the connection. Idempotent -- a second call is a no-op and still
-    // returns STOPPED. ZMQ_LINGER is already 0 from setup().
+    // returns STOPPED. If the connection was already dead past
+    // reclaim_after_ms this still returns STOPPED (the caller asked to
+    // stop); a prior read() would have latched INVALID.
     StreamStatus stop() {
+        reclaim_if_dead();
         kill();
-        state_ = StreamStatus::STOPPED;
+        if (state_ != StreamStatus::INVALID) state_ = StreamStatus::STOPPED;
         return StreamStatus::STOPPED;
     }
 
@@ -268,6 +288,24 @@ public:
     ::zmq::socket_t& socket() { return socket_; }
 
 private:
+    static long long elapsed_ms(::std::chrono::steady_clock::time_point since) {
+        return ::std::chrono::duration_cast<::std::chrono::milliseconds>(
+            ::std::chrono::steady_clock::now() - since).count();
+    }
+
+    // Reclaim a connection that has produced no inbound frame for
+    // reclaim_after_ms: kill the socket (ZMQ_LINGER=0) and latch INVALID.
+    // Returns true iff it reclaimed on this call.
+    bool reclaim_if_dead() {
+        if (open_ && state_ == StreamStatus::OK
+                && elapsed_ms(last_activity_) >= config_.reclaim_after_ms) {
+            kill();
+            state_ = StreamStatus::INVALID;
+            return true;
+        }
+        return false;
+    }
+
     void kill() {
         if (open_) {
             socket_.set(::zmq::sockopt::linger, 0);
@@ -282,6 +320,7 @@ private:
     bool open_ = false;
     StreamStatus state_ = StreamStatus::INVALID;  // unusable until setup() returns OK
     ::std::chrono::steady_clock::time_point last_read_ok_{};
+    ::std::chrono::steady_clock::time_point last_activity_{};
 };
 }  // namespace zmq_transport
 }  // namespace harpia
