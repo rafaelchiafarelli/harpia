@@ -8,6 +8,7 @@
 
 #include <soci/soci.h>
 #include "protofiles/vip_users_3ac5d8b36fc7dcfb70888145147ddfb7.pb.h"
+#include "events/vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_events.h"
 
 namespace harpia {
 namespace db {
@@ -49,6 +50,7 @@ public:
             std::string c5 = msg.originator_3ac5d8b36fc7dcfb70888145147ddfb7();
             db_ << "INSERT INTO \"table_vip_users\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"name\", \"family\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5)",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5);
+            ::harpia::events::vip_users_channel().publish(msg);
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -84,6 +86,7 @@ public:
             long long cid = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
             db_ << "UPDATE \"table_vip_users\" SET \"name\" = :c0, \"family\" = :c1, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c2, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c3, \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c4 WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :cid",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(cid);
+            ::harpia::events::vip_users_channel().publish(msg);
             return true;
         } catch (const std::exception&) { return false; }
     }

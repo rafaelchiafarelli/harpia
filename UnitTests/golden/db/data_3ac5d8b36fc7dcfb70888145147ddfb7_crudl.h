@@ -8,6 +8,7 @@
 
 #include <soci/soci.h>
 #include "protofiles/data_3ac5d8b36fc7dcfb70888145147ddfb7.pb.h"
+#include "events/data_3ac5d8b36fc7dcfb70888145147ddfb7_events.h"
 
 namespace harpia {
 namespace db {
@@ -105,6 +106,7 @@ public:
                     ++_ord;
                 }
             }
+            ::harpia::events::data_channel().publish(msg);
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -247,6 +249,7 @@ public:
                     ++_ord;
                 }
             }
+            ::harpia::events::data_channel().publish(msg);
             return true;
         } catch (const std::exception&) { return false; }
     }
