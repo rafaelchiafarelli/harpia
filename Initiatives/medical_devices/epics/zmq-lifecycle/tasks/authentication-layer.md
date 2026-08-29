@@ -1,5 +1,15 @@
 ## ZAP authentication layer (conditional)
 
+> **Status (2026-08-29): NOT SCOPED — blocked on transport-authn.**
+> The decision gate below is resolved: authenticated ZMQ (a ZAP client-key
+> allowlist, rejecting an unrecognized key even with valid CURVE crypto) is
+> **not** being treated as a universal `medical_devices` requirement. If it
+> is built, its allowlist source and enforcement must line up with the
+> credential / session model the **transport-authn** epic defines — and that
+> epic is scoping-doc-only, not started. Do not scope or implement this task
+> until transport-authn's model exists. Tasks 1, 2, and 4 of this epic do
+> not depend on it and can complete without it.
+
 - **Depends on:** task 1 merged. **Decide before building:** only needed if
   this compliance context requires authenticated ZMQ (rejecting a client
   whose key isn't recognized, not just any client with valid CURVE

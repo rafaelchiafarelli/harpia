@@ -22,7 +22,7 @@ Doxygen infrastructure) shipped first and was removed as its own epic —
 | [db-segregation](db-segregation/) | public/private DB segregation, project-scoped access check | **done** |
 | [critical-delivery](critical-delivery/) | `critical` message modifier + delivery-guarantee runtime + first transport wiring | **done** |
 | [serialization](serialization/) | YAML adapter, unified `toString`, `phi` redaction + audited unredacted-output flag | **done** (tasks 1–5; `ComplianceReport/` note filed at `process-artifacts/tasks/serialization-redaction-note.md`) |
-| [zmq-lifecycle](zmq-lifecycle/) | ZMQ CURVE security (shipped, verify only) + full `stream[#]` lifecycle | not started |
+| [zmq-lifecycle](zmq-lifecycle/) | ZMQ CURVE security (shipped, verify only) + full `stream` lifecycle | planning done (tasks 1–2 scoped: `stream-control`, `data-connection-reclamation`; task 3 `authentication-layer` blocked on transport-authn; task 4 `windows-build-verification` env-blocked → Windows session-line) |
 | [transport-authn](transport-authn/) | mTLS transport (gRPC/REST/SOAP) + RBAC / AuthN / AuthZ | not started (scoping doc only) |
 | [events-callbacks](events-callbacks/) | `event[cached/not-cached]`, detached-thread callback dispatch | not started |
 | [process-artifacts](process-artifacts/) | SBOM, traceability matrix, jurisdiction-selected doc templates, `ComplianceReport/` module | not started |

@@ -1,5 +1,11 @@
 ## Windows build-verification (existing CURVE feature)
 
+> **Status (2026-08-29): READY, environment-blocked.** Scoping is complete —
+> the task is implementable exactly as written. It needs native-Windows exec
+> access (MSVC + vcpkg), which nothing in the Docker / WSL environment can
+> provide. Hand to the Windows session-line, same posture as the resolved
+> Postgres-on-Windows gap. Independent of tasks 1–3.
+
 - **Depends on:** nothing from this epic — this verifies the
   **already-shipped** CURVE transport, not task 1–task 3's new work. Can run
   any time, independently of the other sessions in this epic.
