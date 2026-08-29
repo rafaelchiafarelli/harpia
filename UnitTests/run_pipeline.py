@@ -17,6 +17,7 @@ Run from the repository root:
 Each invocation is a fresh process, which matters: LexicalAnalyzer accumulates
 tokens in a class-level list, so capturing must happen in a clean interpreter.
 """
+import json
 import os
 import shutil
 import sys
@@ -37,6 +38,7 @@ from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from YamlAdapter.YamlAdapter import YamlAdapter
 from SerializeAdapter.SerializeAdapter import SerializeAdapter
+from ComplianceReport.ComplianceReport import ComplianceReport
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
 from Database.DbRegistryAdapter import DbRegistryAdapter
@@ -187,6 +189,9 @@ def run(output_dir):
     # 14. generated unit tests (opt-in CTest target over CRUDL + messages)
     _mark("TestAdapter", TestAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
+    # 15. compliance report -- CycloneDX SBOM (process-artifacts epic)
+    _mark("ComplianceReport", ComplianceReport(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+
     _dump_compliance_smoke(os.path.join(output_dir, "compliance_smoke.txt"), compliance_smoke)
 
     # --- capture artifacts -------------------------------------------------
@@ -208,6 +213,7 @@ def run(output_dir):
     _collect_wsdl(build_dir, os.path.join(output_dir, "wsdl"))
     _collect_gen_tests(build_dir, os.path.join(output_dir, "gen_tests"))
     _collect_sidecars(build_dir, os.path.join(output_dir, "sidecars"))
+    _collect_compliancereport(build_dir, os.path.join(output_dir, "compliancereport"))
 
 
 def _dump_tokens(path, tokens):
@@ -308,6 +314,32 @@ def _collect_serialize(build_dir, dest):
     for name in sorted(os.listdir(src)):
         if name.endswith(".h") and name not in static:
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_compliancereport(build_dir, dest):
+    # the CycloneDX SBOM (process-artifacts epic). metadata.timestamp is
+    # wall-clock, so it is normalized to a fixed value here -- everything
+    # else in bom.json is deterministic (vendored versions come from the
+    # checked-in VENDORED.md files; environment versions from the Docker
+    # toolchain, treated as fixed the same way the rest of the suite does).
+    src = os.path.join(build_dir, "generated", "ComplianceReport")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    bom_path = os.path.join(src, "bom.json")
+    if os.path.isfile(bom_path):
+        with open(bom_path) as f:
+            bom = json.load(f)
+        bom.setdefault("metadata", {})["timestamp"] = "1970-01-01T00:00:00Z"
+        with open(os.path.join(dest, "bom.json"), "w") as f:
+            f.write(json.dumps(bom, indent=2) + "\n")
+    # the traceability matrix (task 2) + jurisdiction reports (task 3) have no
+    # timestamp -- copy them verbatim.
+    if os.path.isdir(src):
+        for name in sorted(os.listdir(src)):
+            if name in ("traceability.json", "traceability.md") \
+                    or (name.startswith("compliance_report") and name.endswith(".md")):
+                shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
 def _collect_crudl(build_dir, dest):
