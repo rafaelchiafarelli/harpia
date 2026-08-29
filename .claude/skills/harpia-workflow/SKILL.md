@@ -18,24 +18,50 @@ Don't use the word "Track" — it was a false start and doesn't map to anything 
 
 ## Branches
 
-Branch names mirror the planning hierarchy exactly, so the branch name alone tells you where the corresponding file lives.
+Every level of the planning hierarchy is its own branch. The hierarchy is carried
+by **branch ancestry** — what each branch was created from — and never by slashes
+in the name. Every branch name is a flat single token.
 
-| Branch | Maps to file/folder |
-|---|---|
-| `feature/<initiative>` | `initiatives/<initiative>/` |
-| `feature/<initiative>/<epic>` | `initiatives/<initiative>/epics/<epic>/` |
-| `feature/<initiative>/<epic>/<task>` | `initiatives/<initiative>/epics/<epic>/tasks/<task>.md` |
-| `fixes/<hex-id>/<bug-name>` | a standalone bugfix, not tied to an initiative |
+**One initiative chain per working copy.** Rafael runs parallel sessions on
+separate repo clones; each clone carries exactly one active
+`features → … → <task>` chain at a time, which is what makes the flat container
+names (`features`, `epics`, `tasks`) unambiguous. Never build a second chain
+alongside the first in the same clone. (Git also forbids it: a ref named
+`tasks` and a ref named `tasks/anything` cannot coexist — which is the reason the
+names are flat in the first place.)
 
-Example: `feature/medical_devices/thread-1-data-and-keys/traceability-matrix` ↔ `initiatives/medical_devices/epics/thread-1-data-and-keys/tasks/traceability-matrix.md`.
+| Level | Branch name | Created from | Corresponds to |
+|---|---|---|---|
+| container | `features` | `dev` | all feature work — integration point below `dev` |
+| initiative | `<initiative>` (e.g. `medical_devices`) | `features` | `Initiatives/<initiative>/` |
+| container | `epics` | `<initiative>` | the initiative's epics — integration point |
+| epic | `<epic>` (e.g. `serialization`) | `epics` | `Initiatives/<initiative>/epics/<epic>/` |
+| container | `tasks` | `<epic>` | the epic's tasks — integration point |
+| task | `<task>` (e.g. `4-audited-unredacted-flag`) | `tasks` | `Initiatives/<initiative>/epics/<epic>/tasks/<task>.md` — **the working branch; all task commits land here** |
+
+Example chain (serialization epic, task 4):
+`dev → features → medical_devices → epics → serialization → tasks → 4-audited-unredacted-flag`
+
+Create a parent before its child; don't create a level you won't use in this
+clone. The branch you actually commit on is the leaf `<task>` branch — every
+level above it is a pure integration point that only ever receives `--no-ff`
+merges.
 
 **Two long-lived branches:**
 - `main` — beta/release branch. Releases for testers and for programs built with Harpia get cut from here. Treat it as something people outside this session depend on.
 - `dev` — development branch. "Not broken" means the full test suite passes — nothing more, nothing less. Half-finished work is fine to sit on `dev`; work that breaks a test is not.
 
-**Fix branches:** `fixes/<id>/<name_of_the_bug>`, where `<id>` is an incrementing hex counter starting at `000000` (go to `ffffff`, then widen to 7 hex digits if that's ever exhausted — there's no ticket tracker yet, so this counter is the only ID). Fixes normally branch off `dev` and merge back into `dev`. A fix can branch off `main` instead when it's urgent enough to need a beta/release-line patch — in that case merge it back to `main`, and also bring it into `dev` so the branches don't silently diverge (flag this to Rafael rather than assuming — confirm before merging a main-line fix back into dev if there's any conflict risk).
+**Fix branches** are the one exception to flat names: `fixes/<id>/<name_of_the_bug>`, where `<id>` is an incrementing hex counter starting at `000000` (go to `ffffff`, then widen to 7 hex digits if that's ever exhausted — there's no ticket tracker yet, so this counter is the only ID). The `fixes/` prefix is slash-namespaced precisely because a fix is *not* part of an initiative chain and never nests under one; correspondingly, never create a flat branch literally named `fixes`, `features`, `epics`, or `tasks` outside the scheme above. Fixes normally branch off `dev` and merge back into `dev`. A fix can branch off `main` instead when it's urgent enough to need a beta/release-line patch — in that case merge it back to `main`, and also bring it into `dev` so the branches don't silently diverge (flag this to Rafael rather than assuming — confirm before merging a main-line fix back into dev if there's any conflict risk).
 
-**Merge direction:** task → epic → feature → dev → main. Each level only merges up once its own scope's DoD (below) is satisfied. `dev` only merges into `main` for an actual release, which is Rafael's call, not something to do automatically after a feature branch lands.
+**Merge direction:** `<task> → tasks → <epic> → epics → <initiative> → features → dev → main`, every hop a `--no-ff` merge. A level only merges up once its own DoD is satisfied:
+
+- **`<task>`** — its contract is delivered and the full test suite passes.
+- **`tasks`** — every task branch scoped to the epic has merged into it.
+- **`<epic>`** — `tasks` has merged in and the epic's acceptance gate, if it has one, passes.
+- **`epics`** — every epic branch of the initiative has merged into it.
+- **`<initiative>`** — `epics` has merged in and the initiative's cross-epic gates pass.
+- **`features`** — every active initiative has merged in.
+- **`dev` → `main`** — an actual release. Rafael's call only, never automatic after a level lands.
 
 **Who merges:** perform the merge locally once a level is done — don't wait for a PR or for Rafael to do it, and don't open PRs (there's no PR workflow here). Just merge, then report what happened.
 
