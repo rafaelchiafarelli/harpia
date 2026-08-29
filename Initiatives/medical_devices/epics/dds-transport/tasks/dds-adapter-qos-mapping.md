@@ -1,7 +1,13 @@
 
 ## `DdsAdapter/` core + QoS mapping
 
-- **Depends on:** task 1 merged.
+Scoped 2026-08-29. **Task 2b** of the dds-transport epic (was task 2; the
+"pick + vendor a DDS stack" half was split out to **task 2a
+`dds-vendor-and-spike`** during planning). This task is pure codegen — the
+DDS implementation is already vendored and build-verified by 2a.
+
+- **Depends on:** task 2a (`dds-vendor-and-spike`) merged — the DDS
+  implementation is committed and vendored; this task does not choose one.
 - **Deliverable:** new `DdsAdapter/` module mirroring `ZmqAdapter/`'s
   shape (filter messages by the `dds` modifier, template-rendered
   publisher/subscriber); QoS mapping reusing
@@ -13,12 +19,13 @@
     catch-up is an **open question, decide per use case** — don't
     default it on for this session.
   - Latest-value-only → `RELIABILITY=BEST_EFFORT`, `HISTORY=KEEP_LAST(1)`.
-- **Out of scope:** DDS-Security (task 3); `phi` audit wiring (task 4); a
-  vendored/`third_party/`-linked DDS implementation is needed to make
-  this session's tests real (e.g. Eclipse Cyclone DDS — exact vendor TBD,
-  prove the interface is real before committing to one, same posture as
-  the key-management epic's KMS reference adapter) — pick one as part of this session,
-  it's not deferred to a later one.
+- **Out of scope:** DDS-Security (task 3); `phi` audit wiring (task 4);
+  choosing / vendoring the DDS implementation — that is **task 2a**
+  (`dds-vendor-and-spike`), which must be merged first. This task builds
+  the adapter against whatever 2a committed.
+- **`DURABILITY=TRANSIENT_LOCAL` stays off** for this task (the
+  late-joiner-catch-up open question is per-use-case; a `durability` knob
+  is future scope, not here).
 - **Tests:**
   - Unit: `critical`/non-`critical` messages map to the correct QoS
     profile.

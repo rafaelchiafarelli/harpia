@@ -1,12 +1,22 @@
 ## `phi` field `AuditSink` wiring over DDS
 
-- **Depends on:** task 2 merged; F3 (Foundation) `AuditSink`.
+Scoped 2026-08-29. **Task 4** of the dds-transport epic. Parallel with task 3
+(`dds-security-wiring`) — both depend only on task 2b.
+
+- **Depends on:** task 2b (`dds-adapter-qos-mapping`) merged; F3 (Foundation)
+  `AuditSink`.
 - **Deliverable:** a `phi` field crossing the DDS transport triggers the
-  same `AuditSink` call pattern the db-encryption epic/E already establish for DB and
-  event delivery — the transport changes, the audit obligation doesn't.
+  same `AuditSink` call pattern the db-encryption epic already establishes for
+  DB and event delivery — the transport changes, the audit obligation
+  doesn't. **Recommended operation name:** `phi_publish`, `subject` = the
+  message / DDS topic name, `detail` = the `phi` field names — never a
+  value (design-rules Rule 5). Confirm against the DB pattern
+  (`phi_create` / `phi_read` / ...) when implementing.
 - **Tests:**
-  - Integration: `phi` field over DDS emits exactly one `AuditSink`
-    record per publish, matching the db-encryption epic/E's pattern.
+  - Integration: a `phi` field over DDS emits exactly one `AuditSink`
+    record per publish, `detail` carries names only, matching the
+    db-encryption epic's pattern (`UnitTests/test_stage8_db.py::test_a3_*`
+    shape).
 
 ---
 ## Epic context — dds-transport

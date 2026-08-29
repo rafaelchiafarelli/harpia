@@ -1,7 +1,18 @@
 
 ## DDS-Security wiring
 
-- **Depends on:** task 2 merged; F5 (Foundation).
+Scoped 2026-08-29. **Task 3** of the dds-transport epic. Parallel with task 4
+(`phi-field-auditsink-over-dds`) — both depend only on task 2b, not on each
+other.
+
+- **Depends on:** task 2b (`dds-adapter-qos-mapping`) merged; F5 (Foundation).
+- **Pre-work (inside this task, once 2a's vendor is known):** generated
+  DDS-Security governance + permissions XML templates and a build-time
+  certificate/identity provisioning probe, mirroring
+  `Assets/cmake/curve_keygen_probe.cpp` (the CURVE keygen probe) and
+  transport-authn's planned mTLS cert provisioning. The exact governance/
+  permissions XML shape is implementation-specific, so it is confirmed
+  against the vendor task 2a committed, not guessed here.
 - **Deliverable:** OMG DDS-Security (authentication/access-control/
   encryption plugins) compiled in via the F5 `CryptoBackend` seam, one
   selection per project driven by `risk_class`/`topology` (never per

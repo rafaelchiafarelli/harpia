@@ -1,10 +1,18 @@
 ## Full acceptance gate + `ComplianceReport` note
 
-- **Depends on:** task 1–task 4 merged.
-- **Deliverable:** one-paragraph `ComplianceReport/` note describing what
-  changed and why (feeds the process-artifacts epic later).
+Scoped 2026-08-29. **Task 5** (final) of the dds-transport epic.
+
+- **Depends on:** tasks 1, 2a, 2b, 3, 4 merged.
+- **Deliverable:** the one-paragraph `ComplianceReport/` note — filed as a
+  **process-artifacts** task (`process-artifacts/tasks/dds-transport-note.md`,
+  same pattern as `serialization-redaction-note.md` /
+  `phi-db-encryption-note.md` / `critical-delivery-note.md`), per
+  `epics/README.md` DoD rule 6: `ComplianceReport/` is the
+  process-artifacts epic's module, not this one's. The note covers the
+  `dds` modifier, `DdsAdapter/`, the QoS mapping, DDS-Security wiring, and
+  the `phi` audit path — what changed, why, which tests.
 - **Acceptance gate:** existing ZMQ/gRPC demo tests unaffected — `dds` is
-  additive, not a replacement for either.
+  additive, not a replacement for either. Full suite green in Docker.
 ---
 ## Epic context — dds-transport
 
