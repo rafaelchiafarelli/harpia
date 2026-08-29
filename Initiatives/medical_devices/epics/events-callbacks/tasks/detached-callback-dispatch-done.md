@@ -1,6 +1,16 @@
 
 ## Detached-thread callback dispatch + exception isolation
 
+**Done 2026-08-29** — `Callback/runtime/harpia_event_cache.h` only, no
+generated-output changes. `publish()` snapshots subscribers + copies the
+value under a `std::mutex`, then runs them on one detached `std::thread`
+with a per-callback `try{…}catch(...){}`; `subscribe()`'s cached replay is
+likewise detached. Mutex-guarded / concurrency-safe (TSan-clean).
+`UnitTests/test_events_callbacks.py` runtime tests reworked for async
+delivery + new isolation/async/concurrency cases. Task 3 (`AuditSink` on
+the OnChange point for `phi` + subscribe→mutate→assert integration)
+remains.
+
 - **Depends on:** task 1 merged (done — `event-cache-implementation`).
 
 ### Contract
