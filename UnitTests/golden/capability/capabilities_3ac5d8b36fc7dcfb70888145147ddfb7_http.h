@@ -64,6 +64,7 @@ inline void register_capabilities(crow::SimpleApp& app, const std::string& base)
             "prince",
             "queen",
             "route",
+            "sensor_feed",
             "shipment",
             "telemetry",
             "top_users",
