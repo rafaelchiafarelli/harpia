@@ -334,6 +334,17 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   tests here use, so this one needs a real handshake).
 - `test_stage14.py` — every generated `*_test.cpp` compiles/runs green; CTest
   wiring; `cmake -DHARPIA_BUILD_TESTS=ON` + `ctest`.
+- `test_dds_vendor_spike.py` — the dds-transport epic / task 2a: the vendored
+  Eclipse Cyclone DDS + `ddscxx` stack (`third_party/cyclonedds{,-cxx}/`, built
+  into the Docker image by `Docker/Dockerfile`) is real and linkable. Configures
+  + builds `UnitTests/dds_spike/` (a throwaway `idlc`-generated pub/sub) against
+  the image's `/usr/local` install and runs it: both QoS profiles (RELIABLE/
+  KEEP_ALL for §4a `critical`, BEST_EFFORT/KEEP_LAST(1) for §4b) construct and
+  are accepted by a `DataWriter`; the DDS-Security `dds_qset_prop`/`dds_qget_prop`
+  property API round-trips (task 3 supplies real cert values via the F5
+  `CryptoBackend` seam); one sample crosses a publisher/subscriber pair.
+  cmake+g+++installed-`CycloneDDS-CXX`-gated. Not wired into the generator —
+  the real `DdsAdapter` codegen is task 2b.
 - `test_stage8_pg.py` — **opt-in** live-PostgreSQL CRUDL round-trip (generates with
   `HARPIA_DB_BACKEND=postgresql`); skipped unless `HARPIA_PG_DSN` points at a
   reachable server.

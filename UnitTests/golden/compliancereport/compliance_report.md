@@ -34,6 +34,8 @@ project.
 |---|---|---|---|
 | asio | 1.30.2 | Boost Software License 1.0 | `pkg:github/asio@1.30.2` |
 | crow | 1.3.2 | BSD-3-Clause | `pkg:github/crow@1.3.2` |
+| cyclonedds | 0.10.5 | EPL-2.0 OR BSD-3-Clause | `pkg:github/cyclonedds@0.10.5` |
+| cyclonedds-cxx | 0.10.5 | EPL-2.0 OR BSD-3-Clause | `pkg:github/cyclonedds-cxx@0.10.5` |
 | grpc | 1.51.1 |  | `pkg:generic/grpc@1.51.1` |
 | libzmq | 4.3.5 |  | `pkg:generic/libzmq@4.3.5` |
 | protobuf | 3.21.12 |  | `pkg:generic/protobuf@3.21.12` |
