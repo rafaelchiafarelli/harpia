@@ -327,13 +327,18 @@ def _collect_compliancereport(build_dir, dest):
         shutil.rmtree(dest)
     os.makedirs(dest, exist_ok=True)
     bom_path = os.path.join(src, "bom.json")
-    if not os.path.isfile(bom_path):
-        return
-    with open(bom_path) as f:
-        bom = json.load(f)
-    bom.setdefault("metadata", {})["timestamp"] = "1970-01-01T00:00:00Z"
-    with open(os.path.join(dest, "bom.json"), "w") as f:
-        f.write(json.dumps(bom, indent=2) + "\n")
+    if os.path.isfile(bom_path):
+        with open(bom_path) as f:
+            bom = json.load(f)
+        bom.setdefault("metadata", {})["timestamp"] = "1970-01-01T00:00:00Z"
+        with open(os.path.join(dest, "bom.json"), "w") as f:
+            f.write(json.dumps(bom, indent=2) + "\n")
+    # the traceability matrix (process-artifacts task 2) has no timestamp --
+    # copy it verbatim.
+    for extra in ("traceability.json", "traceability.md"):
+        p = os.path.join(src, extra)
+        if os.path.isfile(p):
+            shutil.copy2(p, os.path.join(dest, extra))
 
 
 def _collect_crudl(build_dir, dest):

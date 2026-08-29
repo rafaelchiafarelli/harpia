@@ -1,3 +1,5 @@
+> **Folded 2026-08-29** into `ComplianceReport/requirements.py` by the traceability-matrix task. This file is kept as the historical raw-material note; the live catalog entry is the source of truth.
+
 ## `ComplianceReport/` note for the db-encryption epic (`phi` DB field-level encryption)
 
 - **Depends on:** the sbom-emission task merged (`ComplianceReport/` module exists).
