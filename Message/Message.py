@@ -23,6 +23,14 @@ class Message():
     # `is_phi`. Flag only for now -- later stages read this instead of
     # re-scanning access_modifiers, same rationale as variable.is_phi.
     is_critical = False
+    # events-callbacks epic, task 1: cache mode of the `event` message-type
+    # modifier. None ⇔ no `event` modifier; "cached" for bare `event` or
+    # `event[cached]` (cached is the standard when unspecified); "not-cached"
+    # for `event[not-cached]`. Dedicated attribute so later stages read it
+    # instead of re-parsing the EVENT token lexeme, same rationale as
+    # is_critical / variable.is_phi. Flag only in the front end -- the
+    # emitted .proto is identical regardless of the mode.
+    event_cache_mode = None
     def __init__(self, fileName,availableMessages, md5Hash, compliance=None) -> None:
 
         self.compliance = compliance
@@ -31,6 +39,7 @@ class Message():
         self.variables = []
         self.access_modifiers = []
         self.is_critical = False
+        self.event_cache_mode = None
         self.log = logger(outFile=None, moduleName="Message")
         self.tableName = ""
         self.visibility = "PUBLIC"
@@ -75,6 +84,16 @@ class Message():
                     for access in self.access_modifiers:
                         if access[0] == 'CRITICAL':
                             self.is_critical = True
+                            break
+                    ##events-callbacks epic task 1: cache mode rides in the
+                    ##EVENT token lexeme (`event `, `event[cached] `,
+                    ##`event[not-cached] `). Bare event == cached, the
+                    ##standard when unspecified.
+                    for access in self.access_modifiers:
+                        if access[0] == 'EVENT':
+                            self.event_cache_mode = (
+                                'not-cached' if 'not-cached' in access[1]
+                                else 'cached')
                             break
             if lastToken == "MESSAGE" or  lastToken == "ENUM":
                 if token[0] == "ID":
@@ -162,7 +181,10 @@ class Message():
         st = "access_modifiers:{} name:{} variables:[".format(self.access_modifiers,self.name)
         for v in self.variables:
             st += "{}, ".format(v.__str__())
-        st+="] tableName:{} visibility:{} \n".format(self.tableName,self.visibility)
+        st+="] tableName:{} visibility:{}".format(self.tableName,self.visibility)
+        if self.event_cache_mode is not None:
+            st += " event_cache_mode:{}".format(self.event_cache_mode)
+        st += " \n"
         return st
 
 
