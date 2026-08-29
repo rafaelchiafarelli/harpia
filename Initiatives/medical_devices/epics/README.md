@@ -21,11 +21,11 @@ Doxygen infrastructure) shipped first and was removed as its own epic —
 | [db-encryption](db-encryption/) | field-level encryption for `phi` columns + audit-on-access wiring | **done** |
 | [db-segregation](db-segregation/) | public/private DB segregation, project-scoped access check | **done** |
 | [critical-delivery](critical-delivery/) | `critical` message modifier + delivery-guarantee runtime + first transport wiring | **done** |
-| [serialization](serialization/) | YAML adapter, unified `toString`, `phi` redaction + audited unredacted-output flag | **done** (tasks 1–5; `ComplianceReport/` note filed at `process-artifacts/tasks/serialization-redaction-note.md`) |
+| [serialization](serialization/) | YAML adapter, unified `toString`, `phi` redaction + audited unredacted-output flag | **done** (tasks 1–5; `ComplianceReport/` note folded into `ComplianceReport/requirements.py` by the traceability-matrix task) |
 | [zmq-lifecycle](zmq-lifecycle/) | ZMQ CURVE security (shipped, verify only) + full `stream[#]` lifecycle | not started |
 | [transport-authn](transport-authn/) | mTLS transport (gRPC/REST/SOAP) + RBAC / AuthN / AuthZ | not started (scoping doc only) |
 | [events-callbacks](events-callbacks/) | `event[cached/not-cached]`, detached-thread callback dispatch | not started |
-| [process-artifacts](process-artifacts/) | SBOM, traceability matrix, jurisdiction-selected doc templates, `ComplianceReport/` module | not started |
+| [process-artifacts](process-artifacts/) | SBOM, traceability matrix, jurisdiction-selected doc templates, `ComplianceReport/` module | in progress (task 1 `sbom-emission` done — `ComplianceReport/` module + CycloneDX SBOM; task 2 `traceability-matrix` done — `requirements.py` catalog + `traceability.{json,md}`, the 3 `*-note.md` folded in; open: `jurisdiction-template-selection`) |
 | [static-fuzz-ci](static-fuzz-ci/) | static / fuzz analysis CI | not started (scoping doc only) |
 | [versioning](versioning/) | versioning / git integration — folded into `process-artifacts`' `ComplianceReport/` output | not started (scoping doc only) |
 | [dds-transport](dds-transport/) | DDS transport adapter (ASTM F2761 / OpenICE-class bedside bus) | not started (scoping doc only) |
