@@ -36,6 +36,13 @@ VENDORED = [
      "SQLite amalgamation -- generated persistence / CRUDL layer (Stage 8)"),
     ("tinyxml2", "tinyxml2", "github",
      "TinyXML-2 -- XML adapter (Stage 10)"),
+    ("cyclonedds", "cyclonedds", "github",
+     "Eclipse Cyclone DDS -- DDS transport for the dds-transport epic "
+     "(ASTM F2761 / OpenICE-class bedside bus); built in the toolchain "
+     "image from this vendored snapshot"),
+    ("cyclonedds-cxx", "cyclonedds-cxx", "github",
+     "Eclipse Cyclone DDS ddscxx -- the ISO C++ DDS binding layered over "
+     "cyclonedds"),
 ]
 
 # (component name, purl type, description, [ [cmd, ...], ... ] tried in order)
