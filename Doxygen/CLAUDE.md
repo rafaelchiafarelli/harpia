@@ -5,7 +5,7 @@ content for a generated project from slices of harpia's own `USAGE.md`,
 written fresh every run to `<dest>/USAGE_EXCERPT.md`. The rest of F6 (the
 `Doxyfile`, the CMake `doxygen` target) lives in `Assets/` -- see
 `Assets/CLAUDE.md` and the F6 section of
-`Initiatives/medical_devices/epics/handoff-document.md` (the Foundation
+`Initiatives/medical_devices/epics/foundation-handoff.md` (the Foundation
 thread itself was merged to `dev` and removed; see git history for the
 original implementation write-up).
 **Entry points:** `write_mainpage(dest, usage_md_path=None, sections=(4,6,11))`

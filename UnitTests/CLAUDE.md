@@ -99,8 +99,8 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   record; `peek()` is a non-destructive, order-stable look at the queue
   front; a Phase 3c rehearsal (stall overruns the queue, drain replays the
   survivors in order, every loss audited). (g++)
-- `test_critical_delivery_roundtrip.py` — Track D / Session D.4
-  (`Initiatives/medical_devices/epics/thread-6-critical-and-phi-done/`): the
+- `test_critical_delivery_roundtrip.py` — the critical-delivery epic / Session critical-delivery task 4
+  (`Initiatives/medical_devices/epics/critical-delivery/`): the
   `critical` send/receive headline integration test. protoc+g+++pkg-config+
   libzmq+cppzmq-gated. Drives the generated `alarm_event` transport over a
   real `tcp://` socket: (1) publish-while-stalled holds N in the
@@ -139,12 +139,12 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `risk_class == CLASS_C` or `topology == CLOUD_CONNECTED` defaults to the
   FIPS backend, an explicit name overrides that default; `get_backend()`
   returns the identical singleton across calls (the acceptance-gate proof
-  that Track O and Track C, once built, would provably share one crypto
+  that the key-management epic and the transport-authn epic, once built, would provably share one crypto
   module); `write_build_metadata()` produces a valid
   `build_metadata/crypto_backend.json` sidecar and is write-if-different
   (stable mtime when unchanged). Pure Python.
-- `test_key_provider.py` — Track O / Session O.1
-  (`Initiatives/medical_devices/epics/thread-1-data-and-keys/histories/key-management/`):
+- `test_key_provider.py` — the key-management epic / Session key-management task 1
+  (`Initiatives/medical_devices/epics/key-management/`):
   the `KeyProvider` interface + envelope-encryption shape,
   `Crypto/runtime/harpia_key_provider.h` (hand-written C++, same
   compile-and-run pattern as `test_audit_sink.py`/`test_delivery_runtime.py`,
@@ -153,18 +153,18 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `rotate()` bumps the version, old DEKs still unwrap, no existing
   `WrappedDek` is mutated (O(keys), not O(data)); an unknown or
   `forget_kek_version()`-dropped KEK version makes `unwrap_dek` return
-  `nullopt` (Rule 5 — and the O.3 crypto-shred path, early); polymorphic
+  `nullopt` (Rule 5 — and the key-management task 3 crypto-shred path, early); polymorphic
   use through `KeyProvider&`. (g++)
-- `test_local_key_provider.py` — Track O / Session O.2: the default no-KMS
+- `test_local_key_provider.py` — the key-management epic / Session key-management task 2: the default no-KMS
   `LocalKeyProvider` (`Crypto/runtime/harpia_key_provider_local.h`).
-  Satisfies O.1's `KeyProvider` contract unmodified; KEK material persists
+  Satisfies key-management task 1's `KeyProvider` contract unmodified; KEK material persists
   across instances pointed at the same `storage_path` (rotation included) —
-  the "local storage" difference from O.1's in-memory provider; the ctor
+  the "local storage" difference from key-management task 1's in-memory provider; the ctor
   throws `LocalKeyProviderRefused` when `phi_at_scale && !acknowledged` and
   proceeds with the acknowledgment; the gate doesn't bite when not at
   scale; `local_key_provider_acknowledged()` reads
   `HARPIA_ACK_LOCAL_KEY_PROVIDER` (`1`/`true`/`yes`, any case). (g++)
-- `test_crypto_shred.py` — Track O / Session O.3: crypto-shredding
+- `test_crypto_shred.py` — the key-management epic / Session key-management task 3: crypto-shredding
   (`shred_dek(w)` on the interface + both impls). Against `InMemoryKeyProvider`
   and `LocalKeyProvider`: shred makes exactly that record's DEK
   unrecoverable (`unwrap_dek` → `nullopt`) while the KEK is untouched
@@ -175,7 +175,7 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `LocalKeyProvider` the shred is written to a `<store>.shred` append-only
   sidecar that survives a restart and never rewrites the KEK store file.
   (g++)
-- `test_key_provider_audit.py` — Track O / Session O.4: zeroization +
+- `test_key_provider_audit.py` — the key-management epic / Session key-management task 4: zeroization +
   `AuditSink` wiring. Pure Python: no long hex/base64 literal (a possible
   hardcoded key) in `Crypto/runtime/*.h`. g++-gated: every key op emits
   exactly one `record()` with a `key_<op>` name (both providers);
@@ -183,10 +183,10 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   `shredded` / `unknown_version` — never key bytes; `default_audit_sink()`
   is used when no sink is passed; `detail::secure_zero` clears a string
   (safe on empty); `Dek` is not trivially destructible (zeroizing dtor)
-  yet still copy/move-usable; the O.1 round trip is behaviour-unchanged.
-- `test_kms_key_provider.py` — Track O / Session O.5: the KMS/HSM
+  yet still copy/move-usable; the key-management task 1 round trip is behaviour-unchanged.
+- `test_kms_key_provider.py` — the key-management epic / Session key-management task 5: the KMS/HSM
   reference adapter (`Crypto/runtime/harpia_key_provider_kms.h`). g++-gated:
-  `KmsKeyProvider` backed by the in-header `MockKms` satisfies O.1's
+  `KmsKeyProvider` backed by the in-header `MockKms` satisfies key-management task 1's
   `KeyProvider` contract; per-DEK shred plus KMS-side version retirement
   (`MockKms::forget_version`) both → `unwrap_dek` `nullopt`; audit is
   wired (no ctor KEK op — the KMS owns KEKs); the SAME `KeyProvider&`
@@ -227,7 +227,7 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `test_stage7.py` — protoc emits/compiles `.pb.{h,cc}`. (protoc, g++)
 - `test_stage8_db.py` — SQL schema, CRUDL round-trip, FK, repeated-FK link table,
   map<K,V>, repeated scalar, migration, DB↔JSON/XML. (cc + g++, some protoc)
-- `test_db_segregation.py` — Track K / Session K.1: the public/private DB
+- `test_db_segregation.py` — the db-segregation epic / Session db-segregation task 1: the public/private DB
   registry (`Database/DbRegistryAdapter.py` → `generated/cpp/db/harpia_db_registry.h`).
   Structural (pure Python, always run): the one project-wide header is
   emitted; it lists exactly the table-bearing messages (enums/table-less
@@ -246,7 +246,7 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   project's registry a distinct artifact stamped with its own name.
 - `test_stage9.py` — JSON adapters compile + round-trip. (protoc, g++)
 - `test_stage10_xml.py` — XML adapters compile, to/from_xml round-trip, XSD.
-- `test_stage10_yaml.py` — Track F / Session F.1: the YAML adapter
+- `test_stage10_yaml.py` — the serialization epic / Session serialization task 1: the YAML adapter
   (`YamlAdapter/`, reflection-based `harpia_yaml.h` + per-message wrappers,
   same shape as JSON/XML). protoc+g+++pkg-config-gated: every wrapper
   compiles (and a default-message `to_yaml`→`from_yaml` instantiates the
@@ -255,26 +255,26 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   key; and flat (`users`), nested-repeated (`shipment`+`parcel`) and map
   (`queen`) round-trips through `to_yaml`/`from_yaml` with
   `SerializeAsString()` equality, plus `from_yaml("not yaml at all")` →
-  `false`. F.1 is output-parity only (redaction is F.3, the unified path
-  is F.2).
-- `test_stage10_serialize.py` — Track F / Sessions F.2 **and F.3**: the
+  `false`. serialization task 1 is output-parity only (redaction is serialization task 3, the unified path
+  is serialization task 2).
+- `test_stage10_serialize.py` — the serialization epic / Sessions serialization task 2 **and serialization task 3**: the
   unified `toString` façade + `phi` redaction (`SerializeAdapter/`,
   `harpia_serialize.h` + `harpia_redaction.h` + generated
   `harpia_phi_registry.h` + per-message wrappers). protoc+g+++pkg-config-gated.
-  **F.2:** `harpia::serialize::to_string(msg, Format::{JSON,XML,YAML})` /
+  **serialization task 2:** `harpia::serialize::to_string(msg, Format::{JSON,XML,YAML})` /
   `from_string` is one dispatch point over the three unchanged engines;
   every wrapper compiles; `users` (flat) + `shipment`/`parcel`
   (nested/repeated) round-trip through all three formats with
   `SerializeAsString()` equality; the façade's JSON is byte-identical to
   `MessageToJsonString` and to `json/<name>_json.h`; odd-string inputs
-  never yield empty output. **F.3:** `lab_result` (fully-`phi`, all four
+  never yield empty output. **serialization task 3:** `lab_result` (fully-`phi`, all four
   scalar types — a fixture added to `HarpiaTest/Include/file3.harpia`)
   renders `[REDACTED]` for every `phi` field in all three formats with the
   real value (string, int, float) nowhere in the output and every key
   still present; `patient_vitals` redacts only its `phi` fields and keeps
   `device_note`; `parcel` (no `phi`) is byte-identical to the raw engines
   (`MessageToJsonString` / `to_xml` / `to_yaml`) — the acceptance gate at
-  runtime; `harpia::redaction::set_redaction_enabled(false)` (F.4's seam)
+  runtime; `harpia::redaction::set_redaction_enabled(false)` (serialization task 4's seam)
   reveals the real values and drops the placeholder, `true` restores it.
 - `test_stage11_soap.py` — SOAP-over-HTTP endpoint (credential gate).
 - `test_stage12_rest.py` — REST HTTP CRUD, credential-gated.
@@ -403,12 +403,12 @@ old `c96f8fd7…` hash.)
 Committed reference output keyed by the input hash. Files: `tokens.txt`,
 `messages.txt`; dirs: `proto/`, `json/`, `zmq/`, `grpc/`, `capability/`
 (whole-project gRPC/HTTP/ZMQ capability advertisements, S5), `xml/`,
-`yaml/` (per-message YAML adapter wrappers — Track F; the `harpia_yaml.h`
+`yaml/` (per-message YAML adapter wrappers — the serialization epic; the `harpia_yaml.h`
 runtime is not snapshotted, same convention as `harpia_xml.h`),
-`serialize/` (per-message unified-`toString` façade wrappers — Track F
-F.2; `harpia_serialize.h` runtime not snapshotted), `db/`
+`serialize/` (per-message unified-`toString` façade wrappers — the serialization epic
+serialization task 2; `harpia_serialize.h` runtime not snapshotted), `db/`
 (per-message `<name>_<hash>_crudl.h` **plus** the one project-wide
-`harpia_db_registry.h` — Track K public/private DB registry), `migrate/`,
+`harpia_db_registry.h` — the db-segregation epic public/private DB registry), `migrate/`,
 `dbio/`, `rest/`, `soap/`, `wsdl/`, `gen_tests/` (generated unit tests
 + CTest CMakeLists), `sidecars/` (per-message SQL schema + modifier/access/pswd
 flag files, subdirs `database/ modifier/ access_modifier/ database_access/`).

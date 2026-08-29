@@ -7,21 +7,20 @@ third added by the sensitive-data roadmap, not Foundation):
    `UnitTests/run_pipeline.py`); threaded into every `Stage*` constructor as an
    optional `compliance=` kwarg alongside the args each already takes
    (`messages`/`dest`/etc.). See the F1 section of
-   `Initiatives/medical_devices/epics/handoff-document.md` (the Foundation
+   `Initiatives/medical_devices/epics/foundation-handoff.md` (the Foundation
    thread itself was merged to `dev` and removed; see git history for the
    original implementation write-up) and the design-rules doc §6a.
    **Plumbing only, by design:** no stage
-   branches on these values yet (that starts in later tracks -- Track
-   A/C/O/...); every constructor just stores `self.compliance` and ignores
+   branches on these values yet (that starts in later tracks -- the epic/C/O/...); every constructor just stores `self.compliance` and ignores
    it.
 2. **F3 — `AuditSink`** (`runtime/harpia_audit_sink.h`), hand-written C++,
    copied verbatim into a *generated project*'s output (like
    `Capability/runtime/harpia_capability_dispatch.h`) -- NOT a Python
    abstraction. See the F3 section of
-   `Initiatives/medical_devices/epics/handoff-document.md` (the Foundation
+   `Initiatives/medical_devices/epics/foundation-handoff.md` (the Foundation
    thread itself was merged to `dev` and removed; see git history for the
    original implementation write-up). Interface + `NoOpAuditSink` stub only, no real (tamper-evident)
-   implementation yet -- that's Track A (DB) and Track C (transport)'s job,
+   implementation yet -- that's the db-encryption epic (DB) and the transport-authn epic (transport)'s job,
    independently, once each starts.
 3. **Phase 3a — delivery-guarantee runtime** (`runtime/harpia_delivery.h`),
    hand-written C++, transport-agnostic. The bounded rotating queue
@@ -73,7 +72,7 @@ third added by the sensitive-data roadmap, not Foundation):
   `PhiHandling`), `ComplianceContext` (plus `jurisdiction`, a plain list of
   strings, and `project`, a plain string — see below), `strictest_profile()`,
   and `load_compliance_context()`.
-  **`project` (added by Track K / K.1):** `project.harpia.yaml` → `project:`,
+  **`project` (added by the db-segregation epic):** `project.harpia.yaml` → `project:`,
   default `DEFAULT_PROJECT` (`"default"`); a present-but-empty/non-string
   value is a hard `ComplianceConfigError` (same posture as `jurisdiction`),
   an omitted key just logs and defaults. Not a hardening axis, so
@@ -83,7 +82,7 @@ third added by the sensitive-data roadmap, not Foundation):
   from a different project name.
 - `audit_common.py` — F3: `AUDIT_SINK_RUNTIME`/`AUDIT_SINK_RUNTIME_SRC`
   path constants, same shape as `Capability/capability_common.py`'s. No
-  adapter copies the runtime header yet (nothing consumes it -- Track A/C
+  adapter copies the runtime header yet (nothing consumes it -- the db-encryption epic/C
   haven't started); these constants exist so whichever one does first
   doesn't hardcode a path into a sibling module.
 - `runtime/harpia_audit_sink.h` — F3: `AuditSink` (pure virtual `record()`)
@@ -111,7 +110,7 @@ third added by the sensitive-data roadmap, not Foundation):
   deployment-exposure ladder (`standalone`/`networked`/`cloud_connected`,
   strictest=`cloud_connected`); `PhiHandling` is a project-level PHI policy
   (`none`/`opt_in`/`required`, strictest=`required`). Revisit if a later
-  track (Track A/C/O, or Track M's paperwork templates) needs a value this
+  track (the db-encryption epic/C/O, or the process-artifacts epic's paperwork templates) needs a value this
   set doesn't cover.
 - **YAML library is PyYAML, not `ruamel.yaml`** despite `requirements.txt`
   listing the latter (a stale conda-buildout artifact, not actually
@@ -122,7 +121,7 @@ third added by the sensitive-data roadmap, not Foundation):
   at import time (`main.py` -> `Compliance.context` -> `yaml`), not just a
   prototype tool.
 - `jurisdiction` is genuinely inert for codegen -- validated as a list of
-  strings and nothing more. No closed set: it feeds Track M's paperwork-
+  strings and nothing more. No closed set: it feeds the process-artifacts epic's paperwork-
   template selection only (§6/§9 of the design-rules doc).
 - Config path resolution: explicit `path=` arg, else
   `HARPIA_COMPLIANCE_CONFIG` env var, else `./project.harpia.yaml` (same
@@ -151,7 +150,7 @@ third added by the sensitive-data roadmap, not Foundation):
   `harpia_audit_sink.h` reaches generated output since Phase 3b — as a
   co-copy dependency of `harpia_delivery.h`, pulled in by `ZmqAdapter` for a
   `critical` transport message (`Compliance.delivery_common.DELIVERY_RUNTIME_DEPS`).
-  Track A/C will also copy it directly once they start. Every `Stage*`
+  the db-encryption epic/C will also copy it directly once they start. Every `Stage*`
   constructor across the repo accepts the resulting `ComplianceContext` as an
   optional `compliance=None` kwarg (LexicalAnalizer/, Message/, ProtoFile/,
   every adapter under Database/, JsonAdapter/, XmlAdapter/, ZmqAdapter/,

@@ -1,6 +1,6 @@
 # YamlAdapter — reflection-based YAML runtime + per-message wrapper headers
 
-**Pipeline role:** Stage 10 (alongside `XmlAdapter`). Ships a generic reflection-based YAML runtime and emits a thin per-message wrapper so YAML mirrors the JSON/XML adapter shape. Added by Track F / Session F.1 (`Initiatives/medical_devices/epics/thread-3-message-behavior/histories/serialization/`).
+**Pipeline role:** Stage 10 (alongside `XmlAdapter`). Ships a generic reflection-based YAML runtime and emits a thin per-message wrapper so YAML mirrors the JSON/XML adapter shape. Added by the serialization epic / Session serialization task 1 (`Initiatives/medical_devices/epics/serialization/`).
 **Entry points (from main.py):** `YamlAdapter(messages=msgFactory.messages, dest=testDestination).Process()`. Returns `None` or `Error` (non-fatal; `NOTHING_TO_REPORT` when there are no messages).
 **Inputs → Outputs:** consumes message objects (`msg.name`, `msg.md5Hash`, `msg.isEnum`). Emits `<dest>/generated/cpp/yaml/<name>_<hash>_yaml.h` (wrappers) plus a copy of the runtime `harpia_yaml.h`. Enums skipped.
 
@@ -15,8 +15,8 @@
 - **Presence rule matches `harpia_xml.h`:** a field with real presence (a singular message field — always, in proto3; or a scalar the `.harpia` schema marked `optional`) is emitted only when `HasField` is true; an ordinary proto3 scalar is always emitted with its default so the structure/keys are never missing.
 - **`from_yaml` parses exactly the subset `to_yaml` emits** — an indentation-driven recursive descent over pre-tokenized lines (blank/`---`/`...` lines dropped). It is **not** a general YAML parser (no flow style beyond `{}`/`[]`, no anchors, no multi-doc, no block scalars). It returns `false` only as a "this text matched none of the message's fields" signal (mirrors `from_xml`'s parse-fail `false`); an empty document or `{}` is a valid empty message → `true`.
 - **Maps** are handled generically as protobuf `MapEntry` repeated messages (`refl->AddMessage` on the map field to populate, `GetRepeatedMessage` to read) — same technique protobuf's own JSON/TextFormat parsers use. Emitted as a nested `key: value` mapping under the field name.
-- **F.1 scope:** output parity only. No `phi` redaction yet (F.3); JSON/XML/YAML `toString` are still three separate code paths (unified in F.2).
-- **Unified `toString` (F.2, done):** `harpia::serialize::to_string(msg, Format::YAML)` (`SerializeAdapter/`) dispatches straight to `harpia::yaml::to_yaml` here — the façade is a dispatch layer, this runtime is unchanged by it.
+- **serialization task 1 scope:** output parity only. No `phi` redaction yet (serialization task 3); JSON/XML/YAML `toString` are still three separate code paths (unified in serialization task 2).
+- **Unified `toString` (serialization task 2, done):** `harpia::serialize::to_string(msg, Format::YAML)` (`SerializeAdapter/`) dispatches straight to `harpia::yaml::to_yaml` here — the façade is a dispatch layer, this runtime is unchanged by it.
 - md5-hash-qualified filenames (`<name>_<hash>`), same scheme as ProtoFile/JsonAdapter/XmlAdapter — multi-root relevance.
 - The runtime header is **not** re-snapshotted as golden (same convention as `harpia_xml.h`): it lives here in the repo, `run_pipeline.py`'s `_collect_yaml` copies only the per-message wrappers into `UnitTests/golden/yaml/`.
 
