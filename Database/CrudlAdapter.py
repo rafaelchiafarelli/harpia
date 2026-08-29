@@ -25,6 +25,7 @@ from Util.util import loadTemplate, write_if_different, copy_if_different
 from Database.backends import get_backend
 from Database.model import (analyze, create_table_sql, type_registry,
                             map_fields, repeated_fields, RepeatedComposedField)
+from Callback.callback_common import is_event_message
 from Crypto.key_provider_common import (
     ENCRYPTED_COLUMN_RUNTIME, ENCRYPTED_COLUMN_RUNTIME_SRC,
     ENCRYPTED_COLUMN_RUNTIME_DEPS,
@@ -69,6 +70,15 @@ _CRYPTO_MEMBER = ("\n    ::harpia::crypto::KeyProvider& kp_;"
 _AUDIT_OPS = {"create": "phi_create", "read": "phi_read",
               "update": "phi_update", "remove": "phi_delete",
               "list": "phi_list"}
+
+# events-callbacks epic task 1: an `event` message's DAO fires the in-process
+# EventChannel on create/update (the OnChange points) and NEVER on
+# read/list/remove. The channel accessor lives in the sibling events/ header
+# CallbackAdapter emits. Empty strings for a non-event message, so its DAO is
+# byte-identical -- same technique as the phi audit hook above.
+_EVENT_INCLUDE = '\n#include "events/{}_{}_events.h"'
+_EVENT_PUBLISH = ("            ::harpia::events::{name}_channel()"
+                  ".publish(msg);\n")
 
 # neutral bind/read kind -> C++ local type
 _CTYPE = {"text": "std::string", "int": "int", "int64": "long long",
@@ -164,7 +174,15 @@ class CrudlAdapter:
                 o=_AUDIT_OPS[op], t=msg.tableName,
                 f=",".join(c.name for c in phi_cols)))
 
+        is_event = is_event_message(msg)
+        event_publish = (_EVENT_PUBLISH.format(name=msg.name) if is_event
+                         else "")
+
         return _CRUDL.format(
+            event_include=(_EVENT_INCLUDE.format(msg.name, msg.md5Hash)
+                           if is_event else ""),
+            event_publish_create=event_publish,
+            event_publish_update=event_publish,
             guard="HARPIA_CRUDL_{}_{}".format(msg.name.upper(), msg.md5Hash),
             pb_header="protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash),
             crypto_include=_CRYPTO_INCLUDE if has_phi else "",
