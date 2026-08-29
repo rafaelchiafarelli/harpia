@@ -1,8 +1,8 @@
-## Session D.3 — `ZmqAdapter` delivery wiring
+## `ZmqAdapter` delivery wiring
 
 Landed in `0e7e200`.
 
-- **Depends on:** D.1 (`Message.is_critical`), D.2 (the runtime).
+- **Depends on:** task 1 (`Message.is_critical`), task 2 (the runtime).
 - **Deliverable:** for a `critical` transport-bearing message, `ZmqAdapter`
   emits a sender/publisher whose `send()`/`publish()` returns
   `::std::optional<::harpia::delivery::PushOutcome>` and *enqueues* a

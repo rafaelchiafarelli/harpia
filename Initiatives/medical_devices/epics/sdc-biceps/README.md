@@ -1,57 +1,57 @@
-# Track Q — IEEE 11073 SDC/BICEPS device-interop bindings (scoping only)
+# IEEE 11073 SDC/BICEPS device-interop bindings (scoping only)
 
 **Explicitly scoped as a design/scoping deliverable this pass, not a full
-implementation** — same posture the master plan takes with Track J. IEEE
+implementation** — same posture the master plan takes with the multi-language codegen work. IEEE
 11073 SDC (ISO/IEEE 11073-10700 series: BICEPS + MDPWS) is a
-substantially larger semantic lift than Track P's transport/QoS work — it
+substantially larger semantic lift than the dds-transport epic's transport/QoS work — it
 defines a whole participant/data model (MDS → VMD → Channel →
 Metric/Alert/Context hierarchy), not just a wire protocol.
 
-**Why this leans on Track C's Stage 11 SOAP work rather than starting
+**Why this leans on the transport-authn epic's Stage 11 SOAP work rather than starting
 cold:** MDPWS (the SDC transport binding) is SOAP-over-HTTP with
 WS-Discovery for zero-config peer discovery. Harpia's generator already
 emits WSDL + SOAP endpoints (`Database/SoapAdapter.py`,
 `Database/WsdlAdapter.py`, Stage 11) gated by the same credential model
-Track C is hardening.
+the transport-authn epic is hardening.
 
-## Receives (must be done before this track starts)
+## Receives (must be done before this epic starts)
 
-- **F1, F2** from Foundation (see `../thread-5-device-interop/README.md`).
-- Nothing hard from Track P. **Flag, not a dependency:** this track's
-  design work (Q.2 below) benefits from Track P's QoS/delivery-guarantee
+- **F1, F2** from Foundation (see `../README.md`).
+- Nothing hard from the dds-transport epic. **Flag, not a dependency:** this epic's
+  design work (task 2 below) benefits from the dds-transport epic's QoS/delivery-guarantee
   mapping as a worked precedent for how a new transport ties into
   `phi`/`critical` schema-level modifiers — read
-  `track-p-dds-transport.md` first if available, but Q.1 (WS-Discovery)
+  the dds-transport epic first if available, but task 1 (WS-Discovery)
   doesn't need it at all.
 
 ## Gives (what "done" means here, consumed by whom)
 
 - A working, standalone WS-Discovery probe/resolve responder, and a
-  design doc (`Initiatives/medical_devices/epics/thread-5-device-interop/histories/sdc-biceps/sdc_biceps_design.md`) covering the
+  design doc (`../sdc-biceps/sdc_biceps_design.md`) covering the
   Metric/Alert/Context mapping question — **not** implementation of the
   mapping itself.
-- **Consumed by:** no current track — the full BICEPS state machine,
+- **Consumed by:** no current epic — the full BICEPS state machine,
   MDS/VMD/Channel implementation, and any `SdcAdapter/` codegen beyond
   the WS-Discovery responder are explicitly out of scope this pass and
-  become their own future track(s) once Q.2's open question is resolved.
-  **Flag:** the docs don't name that follow-on track yet — it doesn't
+  become their own future epic(s) once task 2's open question is resolved.
+  **Flag:** the docs don't name that follow-on epic yet — it doesn't
   exist to be a "consumer" of this one today.
 
-## Files this track touches
+## Files this epic touches
 
 - `Database/SoapAdapter.py`, `Database/WsdlAdapter.py` — read/layer onto
   the existing SOAP stack, per the master plan's framing ("leans on...
-  rather than starting cold"); the docs don't specify whether this track
+  rather than starting cold"); the docs don't specify whether this epic
   modifies these files or only reads their existing behavior as a
   precedent — **flagging that ambiguity rather than guessing which.**
 - New `SdcAdapter/` (scoping only this pass, per
-  `harpia_medical_master_plan.md` §2's track table).
+  `harpia_medical_master_plan.md` §2's epic table).
 
 ---
 
-## Session Q.1 — WS-Discovery probe/resolve responder
+## WS-Discovery probe/resolve responder
 
-- **Depends on:** F1 (Foundation). Does not need Q.2 or Track P — fully
+- **Depends on:** F1 (Foundation). Does not need task 2 or the dds-transport epic — fully
   standalone, doesn't require the Metric/Alert/Context mapping question
   settled first.
 - **Deliverable:** a working WS-Discovery probe/resolve responder (UDP
@@ -67,11 +67,11 @@ Track C is hardening.
   unaffected — WS-Discovery is additive to the existing SOAP endpoint,
   not a replacement for it.
 
-## Session Q.2 — Metric/Alert/Context mapping design doc
+## Metric/Alert/Context mapping design doc
 
-- **Depends on:** F1, F2 (Foundation). Benefits from Track P's QoS
+- **Depends on:** F1, F2 (Foundation). Benefits from the dds-transport epic's QoS
   mapping as a precedent (see Receives above) but doesn't hard-depend on
-  it, and doesn't depend on Q.1 either — the two sessions in this track
+  it, and doesn't depend on task 1 either — the two sessions in this epic
   are independent of each other.
 - **Open question this session exists to answer, not assume:** whether
   the existing access-modifier vocabulary (`stream`, `event[cached/not-
@@ -79,15 +79,15 @@ Track C is hardening.
   Metric/Alert/Context split, or whether that forces a new modifier the
   way `phi`/`critical` were added for their own concerns. A first
   hypothesis — `event` ≈ Metric, `critical event` ≈ Alert (pairs
-  naturally with Track P's QoS treatment), Context needs something not
+  naturally with the dds-transport epic's QoS treatment), Context needs something not
   yet in the grammar — is a **hypothesis to validate with a domain-
   expert/regulatory-affairs pass, not a decision this session makes
   alone.**
-- **Deliverable:** `Initiatives/medical_devices/epics/thread-5-device-interop/histories/sdc-biceps/sdc_biceps_design.md` covering
+- **Deliverable:** `../sdc-biceps/sdc_biceps_design.md` covering
   the mapping question above.
 - **Out of scope:** any grammar change implementing the hypothesis; the
   full BICEPS state machine; MDS/VMD/Channel participant model
-  implementation; any `SdcAdapter/` codegen beyond Q.1's WS-Discovery
+  implementation; any `SdcAdapter/` codegen beyond task 1's WS-Discovery
   responder.
 - **Tests:** none in the usual sense — this is a design-doc deliverable.
   Reviewed against `harpia_sensitive_data_design_rules.md` before its
@@ -96,7 +96,7 @@ Track C is hardening.
 
 ## Watch for
 
-- Q.1 and Q.2 can run in either order or in parallel — neither depends
-  on the other, unlike most tracks split so far in this restructuring.
-- Don't let Q.2 quietly turn into a grammar change or codegen work mid-
+- task 1 and task 2 can run in either order or in parallel — neither depends
+  on the other, unlike most epics split so far in this restructuring.
+- Don't let task 2 quietly turn into a grammar change or codegen work mid-
   session — its deliverable is the design doc, full stop.

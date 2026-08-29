@@ -1,8 +1,8 @@
-## Session D.2 — delivery-guarantee runtime (transport-agnostic)
+## delivery-guarantee runtime (transport-agnostic)
 
 Landed in `3581933`.
 
-- **Depends on:** D.1 (conceptually — no code dependency).
+- **Depends on:** task 1 (conceptually — no code dependency).
 - **Deliverable:** `Compliance/runtime/harpia_delivery.h` (`harpia::delivery`),
   shaped like `harpia_capability_dispatch.h`:
   - `Envelope` — origin CRC-32 (self-contained, no zlib) + monotonic seq;
@@ -16,7 +16,7 @@ Landed in `3581933`.
   - Not thread-safe (caller-synchronized). No payload parsing (Rule 2).
   - `Compliance/delivery_common.py` — path constant + `harpia_audit_sink.h`
     co-copy dependency.
-- **Out of scope:** wiring it to any transport (D.3); the `Mailbox` stays
+- **Out of scope:** wiring it to any transport (task 3); the `Mailbox` stays
   unwired for now.
 - **Tests:** `UnitTests/test_delivery_runtime.py` (g++-gated, `-Werror`,
   standalone compile).

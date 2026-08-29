@@ -1,6 +1,6 @@
-## Session K.1 — Registry + access-check implementation
+## Registry + access-check implementation
 
-- **Depends on:** F1 (Foundation), Track A (A.1–A.4) merged.
+- **Depends on:** F1 (Foundation), the db-encryption epic merged.
 - **Deliverable:** environment-level registry distinguishing public vs.
   private databases per project.
 - **Guarantees:** a private table is inaccessible cross-project; a public

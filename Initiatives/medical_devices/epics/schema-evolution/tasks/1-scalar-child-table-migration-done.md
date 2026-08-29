@@ -1,4 +1,4 @@
-## Session H.1 — Repeated-scalar child-table migration
+## Repeated-scalar child-table migration
 
 - **Depends on:** none (see Receives above).
 - **Deliverable:** wire `MigrationAdapter._render()` to also call

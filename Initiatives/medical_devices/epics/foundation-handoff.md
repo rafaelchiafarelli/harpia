@@ -32,7 +32,7 @@ just to get oriented).
   ad-hoc ones inside `UnitTests/test_compliance.py`'s `tmp_path` fixtures) --
   every default pipeline run (including the shared `HarpiaTest` build) is
   currently exercising the *missing-file/strictest* path, not a real
-  config. If your track needs to see non-default enum values flow through
+  config. If your epic needs to see non-default enum values flow through
   a real generation run, you'll need to add one (repo-root-relative,
   overridable via `HARPIA_COMPLIANCE_CONFIG` if you don't want it to affect
   every other test's default run).
@@ -50,7 +50,7 @@ just to get oriented).
   handoff's first version didn't know about): `HarpiaTest/Include/
   file3.harpia`'s `patient_vitals` message (`phi string patient_id`,
   `phi required float heart_rate`, plain `optional string device_note`) --
-  the canonical example for Track A/C/F/Q integration tests to build
+  the canonical example for the db-encryption / transport-authn / serialization / sdc-biceps epics integration tests to build
   against. Extend this message rather than adding a parallel one, to keep
   the golden-snapshot footprint from sprawling. Regenerate via
   `HARPIA_UPDATE_GOLDEN=1 .venv/bin/python -m pytest UnitTests/test_golden.py`
@@ -70,7 +70,7 @@ just to get oriented).
 - Hand-written C++, not Python -- copied verbatim into a generated project
   the same way `Capability/runtime/harpia_capability_dispatch.h` is,
   **once some adapter actually copies it** (nothing does yet -- that's your
-  job, Track A or Track C, whichever starts first).
+  job, the db-encryption or transport-authn epic, whichever starts first).
 - `harpia::compliance::AuditSink::record(operation, subject, detail="")`
   (pure virtual); `NoOpAuditSink` (only concrete impl so far);
   `default_audit_sink()` (Meyers-singleton shared instance for defaulting a
@@ -90,21 +90,21 @@ just to get oriented).
   metadata only -- no real crypto operations exist anywhere in this repo
   yet). `get_backend()` is a `_REGISTRY`-backed singleton resolver, same
   shape as `Database.backends.get_backend` -- **call this, don't
-  independently pick/link a crypto module.** Whichever of Track O/Track C
+  independently pick/link a crypto module.** Whichever of the key-management / transport-authn epics
   calls it first and second get the identical singleton object.
 - Selection order: explicit name (`HARPIA_CRYPTO_BACKEND` env var) wins
   outright; else `risk_class == CLASS_C` or `topology == CLOUD_CONNECTED`
   -> FIPS backend; else plain `"openssl"`.
 - `write_build_metadata()` persists the choice to `<dest>/build_metadata/
   crypto_backend.json` (write-if-different). Nothing reads it back yet --
-  Track M's SBOM will, once it exists.
+  the process-artifacts epic's SBOM will, once it exists.
 
 ### F4 — Regression baseline
 
 - **No lasting artifact, and that's intentional** -- a done-marker file was
   added then deliberately removed (see `2e5b967`/`4813797` in git history)
   because F4 is the standing acceptance gate, not a deliverable.
-  `UnitTests/test_golden.py` + `UnitTests/golden/` *is* F4. Diff your track's
+  `UnitTests/test_golden.py` + `UnitTests/golden/` *is* F4. Diff your epic's
   acceptance tests against this, not against an arbitrary earlier commit.
 
 ### F6 — Doxygen infrastructure
@@ -122,7 +122,7 @@ just to get oriented).
   Doxygen warnings with `WARN_IF_UNDOCUMENTED = YES`. Today it's proven
   only against a synthetic fixture (no generated template anywhere in the
   repo uses real `///`/`/** */` comments yet -- they're plain `//` prose,
-  which is Ground Rule 6's ongoing job, not F6's). **If your track's
+  which is Ground Rule 6's ongoing job, not F6's). **If your epic's
   generated templates don't carry real Doxygen-syntax doc-comments for
   whatever they emit, this test is where that gap will eventually surface
   once someone points it at a real generated tree.**
@@ -136,18 +136,17 @@ just to get oriented).
   Foundation or message-versioning. Currently red: `test_stage11_soap.py`,
   `test_stage12_rest.py`, `test_consumer_example.py`, `test_stage14.py`,
   and two Crow-server cases in `test_message_versioning_capability_http.py`
-  -- see `NEXT_SESSION.md`. If your track's tests hit this, it's not your
+  -- see `NEXT_SESSION.md`. If your epic's tests hit this, it's not your
   regression; don't spend time chasing it as one.
 - **Foundation is plumbing everywhere, functionality nowhere.** `risk_class`
   gates nothing, `phi` encrypts/redacts nothing, `AuditSink` audits nothing
   real, `CryptoBackend` links no real crypto module. You are the first
-  track to make any of these seams *do* something -- there's no prior
+  epic to make any of these seams *do* something -- there's no prior
   branch-on-these-values code to pattern-match against, only the seam
   itself.
 - **One code path, not one per jurisdiction.** `risk_class` is a single
   project-wide hardening floor (§0a of the master plan) -- never build a
   per-jurisdiction variant of anything on top of these seams.
 
-Point the six thread folders (`thread-1-data-and-keys/` through
-`thread-5-device-interop/`, plus this file's own `thread-x-gaps/`) at the
-commit that merges this branch into `dev`.
+Every epic under `epics/` builds on the seams described above; point them
+at the commit that merged Foundation into `dev`.

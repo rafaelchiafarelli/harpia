@@ -1,15 +1,15 @@
-# Track R — HL7 FHIR façade (scoping only)
+# HL7 FHIR façade (scoping only)
 
-**Found while restructuring (2026-08-23):** the master plan's §3 says
-Thread 5 is "Track P → Track Q → Track R," and Track R has a full scoped
-contract in the master plan §5 — but the original
-`session-5-device-interop.md` never actually included Track R at all
-(its own header said "Covers Track P... and Track Q..." only). This file
-closed that gap when it was first created; this revision merges in the
-full design doc (`fhir_mapping_design.md`, originally a separate file)
+**Found while restructuring (2026-08-23):** the master plan's §3 orders
+the device-interop epics dds-transport → sdc-biceps → fhir-facade, and
+fhir-facade has a full scoped contract in the master plan §5 — but the
+original device-interop scoping never actually included fhir-facade at
+all. This file closed that gap when it was first created; this revision
+merges in the full design doc (`fhir_mapping_design.md`, originally a
+separate file)
 per the 2026-08-23 decision to integrate both medical_devices design docs
 into the plan rather than leave them as separate files a reader has to
-discover — the original `Initiatives/medical_devices/epics/thread-5-device-interop/histories/fhir-facade/fhir_mapping_design.md`
+discover — the original `../fhir-facade/fhir_mapping_design.md`
 is deleted, this file is now the canonical source.
 
 **Corrected framing (2026-08-21, from the master plan):** an earlier pass
@@ -22,7 +22,7 @@ LOINC/SNOMED/UCUM rather than free-form) — nothing a schema-driven
 generator produces automatically, since `.harpia` intentionally lets the
 author define arbitrary message shapes.
 
-**What this track actually is:** a translation façade sitting beside the
+**What this epic actually is:** a translation façade sitting beside the
 existing adapters, never touching `ProtoFile/FileCreator.py`,
 `ProtoCompiler.py`, or `GrpcCompiler.py` — same relationship
 `JsonAdapter`/`SoapAdapter.py`/`RestAdapter.py` already have to the
@@ -99,12 +99,12 @@ Two different things, kept separate on purpose:
   constraints** — cardinality, datatype, and terminology-binding
   strength (`required`/`extensible`/`preferred`/`example`). "Expected to
   work as described" is a real conformance bar, not a suggestion — this
-  is why R.1's test requires validating the hand-mapped example against a
+  is why task 1's test requires validating the hand-mapped example against a
   public FHIR validator, not just "looks plausible."
 - **`critical`/`phi` don't need new FHIR-specific grammar — they map
   onto existing spec mechanisms (2026-08-21):**
   - `critical` is a delivery-guarantee/QoS concern, already fully
-    handled by Track P (DDS `RELIABLE`/`KEEP_ALL` vs.
+    handled by the dds-transport epic (DDS `RELIABLE`/`KEEP_ALL` vs.
     `BEST_EFFORT`/`KEEP_LAST(1)`). No FHIR-specific translation needed.
   - `phi` maps directly onto FHIR's native security-labeling mechanism:
     a `phi`-tagged field present in a message → the generated resource's
@@ -126,21 +126,21 @@ Two different things, kept separate on purpose:
   - **New item with no existing Harpia equivalent:** the spec's
     "break-the-glass" security label — emergency clinician override of
     normal access restriction, logged rather than blocked. Nothing in
-    `phi`/`critical`/Track C's RBAC models "allow anyway, but log
+    `phi`/`critical`/the transport-authn epic's RBAC models "allow anyway, but log
     loudly" today. Open question, not designed yet (see open question 9).
 
 ### 4. FHIR is two-way — this changes CapabilityStatement and read-gating
 
 FHIR is a full REST CRUD surface (`GET`/`POST`/`PUT`/`DELETE`/`PATCH`
 per resource type), not a one-directional publish protocol. Two concrete
-consequences for Track R:
+consequences for the fhir-facade epic:
 
 - **Harpia must generate the server's `CapabilityStatement`
   (`GET /metadata`)** listing *only* the resource types the schema
   actually maps — never implying support for the full ~150-type FHIR
   catalog. A querying client's discovery step has to reflect what was
   actually built, not the spec's theoretical maximum.
-- **Read access needs the same RBAC/audit gating Track C already puts on
+- **Read access needs the same RBAC/audit gating the transport-authn epic already puts on
   writes — not a lesser bar.** Under LGPD (§8 below), reading a
   `phi`-tagged resource is itself an act of "processing" sensitive data,
   same legal-basis question as writing it. `GET /Observation` cannot be
@@ -291,7 +291,7 @@ sign-off before commit.
     **alínea f: "tutela da saúde, exclusivamente, em procedimento
     realizado por profissionais de saúde, serviços de saúde ou
     autoridade sanitária."**
-- **Art. 11 §4 is the sharp edge for this track specifically:** sharing
+- **Art. 11 §4 is the sharp edge for this epic specifically:** sharing
   health-related sensitive data *between controllers* for economic
   advantage is explicitly forbidden, with narrow carve-outs (health
   insurance, pharmacy assistance, diagnosis/therapy support) under
@@ -312,7 +312,7 @@ sign-off before commit.
   - **`AuditEvent`** — records access events, carrying a `purposeOfUse`
     element for why a person/machine/software participated. This maps
     directly onto Harpia's existing `AuditSink` concept from the
-    compliance tracks (F3) — likely the same hook, not a second one.
+    compliance epics (F3) — likely the same hook, not a second one.
   - **Real limitation, not a design gap to solve — a spec ceiling:** all
     three of these operate at **resource level, not field level**.
     `Consent.provision`, `Provenance.target`, and `AuditEvent.entity` all
@@ -357,7 +357,7 @@ kept here, marked closed, so the reasoning isn't lost.**
    of device category (MPI/identity-matching reasoning, unaffected by
    device role). Still open: the full per-device-category
    read/write matrix hasn't been drawn up — needs one pass per device
-   class Harpia targets before Track R's implementation phase. (§6a)
+   class Harpia targets before the fhir-facade epic's implementation phase. (§6a)
 3. ~~`meta.security` vs. custom extension for `phi` metadata.~~ **Closed
    (2026-08-21): `meta.security`, confirmed against the spec.** FHIR's
    Confidentiality code system is the native, spec-intended mechanism —
@@ -395,25 +395,25 @@ kept here, marked closed, so the reasoning isn't lost.**
    FHIR's `(patient|user)/resource-type.operation` scope pattern (and
    SMART v2's finer create/read/update/delete split), which is already
    the de facto spec-adjacent standard and meaningfully finer than
-   Track C's three roles. Still open: how SMART scopes get generated
-   from `.harpia` declarations, and how they interact with Track C's
+   the transport-authn epic's three roles. Still open: how SMART scopes get generated
+   from `.harpia` declarations, and how they interact with the transport-authn epic's
    existing admin/main/guest model rather than replacing it outright.
    (§4, §6a)
 9. **"Break-the-glass" access override.** FHIR's security-label spec
    defines this natively — emergency clinician override of normal access
    restriction, logged rather than blocked. No equivalent exists anywhere
-   in Harpia today (`phi`, `critical`, Track C's RBAC). Not designed at
-   all yet — needs its own scoping pass, likely alongside Track C rather
-   than as pure Track R scope, since it's a general access-control
+   in Harpia today (`phi`, `critical`, the transport-authn epic's RBAC). Not designed at
+   all yet — needs its own scoping pass, likely alongside the transport-authn epic rather
+   than as pure the fhir-facade epic scope, since it's a general access-control
    concept FHIR just happens to name first. (§3)
 
 ---
 
-## Receives (must be done before this track starts)
+## Receives (must be done before this epic starts)
 
-- **F1, F2** from Foundation (see `../thread-5-device-interop/README.md`).
-- Nothing hard from Track P or Track Q. **Flag, not a dependency:** this
-  track benefits from Track Q's mapping-question precedent (schema field
+- **F1, F2** from Foundation (see `../README.md`).
+- Nothing hard from the dds-transport epic or the sdc-biceps epic. **Flag, not a dependency:** this
+  epic benefits from the sdc-biceps epic's mapping-question precedent (schema field
   → external standard vocabulary) but has no file dependency on it.
 
 ## Gives (what "done" means here, consumed by whom)
@@ -421,24 +421,24 @@ kept here, marked closed, so the reasoning isn't lost.**
 - This pass: a worked hand-mapped example proving the FHIR mapping is
   expressible from Harpia's data model, before any of it becomes a
   grammar feature. The design above is already done.
-- **Consumed by:** no current track. **Flag:** any generated `FhirAdapter/`
+- **Consumed by:** no current epic. **Flag:** any generated `FhirAdapter/`
   code, `Bundle`/transaction semantics, the `CapabilityStatement`
   endpoint, and the `identifier` mechanism's DSL syntax are explicitly
   out of scope this pass (§9 above) and become a follow-on implementation
-  track once the open questions above are resolved — that track doesn't
-  exist yet, same situation as Track Q's BICEPS follow-on.
+  epic once the open questions above are resolved — that epic doesn't
+  exist yet, same situation as the sdc-biceps epic's BICEPS follow-on.
 
-## Files this track touches
+## Files this epic touches
 
 - **None, this pass.** The design above is documentation, not code, and
-  the one remaining deliverable (R.1) is a hand-mapped example, not
+  the one remaining deliverable (task 1) is a hand-mapped example, not
   generated output. `Database/RestAdapter.py` is named above as something
-  this track's *eventual* façade reads from without modifying — not
+  this epic's *eventual* façade reads from without modifying — not
   touched by anything scoped in this pass.
 
 ---
 
-## Session R.1 — Worked example: `HeartRateReading` → FHIR `Observation`
+## Worked example: `HeartRateReading` → FHIR `Observation`
 
 - **Depends on:** F1, F2 (Foundation), per the stated preconditions.
 - **Deliverable:** one existing message type (the `HeartRateReading`
@@ -458,16 +458,16 @@ kept here, marked closed, so the reasoning isn't lost.**
     built.
 - **Acceptance gate:** none yet — this pass produces a worked example,
   not shipped code; the real acceptance gate belongs to the follow-on
-  implementation track.
+  implementation epic.
 
 ## Watch for
 
 - Don't let this session's worked example turn into grammar design or
   codegen — its deliverable is proof-of-mapping, full stop, same
-  discipline `track-q-sdc-biceps.md` applies to its own scoping session.
+  discipline the sdc-biceps epic applies to its own scoping session.
 - The open questions above (LGPD counsel sign-off especially) aren't
-  resolved by this session — R.1 proves feasibility, it doesn't close
+  resolved by this session — task 1 proves feasibility, it doesn't close
   the open questions list.
 - Open question 9 ("break-the-glass") is flagged as "likely alongside
-  Track C rather than pure Track R scope" — if Track C (Thread 2) picks
+  the transport-authn epic rather than pure the fhir-facade epic scope" — if the transport-authn epic (Thread 2) picks
   this up first, update this file rather than let the two drift.

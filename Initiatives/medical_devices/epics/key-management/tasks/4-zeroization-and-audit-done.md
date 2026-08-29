@@ -1,6 +1,6 @@
-## Session O.4 — Zeroization + `AuditSink` wiring
+## Zeroization + `AuditSink` wiring
 
-- **Depends on:** O.1 merged; F3's `AuditSink` stub (Foundation).
+- **Depends on:** task 1 merged; F3's `AuditSink` stub (Foundation).
 - **Deliverable:** key material cleared from memory after use, not left
   to garbage collection/deallocation timing; every key operation
   (generate, wrap, unwrap, rotate, shred) routed through `AuditSink` — key

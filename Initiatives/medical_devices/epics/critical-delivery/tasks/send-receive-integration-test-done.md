@@ -1,8 +1,8 @@
-## Session D.4 — `critical` send/receive integration test
+## `critical` send/receive integration test
 
 Landed in `287e01b`.
 
-- **Depends on:** D.3.
+- **Depends on:** task 3.
 - **Deliverable:** one of the two sensitive-data headline integration
   tests. `UnitTests/test_critical_delivery_roundtrip.py`
   (protoc+g+++pkg-config+libzmq+cppzmq-gated) drives the *generated*

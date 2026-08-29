@@ -1,4 +1,4 @@
-## Session D.1 — `critical` message-type modifier
+## `critical` message-type modifier
 
 Landed in `b433dd5`.
 
@@ -11,6 +11,6 @@ Landed in `b433dd5`.
 - **Fixture:** `critical event message alarm_event` added to
   `HarpiaTest/Include/file3.harpia` (carries a `phi` field too — Rule 0,
   the axes are independent).
-- **Out of scope:** any delivery machinery (that is D.2/D.3).
+- **Out of scope:** any delivery machinery (that is task 2/task 3).
 - **Tests:** `UnitTests/test_critical_modifier.py` (12); `run_phi_check.py`
   extended to report per-message `is_critical`.

@@ -1,6 +1,6 @@
-## Session A.2 — Decrypt-on-read
+## Decrypt-on-read
 
-- **Depends on:** A.1 merged.
+- **Depends on:** task 1 merged.
 - **Deliverable:** DAO read path decrypt-on-read via `KeyProvider`.
 - **Tests:**
   - Unit: decrypt round trip per supported type.
