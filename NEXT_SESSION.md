@@ -160,10 +160,12 @@ README's per-track `ComplianceReport/` requirement).
 ## Conventions / gotchas
 
 - **Full suite in Docker before every commit** (~9 min):
-  `docker run --rm -u "$(id -u):$(id -g)" -v "$PWD":/harpia -v
-  harpia-gradle-cache:/tmp/.gradle -w /harpia -e HOME=/tmp -e
-  GRADLE_USER_HOME=/tmp/.gradle harpia-build pytest -q -p no:cacheprovider`.
-  Do **not** use `Docker/run.sh` non-interactively. Host has `g++` but not
+  `Docker/run.sh pytest -q -p no:cacheprovider`. `run.sh` is now
+  non-TTY-safe (drops `-t` when there's no terminal) and picks a
+  per-Dockerfile image tag + a per-clone Gradle cache volume, so it is
+  safe to run from several clones at once (see `Docker/_env.sh`;
+  override `HARPIA_IMAGE` / `HARPIA_GRADLE_VOLUME` if needed). Host has
+  `g++` but not
   `protoc`/`pkg-config`/`cmake` — `test_stage9` / `test_stage14` /
   `test_message_versioning_wire` / `test_critical_delivery_roundtrip` fail
   on the host and pass in Docker; not regressions.
