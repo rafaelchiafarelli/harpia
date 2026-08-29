@@ -11,6 +11,7 @@ from ProtoFile.ProtoCompiler import ProtoCompiler
 from ProtoFile.GrpcCompiler import GrpcCompiler
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
+from DdsAdapter.DdsAdapter import DdsAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from YamlAdapter.YamlAdapter import YamlAdapter
 from SerializeAdapter.SerializeAdapter import SerializeAdapter
@@ -290,6 +291,12 @@ if __name__ == '__main__':
                                        compliance=complianceContext).Process()
     if zmqCapError is not None:
         log.print(zmqCapError.__str__())
+
+    #13 (dds). generate the DDS transport for messages carrying the `dds` modifier
+    ddsError = DdsAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    if ddsError is not None:
+        #non-fatal: NOTHING_TO_REPORT when no message declares `dds`
+        log.print(ddsError.__str__())
 
     #13 (grpc impl). wire the generated gRPC service to CRUDL (per table message)
     grpcSvcError = GrpcServiceAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()

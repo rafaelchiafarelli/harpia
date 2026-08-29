@@ -95,8 +95,11 @@ message patient_vitals{
 // (a patient-specific alarm is both high-criticality and high-confidentiality).
 // checked-in canonical fixture for the delivery-guarantee machinery (Phase 3
 // of sensitive-data-implementation-roadmap.md) to build its send/receive
-// integration test against.
-critical event message alarm_event{
+// integration test against. Also carries dds (dds-transport epic) -- a
+// patient alarm is exactly what crosses an ASTM F2761 / OpenICE bus -- so it
+// is the critical-QoS-profile fixture for the DDS adapter (RELIABLE +
+// KEEP_ALL) alongside vitals_publication for the non-critical profile.
+critical event dds message alarm_event{
     phi string patient_id;
     string alarm_type;
     int severity;
