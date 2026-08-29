@@ -334,6 +334,21 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   tests here use, so this one needs a real handshake).
 - `test_stage14.py` — every generated `*_test.cpp` compiles/runs green; CTest
   wiring; `cmake -DHARPIA_BUILD_TESTS=ON` + `ctest`.
+- `test_dds_qos_mapping.py` — the dds-transport epic / task 2b: `DdsAdapter`
+  emits a per-message DDS transport for every `dds`-tagged message and maps
+  design-rules §4 onto DDS QoS at the schema level — `critical` (`alarm_event`)
+  → RELIABLE + KEEP_ALL + RESOURCE_LIMITS, non-`critical` (`vitals_publication`)
+  → BEST_EFFORT + KEEP_LAST(1); non-`dds` messages get no header; DURABILITY is
+  left VOLATILE (no `TransientLocal`). Pure Python / structural (runs
+  `run_pipeline.py`, inspects the emitted `dds/` headers).
+- `test_dds_demo.py` — the dds-transport epic / task 2b integration: mirrors
+  `test_demo.py`'s intent for DDS. Runs the pipeline, protoc's the two demo
+  messages itself, then builds the generated `dds/` headers + a driver against
+  the image's Cyclone install and runs it: under a simulated transient
+  receiver gap (subscriber stalls, publisher keeps going) the `critical`
+  RELIABLE/KEEP_ALL path retains and delivers all 20 samples in order while
+  the non-`critical` BEST_EFFORT/KEEP_LAST(1) burst collapses to the newest.
+  cmake+g+++protoc+installed-`CycloneDDS-CXX`-gated.
 - `test_dds_vendor_spike.py` — the dds-transport epic / task 2a: the vendored
   Eclipse Cyclone DDS + `ddscxx` stack (`third_party/cyclonedds{,-cxx}/`, built
   into the Docker image by `Docker/Dockerfile`) is real and linkable. Configures
