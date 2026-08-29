@@ -25,7 +25,7 @@ Doxygen infrastructure) shipped first and was removed as its own epic —
 | [zmq-lifecycle](zmq-lifecycle/) | ZMQ CURVE security (shipped, verify only) + full `stream[#]` lifecycle | not started |
 | [transport-authn](transport-authn/) | mTLS transport (gRPC/REST/SOAP) + RBAC / AuthN / AuthZ | not started (scoping doc only) |
 | [events-callbacks](events-callbacks/) | `event[cached/not-cached]`, detached-thread callback dispatch | not started |
-| [process-artifacts](process-artifacts/) | SBOM, traceability matrix, jurisdiction-selected doc templates, `ComplianceReport/` module | in progress (task 1 `sbom-emission` done — `ComplianceReport/` module + CycloneDX SBOM; task 2 `traceability-matrix` done — `requirements.py` catalog + `traceability.{json,md}`, the 3 `*-note.md` folded in; open: `jurisdiction-template-selection`) |
+| [process-artifacts](process-artifacts/) | SBOM, traceability matrix, jurisdiction-selected doc templates, `ComplianceReport/` module | **done** (`sbom-emission` → CycloneDX SBOM; `traceability-matrix` → `requirements.py` catalog + `traceability.{json,md}`, 3 `*-note.md` folded in; `jurisdiction-template-selection` → `compliance_report[.<jur>].md` shells, same evidence) |
 | [static-fuzz-ci](static-fuzz-ci/) | static / fuzz analysis CI | not started (scoping doc only) |
 | [versioning](versioning/) | versioning / git integration — folded into `process-artifacts`' `ComplianceReport/` output | not started (scoping doc only) |
 | [dds-transport](dds-transport/) | DDS transport adapter (ASTM F2761 / OpenICE-class bedside bus) | not started (scoping doc only) |
