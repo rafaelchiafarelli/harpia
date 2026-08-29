@@ -3,12 +3,12 @@ class {name}_publisher {{
 public:
     explicit {name}_publisher(
         ::dds::domain::DomainParticipant participant,
-        const ::std::string& topic_name = "{topic}")
+        const ::std::string& topic_name = "{topic}"{audit_ctor_param})
         : participant_(participant),
           topic_(participant_, topic_name),
           publisher_(participant_),
           writer_(publisher_, topic_,
-                  {name}_writer_qos(publisher_.default_datawriter_qos())) {{}}
+                  {name}_writer_qos(publisher_.default_datawriter_qos())){audit_ctor_init} {{}}
 
     // Serialize `msg` to protobuf and publish it as a harpia_dds::Frame --
     // the same wire payload the ZMQ / gRPC transports move.
@@ -19,7 +19,7 @@ public:
         frame.message_type("{name}");
         frame.payload(::std::vector<uint8_t>(bytes.begin(), bytes.end()));
         writer_.write(frame);
-        return true;
+{audit_call}        return true;
     }}
 
     int32_t matched_subscribers() {{
@@ -31,7 +31,7 @@ private:
     ::dds::domain::DomainParticipant participant_;
     ::dds::topic::Topic<::{frame_ns}::{frame_type}> topic_;
     ::dds::pub::Publisher publisher_;
-    ::dds::pub::DataWriter<::{frame_ns}::{frame_type}> writer_;
+    ::dds::pub::DataWriter<::{frame_ns}::{frame_type}> writer_;{audit_member}
 }};
 
 class {name}_subscriber {{

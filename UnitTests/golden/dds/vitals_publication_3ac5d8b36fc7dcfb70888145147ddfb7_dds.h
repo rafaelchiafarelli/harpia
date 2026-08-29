@@ -9,6 +9,7 @@
 #include "dds/dds.hpp"
 #include "harpia_dds_frame.hpp"
 #include "protofiles/vitals_publication_3ac5d8b36fc7dcfb70888145147ddfb7.pb.h"
+#include "harpia_audit_sink.h"
 
 namespace harpia {
 namespace dds_transport {
@@ -37,12 +38,14 @@ class vitals_publication_publisher {
 public:
     explicit vitals_publication_publisher(
         ::dds::domain::DomainParticipant participant,
-        const ::std::string& topic_name = "vitals_publication")
+        const ::std::string& topic_name = "vitals_publication",
+        ::harpia::compliance::AuditSink& audit = ::harpia::compliance::default_audit_sink())
         : participant_(participant),
           topic_(participant_, topic_name),
           publisher_(participant_),
           writer_(publisher_, topic_,
-                  vitals_publication_writer_qos(publisher_.default_datawriter_qos())) {}
+                  vitals_publication_writer_qos(publisher_.default_datawriter_qos())),
+          audit_(audit) {}
 
     // Serialize `msg` to protobuf and publish it as a harpia_dds::Frame --
     // the same wire payload the ZMQ / gRPC transports move.
@@ -53,6 +56,7 @@ public:
         frame.message_type("vitals_publication");
         frame.payload(::std::vector<uint8_t>(bytes.begin(), bytes.end()));
         writer_.write(frame);
+        audit_.record("phi_publish", "vitals_publication", "patient_ref");
         return true;
     }
 
@@ -66,6 +70,7 @@ private:
     ::dds::topic::Topic<::harpia_dds::Frame> topic_;
     ::dds::pub::Publisher publisher_;
     ::dds::pub::DataWriter<::harpia_dds::Frame> writer_;
+    ::harpia::compliance::AuditSink& audit_;
 };
 
 class vitals_publication_subscriber {

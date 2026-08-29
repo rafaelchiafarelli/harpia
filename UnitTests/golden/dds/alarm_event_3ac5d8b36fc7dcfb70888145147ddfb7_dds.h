@@ -9,6 +9,7 @@
 #include "dds/dds.hpp"
 #include "harpia_dds_frame.hpp"
 #include "protofiles/alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7.pb.h"
+#include "harpia_audit_sink.h"
 
 namespace harpia {
 namespace dds_transport {
@@ -45,12 +46,14 @@ class alarm_event_publisher {
 public:
     explicit alarm_event_publisher(
         ::dds::domain::DomainParticipant participant,
-        const ::std::string& topic_name = "alarm_event")
+        const ::std::string& topic_name = "alarm_event",
+        ::harpia::compliance::AuditSink& audit = ::harpia::compliance::default_audit_sink())
         : participant_(participant),
           topic_(participant_, topic_name),
           publisher_(participant_),
           writer_(publisher_, topic_,
-                  alarm_event_writer_qos(publisher_.default_datawriter_qos())) {}
+                  alarm_event_writer_qos(publisher_.default_datawriter_qos())),
+          audit_(audit) {}
 
     // Serialize `msg` to protobuf and publish it as a harpia_dds::Frame --
     // the same wire payload the ZMQ / gRPC transports move.
@@ -61,6 +64,7 @@ public:
         frame.message_type("alarm_event");
         frame.payload(::std::vector<uint8_t>(bytes.begin(), bytes.end()));
         writer_.write(frame);
+        audit_.record("phi_publish", "alarm_event", "patient_id");
         return true;
     }
 
@@ -74,6 +78,7 @@ private:
     ::dds::topic::Topic<::harpia_dds::Frame> topic_;
     ::dds::pub::Publisher publisher_;
     ::dds::pub::DataWriter<::harpia_dds::Frame> writer_;
+    ::harpia::compliance::AuditSink& audit_;
 };
 
 class alarm_event_subscriber {
