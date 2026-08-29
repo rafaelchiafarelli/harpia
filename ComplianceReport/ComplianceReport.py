@@ -28,17 +28,20 @@ import json
 import os
 
 from Logger.logger import logger
-from Util.util import write_if_different
+from Util.util import loadTemplate, write_if_different
 
-from ComplianceReport import components
+from ComplianceReport import components, jurisdictions
 from ComplianceReport.requirements import REQUIREMENTS
 
 SBOM_DIRNAME = "ComplianceReport"
 SBOM_FILENAME = "bom.json"
 TRACEABILITY_JSON = "traceability.json"
 TRACEABILITY_MD = "traceability.md"
+REPORT_PREFIX = "compliance_report"
 SPEC_VERSION = "1.5"
 SCHEMA_URL = "http://cyclonedx.org/schema/bom-1.5.schema.json"
+
+_REPORT_TMPL = loadTemplate(__file__, "compliance_report.md.tmpl")
 
 #: bumped when this module's own output shape changes
 HARPIA_TOOL_VERSION = "0.1.0"
@@ -65,11 +68,64 @@ class ComplianceReport:
         write_if_different(os.path.join(self.outDir, TRACEABILITY_MD),
                            _traceability_md(rows))
 
+        reports = self._jurisdiction_reports(bom, rows)
+        for fname, text in reports.items():
+            write_if_different(os.path.join(self.outDir, fname), text)
+
         self.log.print(
             "emitted CycloneDX {} SBOM ({} components) + traceability matrix "
-            "({} rows) into {}".format(
-                SPEC_VERSION, len(bom["components"]), len(rows), self.outDir))
+            "({} rows) + {} compliance report(s) into {}".format(
+                SPEC_VERSION, len(bom["components"]), len(rows),
+                len(reports), self.outDir))
         return None
+
+    # -- jurisdiction-selected doc templates (task 3) -------------------
+
+    def _jurisdiction_reports(self, bom, rows):
+        """`{filename: markdown}`. Always a generic `compliance_report.md`;
+        one `compliance_report.<token>.md` per entry in
+        `compliance.jurisdiction` (same evidence, jurisdiction-specific
+        header only). An unrecognized token falls back to the generic
+        shell with a note."""
+        out = {"{}.md".format(REPORT_PREFIX):
+               self._render_report(jurisdictions.GENERIC, bom, rows)}
+
+        for token in (getattr(self.compliance, "jurisdiction", None) or []):
+            key, entry = jurisdictions.resolve(token)
+            shell = entry or jurisdictions.GENERIC
+            note = ("" if entry else
+                    "> No jurisdiction-specific template for {!r}; the generic "
+                    "baseline shell is used.".format(token))
+            out["{}.{}.md".format(REPORT_PREFIX, key.lower())] = \
+                self._render_report(shell, bom, rows, note)
+        return out
+
+    def _render_report(self, shell, bom, rows, note=""):
+        def ctx(attr):
+            v = getattr(self.compliance, attr, None)
+            return v.value if hasattr(v, "value") else ("" if v is None else str(v))
+
+        extra = "\n\n".join(p for p in (note.strip(),
+                                        shell.get("extra_note", "").strip()) if p)
+        subs = {
+            "{{project}}": getattr(self.compliance, "project", None) or "default",
+            "{{regime}}": shell["regime"],
+            "{{doc_package}}": shell["doc_package"],
+            "{{framework}}": shell["framework"],
+            "{{standards}}": shell["standards"],
+            "{{review_body}}": shell["review_body"],
+            "{{postmarket}}": shell["postmarket"],
+            "{{risk_class}}": ctx("risk_class"),
+            "{{topology}}": ctx("topology"),
+            "{{phi_handling}}": ctx("phi_handling"),
+            "{{extra_note}}": extra,
+            "{{sbom_table}}": _sbom_table(bom),
+            "{{traceability_table}}": _traceability_table(rows),
+        }
+        text = _REPORT_TMPL
+        for k, v in subs.items():
+            text = text.replace(k, v)
+        return text
 
     # -- assembly ----------------------------------------------------------
 
@@ -204,8 +260,25 @@ class ComplianceReport:
         return rows
 
 
-def _traceability_md(rows):
+def _traceability_table(rows):
+    """The matrix as a bare Markdown table (header + separator + one row per
+    entry). Shared by `traceability.md` and the jurisdiction reports."""
     lines = [
+        "| Construct | Requirement | Rule | Mechanism | Evidence |",
+        "|---|---|---|---|---|",
+    ]
+    for r in rows:
+        evidence = "<br>".join("`{}`".format(e) for e in r["evidence"])
+        req = "**{}** -- {}".format(r["requirement_id"],
+                                    r["requirement"].replace("|", "\\|"))
+        mech = r["mechanism"].replace("|", "\\|")
+        lines.append("| `{}` | {} | {} | {} | {} |".format(
+            r["construct"], req, r["rule_ref"], mech, evidence))
+    return "\n".join(lines)
+
+
+def _traceability_md(rows):
+    return "\n".join([
         "# Traceability matrix",
         "",
         "One row per (schema construct, applicable compliance requirement): the",
@@ -213,17 +286,21 @@ def _traceability_md(rows):
         "the test evidence. Generated by `ComplianceReport/` (process-artifacts",
         "epic). Source of truth is `traceability.json`.",
         "",
-        "| Construct | Requirement | Rule | Mechanism | Evidence |",
-        "|---|---|---|---|---|",
-    ]
-    for r in rows:
-        evidence = "<br>".join("`{}`".format(e) for e in r["evidence"])
-        req = "**{}** — {}".format(r["requirement_id"],
-                                   r["requirement"].replace("|", "\\|"))
-        mech = r["mechanism"].replace("|", "\\|")
-        lines.append("| `{}` | {} | {} | {} | {} |".format(
-            r["construct"], req, r["rule_ref"], mech, evidence))
-    return "\n".join(lines) + "\n"
+        _traceability_table(rows),
+    ]) + "\n"
+
+
+def _sbom_table(bom):
+    lines = ["| Component | Version | License | PURL |",
+             "|---|---|---|---|"]
+    for c in bom.get("components", []):
+        lic = ""
+        for entry in c.get("licenses", []):
+            lic = entry.get("license", {}).get("name", "") or lic
+        lines.append("| {} | {} | {} | {} |".format(
+            c.get("name", ""), c.get("version", ""), lic,
+            "`{}`".format(c["purl"]) if c.get("purl") else ""))
+    return "\n".join(lines)
 
 
 def _rfc3339_now():

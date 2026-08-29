@@ -1,11 +1,12 @@
 # ComplianceReport — per-project compliance artifacts (process-artifacts epic)
 
-**Pipeline role:** last stage (step 15, after `TestAdapter`). Created by the
-`medical_devices` **process-artifacts** epic. Emits, per generation, a
-CycloneDX 1.5 SBOM (`sbom-emission` task) and a requirement→code→evidence
-traceability matrix (`traceability-matrix` task) for the *generated project*.
-The `jurisdiction-template-selection` task and the `versioning` epic extend
-this module further.
+**Pipeline role:** last stage (step 15, after `TestAdapter`). The
+`medical_devices` **process-artifacts** epic's module (epic complete). Emits,
+per generation, for the *generated project*: a CycloneDX 1.5 SBOM
+(`sbom-emission`), a requirement→code→evidence traceability matrix
+(`traceability-matrix`), and one or more jurisdiction-selected compliance
+report shells (`jurisdiction-template-selection`). The `versioning` epic
+extends this module later with version/git lineage.
 
 **Entry point (from `main.py` / `run_pipeline.py`):**
 `ComplianceReport(messages, dest, compliance=complianceContext).Process()`.
@@ -22,9 +23,16 @@ Returns `None` (always — the artifacts are always meaningful; no
   `critical` message × applicable requirement). Unused by the SBOM.
 - `components.VENDORED` / `components.ENVIRONMENT` → the SBOM component list.
 - `requirements.REQUIREMENTS` → the traceability matrix's requirement catalog.
+- `jurisdictions.JURISDICTIONS` (FDA / EU_MDR / ANVISA) + `GENERIC` → the
+  per-jurisdiction header-block values; `templates/compliance_report.md.tmpl`
+  → the shared report layout (`{{placeholder}}` markers, filled by
+  `str.replace`).
 - Emits (all write-if-different) into `<dest>/generated/ComplianceReport/`:
   `bom.json`, `traceability.json` (source of truth), `traceability.md`
-  (rendered review table).
+  (rendered review table), `compliance_report.md` (always — generic shell),
+  and `compliance_report.<token>.md` for each entry in
+  `compliance.jurisdiction` (unknown token → generic shell + a note, never
+  an error).
 
 ## Files
 - `ComplianceReport.py` — `Process()` builds the CycloneDX dict and writes
@@ -53,8 +61,13 @@ Returns `None` (always — the artifacts are always meaningful; no
 - `ComplianceReport.py` `_traceability_rows()` — walks `self.messages`,
   cross-joins each `phi` field / `critical` message with the catalog
   entries that apply, plus the fixed `project` rows; sorted by
-  `(construct, requirement_id)`; no timestamp. `_traceability_md()` renders
-  the same rows as a Markdown table.
+  `(construct, requirement_id)`; no timestamp. `_traceability_table()` is
+  the bare Markdown table shared by `traceability.md` and the reports;
+  `_sbom_table()` renders `bom.json`'s components.
+- `ComplianceReport.py` `_jurisdiction_reports()` / `_render_report()` —
+  same evidence (`_sbom_table` + `_traceability_table`), jurisdiction-
+  specific header only. Token match is case/separator-insensitive
+  (`jurisdictions.resolve`).
 
 ## Key facts / gotchas
 - **`jurisdiction[]` is inert here** (master plan §0a). It is recorded as one
@@ -82,10 +95,12 @@ Returns `None` (always — the artifacts are always meaningful; no
   `unknown` degradation, write-if-different); `UnitTests/test_traceability.py`
   (row well-formedness, catalog-derived row count, table-less phi field gets
   redaction but no DB rows, critical-message rows, evidence spot-checks,
-  determinism, no-timestamp); `UnitTests/test_golden.py::test_compliancereport`
-  (normalized `bom.json` + `traceability.{json,md}` snapshot).
+  determinism, no-timestamp); `UnitTests/test_jurisdiction_templates.py`
+  (generic + one report per jurisdiction, identical evidence section across
+  jurisdictions, distinct header blocks, EU MDR tamper-evidence note,
+  empty/unknown-token handling, case-insensitive match, disclaimer present);
+  `UnitTests/test_golden.py::test_compliancereport` (normalized `bom.json` +
+  `traceability.{json,md}` + generic `compliance_report.md` snapshot).
   `test_compliance.py`'s `compliance_smoke.txt` check covers the pipeline
   wiring.
-- Extended later by: the process-artifacts `jurisdiction-template-selection`
-  task (renders `traceability.json` into per-jurisdiction shells) and the
-  `versioning` epic (version/git lineage fields).
+- Extended later by: the `versioning` epic (version/git lineage fields).

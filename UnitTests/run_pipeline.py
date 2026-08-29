@@ -333,12 +333,13 @@ def _collect_compliancereport(build_dir, dest):
         bom.setdefault("metadata", {})["timestamp"] = "1970-01-01T00:00:00Z"
         with open(os.path.join(dest, "bom.json"), "w") as f:
             f.write(json.dumps(bom, indent=2) + "\n")
-    # the traceability matrix (process-artifacts task 2) has no timestamp --
-    # copy it verbatim.
-    for extra in ("traceability.json", "traceability.md"):
-        p = os.path.join(src, extra)
-        if os.path.isfile(p):
-            shutil.copy2(p, os.path.join(dest, extra))
+    # the traceability matrix (task 2) + jurisdiction reports (task 3) have no
+    # timestamp -- copy them verbatim.
+    if os.path.isdir(src):
+        for name in sorted(os.listdir(src)):
+            if name in ("traceability.json", "traceability.md") \
+                    or (name.startswith("compliance_report") and name.endswith(".md")):
+                shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
 def _collect_crudl(build_dir, dest):
