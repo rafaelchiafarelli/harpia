@@ -14,6 +14,7 @@ from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from YamlAdapter.YamlAdapter import YamlAdapter
 from SerializeAdapter.SerializeAdapter import SerializeAdapter
+from ComplianceReport.ComplianceReport import ComplianceReport
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
 from Database.DbRegistryAdapter import DbRegistryAdapter
@@ -378,6 +379,11 @@ if __name__ == '__main__':
     testError = TestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if testError is not None:
         log.print(testError.__str__())
+
+    #15. compliance report -- CycloneDX SBOM for the generated project (process-artifacts epic)
+    sbomError = ComplianceReport(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    if sbomError is not None:
+        log.print(sbomError.__str__())
 
 
     
