@@ -20,8 +20,16 @@ generated serialize/harpia_phi_registry.h):
     output (the acceptance gate, checked at runtime here and in golden by
     test_golden.py),
   - a mixed message redacts only its `phi` fields,
-  - redaction_enabled(false) is the seam F.4 will drive behind
-    `--allow-phi-print` -- flipping it restores the real values.
+  - redaction_enabled(false) is the low-level seam -- flipping it
+    restores the real values.
+
+serialization task 4 half (SerializeAdapter/runtime/harpia_redaction_audit.h):
+  - the sanctioned opt-out, harpia::redaction::allow_phi_print(AuditSink&,
+    reason), reveals the real `phi` values in all three formats AND emits
+    exactly one AuditSink record (operation/subject/detail names only, never
+    the value); restore_phi_redaction(AuditSink&) puts redaction back and
+    audits that edge too. This is the one place the serialize runtime pulls
+    in Foundation F3's compliance/harpia_audit_sink.h.
 
 The JSON/XML golden-snapshot acceptance gate (14.5/14.6 unchanged) is covered
 by test_golden.py -- SerializeAdapter adds a serialize/ dir and touches none
@@ -388,4 +396,79 @@ def test_redaction_toggle_is_the_f4_seam(built):
         body=_TOGGLE,
     )
     assert run.returncode == 0, "redaction toggle failed at code {}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
+
+
+# serialization task 4 -- the audited opt-out. allow_phi_print(AuditSink&, reason)
+# reveals the real `phi` values in every format AND emits exactly one audit
+# record (operation/subject/detail, never the value); restore_phi_redaction()
+# puts redaction back and audits that too.
+_AUDITED_FLAG = r'''
+#include <string>
+#include <vector>
+#include "compliance/harpia_audit_sink.h"
+#include "serialize/harpia_redaction_audit.h"
+using harpia::serialize::Format;
+
+struct Rec { std::string op, subject, detail; };
+class RecordingSink : public harpia::compliance::AuditSink {
+public:
+    std::vector<Rec> records;
+    void record(const std::string& op, const std::string& subject,
+                const std::string& detail = "") override {
+        records.push_back({op, subject, detail});
+    }
+};
+static bool has(const std::string& h, const std::string& n) {
+    return h.find(n) != std::string::npos;
+}
+
+int main() {
+    ::lab_result m; m.set_subject_ref("MRN-42"); m.set_analyte_code("NA");
+    RecordingSink sink;
+
+    // default: redacted, real value absent, nothing audited yet
+    if (!has(harpia::serialize::to_string(m, Format::JSON), "[REDACTED]")) return 1;
+    if (has(harpia::serialize::to_string(m, Format::JSON), "MRN-42")) return 2;
+    if (!sink.records.empty()) return 3;
+
+    // opt out through the audited entry point
+    harpia::redaction::allow_phi_print(sink, "operator debugging alarm pipeline");
+
+    // real value now revealed in ALL three formats, placeholder gone
+    for (Format fmt : {Format::JSON, Format::XML, Format::YAML}) {
+        const std::string s = harpia::serialize::to_string(m, fmt);
+        if (has(s, "[REDACTED]")) return 10;
+        if (!has(s, "MRN-42")) return 11;
+    }
+
+    // exactly one record; right operation/subject/detail; NO phi value in it
+    if (sink.records.size() != 1) return 20;
+    if (sink.records[0].op != "phi_unredacted_output_enabled") return 21;
+    if (sink.records[0].subject != "serialize.redaction") return 22;
+    if (sink.records[0].detail != "operator debugging alarm pipeline") return 23;
+    if (has(sink.records[0].op + sink.records[0].subject + sink.records[0].detail,
+            "MRN-42")) return 24;
+
+    // restoring is audited too, and redaction is back on
+    harpia::redaction::restore_phi_redaction(sink);
+    if (sink.records.size() != 2) return 30;
+    if (sink.records[1].op != "phi_unredacted_output_disabled") return 31;
+    if (sink.records[1].subject != "serialize.redaction") return 32;
+    if (!has(harpia::serialize::to_string(m, Format::JSON), "[REDACTED]")) return 33;
+    if (has(harpia::serialize::to_string(m, Format::JSON), "MRN-42")) return 34;
+
+    return 0;
+}
+'''
+
+
+def test_unredacted_flag_reveals_value_and_emits_audit_record(built):
+    run = _build_run(
+        built, "audited_flag",
+        includes=["serialize/lab_result___HASH___serialize.h"],
+        pb_names=["lab_result"],
+        body=_AUDITED_FLAG,
+    )
+    assert run.returncode == 0, "audited unredacted flag failed at code {}\n{}".format(
         run.returncode, run.stdout + run.stderr)
