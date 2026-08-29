@@ -114,6 +114,16 @@ message lab_result{
     phi float reference_high;
 };
 
+// exercises the zmq-lifecycle epic stream lifecycle (setup / read / stop
+// plus the timeout watchdog). stream only, no push pull or event, so the
+// generated stream consumer class is exercised in isolation. table less on
+// purpose, plain scalar fields, to keep the golden blast radius to the zmq
+// adapter alone.
+stream message sensor_feed{
+    string sensor_id;
+    int reading;
+};
+
 // exercises Track H.1, repeated-scalar child-table schema migration.
 // add (a new child table for a new repeated field), rename (the repeated
 // field carries renamed from, so its child table is renamed rather than

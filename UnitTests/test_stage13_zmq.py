@@ -287,3 +287,101 @@ def test_zmq_manytoone_runtime_origin_id(built):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, "zmq many-to-one check failed at #{}".format(
         run.returncode)
+
+
+def test_zmq_stream_lifecycle(built):
+    """zmq-lifecycle epic task 1 -- the process.md 13.2 stream lifecycle
+    (`<name>_stream`) generated onto a `stream` message's SUB socket.
+    `sensor_feed` (HarpiaTest/Include/file3.harpia) is `stream`-only, so its
+    lifecycle surface is exercised in isolation:
+
+      - every enumerated bad config -> setup() returns INVALID, opens nothing
+      - a valid config -> OK; read() with no publisher -> TIMEOUT (bounded,
+        no block), and no message
+      - stop() -> STOPPED, is idempotent, and read() after it -> STOPPED
+      - the un-stopped-connection watchdog: once stop_deadline_ms elapses
+        with no successful read, read() -> INVALID and stays latched there
+      - a stream left un-stopped is torn down at scope exit without hanging
+        (ZMQ_LINGER=0 in the destructor)
+    """
+    adapter = "sensor_feed_{}_zmq.h".format(HASH)
+    assert os.path.exists(os.path.join(built["zmq_dir"], adapter)), \
+        "sensor_feed stream transport missing"
+
+    prog = os.path.join(built["tmp"], "zmq_stream.cc")
+    with open(prog, "w") as f:
+        f.write(
+            '#include "zmq/{adapter}"\n'
+            "#include <unistd.h>\n"
+            "namespace zt = harpia::zmq_transport;\n"
+            "using S = zt::StreamStatus;\n"
+            "static zt::StreamConfig base(const std::string& ep) {{\n"
+            "    zt::StreamConfig c; c.endpoint = ep; c.read_timeout_ms = 100;\n"
+            "    return c;\n"
+            "}}\n"
+            "int main() {{\n"
+            "    ::zmq::context_t ctx{{1}};\n"
+            "\n"
+            "    // --- invalid configs: setup() -> INVALID -----------------\n"
+            "    {{ zt::sensor_feed_stream s(ctx); zt::StreamConfig c;\n"
+            "      if (s.setup(c) != S::INVALID) return 1; }}                 // empty endpoint\n"
+            "    {{ zt::sensor_feed_stream s(ctx); auto c = base(\"127.0.0.1:1\");\n"
+            "      if (s.setup(c) != S::INVALID) return 2; }}                 // no scheme\n"
+            "    {{ zt::sensor_feed_stream s(ctx); auto c = base(\"tcp://127.0.0.1:1\");\n"
+            "      c.read_timeout_ms = 0;\n"
+            "      if (s.setup(c) != S::INVALID) return 3; }}\n"
+            "    {{ zt::sensor_feed_stream s(ctx); auto c = base(\"tcp://127.0.0.1:1\");\n"
+            "      c.stop_deadline_ms = 0;\n"
+            "      if (s.setup(c) != S::INVALID) return 4; }}\n"
+            "    {{ zt::sensor_feed_stream s(ctx); auto c = base(\"tcp://127.0.0.1:1\");\n"
+            "      c.max_records = 0;\n"
+            "      if (s.setup(c) != S::INVALID) return 5; }}\n"
+            "\n"
+            "    // a real PUB bound but silent -- the stream connects, never\n"
+            "    // receives, so read() must report TIMEOUT rather than block.\n"
+            "    zt::sensor_feed_publisher pub(ctx, \"tcp://127.0.0.1:*\");\n"
+            "    std::string ep = pub.socket().get(::zmq::sockopt::last_endpoint);\n"
+            "\n"
+            "    // --- valid config + TIMEOUT + stop() semantics -----------\n"
+            "    {{\n"
+            "        zt::sensor_feed_stream s(ctx);\n"
+            "        if (s.setup(base(ep)) != S::OK) return 6;\n"
+            "        auto r = s.read(150);\n"
+            "        if (r.status != S::TIMEOUT || r.msg.has_value()) return 7;\n"
+            "        if (s.stop() != S::STOPPED) return 8;\n"
+            "        if (s.read().status != S::STOPPED) return 9;\n"
+            "        if (s.stop() != S::STOPPED) return 10;   // idempotent\n"
+            "    }}\n"
+            "\n"
+            "    // --- watchdog: no stop() within stop_deadline_ms ---------\n"
+            "    {{\n"
+            "        zt::sensor_feed_stream s(ctx);\n"
+            "        auto c = base(ep); c.read_timeout_ms = 10; c.stop_deadline_ms = 1;\n"
+            "        if (s.setup(c) != S::OK) return 11;\n"
+            "        ::usleep(15000);                         // exceed the 1 ms deadline\n"
+            "        if (s.read(10).status != S::INVALID) return 12;\n"
+            "        if (s.read(10).status != S::INVALID) return 13;   // latched\n"
+            "    }}\n"
+            "\n"
+            "    // --- un-stopped stream: destructor must not hang ---------\n"
+            "    {{\n"
+            "        zt::sensor_feed_stream s(ctx);\n"
+            "        if (s.setup(base(ep)) != S::OK) return 14;\n"
+            "        // no stop(); ~sensor_feed_stream() sets ZMQ_LINGER=0 then closes\n"
+            "    }}\n"
+            "    return 0;\n"
+            "}}\n".format(adapter=adapter)
+        )
+
+    pb_cc = os.path.join(built["proto_dir"],
+                         "sensor_feed_{}.pb.cc".format(HASH))
+    binary = os.path.join(built["tmp"], "zmq_stream")
+    cmd = ["g++", "-std=c++17", "-I", built["cpp_root"],
+           *_pkgconfig("--cflags"), prog, pb_cc, "-o", binary,
+           *_pkgconfig("--libs")]
+    c = subprocess.run(cmd, capture_output=True, text=True)
+    assert c.returncode == 0, "zmq stream program failed to build:\n" + c.stderr
+
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "zmq stream lifecycle check failed at #{}".format(
+        run.returncode)

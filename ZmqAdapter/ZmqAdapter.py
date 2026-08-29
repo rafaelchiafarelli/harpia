@@ -49,6 +49,68 @@ _HEADER = loadTemplate(__file__, "header.h.tmpl")
 _SENDER = loadTemplate(__file__, "sender.tmpl")
 _SENDER_CRITICAL = loadTemplate(__file__, "sender_critical.tmpl")
 _RECEIVER = loadTemplate(__file__, "receiver.tmpl")
+_STREAM = loadTemplate(__file__, "stream.tmpl")
+
+# stream lifecycle (process.md 13.2, zmq-lifecycle epic task 1). Only a
+# message carrying the `stream` modifier gets the `<name>_stream` consumer
+# surface layered on its SUB socket; `event`-only and non-pub/sub messages
+# are byte-identical to before. Two injection points, both empty unless the
+# message has `stream`:
+#   _STREAM_INCLUDES -> file scope, before `namespace harpia` (the stream
+#     class needs <chrono>/<optional>, the shared config needs <cstddef>).
+#   _STREAM_SHARED   -> inside the namespace, behind its own
+#     HARPIA_ZMQ_STREAM_DEFINED guard (same single-definition pattern as the
+#     CURVE key structs) -- StreamStatus, StreamConfig, stream_config_valid().
+#     The per-message ReadResult (it carries a concrete message type) is
+#     emitted by stream.tmpl in the body instead.
+_STREAM_INCLUDES = (
+    "#include <chrono>\n"
+    "#include <cstddef>\n"
+    "#include <optional>\n"
+)
+# NOTE: this is spliced into the header AFTER _HEADER.format(), so it must be
+# final literal text -- no str.format placeholders, single braces.
+_STREAM_SHARED = (
+    "\n"
+    "// stream lifecycle shared types (process.md 13.2). Guarded separately\n"
+    "// from the per-message include guard so they stay single when several\n"
+    "// *_zmq.h headers with a stream surface land in one translation unit --\n"
+    "// same pattern as the CURVE key structs above.\n"
+    "#ifndef HARPIA_ZMQ_STREAM_DEFINED\n"
+    "#define HARPIA_ZMQ_STREAM_DEFINED\n"
+    "// setup() may return INVALID; read() reports TIMEOUT instead of\n"
+    "// blocking; stop() -> STOPPED; the un-stopped-connection watchdog\n"
+    "// -> INVALID.\n"
+    "enum class StreamStatus { OK, INVALID, TIMEOUT, STOPPED };\n"
+    "\n"
+    "// Passed to <name>_stream::setup(). Durations are milliseconds.\n"
+    "struct StreamConfig {\n"
+    "    std::string endpoint;             // tcp:// | ipc:// | inproc://\n"
+    "    std::string topic;                // SUB filter (\"\" = every message)\n"
+    "    int    read_timeout_ms  = 1000;   // default per-read timeout; read(ms) overrides\n"
+    "    int    stop_deadline_ms = 30000;  // no successful read within this of the last\n"
+    "                                      //   one -> force-kill, read() -> INVALID\n"
+    "    int    reclaim_after_ms = 60000;  // dead-connection reclamation window\n"
+    "                                      //   (enforced by this epic's task 2)\n"
+    "    std::size_t max_records = 10000;  // per-read record cap (process.md: bound the\n"
+    "                                      //   \"known maximum number of registers\")\n"
+    "};\n"
+    "\n"
+    "// Rejects the enumerated bad-config cases: no endpoint, an endpoint with\n"
+    "// no tcp:// / ipc:// / inproc:// scheme, a non-positive timeout or\n"
+    "// deadline, or a zero record cap.\n"
+    "inline bool stream_config_valid(const StreamConfig& c) {\n"
+    "    if (c.endpoint.empty()) return false;\n"
+    "    if (c.endpoint.rfind(\"tcp://\", 0) != 0 &&\n"
+    "        c.endpoint.rfind(\"ipc://\", 0) != 0 &&\n"
+    "        c.endpoint.rfind(\"inproc://\", 0) != 0) return false;\n"
+    "    if (c.read_timeout_ms <= 0) return false;\n"
+    "    if (c.stop_deadline_ms <= 0) return false;\n"
+    "    if (c.max_records == 0) return false;\n"
+    "    return true;\n"
+    "}\n"
+    "#endif  // HARPIA_ZMQ_STREAM_DEFINED\n"
+)
 
 # Injected at file scope (before `namespace harpia {`) only for a `critical`
 # message type; empty for every other message, so a non-critical transport
@@ -126,10 +188,11 @@ class ZmqAdapter:
             if not (push_pull or pub_sub):
                 continue
             is_critical = bool(getattr(msg, "is_critical", False))
+            has_stream = "STREAM" in mods
             default_id_expr = ("origin_id()" if _is_one_to_many(mods)
                                else "runtime_origin_id()")
             header = self._render(msg, push_pull, pub_sub, default_id_expr,
-                                  is_critical)
+                                  is_critical, has_stream)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, ZMQ_EXT)
             write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
@@ -161,12 +224,17 @@ class ZmqAdapter:
         return None
 
     def _render(self, msg, push_pull, pub_sub, default_id_expr,
-                is_critical=False):
+                is_critical=False, has_stream=False):
         # A `critical` message routes its send path through the Rule 4a
         # bounded rotating queue (sender_critical.tmpl); its receiving half
         # is unchanged. Non-critical messages are byte-identical to before.
         sender_tmpl = _SENDER_CRITICAL if is_critical else _SENDER
         extra_includes = _DELIVERY_INCLUDE if is_critical else ""
+        # A `stream` message additionally gets the process.md 13.2 lifecycle
+        # consumer (<name>_stream) after its SUB subscriber; `event`-only and
+        # push/pull-only messages emit neither slot and stay byte-identical.
+        stream_includes = _STREAM_INCLUDES if has_stream else ""
+        stream_shared = _STREAM_SHARED if has_stream else ""
         cls = "::{}".format(msg.name)
         guard = "HARPIA_ZMQ_{}_{}".format(msg.name.upper(), msg.md5Hash)
         pb = "protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash)
@@ -206,5 +274,15 @@ class ZmqAdapter:
                       '        socket_.set(::zmq::sockopt::subscribe, "");',
                 verb="receive", cls=cls,
                 curve_type="CurveClientKeys", curve_apply=_CURVE_CLIENT_APPLY)
+            if has_stream:
+                body += _STREAM.format(
+                    comment="// stream (process.md 13.2): {n}_stream is the "
+                            "lifecycle consumer surface\n// layered on "
+                            "{n}_subscriber's SUB socket.".format(n=msg.name),
+                    name=msg.name, cls=cls,
+                    curve_type="CurveClientKeys",
+                    curve_apply=_CURVE_CLIENT_APPLY)
         return _HEADER.format(guard=guard, pb_header=pb, body=body,
-                              extra_includes=extra_includes)
+                              extra_includes=extra_includes,
+                              stream_includes=stream_includes,
+                              stream_shared=stream_shared)
