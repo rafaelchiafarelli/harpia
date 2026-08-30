@@ -17,7 +17,11 @@
 //   streamSrc()    -> dao.list() streamed back    -> stream shipment_Message
 //                     (paginated via the request's offset/limit when limit>0)
 //   heartBeat(hb)  -> echo                         (no CRUDL, unauthenticated)
-// Construct with a soci::session the caller owns; register with a grpc::ServerBuilder.
+// Construct with a soci::session the caller owns; register with a grpc::ServerBuilder,
+// or let the generated grpc/grpc_server_bringup.h do it -- its
+// harpia::grpc_transport::GrpcServer registers every service and picks mTLS vs
+// insecure transport credentials from transport_hardening_required(compliance)
+// at generation time (transport-authn epic, task 2; harpia_grpc_mtls.h).
 //
 // The data operations enforce the generated access credential (Stage 5): the
 // call must carry x-user: shipment and x-pswd: 3ac5d8b36fc7dcfb70888145147ddfb7 metadata, or it is rejected

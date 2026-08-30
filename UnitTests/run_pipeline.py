@@ -164,7 +164,8 @@ def run(output_dir):
                      crypto_backend=crypto_backend)).Process()
 
     # 13 (grpc impl). concrete gRPC service wired to CRUDL (per table message)
-    _mark("GrpcServiceAdapter", GrpcServiceAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+    _mark("GrpcServiceAdapter", GrpcServiceAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance,
+                      crypto_backend=crypto_backend)).Process()
 
     # 13 (grpc capability handshake). advertise this project's message-type set
     _mark("GrpcCapabilityAdapter", GrpcCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
@@ -453,6 +454,9 @@ def _collect_soap(build_dir, dest):
 
 
 def _collect_grpc(build_dir, dest):
+    # per-message *_grpc.h impls, plus the project-wide server bring-up
+    # (harpia_grpc_mtls.h copied verbatim, grpc_server_bringup.h rendered,
+    # grpc_server_selection.json from the F5 seam -- transport-authn task 2).
     src = os.path.join(build_dir, "generated", "cpp", "grpc")
     if os.path.exists(dest):
         shutil.rmtree(dest)
@@ -460,7 +464,7 @@ def _collect_grpc(build_dir, dest):
     if not os.path.isdir(src):
         return
     for name in sorted(os.listdir(src)):
-        if name.endswith(".h"):
+        if name.endswith((".h", ".json")):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
