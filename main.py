@@ -372,7 +372,8 @@ if __name__ == '__main__':
         log.print(dbioError.__str__())
 
     #12. generate the REST bindings (HTTP CRUD over CRUDL + JSON)
-    restError = RestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    restError = RestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext,
+                            crypto_backend=cryptoBackend).Process()
     if restError is not None:
         log.print(restError.__str__())
 

@@ -37,6 +37,13 @@
 // (Stage 5 access rights), or it is rejected with a SOAP Fault (HTTP 401):
 //   <soap:Header><credentials><user>data</user><pswd>3ac5d8b36fc7dcfb70888145147ddfb7</pswd></credentials></soap:Header>
 // (WSDL generation is deferred.)
+//
+// The crow::SimpleApp itself is stood up by the generated
+// http/http_server_bringup.h (transport-authn epic, task 3) -- its
+// harpia::http_transport::HttpServer registers this endpoint and the matching
+// REST binding on one app and, when transport_hardening_required(compliance)
+// was true at generation time, configures it for mTLS (client cert required
+// AND verified, harpia_http_mtls.h) with plaintext refused.
 namespace harpia {
 namespace soap {
 
