@@ -155,6 +155,24 @@ def test_zmq_adapters(artifacts):
         _check(os.path.join(produced_zmq_dir, rel), os.path.join("zmq", rel))
 
 
+def test_dds_adapters(artifacts):
+    produced_dds_dir = os.path.join(artifacts, "dds")
+    produced = _relpaths(produced_dds_dir)
+
+    if UPDATE:
+        golden_dds_dir = os.path.join(GOLDEN_DIR, "dds")
+        if os.path.exists(golden_dds_dir):
+            shutil.rmtree(golden_dds_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dds_dir, rel), os.path.join("dds", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "dds"))
+    assert produced == expected, "set of generated DDS transports changed"
+    for rel in produced:
+        _check(os.path.join(produced_dds_dir, rel), os.path.join("dds", rel))
+
+
 def test_event_channel_wrappers(artifacts):
     # per-message events/<name>_<hash>_events.h wrappers (events-callbacks
     # epic); the harpia_event_cache.h runtime is not snapshotted, same

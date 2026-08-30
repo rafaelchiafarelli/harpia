@@ -55,6 +55,7 @@ public:
         "trace_row",
         "users",
         "vip_users",
+        "vitals_publication",
         "waypoint"
         };
         for (const auto& t : kTypes) response->add_message_types(t);

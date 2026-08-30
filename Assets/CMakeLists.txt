@@ -129,6 +129,48 @@ inline constexpr char kHarpiaZmqCurveClientSecret[] = \"${HARPIA_ZMQ_CURVE_CLIEN
     message(STATUS "USE_ZMQ_CURVE: generated ephemeral CURVE keypairs for the ZMQ demo (${HARPIA_ZMQ_CURVE_KEYS_HEADER})")
 endif()
 
+# OMG DDS-Security for the generated DDS transport (dds-transport epic, task
+# 3). Off by default so the plain build is unchanged. No CLI PKI tool is
+# assumed, so cmake/dds_security_provision.sh is run here at configure time
+# (execute_process) -- the DDS-Security analogue of curve_keygen_probe.cpp --
+# minting a THROWAWAY CA + identity and S/MIME-signing the emitted
+# governance/permissions, then writing the six file paths into a generated
+# harpia_dds_security_files.h (same "generated header, not compile-defs"
+# shape as USE_ZMQ_CURVE). A real deployment provisions its own PKI and does
+# not set this.
+option(USE_DDS_SECURITY "Provision a throwaway DDS-Security PKI for the generated DDS transport demo" OFF)
+if(USE_DDS_SECURITY)
+    set(HARPIA_DDS_SEC_SRC "${CMAKE_SOURCE_DIR}/generated/cpp/dds/security")
+    if(NOT EXISTS "${HARPIA_DDS_SEC_SRC}/governance.xml")
+        message(FATAL_ERROR "USE_DDS_SECURITY: ${HARPIA_DDS_SEC_SRC}/governance.xml not found -- the schema has no `dds` message, so there is no DDS-Security scaffolding to provision.")
+    endif()
+    set(HARPIA_DDS_SEC_OUT "${CMAKE_BINARY_DIR}/dds_security")
+    execute_process(
+        COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/cmake/dds_security_provision.sh"
+                "${HARPIA_DDS_SEC_OUT}"
+                "${HARPIA_DDS_SEC_SRC}/governance.xml"
+                "${HARPIA_DDS_SEC_SRC}/permissions.xml"
+        RESULT_VARIABLE HARPIA_DDS_SEC_RC
+        OUTPUT_VARIABLE HARPIA_DDS_SEC_LOG
+        ERROR_VARIABLE HARPIA_DDS_SEC_LOG)
+    if(NOT HARPIA_DDS_SEC_RC EQUAL 0)
+        message(FATAL_ERROR "USE_DDS_SECURITY: provisioning failed (is openssl installed?):\n${HARPIA_DDS_SEC_LOG}")
+    endif()
+    set(HARPIA_DDS_SECURITY_FILES_HEADER "${CMAKE_BINARY_DIR}/harpia_dds_security_files.h")
+    file(WRITE "${HARPIA_DDS_SECURITY_FILES_HEADER}" "\
+#pragma once
+// Generated at configure time by USE_DDS_SECURITY -- THROWAWAY, not for reuse.
+// Feed these into harpia::dds_security::SecurityFiles / secured_participant().
+inline constexpr char kHarpiaDdsIdentityCA[]          = \"${HARPIA_DDS_SEC_OUT}/identity_ca.pem\";
+inline constexpr char kHarpiaDdsIdentityCertificate[] = \"${HARPIA_DDS_SEC_OUT}/identity_certificate.pem\";
+inline constexpr char kHarpiaDdsPrivateKey[]          = \"${HARPIA_DDS_SEC_OUT}/private_key.pem\";
+inline constexpr char kHarpiaDdsPermissionsCA[]       = \"${HARPIA_DDS_SEC_OUT}/permissions_ca.pem\";
+inline constexpr char kHarpiaDdsGovernance[]          = \"${HARPIA_DDS_SEC_OUT}/governance.p7s\";
+inline constexpr char kHarpiaDdsPermissions[]         = \"${HARPIA_DDS_SEC_OUT}/permissions.p7s\";
+")
+    message(STATUS "USE_DDS_SECURITY: provisioned throwaway DDS-Security PKI (${HARPIA_DDS_SECURITY_FILES_HEADER})")
+endif()
+
 add_subdirectory(client)
 add_subdirectory(server)
 add_subdirectory(proto)

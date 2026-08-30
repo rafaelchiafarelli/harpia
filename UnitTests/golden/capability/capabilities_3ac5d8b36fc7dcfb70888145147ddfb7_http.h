@@ -73,6 +73,7 @@ inline void register_capabilities(crow::SimpleApp& app, const std::string& base)
             "trace_row",
             "users",
             "vip_users",
+            "vitals_publication",
             "waypoint"
             };
             ::frameworkProtos::capabilities_Response response;

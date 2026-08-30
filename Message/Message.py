@@ -23,6 +23,15 @@ class Message():
     # `is_phi`. Flag only for now -- later stages read this instead of
     # re-scanning access_modifiers, same rationale as variable.is_phi.
     is_critical = False
+    # dds-transport epic, task 1: True when the message type carries the `dds`
+    # transport-selection modifier (ASTM F2761 / OpenICE-class bedside bus).
+    # Message-type-level, independent of `is_critical` and of any field's
+    # `is_phi`; composes with the other transport kinds (a `dds` message can
+    # also be reachable over ZMQ/gRPC). Flag only for now -- the DdsAdapter,
+    # QoS mapping and DDS-Security wiring that read this are tasks 2a/2b/3;
+    # dedicated bool so they read it instead of re-scanning access_modifiers,
+    # same rationale as is_critical / variable.is_phi.
+    is_dds = False
     # events-callbacks epic, task 1: cache mode of the `event` message-type
     # modifier. None ⇔ no `event` modifier; "cached" for bare `event` or
     # `event[cached]` (cached is the standard when unspecified); "not-cached"
@@ -39,6 +48,7 @@ class Message():
         self.variables = []
         self.access_modifiers = []
         self.is_critical = False
+        self.is_dds = False
         self.event_cache_mode = None
         self.log = logger(outFile=None, moduleName="Message")
         self.tableName = ""
@@ -84,6 +94,17 @@ class Message():
                     for access in self.access_modifiers:
                         if access[0] == 'CRITICAL':
                             self.is_critical = True
+                            break
+                    ##transport-selection axis (dds-transport epic, task 1):
+                    ##`dds` marks the message for a DDS bus. Independent of the
+                    ##one-to-many transport kinds and of `critical`, so its own
+                    ##scan -- `dds` can appear with or without any of them, in
+                    ##any order. Flag only: it never sets isOneToMany, so a
+                    ##`dds` message emits byte-identical .proto/DB output to the
+                    ##same message without it (same guarantee phi/critical hold).
+                    for access in self.access_modifiers:
+                        if access[0] == 'DDS':
+                            self.is_dds = True
                             break
                     ##events-callbacks epic task 1: cache mode rides in the
                     ##EVENT token lexeme (`event `, `event[cached] `,

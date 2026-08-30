@@ -1,0 +1,19 @@
+// Shared DDS topic type for every harpia-generated DDS transport
+// (dds-transport epic, task 2b). Copied verbatim into
+// generated/cpp/dds/ by DdsAdapter, then turned into C++ by Cyclone's
+// idlc + the idlcxx plugin at the consuming project's CMake time
+// (see generated/cpp/dds/CMakeLists.txt).
+//
+// harpia moves a message as a serialized-protobuf frame -- the same wire
+// payload the ZMQ and gRPC transports use -- so the DDS topic is opaque:
+// a keyed `message_type` string (one logical topic per harpia message
+// name) plus the protobuf bytes. Typed per-message DDS topics are a
+// future concern; this keeps the payload identical across all three
+// transports.
+module harpia_dds {
+  @appendable
+  struct Frame {
+    @key string message_type;
+    sequence<octet> payload;
+  };
+};

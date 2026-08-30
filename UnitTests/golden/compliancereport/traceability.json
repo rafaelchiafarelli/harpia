@@ -211,6 +211,18 @@
       "evidence": [
         "test_stage8_db.py::test_a3_"
       ]
+    },
+    {
+      "construct": "vitals_publication.patient_ref",
+      "requirement_id": "R1-RED",
+      "rule_ref": "design-rules Rule 1",
+      "requirement": "A phi field renders as the fixed placeholder \"[REDACTED]\" by default in every toString format (JSON / XML / YAML); the field/key is never omitted and the real value never appears.",
+      "mechanism": "harpia_serialize.h redacted reflection walk, gated by harpia::redaction::redaction_enabled() (default true) and the generated serialize/harpia_phi_registry.h (from variable.is_phi). The three per-format engines are untouched.",
+      "evidence": [
+        "test_stage10_serialize.py::test_phi_fields_redacted_in_all_three_formats",
+        "test_stage10_serialize.py::test_mixed_message_redacts_only_phi_fields",
+        "test_stage10_serialize.py::test_phi_message_round_trips_redacted_through_all_three_formats"
+      ]
     }
   ]
 }
