@@ -15,7 +15,7 @@ import pytest
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
 WE = os.path.join(REPO_ROOT, "Initiatives", "medical_devices", "epics",
-                  "fhir-facade", "worked-example")
+                  "fhir-facade-done", "worked-example")
 SCHEMA_PATH = os.path.join(WE, "fhir.schema.json")
 EXAMPLE_PATH = os.path.join(WE, "heartrate_observation.example.json")
 
