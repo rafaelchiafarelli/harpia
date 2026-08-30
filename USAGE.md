@@ -457,8 +457,9 @@ command-line layer, e.g. Make's `#`-starts-a-comment / `$`-is-a-variable
 handling, will silently corrupt). See `Assets/CLAUDE.md` for the mechanism.
 
 On Windows, vcpkg's `zeromq` port needs the `curve`+`sodium` features (see
-`Assets/vcpkg.json`) — not yet build-verified on Windows (see
-[§12](#12-building-on-windows)'s known-gaps note).
+`Assets/vcpkg.json`); `-DUSE_ZMQ_CURVE=ON` is build- and run-verified there
+(MSVC 2022 + vcpkg, real `tcp://` CURVE client/server exchange — see
+[§12](#12-building-on-windows)).
 
 ---
 
@@ -607,10 +608,15 @@ comment at its site explaining why:
 ### Known gaps on Windows
 
 - `-DUSE_ZMQ_CURVE=ON` ([§10](#10-enabling-curve-encryption-on-zmq)):
-  `Assets/vcpkg.json`'s `zeromq` dependency requests the `curve`+`sodium`
-  features so the port itself builds with CURVE support, but the keygen
-  probe / demo build with CURVE on has not been build-verified on Windows
-  yet (only on Linux/Docker) — flag this if you hit issues.
+  **verified on Windows** (MSVC 2022 + vcpkg `zeromq[curve,sodium]`,
+  configure → build → a real `tcp://` CURVE client/server message
+  exchange). Getting there fixed two Windows-only bugs in the root
+  `CMakeLists.txt`'s CURVE branch (see `Assets/CLAUDE.md`): the keygen
+  probe's `try_run` was handed the bare `libzmq` *target name* (unusable
+  in `try_run`'s isolated sub-project → `LNK1104`), and the probe's
+  `\r\n` stdout on Windows leaked a trailing `\r` into the parsed Z85
+  secret keys (41-byte "key" → libzmq rejects it → cppzmq throws → the
+  demo dies at startup with `0xC0000409`).
 - **Antivirus false positives**: freshly-built, unsigned, network-listening
   executables (`server.exe` especially) can get locked or silently removed
   by a real-time antivirus's behavioral heuristics (observed with Avast).

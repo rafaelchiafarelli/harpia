@@ -1,0 +1,1 @@
+-- bed_state: no table declared

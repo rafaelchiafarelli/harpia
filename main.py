@@ -12,6 +12,7 @@ from ProtoFile.GrpcCompiler import GrpcCompiler
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from DdsAdapter.DdsAdapter import DdsAdapter
+from Callback.CallbackAdapter import CallbackAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from YamlAdapter.YamlAdapter import YamlAdapter
 from SerializeAdapter.SerializeAdapter import SerializeAdapter
@@ -283,6 +284,16 @@ if __name__ == '__main__':
     zmqError = ZmqAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if zmqError is not None:
         log.print(zmqError.__str__())
+
+    #13 (events). in-process event/callback channels for `event[cached/not-cached]`
+    # messages (events-callbacks epic). One EventChannel<T> accessor per event
+    # message + the hand-written runtime; the CRUDL DAO fires publish() on
+    # create/update for the table-bearing ones.
+    callbackError = CallbackAdapter(messages=msgFactory.messages,
+                                    dest=testDestination,
+                                    compliance=complianceContext).Process()
+    if callbackError is not None:
+        log.print(callbackError.__str__())
 
     #13 (zmq capability handshake). advertise this project's message-type set
     zmqCapError = ZmqCapabilityAdapter(messages=msgFactory.messages,

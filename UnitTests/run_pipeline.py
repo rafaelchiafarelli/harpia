@@ -36,6 +36,7 @@ from ProtoFile.FileCreator import FileCreator
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
 from DdsAdapter.DdsAdapter import DdsAdapter
+from Callback.CallbackAdapter import CallbackAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from YamlAdapter.YamlAdapter import YamlAdapter
 from SerializeAdapter.SerializeAdapter import SerializeAdapter
@@ -151,6 +152,9 @@ def run(output_dir):
     # 13 (zmq). ZMQ/socket transport for push/pull + event/stream messages
     _mark("ZmqAdapter", ZmqAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
+    # 13 (events). in-process event/callback channels (events-callbacks epic)
+    _mark("CallbackAdapter", CallbackAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+
     # 13 (zmq capability handshake). advertise this project's message-type set
     _mark("ZmqCapabilityAdapter", ZmqCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
                          rootHash=root_file.getHash(), compliance=compliance)).Process()
@@ -206,6 +210,7 @@ def run(output_dir):
     _collect_json(build_dir, os.path.join(output_dir, "json"))
     _collect_zmq(build_dir, os.path.join(output_dir, "zmq"))
     _collect_dds(build_dir, os.path.join(output_dir, "dds"))
+    _collect_events(build_dir, os.path.join(output_dir, "events"))
     _collect_grpc(build_dir, os.path.join(output_dir, "grpc"))
     _collect_capability(build_dir, os.path.join(output_dir, "capability"))
     _collect_xml(build_dir, os.path.join(output_dir, "xml"))
@@ -296,6 +301,23 @@ def _collect_dds(build_dir, dest):
             os.makedirs(out_sub, exist_ok=True)
             shutil.copy2(os.path.join(dirpath, name),
                          os.path.join(out_sub, name))
+
+
+def _collect_events(build_dir, dest):
+    # per-message event-channel wrappers only; harpia_event_cache.h and its
+    # harpia_audit_sink.h dependency are static runtime copies (live in the
+    # repo under Callback/runtime and Compliance/runtime) -- same convention
+    # as _collect_xml / _collect_capability
+    static = {"harpia_event_cache.h", "harpia_audit_sink.h"}
+    src = os.path.join(build_dir, "generated", "cpp", "events")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith(".h") and name not in static:
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
 def _collect_xml(build_dir, dest):

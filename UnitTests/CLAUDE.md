@@ -18,8 +18,8 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 
 ## Harnesses (standalone, driven in a fresh subprocess)
 - `run_pipeline.py` — mirrors `main.py`'s full orchestration, then dumps the
-  intermediate artifacts (tokens, messages, proto/, json/, zmq/, grpc/,
-  capability/, xml/, db/, migrate/, dbio/, rest/, soap/, wsdl/, gen_tests/,
+  intermediate artifacts (tokens, messages, proto/, json/, zmq/, events/,
+  grpc/, capability/, xml/, db/, migrate/, dbio/, rest/, soap/, wsdl/, gen_tests/,
   sidecars/) into an output
   dir for snapshotting. `python3 UnitTests/run_pipeline.py <output_dir>`. **rmtrees
   `<output_dir>/build` on every run.** Also loads a `ComplianceContext` (via
@@ -133,6 +133,34 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   returns the same shared instance every call, and a dummy generated-shaped
   class can take `AuditSink&` (defaulted or explicit) in its constructor
   and call `record()` without the sensitive value ever reaching it. (g++)
+- `test_events_callbacks.py` — the events-callbacks epic, tasks 1/2/3.
+  **Structural** (pure Python, via `run_pipeline.py`):
+  `Message.event_cache_mode` on the model (`pump_tick` not-cached,
+  `bed_state` / bare-`event` `alarm_event` cached, non-event `beacon_log`
+  none); flag-only in the `.proto`; `events/<name>_<hash>_events.h` names
+  the right `CacheMode` and — task 3 — bakes the phi subject/fields into
+  the channel ctor (`alarm_event` → `"alarm_event_table","patient_id"`;
+  non-phi event types → `"",""`); `harpia_event_cache.h` +
+  `harpia_audit_sink.h` copied but not snapshotted; `alarm_event`'s DAO
+  `#include`s its events header, calls `alarm_event_channel().publish(` in
+  `create`/`update` only, and (event+phi) records `phi_event_onchange`
+  right after; `data` (event, no phi) publishes with no audit; `beacon_log`
+  (non-event) untouched; `CallbackAdapter` makes no `events/` dir for a
+  lone non-event message. **Runtime** (g++, `-Werror`, `-pthread`,
+  standalone against `Callback/runtime/harpia_event_cache.h` — harness
+  shape of `test_audit_sink.py`; delivery is async since task 2 so tests
+  poll a bounded `wait_for`): cached vs not-cached replay [t1]; detached
+  dispatch (publish returns before a slow callback), subscription order
+  within one publish, `unsubscribe` stops delivery, a throwing callback is
+  isolated (no propagate, no crash, siblings run), concurrency churn is
+  TSan-clean [t2]; a phi channel records exactly one `phi_event_dispatch`
+  per publish (non-phi records none), a swallowed exception records one
+  `event_callback_exception`, `set_audit_sink()` retargets [t3].
+  **Integration** (protoc + g++ + pkg-config gated, `test_stage8_db.py`
+  harness): subscribe → `alarm_event_dao.create(msg)` → the callback fires
+  with the right payload and the counting sink saw `phi_create` +
+  `phi_event_onchange` (DAO) + `phi_event_dispatch` (channel); phi
+  round-trips through `read`.
 - `test_crypto_backend.py` — Foundation F5's `Crypto/backend.py`
   `CryptoBackend` selection point: explicit name / alias resolution /
   unknown-name hard error (same shape as `Database.backends.get_backend`);
@@ -468,7 +496,10 @@ old `c96f8fd7…` hash.)
 
 ## Golden snapshots (UnitTests/golden/)
 Committed reference output keyed by the input hash. Files: `tokens.txt`,
-`messages.txt`; dirs: `proto/`, `json/`, `zmq/`, `grpc/`, `capability/`
+`messages.txt`; dirs: `proto/`, `json/`, `zmq/`, `events/` (per-message
+`<name>_<hash>_events.h` event-channel wrappers — the events-callbacks epic;
+the `harpia_event_cache.h` + `harpia_audit_sink.h` runtimes are not
+snapshotted, same convention as `harpia_xml.h`), `grpc/`, `capability/`
 (whole-project gRPC/HTTP/ZMQ capability advertisements, S5), `xml/`,
 `yaml/` (per-message YAML adapter wrappers — the serialization epic; the `harpia_yaml.h`
 runtime is not snapshotted, same convention as `harpia_xml.h`),
