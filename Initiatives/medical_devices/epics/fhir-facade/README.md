@@ -445,7 +445,7 @@ Branch chain for this clone: `… → epics → fhir-facade → tasks → <task>
 
 | Task file | Type | Depends on | Status |
 |---|---|---|---|
-| [`tasks/heartrate-observation-worked-example.md`](tasks/heartrate-observation-worked-example.md) | worked example, no code | F1, F2 | in progress |
+| [`tasks/heartrate-observation-worked-example-done.md`](tasks/heartrate-observation-worked-example-done.md) | worked example, no code | F1, F2 | **done** — `worked-example/heartrate_observation.example.json` (LOINC 8867-4 + UCUM `/min`, `phi` → `meta.security` R, `device_id` → Reference-by-identifier) + `mapping-notes.md` (field→element table, known-gaps list) + `UnitTests/test_fhir_observation_example.py` (13 tests, stdlib-only). Validated against the full R4 `Observation` schema. Docker: 442 passed, 4 skipped. |
 
 **Planning decisions (see the task file for full rationale):**
 - FHIR version pinned to **R4 (4.0.1)** — the design doc did not pin one.
@@ -467,7 +467,7 @@ Branch chain for this clone: `… → epics → fhir-facade → tasks → <task>
   expressible before generalizing it into a grammar feature. This is the
   one deliverable the design above flags as "not yet done — next
   concrete step." **Full contract:
-  [`tasks/heartrate-observation-worked-example.md`](tasks/heartrate-observation-worked-example.md).**
+  [`tasks/heartrate-observation-worked-example-done.md`](tasks/heartrate-observation-worked-example-done.md).**
 - **Out of scope:** any generated `FhirAdapter/` code, grammar changes,
   `Bundle`/transaction semantics, the `CapabilityStatement` endpoint —
   all follow-on work once the open questions above are resolved.
