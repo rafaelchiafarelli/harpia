@@ -293,7 +293,8 @@ if __name__ == '__main__':
         log.print(zmqCapError.__str__())
 
     #13 (dds). generate the DDS transport for messages carrying the `dds` modifier
-    ddsError = DdsAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    ddsError = DdsAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext,
+                          crypto_backend=cryptoBackend).Process()
     if ddsError is not None:
         #non-fatal: NOTHING_TO_REPORT when no message declares `dds`
         log.print(ddsError.__str__())
