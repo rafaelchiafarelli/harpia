@@ -25,6 +25,7 @@ from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
 from Database.WsdlAdapter import WsdlAdapter
+from SdcAdapter.SdcAdapter import SdcAdapter
 from Database.GrpcServiceAdapter import GrpcServiceAdapter
 from GrpcCapabilityAdapter.GrpcCapabilityAdapter import GrpcCapabilityAdapter
 from HttpCapabilityAdapter.HttpCapabilityAdapter import HttpCapabilityAdapter
@@ -384,6 +385,11 @@ if __name__ == '__main__':
     wsdlError = WsdlAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if wsdlError is not None:
         log.print(wsdlError.__str__())
+
+    #11 (SDC). generate the WS-Discovery responder that advertises the SOAP endpoint
+    sdcError = SdcAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    if sdcError is not None:
+        log.print(sdcError.__str__())
 
     #11/12 (http capability handshake). shared by REST and SOAP -- both
     # register routes on the same crow::SimpleApp in a real deployment.
