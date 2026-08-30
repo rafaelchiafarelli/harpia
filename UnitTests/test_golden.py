@@ -9,6 +9,7 @@ committed snapshots in UnitTests/golden/:
   - proto/*.proto    every emitted proto (message + service)
   - json/*.h         every emitted JSON adapter (Stage 9)
   - zmq/*.h          every emitted ZMQ transport (Stage 13 zmq)
+  - events/*.h       every emitted event-channel wrapper (events-callbacks epic)
   - xml/*.h          every emitted XML adapter wrapper (Stage 10)
   - yaml/*.h         every emitted YAML adapter wrapper (Stage 10)
   - serialize/*.h    every emitted unified-serialization wrapper (Stage 10)
@@ -170,6 +171,27 @@ def test_dds_adapters(artifacts):
     assert produced == expected, "set of generated DDS transports changed"
     for rel in produced:
         _check(os.path.join(produced_dds_dir, rel), os.path.join("dds", rel))
+
+
+def test_event_channel_wrappers(artifacts):
+    # per-message events/<name>_<hash>_events.h wrappers (events-callbacks
+    # epic); the harpia_event_cache.h runtime is not snapshotted, same
+    # convention as the zmq / capability runtimes.
+    produced_dir = os.path.join(artifacts, "events")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "events")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel), os.path.join("events", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "events"))
+    assert produced == expected, "set of generated event channel wrappers changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("events", rel))
 
 
 def test_xml_adapters(artifacts):

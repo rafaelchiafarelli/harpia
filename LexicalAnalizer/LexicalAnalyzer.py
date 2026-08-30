@@ -29,7 +29,14 @@ class LexicalAnalyzer:
             ('STREAM',r'stream '),
             ('PULL',r'pull '),
             ('PUSH',r'push '),
-            ('EVENT',r'event '),
+            # `event` optionally carries a cache-mode bracket
+            # (`event[cached]` / `event[not-cached]`), same single-token
+            # shape as RENAMED_FROM below -- the bracket text stays in the
+            # lexeme and Message.py reads it into `event_cache_mode`
+            # (bare `event ` == cached, the standard). One EVENT token for
+            # all three forms, so ZmqAdapter/JavaZmqAdapter/Util one-to-many
+            # detection (which keys off the token type) is untouched.
+            ('EVENT',r'event(\[\s*(cached|not-cached)\s*\])? '),
             ('PUSHPULL',r'pushpull '),
             # DDS transport-selection modifier (dds-transport epic, task 1 --
             # ASTM F2761 / OpenICE-class bedside bus). Sits in the same slot as

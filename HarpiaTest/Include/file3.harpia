@@ -117,6 +117,16 @@ message lab_result{
     phi float reference_high;
 };
 
+// exercises the zmq-lifecycle epic stream lifecycle (setup / read / stop
+// plus the timeout watchdog). stream only, no push pull or event, so the
+// generated stream consumer class is exercised in isolation. table less on
+// purpose, plain scalar fields, to keep the golden blast radius to the zmq
+// adapter alone.
+stream message sensor_feed{
+    string sensor_id;
+    int reading;
+};
+
 // exercises Track H.1, repeated-scalar child-table schema migration.
 // add (a new child table for a new repeated field), rename (the repeated
 // field carries renamed from, so its child table is renamed rather than
@@ -155,4 +165,23 @@ dds message vitals_publication{
     phi string patient_ref;
     float spo2;
     int pulse_rate;
+};
+
+// exercises the explicit event[cached] cache mode form (events-callbacks
+// epic task 1). bare event also means cached, the standard when the
+// bracket is omitted. table less on purpose so the golden blast radius is
+// the proto, zmq and events adapters only, no table or DAO. appended at
+// end of file so no existing message shifts line numbers.
+event[cached] message bed_state{
+    int bed_id;
+    int occupied;
+};
+
+// exercises the event[not-cached] cache mode (events-callbacks epic task
+// 1). a not-cached channel retains nothing, so a subscriber that joins
+// after a publish gets nothing until the next one. table less, same
+// blast-radius reasoning as bed_state above.
+event[not-cached] message pump_tick{
+    int sequence;
+    int rate_mhz;
 };
