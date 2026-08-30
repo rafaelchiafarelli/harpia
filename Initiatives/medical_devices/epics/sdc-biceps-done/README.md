@@ -1,5 +1,18 @@
 # IEEE 11073 SDC/BICEPS device-interop bindings (scoping only)
 
+> **Epic complete (2026-08-30) — 3/3 tasks done.** Task 1
+> `UnitTests/wsdiscovery_harness.py` (stdlib WS-DD 2009 probe/resolve
+> client). Task 2 new `SdcAdapter/` module + `SdcAdapter/runtime/
+> harpia_wsdiscovery.h` responder, per-message `<name>_sdc.h` +
+> `<name>.wsdd.xml`, fixed generic `dpws:Device` type + per-project scope
+> URI, `XAddrs` → the existing Stage 11 SOAP endpoint (`SoapAdapter.py` /
+> `WsdlAdapter.py` untouched). Task 3 `sdc_biceps_design.md`
+> (Metric/Alert/Context mapping analysis, hypothesis only — no grammar
+> change). Docker: 429 passed, 4 skipped. The full BICEPS state machine /
+> MDS·VMD·Channel participant model / any `SdcAdapter/` codegen past the
+> WS-Discovery responder remain a follow-on epic, gated on
+> `sdc_biceps_design.md`'s open questions (V1–V7).
+
 **Explicitly scoped as a design/scoping deliverable this pass, not a full
 implementation** — same posture the master plan takes with the multi-language codegen work. IEEE
 11073 SDC (ISO/IEEE 11073-10700 series: BICEPS + MDPWS) is a
@@ -27,7 +40,7 @@ the transport-authn epic is hardening.
 ## Gives (what "done" means here, consumed by whom)
 
 - A working, standalone WS-Discovery probe/resolve responder, and a
-  design doc (`../sdc-biceps/sdc_biceps_design.md`) covering the
+  design doc (`sdc_biceps_design.md`) covering the
   Metric/Alert/Context mapping question — **not** implementation of the
   mapping itself.
 - **Consumed by:** no current epic — the full BICEPS state machine,

@@ -24,7 +24,7 @@ model. Independent of tasks 1 and 2; can run in parallel with them.
   modifiers — read `../dds-transport-done/tasks/dds-adapter-qos-mapping-done.md`
   first — but has no file dependency on it and does not depend on task 1 or
   task 2.
-- **Deliverable:** a new doc `Initiatives/medical_devices/epics/sdc-biceps/sdc_biceps_design.md`
+- **Deliverable:** a new doc `Initiatives/medical_devices/epics/sdc-biceps-done/sdc_biceps_design.md`
   covering:
   1. The BICEPS Metric / Alert / Context categories, in enough detail that
      the mapping question is legible without the reader owning the 11073
