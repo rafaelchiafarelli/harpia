@@ -85,6 +85,48 @@
     },
     {
       "type": "library",
+      "bom-ref": "lib:cyclonedds",
+      "name": "cyclonedds",
+      "version": "0.10.5",
+      "description": "Eclipse Cyclone DDS -- DDS transport for the dds-transport epic (ASTM F2761 / OpenICE-class bedside bus); built in the toolchain image from this vendored snapshot",
+      "licenses": [
+        {
+          "license": {
+            "name": "EPL-2.0 OR BSD-3-Clause"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/eclipse-cyclonedds/cyclonedds"
+        }
+      ],
+      "purl": "pkg:github/cyclonedds@0.10.5"
+    },
+    {
+      "type": "library",
+      "bom-ref": "lib:cyclonedds-cxx",
+      "name": "cyclonedds-cxx",
+      "version": "0.10.5",
+      "description": "Eclipse Cyclone DDS ddscxx -- the ISO C++ DDS binding layered over cyclonedds",
+      "licenses": [
+        {
+          "license": {
+            "name": "EPL-2.0 OR BSD-3-Clause"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/eclipse-cyclonedds/cyclonedds-cxx"
+        }
+      ],
+      "purl": "pkg:github/cyclonedds-cxx@0.10.5"
+    },
+    {
+      "type": "library",
       "bom-ref": "lib:grpc",
       "name": "grpc",
       "version": "1.51.1",

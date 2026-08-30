@@ -66,6 +66,7 @@ public:
         "trace_row",
         "users",
         "vip_users",
+        "vitals_publication",
         "waypoint"
         };
         ::frameworkProtos::capabilities_Response response;

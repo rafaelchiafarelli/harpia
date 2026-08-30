@@ -35,6 +35,7 @@ from LexicalAnalizer.MessageCreator import MessageCreator
 from ProtoFile.FileCreator import FileCreator
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
+from DdsAdapter.DdsAdapter import DdsAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from YamlAdapter.YamlAdapter import YamlAdapter
 from SerializeAdapter.SerializeAdapter import SerializeAdapter
@@ -154,6 +155,10 @@ def run(output_dir):
     _mark("ZmqCapabilityAdapter", ZmqCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
                          rootHash=root_file.getHash(), compliance=compliance)).Process()
 
+    # 13 (dds). DDS transport for messages carrying the `dds` modifier
+    _mark("DdsAdapter", DdsAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance,
+                     crypto_backend=crypto_backend)).Process()
+
     # 13 (grpc impl). concrete gRPC service wired to CRUDL (per table message)
     _mark("GrpcServiceAdapter", GrpcServiceAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
@@ -200,6 +205,7 @@ def run(output_dir):
     _collect_protos(build_dir, os.path.join(output_dir, "proto"))
     _collect_json(build_dir, os.path.join(output_dir, "json"))
     _collect_zmq(build_dir, os.path.join(output_dir, "zmq"))
+    _collect_dds(build_dir, os.path.join(output_dir, "dds"))
     _collect_grpc(build_dir, os.path.join(output_dir, "grpc"))
     _collect_capability(build_dir, os.path.join(output_dir, "capability"))
     _collect_xml(build_dir, os.path.join(output_dir, "xml"))
@@ -268,6 +274,28 @@ def _collect_zmq(build_dir, dest):
     for name in sorted(os.listdir(src)):
         if name.endswith(".h"):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_dds(build_dir, dest):
+    # per-message *_dds.h headers plus the shared frame IDL + its CMakeLists
+    # (copied verbatim, but snapshotted so the vendored-scaffolding stays
+    # visible in the golden diff if it ever moves).
+    src = os.path.join(build_dir, "generated", "cpp", "dds")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for dirpath, _, names in os.walk(src):
+        rel = os.path.relpath(dirpath, src)
+        for name in sorted(names):
+            if not (name.endswith((".h", ".idl", ".xml", ".json"))
+                    or name == "CMakeLists.txt"):
+                continue
+            out_sub = dest if rel == "." else os.path.join(dest, rel)
+            os.makedirs(out_sub, exist_ok=True)
+            shutil.copy2(os.path.join(dirpath, name),
+                         os.path.join(out_sub, name))
 
 
 def _collect_xml(build_dir, dest):

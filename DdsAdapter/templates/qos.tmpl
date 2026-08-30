@@ -1,0 +1,14 @@
+// QoS profile for `{name}` -- {profile_note}
+// (harpia_sensitive_data_design_rules.md §4; the delivery-guarantee split is
+// a schema-level choice, never inferred at runtime). DURABILITY is left at
+// VOLATILE: TRANSIENT_LOCAL late-joiner catch-up is a per-use-case open
+// question (dds-transport task 2b), not defaulted on here.
+inline ::dds::pub::qos::DataWriterQos {name}_writer_qos(
+    ::dds::pub::qos::DataWriterQos qos) {{
+{writer_policies}    return qos;
+}}
+
+inline ::dds::sub::qos::DataReaderQos {name}_reader_qos(
+    ::dds::sub::qos::DataReaderQos qos) {{
+{reader_policies}    return qos;
+}}
