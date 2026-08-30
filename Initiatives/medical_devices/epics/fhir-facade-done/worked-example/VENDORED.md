@@ -13,7 +13,7 @@
 
 ## Why it's here
 
-`Initiatives/medical_devices/epics/fhir-facade/` is a **design / scoping**
+`Initiatives/medical_devices/epics/fhir-facade-done/` is a **design / scoping**
 epic — no `FhirAdapter/` code this pass (see `../README.md`). Its one
 concrete deliverable is a *hand-mapped* worked example
 (`heartrate_observation.example.json`) proving Harpia's `HeartRateReading`

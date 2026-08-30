@@ -104,7 +104,7 @@ hand-mapped worked example** (this task) — proof the mapping is expressible
 from Harpia's data model before any of it becomes a grammar feature.
 
 **Files.** None in the generator tree this pass. New artifacts live under
-`epics/fhir-facade/worked-example/` (vendored FHIR R4 schema + the example
+`epics/fhir-facade-done/worked-example/` (vendored FHIR R4 schema + the example
 + notes) and `UnitTests/test_fhir_observation_example.py`.
 
 **Decided during planning (2026-08-30).**

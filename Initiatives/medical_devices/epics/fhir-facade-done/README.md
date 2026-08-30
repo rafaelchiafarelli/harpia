@@ -9,7 +9,7 @@ merges in the full design doc (`fhir_mapping_design.md`, originally a
 separate file)
 per the 2026-08-23 decision to integrate both medical_devices design docs
 into the plan rather than leave them as separate files a reader has to
-discover — the original `../fhir-facade/fhir_mapping_design.md`
+discover — the original `fhir_mapping_design.md`
 is deleted, this file is now the canonical source.
 
 **Corrected framing (2026-08-21, from the master plan):** an earlier pass
