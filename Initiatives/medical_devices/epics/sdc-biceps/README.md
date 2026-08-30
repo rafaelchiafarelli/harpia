@@ -60,7 +60,7 @@ Planned and broken into task files. Branch chain for this clone:
 | # | Task file | Type | Depends on | Status |
 |---|---|---|---|---|
 | 1 | [`tasks/ws-discovery-test-harness-done.md`](tasks/ws-discovery-test-harness-done.md) | test scaffolding (pre-work) | F1 | **done** — `UnitTests/wsdiscovery_harness.py` + 10 tests; stdlib-only WS-DD 2009 probe/resolve client, `WSDiscoveryTimeout` on no answer. Docker: 427 passed, 4 skipped. |
-| 2 | [`tasks/ws-discovery-responder.md`](tasks/ws-discovery-responder.md) | real code | F1, task 1 merged | in progress |
+| 2 | [`tasks/ws-discovery-responder-done.md`](tasks/ws-discovery-responder-done.md) | real code | F1, task 1 merged | **done** — new `SdcAdapter/` module + `SdcAdapter/runtime/harpia_wsdiscovery.h` (hand-written C++17 responder, tinyxml2, POSIX multicast listener); per-message `<name>_sdc.h` + `<name>.wsdd.xml`; fixed generic `dpws:Device` type + `https://harpia.dev/sdc/scope/<project>/<message>` scope, `XAddrs` → existing Stage 11 SOAP endpoint. `SoapAdapter.py`/`WsdlAdapter.py` untouched. `golden/sdc/` + `test_sdc`; `test_wsdiscovery_responder.py` (discover → open SOAP, incl. compiled `handle_datagram` assertions). Docker: 429 passed, 4 skipped. |
 | 3 | [`tasks/metric-alert-context-design-doc-done.md`](tasks/metric-alert-context-design-doc-done.md) | design doc, no code | F1, F2 | **done** — `sdc_biceps_design.md`: BICEPS Metric/Alert/Context in spec-free detail, dimension-by-dimension map of the current modifier vocabulary, `event ≈ Metric` / `critical event ≈ Alert` / `Context ≈ no-grammar-yet` as a hypothesis, 7 gaps, V1–V7 validation list. No grammar change. |
 
 **Execution order:** task 1 → task 2 sequential (same session-line —

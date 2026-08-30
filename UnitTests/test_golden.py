@@ -413,6 +413,27 @@ def test_wsdl(artifacts):
         _check(os.path.join(produced_dir, rel), os.path.join("wsdl", rel))
 
 
+def test_sdc(artifacts):
+    # SdcAdapter (sdc-biceps epic): per-message *_sdc.h participant headers +
+    # *.wsdd.xml static descriptors, plus the copied harpia_wsdiscovery.h
+    # responder runtime.
+    produced_dir = os.path.join(artifacts, "sdc")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "sdc")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel), os.path.join("sdc", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "sdc"))
+    assert produced == expected, "set of generated WS-Discovery descriptors changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("sdc", rel))
+
+
 def test_gen_tests(artifacts):
     produced_dir = os.path.join(artifacts, "gen_tests")
     produced = _relpaths(produced_dir)
