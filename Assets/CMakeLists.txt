@@ -171,6 +171,46 @@ inline constexpr char kHarpiaDdsPermissions[]         = \"${HARPIA_DDS_SEC_OUT}/
     message(STATUS "USE_DDS_SECURITY: provisioned throwaway DDS-Security PKI (${HARPIA_DDS_SECURITY_FILES_HEADER})")
 endif()
 
+# mTLS client-cert PKI for the generated gRPC / REST / SOAP transports
+# (transport-authn epic, task 1). Off by default so the plain build is
+# unchanged. The mTLS analogue of USE_DDS_SECURITY: cmake/mtls_provision.sh
+# runs here at configure time (execute_process), minting a local CA + a
+# server cert + one client cert, then a generated harpia_mtls_files.h carries
+# the file paths (same "generated header, not compile-defs" shape as
+# USE_ZMQ_CURVE / USE_DDS_SECURITY). transport-authn tasks 2/3 (mTLS on gRPC
+# and on REST/SOAP) consume this header; a real deployment provisions its own
+# PKI and does not set this. -DHARPIA_MTLS_SERVER_CN overrides the server CN;
+# the HARPIA_MTLS_PROVIDER env var (default|fips) tracks the F5 CryptoBackend
+# selection and sets the key strength.
+option(USE_MTLS "Provision a local mTLS client-cert PKI for the generated gRPC/REST/SOAP transports" OFF)
+if(USE_MTLS)
+    set(HARPIA_MTLS_OUT "${CMAKE_BINARY_DIR}/mtls")
+    if(NOT DEFINED HARPIA_MTLS_SERVER_CN)
+        set(HARPIA_MTLS_SERVER_CN "localhost")
+    endif()
+    execute_process(
+        COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/cmake/mtls_provision.sh"
+                "${HARPIA_MTLS_OUT}" "${HARPIA_MTLS_SERVER_CN}"
+        RESULT_VARIABLE HARPIA_MTLS_RC
+        OUTPUT_VARIABLE HARPIA_MTLS_LOG
+        ERROR_VARIABLE HARPIA_MTLS_LOG)
+    if(NOT HARPIA_MTLS_RC EQUAL 0)
+        message(FATAL_ERROR "USE_MTLS: provisioning failed (is openssl installed?):\n${HARPIA_MTLS_LOG}")
+    endif()
+    set(HARPIA_MTLS_FILES_HEADER "${CMAKE_BINARY_DIR}/harpia_mtls_files.h")
+    file(WRITE "${HARPIA_MTLS_FILES_HEADER}" "\
+#pragma once
+// Generated at configure time by USE_MTLS -- local dev PKI, not for reuse.
+// Feed these into the generated gRPC / crow TLS listener config (transport-authn tasks 2/3).
+inline constexpr char kHarpiaMtlsCA[]         = \"${HARPIA_MTLS_OUT}/ca.pem\";
+inline constexpr char kHarpiaMtlsServerCert[] = \"${HARPIA_MTLS_OUT}/server.pem\";
+inline constexpr char kHarpiaMtlsServerKey[]  = \"${HARPIA_MTLS_OUT}/server_key.pem\";
+inline constexpr char kHarpiaMtlsClientCert[] = \"${HARPIA_MTLS_OUT}/client.pem\";
+inline constexpr char kHarpiaMtlsClientKey[]  = \"${HARPIA_MTLS_OUT}/client_key.pem\";
+")
+    message(STATUS "USE_MTLS: provisioned local mTLS PKI (${HARPIA_MTLS_FILES_HEADER})")
+endif()
+
 add_subdirectory(client)
 add_subdirectory(server)
 add_subdirectory(proto)
