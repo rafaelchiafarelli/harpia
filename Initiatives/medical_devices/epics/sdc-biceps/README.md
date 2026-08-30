@@ -59,8 +59,8 @@ Planned and broken into task files. Branch chain for this clone:
 
 | # | Task file | Type | Depends on | Status |
 |---|---|---|---|---|
-| 1 | [`tasks/ws-discovery-test-harness.md`](tasks/ws-discovery-test-harness.md) | test scaffolding (pre-work) | F1 | in progress |
-| 2 | [`tasks/ws-discovery-responder.md`](tasks/ws-discovery-responder.md) | real code | F1, task 1 merged | not started |
+| 1 | [`tasks/ws-discovery-test-harness-done.md`](tasks/ws-discovery-test-harness-done.md) | test scaffolding (pre-work) | F1 | **done** — `UnitTests/wsdiscovery_harness.py` + 10 tests; stdlib-only WS-DD 2009 probe/resolve client, `WSDiscoveryTimeout` on no answer. Docker: 427 passed, 4 skipped. |
+| 2 | [`tasks/ws-discovery-responder.md`](tasks/ws-discovery-responder.md) | real code | F1, task 1 merged | in progress |
 | 3 | [`tasks/metric-alert-context-design-doc.md`](tasks/metric-alert-context-design-doc.md) | design doc, no code | F1, F2 | not started |
 
 **Execution order:** task 1 → task 2 sequential (same session-line —
