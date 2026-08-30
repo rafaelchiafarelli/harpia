@@ -142,7 +142,11 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   that the key-management epic and the transport-authn epic, once built, would provably share one crypto
   module); `write_build_metadata()` produces a valid
   `build_metadata/crypto_backend.json` sidecar and is write-if-different
-  (stable mtime when unchanged). Pure Python.
+  (stable mtime when unchanged). Also (dds-transport task 3 extended the
+  seam): `CryptoBackend.transport_security()` tracks the backend's
+  cmake/provider/fips, and `transport_hardening_required()` follows
+  `risk_class`/`topology` (the same predicate `get_backend()` keys the FIPS
+  default off). Pure Python.
 - `test_key_provider.py` — the key-management epic / Session key-management task 1
   (`Initiatives/medical_devices/epics/key-management/`):
   the `KeyProvider` interface + envelope-encryption shape,
@@ -375,6 +379,28 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   with an identifiable `phi` value, asserts N `record("phi_publish", <topic>,
   <names>)` calls and that the value never reaches the sink — the
   `test_stage8_db.py::test_a3_*` shape for DDS.
+- `test_dds_security.py` — the dds-transport epic / task 3: OMG DDS-Security
+  wiring. Structural (pure Python): `DdsAdapter` ships `harpia_dds_security.h`
+  verbatim next to the per-message headers (fail-safe — `SecurityRefused`,
+  never a silent plaintext participant; all three Cyclone builtin plugins
+  `dds_security_{auth,ac,crypto}` wired via an inline `CYCLONEDDS_URI`
+  `<Security>` block), a static `security/governance.xml`
+  (`allow_unauthenticated_participants=false`, join/read/write access control
+  on), a rendered `security/permissions.xml` (publish+subscribe allow over
+  exactly this schema's `dds` topics, `<default>DENY</default>`,
+  `%HARPIA_SUBJECT_NAME%` sentinel), and `security/dds_security_selection.json`
+  recording the F5 `CryptoBackend` choice + `hardening_required`
+  (`openssl_fips`/`true` for the repo's class_c/cloud_connected profile;
+  flips to `openssl`/`false` when driven with a low-risk ctx + explicit
+  standard backend); no `security/` dir without a `dds` message;
+  `Assets/cmake/dds_security_provision.sh` is present + executable.
+  Integration (cmake+g+++protoc+openssl+installed-`CycloneDDS-CXX`-gated):
+  provisions a throwaway PKI + S/MIME-signs the emitted governance/permissions,
+  then a `fork()`-based driver runs a secured publisher, a secured subscriber
+  and a **plain** subscriber on one domain — the plain unauthenticated peer
+  receives nothing (`refused_plain_got=0`), the secured peer receives the
+  stream. The task's "plaintext/unauthenticated DDS refused by default"
+  guarantee.
 - `test_stage8_pg.py` — **opt-in** live-PostgreSQL CRUDL round-trip (generates with
   `HARPIA_DB_BACKEND=postgresql`); skipped unless `HARPIA_PG_DSN` points at a
   reachable server.
@@ -452,7 +478,15 @@ serialization task 2; `harpia_serialize.h` runtime not snapshotted), `db/`
 `harpia_db_registry.h` — the db-segregation epic public/private DB registry), `migrate/`,
 `dbio/`, `rest/`, `soap/`, `wsdl/`, `gen_tests/` (generated unit tests
 + CTest CMakeLists), `sidecars/` (per-message SQL schema + modifier/access/pswd
-flag files, subdirs `database/ modifier/ access_modifier/ database_access/`).
+flag files, subdirs `database/ modifier/ access_modifier/ database_access/`),
+`dds/` (per-message `<name>_<hash>_dds.h` + the vendored `harpia_dds_frame.idl`
+/ `CMakeLists.txt`; `harpia_audit_sink.h` when a `dds` message is `phi`
+(dds-transport task 4); `harpia_dds_security.h` + `security/`
+(`governance.xml`, per-project `permissions.xml`,
+`dds_security_selection.json`) whenever any `dds` message exists (task 3) —
+`_collect_dds` walks the subtree). The `harpia_dds_security.h` runtime IS
+snapshotted (unlike `harpia_yaml.h`/`harpia_serialize.h`) since it is
+copied, not a static repo-only header.
 Do not hand-edit — regenerate via `HARPIA_UPDATE_GOLDEN=1` and review the diff.
 
 ## Key facts / gotchas

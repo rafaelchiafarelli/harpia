@@ -156,7 +156,8 @@ def run(output_dir):
                          rootHash=root_file.getHash(), compliance=compliance)).Process()
 
     # 13 (dds). DDS transport for messages carrying the `dds` modifier
-    _mark("DdsAdapter", DdsAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+    _mark("DdsAdapter", DdsAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance,
+                     crypto_backend=crypto_backend)).Process()
 
     # 13 (grpc impl). concrete gRPC service wired to CRUDL (per table message)
     _mark("GrpcServiceAdapter", GrpcServiceAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
@@ -285,9 +286,16 @@ def _collect_dds(build_dir, dest):
     os.makedirs(dest, exist_ok=True)
     if not os.path.isdir(src):
         return
-    for name in sorted(os.listdir(src)):
-        if name.endswith((".h", ".idl")) or name == "CMakeLists.txt":
-            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+    for dirpath, _, names in os.walk(src):
+        rel = os.path.relpath(dirpath, src)
+        for name in sorted(names):
+            if not (name.endswith((".h", ".idl", ".xml", ".json"))
+                    or name == "CMakeLists.txt"):
+                continue
+            out_sub = dest if rel == "." else os.path.join(dest, rel)
+            os.makedirs(out_sub, exist_ok=True)
+            shutil.copy2(os.path.join(dirpath, name),
+                         os.path.join(out_sub, name))
 
 
 def _collect_xml(build_dir, dest):

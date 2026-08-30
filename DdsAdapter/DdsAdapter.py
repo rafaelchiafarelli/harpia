@@ -43,8 +43,22 @@ consumer just `add_subdirectory(generated/cpp/dds)` and links
 `harpia_dds_transport`; plus harpia_audit_sink.h when any `dds` message
 carries a `phi` field.
 
-Out of scope (later tasks): DDS-Security wiring (task 3).
+DDS-Security (task 3): whenever a schema declares a `dds` message, DdsAdapter
+also ships the hand-written `harpia_dds_security.h` helper (secured
+`DomainParticipant` over the vendored Cyclone DDS-Security builtin plugins,
+via an inline `CYCLONEDDS_URI` `<Security>` block -- fail-safe, never a
+silent plaintext fallback) next to the per-message headers, and a
+`security/` directory holding the static `governance.xml`, a per-project
+`permissions.xml` (its topic list = this schema's `dds` message names), and
+`dds_security_selection.json` -- which records the F5 `CryptoBackend`
+selection (`openssl` / `openssl_fips`, driven by `risk_class`/`topology`,
+never per jurisdiction) plus whether the compliance profile mandates
+hardened transport (`Crypto.backend.transport_hardening_required`). The
+generated pub/sub classes are unchanged: a consumer just constructs its
+`DomainParticipant` via `harpia::dds_security::secured_participant(...)` and
+passes it in, exactly as before.
 """
+import json
 import os
 
 from Logger.logger import logger
@@ -52,10 +66,23 @@ from Errors.Error import Error, Types, Classes
 from Util.util import loadTemplate, write_if_different, copy_if_different
 from Compliance.dds_common import (
     DDS_FRAME_IDL, DDS_FRAME_IDL_SRC, DDS_FRAME_HEADER,
-    DDS_FRAME_NAMESPACE, DDS_FRAME_TYPE)
+    DDS_FRAME_NAMESPACE, DDS_FRAME_TYPE,
+    DDS_SECURITY_RUNTIME, DDS_SECURITY_RUNTIME_SRC,
+    DDS_GOVERNANCE, DDS_GOVERNANCE_SRC, DDS_PERMISSIONS,
+    DDS_SECURITY_SELECTION, DDS_SECURITY_DIR)
 from Compliance.audit_common import AUDIT_SINK_RUNTIME, AUDIT_SINK_RUNTIME_SRC
+from Crypto.backend import get_backend as get_crypto_backend, \
+    transport_hardening_required
 
 DDS_EXT = "_dds.h"
+
+_PERMISSIONS_TMPL = loadTemplate(__file__, "permissions.xml.tmpl")
+
+# DDS-Security permissions grant validity -- a fixed wide window so the
+# rendered permissions.xml is deterministic (no wall-clock in the golden). A
+# real deployment sets its own dates and re-signs.
+_PERMS_NOT_BEFORE = "2024-01-01T00:00:00"
+_PERMS_NOT_AFTER = "2124-01-01T00:00:00"
 
 #: §4a bound on a `critical` writer's retained history -- mirrors
 #: ZmqAdapter's BoundedQueue default `queue_capacity` (128), the same
@@ -100,11 +127,18 @@ _AUDIT_MEMBER = "\n    ::harpia::compliance::AuditSink& audit_;"
 
 
 class DdsAdapter:
-    def __init__(self, messages, dest, compliance=None) -> None:
+    def __init__(self, messages, dest, compliance=None,
+                 crypto_backend=None) -> None:
         self.compliance = compliance
+        # F5 seam: `main.py` / `run_pipeline.py` resolve the CryptoBackend
+        # once and hand it in (same as CrudlAdapter's `backend=dbBackend`);
+        # fall back to resolving it here so a direct-drive caller still works.
+        self.crypto_backend = crypto_backend or get_crypto_backend(
+            compliance=compliance)
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "dds")
+        self.securityDir = os.path.join(self.outDir, DDS_SECURITY_DIR)
         self.log = logger(outFile=None, moduleName="DdsAdapter")
 
     @staticmethod
@@ -125,6 +159,7 @@ class DdsAdapter:
         os.makedirs(self.outDir, exist_ok=True)
         written = 0
         phi_seen = False
+        dds_topics = []
         for msg in self.messages:
             if getattr(msg, "isEnum", False):
                 continue
@@ -136,6 +171,7 @@ class DdsAdapter:
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, DDS_EXT)
             write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
+            dds_topics.append(msg.name)
             if phi_fields:
                 phi_seen = True
 
@@ -159,9 +195,55 @@ class DdsAdapter:
             copy_if_different(AUDIT_SINK_RUNTIME_SRC,
                               os.path.join(self.outDir, AUDIT_SINK_RUNTIME))
 
+        # task 3: DDS-Security wiring -- the runtime helper next to the
+        # headers, plus a security/ dir with the governance/permissions
+        # documents and the F5 selection record.
+        self._write_security(dds_topics)
+
         self.log.print("generated {} DDS transport(s) into {}".format(
             written, self.outDir))
         return None
+
+    def _write_security(self, dds_topics):
+        """DDS-Security scaffolding (task 3), emitted whenever the schema has
+        any `dds` message:
+
+          dds/harpia_dds_security.h              secured-participant helper
+          dds/security/governance.xml            static, fail-safe posture
+          dds/security/permissions.xml           rendered: this schema's topics
+          dds/security/dds_security_selection.json  the F5 CryptoBackend choice
+        """
+        copy_if_different(DDS_SECURITY_RUNTIME_SRC,
+                          os.path.join(self.outDir, DDS_SECURITY_RUNTIME))
+
+        os.makedirs(self.securityDir, exist_ok=True)
+        copy_if_different(DDS_GOVERNANCE_SRC,
+                          os.path.join(self.securityDir, DDS_GOVERNANCE))
+        write_if_different(os.path.join(self.securityDir, DDS_PERMISSIONS),
+                           self._render_permissions(dds_topics))
+
+        backend = self.crypto_backend
+        selection = {
+            "hardening_required": transport_hardening_required(self.compliance),
+            "crypto_backend": backend.name,
+            "cmake_package": backend.cmake_package,
+            "openssl_provider": backend.openssl_provider,
+            "fips": backend.fips,
+        }
+        write_if_different(
+            os.path.join(self.securityDir, DDS_SECURITY_SELECTION),
+            json.dumps(selection, indent=2, sort_keys=True) + "\n")
+
+    @staticmethod
+    def _render_permissions(dds_topics):
+        # `<topic>NAME</topic>` per `dds` message, same list in the publish
+        # and subscribe allow rules (default-DENY everything else).
+        topic_elements = "\n".join(
+            "            <topic>{}</topic>".format(name)
+            for name in dds_topics)
+        return _PERMISSIONS_TMPL.format(
+            not_before=_PERMS_NOT_BEFORE, not_after=_PERMS_NOT_AFTER,
+            topic_elements=topic_elements)
 
     def _render(self, msg, is_critical, phi_fields=()):
         guard = "HARPIA_DDS_{}_{}".format(msg.name.upper(), msg.md5Hash)
