@@ -1,5 +1,16 @@
 ## Metric / Alert / Context mapping design doc
 
+**Done 2026-08-30** — deliverable is
+[`../sdc_biceps_design.md`](../sdc_biceps_design.md): the three BICEPS
+categories in spec-free detail, a dimension-by-dimension map of the
+current modifier vocabulary against them (cadence / cardinality /
+validity-state / latching / criticality), the `event ≈ Metric report`,
+`critical event ≈ Alert`, `Context ≈ no-grammar-yet` hypothesis stated as
+a hypothesis, seven gaps with what-breaks-if-not-added for each, and a
+V1–V7 "needs validation by" list (domain-expert / regulatory passes). No
+grammar change, no modifier name, no lexer/`Message/` edit — §7 discipline
+check included in the doc. No test suite (design deliverable).
+
 Scoped 2026-08-30. **Task 3** of the sdc-biceps epic. A design-doc
 deliverable, **not code** — the epic exists to answer this question with a
 concrete written design before anyone commits to building the BICEPS data

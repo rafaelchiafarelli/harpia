@@ -61,7 +61,7 @@ Planned and broken into task files. Branch chain for this clone:
 |---|---|---|---|---|
 | 1 | [`tasks/ws-discovery-test-harness-done.md`](tasks/ws-discovery-test-harness-done.md) | test scaffolding (pre-work) | F1 | **done** — `UnitTests/wsdiscovery_harness.py` + 10 tests; stdlib-only WS-DD 2009 probe/resolve client, `WSDiscoveryTimeout` on no answer. Docker: 427 passed, 4 skipped. |
 | 2 | [`tasks/ws-discovery-responder.md`](tasks/ws-discovery-responder.md) | real code | F1, task 1 merged | in progress |
-| 3 | [`tasks/metric-alert-context-design-doc.md`](tasks/metric-alert-context-design-doc.md) | design doc, no code | F1, F2 | not started |
+| 3 | [`tasks/metric-alert-context-design-doc-done.md`](tasks/metric-alert-context-design-doc-done.md) | design doc, no code | F1, F2 | **done** — `sdc_biceps_design.md`: BICEPS Metric/Alert/Context in spec-free detail, dimension-by-dimension map of the current modifier vocabulary, `event ≈ Metric` / `critical event ≈ Alert` / `Context ≈ no-grammar-yet` as a hypothesis, 7 gaps, V1–V7 validation list. No grammar change. |
 
 **Execution order:** task 1 → task 2 sequential (same session-line —
 task 2's integration test drives the task-1 harness). Task 3 is
