@@ -49,6 +49,7 @@ from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
 from Database.WsdlAdapter import WsdlAdapter
+from SdcAdapter.SdcAdapter import SdcAdapter
 from Database.GrpcServiceAdapter import GrpcServiceAdapter
 from GrpcCapabilityAdapter.GrpcCapabilityAdapter import GrpcCapabilityAdapter
 from HttpCapabilityAdapter.HttpCapabilityAdapter import HttpCapabilityAdapter
@@ -191,6 +192,9 @@ def run(output_dir):
     # 11 (WSDL). WSDL descriptor for the SOAP service
     _mark("WsdlAdapter", WsdlAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
+    # 11 (SDC). WS-Discovery responder advertising the SOAP endpoint (sdc-biceps epic)
+    _mark("SdcAdapter", SdcAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+
     # 11/12 (http capability handshake). shared by REST and SOAP
     _mark("HttpCapabilityAdapter", HttpCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
                           rootHash=root_file.getHash(), compliance=compliance)).Process()
@@ -222,6 +226,7 @@ def run(output_dir):
     _collect_rest(build_dir, os.path.join(output_dir, "rest"))
     _collect_soap(build_dir, os.path.join(output_dir, "soap"))
     _collect_wsdl(build_dir, os.path.join(output_dir, "wsdl"))
+    _collect_sdc(build_dir, os.path.join(output_dir, "sdc"))
     _collect_gen_tests(build_dir, os.path.join(output_dir, "gen_tests"))
     _collect_sidecars(build_dir, os.path.join(output_dir, "sidecars"))
     _collect_compliancereport(build_dir, os.path.join(output_dir, "compliancereport"))
@@ -489,6 +494,22 @@ def _collect_wsdl(build_dir, dest):
         return
     for name in sorted(os.listdir(src)):
         if name.endswith(".wsdl"):
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_sdc(build_dir, dest):
+    # per-message *_sdc.h participant headers + *.wsdd.xml static descriptors;
+    # harpia_wsdiscovery.h is a static runtime copy (lives in the repo under
+    # SdcAdapter/runtime) but is snapshotted so a move shows in the golden
+    # diff, same as _collect_dds does for the frame IDL.
+    src = os.path.join(build_dir, "generated", "cpp", "sdc")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith((".h", ".xml")):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 

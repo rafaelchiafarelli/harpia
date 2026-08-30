@@ -39,64 +39,47 @@ the transport-authn epic is hardening.
 
 ## Files this epic touches
 
-- `Database/SoapAdapter.py`, `Database/WsdlAdapter.py` — read/layer onto
-  the existing SOAP stack, per the master plan's framing ("leans on...
-  rather than starting cold"); the docs don't specify whether this epic
-  modifies these files or only reads their existing behavior as a
-  precedent — **flagging that ambiguity rather than guessing which.**
+- `Database/SoapAdapter.py`, `Database/WsdlAdapter.py` — **read as
+  precedent only, never modified** (planning decision 2026-08-30). The
+  master plan's "leans on... rather than starting cold" framing is about
+  reusing the existing SOAP surface as the discovery target, not editing
+  the adapters. `SdcAdapter/` is purely additive.
 - New `SdcAdapter/` (scoping only this pass, per
   `harpia_medical_master_plan.md` §2's epic table).
+- `UnitTests/` — the discovery test-client harness (task 1) and both
+  test suites.
+- `main.py` — one new `SdcAdapter(...).Process()` call after `WsdlAdapter`.
 
 ---
 
-## WS-Discovery probe/resolve responder
+## Planning status (2026-08-30)
 
-- **Depends on:** F1 (Foundation). Does not need task 2 or the dds-transport epic — fully
-  standalone, doesn't require the Metric/Alert/Context mapping question
-  settled first.
-- **Deliverable:** a working WS-Discovery probe/resolve responder (UDP
-  multicast — not currently emitted anywhere in the pipeline), alongside
-  the existing SOAP endpoint.
-- **Tests:**
-  - Unit: WS-Discovery responder answers a multicast probe correctly
-    (matches the participant's declared type/scope).
-  - Integration: a generic SDC-aware client (or a minimal test harness
-    mimicking one) discovers a Harpia-generated endpoint via WS-Discovery
-    and successfully opens the existing SOAP/MDPWS-compatible connection.
-- **Acceptance gate:** existing Stage 11 SOAP tests (14.8/14.9)
-  unaffected — WS-Discovery is additive to the existing SOAP endpoint,
-  not a replacement for it.
+Planned and broken into task files. Branch chain for this clone:
+`… → medical_devices → epics → sdc-biceps → tasks → <task>`.
 
-## Metric/Alert/Context mapping design doc
+| # | Task file | Type | Depends on | Status |
+|---|---|---|---|---|
+| 1 | [`tasks/ws-discovery-test-harness-done.md`](tasks/ws-discovery-test-harness-done.md) | test scaffolding (pre-work) | F1 | **done** — `UnitTests/wsdiscovery_harness.py` + 10 tests; stdlib-only WS-DD 2009 probe/resolve client, `WSDiscoveryTimeout` on no answer. Docker: 427 passed, 4 skipped. |
+| 2 | [`tasks/ws-discovery-responder-done.md`](tasks/ws-discovery-responder-done.md) | real code | F1, task 1 merged | **done** — new `SdcAdapter/` module + `SdcAdapter/runtime/harpia_wsdiscovery.h` (hand-written C++17 responder, tinyxml2, POSIX multicast listener); per-message `<name>_sdc.h` + `<name>.wsdd.xml`; fixed generic `dpws:Device` type + `https://harpia.dev/sdc/scope/<project>/<message>` scope, `XAddrs` → existing Stage 11 SOAP endpoint. `SoapAdapter.py`/`WsdlAdapter.py` untouched. `golden/sdc/` + `test_sdc`; `test_wsdiscovery_responder.py` (discover → open SOAP, incl. compiled `handle_datagram` assertions). Docker: 429 passed, 4 skipped. |
+| 3 | [`tasks/metric-alert-context-design-doc-done.md`](tasks/metric-alert-context-design-doc-done.md) | design doc, no code | F1, F2 | **done** — `sdc_biceps_design.md`: BICEPS Metric/Alert/Context in spec-free detail, dimension-by-dimension map of the current modifier vocabulary, `event ≈ Metric` / `critical event ≈ Alert` / `Context ≈ no-grammar-yet` as a hypothesis, 7 gaps, V1–V7 validation list. No grammar change. |
 
-- **Depends on:** F1, F2 (Foundation). Benefits from the dds-transport epic's QoS
-  mapping as a precedent (see Receives above) but doesn't hard-depend on
-  it, and doesn't depend on task 1 either — the two sessions in this epic
-  are independent of each other.
-- **Open question this session exists to answer, not assume:** whether
-  the existing access-modifier vocabulary (`stream`, `event[cached/not-
-  cached]`, `pull`, `push`, `pushpull`) maps cleanly onto BICEPS's
-  Metric/Alert/Context split, or whether that forces a new modifier the
-  way `phi`/`critical` were added for their own concerns. A first
-  hypothesis — `event` ≈ Metric, `critical event` ≈ Alert (pairs
-  naturally with the dds-transport epic's QoS treatment), Context needs something not
-  yet in the grammar — is a **hypothesis to validate with a domain-
-  expert/regulatory-affairs pass, not a decision this session makes
-  alone.**
-- **Deliverable:** `../sdc-biceps/sdc_biceps_design.md` covering
-  the mapping question above.
-- **Out of scope:** any grammar change implementing the hypothesis; the
-  full BICEPS state machine; MDS/VMD/Channel participant model
-  implementation; any `SdcAdapter/` codegen beyond task 1's WS-Discovery
-  responder.
-- **Tests:** none in the usual sense — this is a design-doc deliverable.
-  Reviewed against `harpia_sensitive_data_design_rules.md` before its
-  hypothesis is treated as anything more than a hypothesis (see the
-  thread README's "Watch for").
+**Execution order:** task 1 → task 2 sequential (same session-line —
+task 2's integration test drives the task-1 harness). Task 3 is
+independent of both and can run in parallel.
+
+**Planning decisions (see task files for the full rationale):**
+- The responder advertises a **fixed generic DPWS device type** + a
+  **Harpia-namespaced scope URI derived from project + message name** —
+  no new `.harpia` modifier this pass.
+- The WS-Discovery test client is its own task (task 1), not folded into
+  task 2's implementation — it needs real code and the pre-work rule
+  says that becomes its own task.
+- `Database/SoapAdapter.py` / `WsdlAdapter.py` stay read-only.
 
 ## Watch for
 
-- task 1 and task 2 can run in either order or in parallel — neither depends
-  on the other, unlike most epics split so far in this restructuring.
-- Don't let task 2 quietly turn into a grammar change or codegen work mid-
-  session — its deliverable is the design doc, full stop.
+- Task 3 can run any time; tasks 1 and 2 are sequential.
+- Don't let task 3 quietly turn into a grammar change or codegen work —
+  its deliverable is the design doc, full stop.
+- Don't let task 1 or task 2 turn into a BICEPS data-model
+  implementation — that's a follow-on epic, not this pass.
