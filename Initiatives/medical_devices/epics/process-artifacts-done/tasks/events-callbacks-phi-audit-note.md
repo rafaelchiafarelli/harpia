@@ -2,7 +2,7 @@
 
 - **Depends on:** the sbom-emission task merged (`ComplianceReport/` module exists).
 - **Origin:** raised by the events-callbacks epic
-  (`../../events-callbacks/`), task 3 (`full-round-trip`). That task's own
+  (`../../events-callbacks-done/`), task 3 (`full-round-trip`). That task's own
   deliverable text calls for a one-paragraph `ComplianceReport/` note, but
   `ComplianceReport/` is this epic's module, not events-callbacks' — so the
   note is written here, same as `phi-db-encryption-note.md` /
