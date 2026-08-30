@@ -438,6 +438,26 @@ kept here, marked closed, so the reasoning isn't lost.**
 
 ---
 
+## Planning status (2026-08-30)
+
+Planned; **1 task** (the design doc above is the rest of the epic).
+Branch chain for this clone: `… → epics → fhir-facade → tasks → <task>`.
+
+| Task file | Type | Depends on | Status |
+|---|---|---|---|
+| [`tasks/heartrate-observation-worked-example-done.md`](tasks/heartrate-observation-worked-example-done.md) | worked example, no code | F1, F2 | **done** — `worked-example/heartrate_observation.example.json` (LOINC 8867-4 + UCUM `/min`, `phi` → `meta.security` R, `device_id` → Reference-by-identifier) + `mapping-notes.md` (field→element table, known-gaps list) + `UnitTests/test_fhir_observation_example.py` (13 tests, stdlib-only). Validated against the full R4 `Observation` schema. Docker: 442 passed, 4 skipped. |
+
+**Planning decisions (see the task file for full rationale):**
+- FHIR version pinned to **R4 (4.0.1)** — the design doc did not pin one.
+- Validation is **structural against a vendored `fhir.schema.json`,
+  stdlib only** — no `jsonschema` dependency, no network, no Java FHIR
+  validator (mirrors `ComplianceReport/schema/bom-1.5.schema.json` +
+  `UnitTests/test_sbom_emission.py`). Schema vendored at
+  [`worked-example/`](worked-example/) (+ `VENDORED.md`).
+- Artifacts live under `worked-example/`, **not** a new `FhirAdapter/`
+  dir — `FhirAdapter/` stays unborn until the follow-on implementation
+  epic.
+
 ## Worked example: `HeartRateReading` → FHIR `Observation`
 
 - **Depends on:** F1, F2 (Foundation), per the stated preconditions.
@@ -446,16 +466,18 @@ kept here, marked closed, so the reasoning isn't lost.**
   a FHIR `Observation` with a real LOINC code — proving the mapping is
   expressible before generalizing it into a grammar feature. This is the
   one deliverable the design above flags as "not yet done — next
-  concrete step."
+  concrete step." **Full contract:
+  [`tasks/heartrate-observation-worked-example-done.md`](tasks/heartrate-observation-worked-example-done.md).**
 - **Out of scope:** any generated `FhirAdapter/` code, grammar changes,
   `Bundle`/transaction semantics, the `CapabilityStatement` endpoint —
   all follow-on work once the open questions above are resolved.
 - **Tests:**
-  - Integration (design-validation, not generated code): the hand-mapped
-    `Observation` example validates against HL7's published FHIR resource
-    schema (e.g. via a public FHIR validator) — proves the target shape
-    is reachable from Harpia's data model at all, before any codegen is
-    built.
+  - Design-validation (not generated code): the hand-mapped `Observation`
+    example validates structurally against the vendored FHIR R4
+    `fhir.schema.json`'s `Observation` definition
+    (`UnitTests/test_fhir_observation_example.py`, stdlib only) — proves
+    the target shape is reachable from Harpia's data model at all, before
+    any codegen is built.
 - **Acceptance gate:** none yet — this pass produces a worked example,
   not shipped code; the real acceptance gate belongs to the follow-on
   implementation epic.
