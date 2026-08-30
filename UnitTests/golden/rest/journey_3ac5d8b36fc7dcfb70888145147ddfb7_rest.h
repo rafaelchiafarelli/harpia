@@ -53,6 +53,13 @@
 // Every route enforces the generated access credential (Stage 5 access rights):
 // the request must carry X-User: journey and X-Pswd: 3ac5d8b36fc7dcfb70888145147ddfb7, or it is rejected
 // with HTTP 401 before the operation runs.
+//
+// The crow::SimpleApp itself is stood up by the generated
+// http/http_server_bringup.h (transport-authn epic, task 3) -- its
+// harpia::http_transport::HttpServer registers this binding and the matching
+// SOAP endpoint on one app and, when transport_hardening_required(compliance)
+// was true at generation time, configures it for mTLS (client cert required
+// AND verified, harpia_http_mtls.h) with plaintext refused.
 namespace harpia {
 namespace rest {
 

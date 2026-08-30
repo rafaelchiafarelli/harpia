@@ -184,7 +184,8 @@ def run(output_dir):
     _mark("DbIoAdapter", DbIoAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
     # 12. REST bindings (HTTP CRUD over CRUDL + JSON)
-    _mark("RestAdapter", RestAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+    _mark("RestAdapter", RestAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance,
+                  crypto_backend=crypto_backend)).Process()
 
     # 11. SOAP endpoints (XML over HTTP, get/set over CRUDL)
     _mark("SoapAdapter", SoapAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
@@ -222,6 +223,7 @@ def run(output_dir):
     _collect_dbio(build_dir, os.path.join(output_dir, "dbio"))
     _collect_rest(build_dir, os.path.join(output_dir, "rest"))
     _collect_soap(build_dir, os.path.join(output_dir, "soap"))
+    _collect_http(build_dir, os.path.join(output_dir, "http"))
     _collect_wsdl(build_dir, os.path.join(output_dir, "wsdl"))
     _collect_gen_tests(build_dir, os.path.join(output_dir, "gen_tests"))
     _collect_sidecars(build_dir, os.path.join(output_dir, "sidecars"))
@@ -450,6 +452,21 @@ def _collect_soap(build_dir, dest):
         return
     for name in sorted(os.listdir(src)):
         if name.endswith(".h"):
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_http(build_dir, dest):
+    # the shared REST+SOAP server bring-up (transport-authn task 3):
+    # harpia_http_mtls.h copied verbatim, http_server_bringup.h rendered,
+    # http_server_selection.json from the F5 seam.
+    src = os.path.join(build_dir, "generated", "cpp", "http")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith((".h", ".json")):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
