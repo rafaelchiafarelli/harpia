@@ -2,7 +2,7 @@
 
 - **Depends on:** the sbom-emission task merged (`ComplianceReport/` module
   exists).
-- **Origin:** raised by the dds-transport epic (`../../dds-transport/`), its
+- **Origin:** raised by the dds-transport epic (`../../dds-transport-done/`), its
   final task (`full-acceptance-gate-note`). `alarm_event` / `vitals_publication`
   carry `phi` fields and cross the DDS bus, so the epic's work is
   `phi`-adjacent per the effort's definition of done (master plan §4) and
