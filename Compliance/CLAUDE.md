@@ -106,6 +106,16 @@ third added by the sensitive-data roadmap, not Foundation):
   `audit_common.py` / `delivery_common.py`. Consumed by
   `Database.RestAdapter` (copies into `generated/cpp/http/`) and
   `Database.GrpcServiceAdapter` (into `generated/cpp/grpc/`).
+- `zap_common.py` — transport-authn "zmq-zap-allowlist" path constants
+  (`ZAP_RUNTIME`/`ZAP_RUNTIME_SRC`/`ZAP_RUNTIME_DEPS`/`ZAP_OUT_SUBDIR`). The
+  runtime it points at, `ZmqAdapter/runtime/harpia_zap.h`, is the hand-written
+  CURVE ZAP client-key allowlist handler (`harpia::zap` -- `AllowList`,
+  `ZapHandler` REP loop on `inproc://zeromq.zap.01`, `ensure_running`), copied
+  by `ZmqAdapter` into `generated/cpp/zap/` under a hardened profile. It lives
+  under `ZmqAdapter/runtime/` (transport-specific, needs cppzmq -- unlike the
+  pure-std `harpia_rbac.h`), the same way `harpia_grpc_mtls.h` lives under
+  `Database/runtime/`. Emits `AuditSink` `"zap_denied"` (z85 key + identity,
+  Rule 5). Tested by `UnitTests/test_zmq_zap.py`.
 
 ## Key facts / gotchas
 - **Three failure modes, three different outcomes** -- don't conflate them:

@@ -121,7 +121,7 @@ clean 3-task epic (`stream-control`, `data-connection-reclamation`,
 - **Tests:**
   - Unit: token expiry and revocation logic.
 
-## ZMQ CURVE ZAP allowlist  (absorbed from zmq-lifecycle, not yet task-scoped)
+## ZMQ CURVE ZAP allowlist  (absorbed from zmq-lifecycle; task: `tasks/zmq-zap-allowlist-done.md`)
 
 - **Depends on:** the RBAC / credential model (task 4) far enough along that
   "authorized identities" has a concrete source — the ZAP allowlist must
@@ -153,8 +153,8 @@ clean 3-task epic (`stream-control`, `data-connection-reclamation`,
   `Depends on` line, but don't reorder them even though task 2 and task 3
   themselves have no dependency on each other and could run in either
   order (or in parallel, if split across two session-lines).
-- The **ZAP allowlist** section above is deliberately *not* broken into a
-  numbered task yet — it needs this epic's own credential model to exist
-  first (the exact reason it was moved out of zmq-lifecycle). Scope it once
-  task 4's identity store is real; until then it stays a documented
-  deliverable, not a ready task.
+- The **ZAP allowlist** was scoped once task 4's identity store was real
+  (2026-09-01) — `tasks/zmq-zap-allowlist-done.md`. Its allowlist file
+  (`HARPIA_ZMQ_ALLOWLIST`, `<z85-key> <identity>` per line) is the same
+  "startup-read deployment config, not schema" shape as task 4's
+  `HARPIA_RBAC_MAP`.

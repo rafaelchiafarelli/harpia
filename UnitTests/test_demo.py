@@ -106,8 +106,17 @@ def demo_curve(tmp_path_factory):
     build path a downstream consumer would use, not just the unit-level
     round-trip in test_stage13_zmq.py."""
     out = tmp_path_factory.mktemp("harpia_demo_curve")
+    # transport-authn "zmq-zap-allowlist": under a hardened profile the
+    # generated CURVE_SERVER sockets start a ZAP handler that denies every key
+    # with no HARPIA_ZMQ_ALLOWLIST -- which would stall this encryption-only
+    # CURVE demo. Pin a low-risk profile; the allowlist path is exercised by
+    # test_zmq_zap.py.
+    cfg_path = os.path.join(str(out), "low_risk.harpia.yaml")
+    with open(cfg_path, "w", encoding="utf-8") as fh:
+        fh.write("risk_class: class_a\ntopology: standalone\n")
+    env = {**os.environ, "HARPIA_COMPLIANCE_CONFIG": cfg_path}
     r = subprocess.run([sys.executable, RUNNER, str(out)],
-                       cwd=REPO_ROOT, capture_output=True, text=True)
+                       cwd=REPO_ROOT, capture_output=True, text=True, env=env)
     assert r.returncode == 0, r.stdout + r.stderr
 
     project = os.path.join(str(out), "build")
