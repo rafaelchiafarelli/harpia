@@ -96,6 +96,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libboost-dev \
         cmake \
         g++ \
+        git \
         make \
         libssl-dev \
         openssl \
