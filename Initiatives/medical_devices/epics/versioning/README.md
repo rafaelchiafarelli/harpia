@@ -1,90 +1,86 @@
-# Versioning/git integration
+# Versioning / git integration
 
-## Decided (2026-08-23): option 2 — folded into the process-artifacts epic's `ComplianceReport/` output
+Planning complete 2026-09-01 — two task files under `tasks/`. This README
+is the epic-level context; the per-task contracts live in the task files.
 
-This epic's original deliverable was "version stamps feeding the
-registry's 'associated version / calculated version' fields." That
-registry was the continuable-process work's — the continuable-process work never got built as scoped; the problem
-it targeted (crash/interrupt recovery) shipped 2026-08-19 via a different
-mechanism that has no registry at all (see `../foundation-handoff.md`'s
-2026-08-23 update for the full trace). No fork-tracking/versioning code
-exists anywhere in the current codebase, so the underlying feature (git
-fork-tracking for generated projects) is still a real, unbuilt gap — the
-open question was specifically *where the version stamps live now*.
+## What this epic is
 
-**Resolved:** fold it into the process-artifacts epic's `ComplianceReport/`/SBOM output
-instead of building a new mechanism. the process-artifacts epic already has a per-project
-artifact module; version lineage becomes one more field in something it
-already emits, rather than a standalone registry or sidecar file. This
-replaces the old "shares registry version-stamp fields with the continuable-process work"
-coupling with a new one: **this epic now depends on the process-artifacts epic, not on
-the continuable-process work** (which doesn't exist as a task at all — see
-`../README.md`).
+Git fork-tracking metadata for a generated project — commit, ref,
+dirty-tree flag, `git describe`, origin URL, and the fork-point commit —
+emitted as fields **within** the process-artifacts epic's existing
+`ComplianceReport/`/SBOM output. Not a new registry, not a sidecar file:
+"one more field in something it already emits."
 
-## Receives (must be done before this epic starts)
+## Decided (do not re-litigate)
 
-- **F1** from Foundation (see `../README.md`).
-- **the process-artifacts epic's sbom-emission task** (the process-artifacts epic) merged — the
-  `ComplianceReport/` module and its SBOM emission must exist before this epic can add fields to it. Not all of the process-artifacts epic — just far enough that
-  the module and its base schema exist.
+- **2026-08-23 — folded into `ComplianceReport/`.** The original
+  deliverable ("version stamps feeding the registry's associated/calculated
+  version fields") targeted the continuable-process work's registry, which
+  was never built (crash/interrupt recovery shipped 2026-08-19 via
+  `write_if_different`, no registry at all — see `../foundation-handoff.md`).
+  The fork-tracking feature itself is still a real unbuilt gap; the open
+  question was only *where the stamps live now*. Answer: extend the
+  process-artifacts epic's module in place. This epic depends on the
+  process-artifacts epic (its `sbom-emission` task), not on the
+  continuable-process work.
+- **2026-09-01 — collection mechanism: shell out to the `git` binary.**
+  Not a hand-rolled `.git/` parser — the fork-point field needs
+  `git merge-base`, infeasible without the binary. `git` is added to the
+  Docker image (`Dockerfile` `apt-get` list) so the task-2 integration
+  tests run in canonical CI; this reverses the `sbom-emission` task's "no
+  image change" stance, on purpose.
+- **2026-09-01 — graceful absence is a contract.** No git / no repo / a
+  failing subcommand → each field is the string `"unknown"`, never
+  omitted or fabricated, never a raise. Mirrors `harpia:crypto_backend` →
+  `"unknown"`. It has its own test; it is not merely a fallback.
+- **2026-09-01 — output shape:** six `harpia:git_*` entries in `bom.json`
+  `metadata.properties[]`, after the existing five `harpia:*` pairs. Not
+  the CycloneDX `pedigree.commits` structure (too heavy for one field).
+- **2026-09-01 — golden determinism:** a monkeypatchable
+  `collect_git_state` seam for unit tests + per-key sentinel normalization
+  in `run_pipeline.py::_collect_compliancereport`, the same approach
+  already used for `metadata.timestamp`.
+- **2026-09-01 — one `requirements.py` row** (`applies_to="project"`) for
+  build/version provenance as regulatory evidence; `HARPIA_TOOL_VERSION`
+  bumps `0.1.0` → `0.2.0`.
 
-## Gives (what "done" means here, consumed by whom)
+## Receives (done before this epic starts)
 
-- Git fork-tracking metadata (version stamps, fork lineage) emitted as
-  fields within the process-artifacts epic's existing `ComplianceReport/`/SBOM output — not
-  a separate artifact.
-- **Consumed by:** the process-artifacts epic's output is what a regulatory submission
-  reads; this epic's fields become part of that same evidence, not a
-  separate consumer relationship. Effectively, this epic extends the process-artifacts epic
-  in place rather than standing fully independent of it.
+- **F1** from Foundation — shipped.
+- **the process-artifacts epic's `sbom-emission` task** merged (the
+  `ComplianceReport/` module must exist to extend) — shipped. Task 2 only;
+  task 1 needs nothing from it.
+
+## Gives
+
+- `harpia:git_*` fork-lineage fields inside `bom.json`, recoverable for
+  any generated project by reading its `ComplianceReport/` output;
+  graceful `"unknown"` everywhere when git is absent.
+- **Consumed by:** the process-artifacts epic's output is what a
+  regulatory submission reads — these fields become part of that same
+  evidence, not a separate consumer. This epic extends that module in
+  place.
+
+## Tasks
+
+| # | File | Delivers | Depends on |
+|---|---|---|---|
+| 1 | `tasks/1-git-fork-tracking-metadata-collection.md` | `Util/gitstate.py::collect_git_state()` + `git` in the Docker image + `test_gitstate.py`. No pipeline/output change. | F1 |
+| 2 | `tasks/2-wire-version-lineage-into-compliancereport-output.md` | six `harpia:git_*` props in `bom.json`; golden normalization; one `requirements.py` row; `HARPIA_TOOL_VERSION` → `0.2.0`. Closes the epic. | task 1 merged; `sbom-emission` merged |
 
 ## Files this epic touches
 
-- `ComplianceReport/` (the process-artifacts epic's module — see the process-artifacts epic),
-  not `Util/`/`main.py` orchestration the way the original scoping (tied
-  to the continuable-process work) assumed. **Flag:** collecting the actual git state (commit
-  hash, fork lineage) still needs *some* code to shell out to
-  `git`/read `.git/` — plausibly a small new `Util/` helper — but neither
-  the master plan nor this reconciliation commits to that shape ahead of
-  task 1 actually being built. Not guessing a specific new filename.
-
----
-
-## Git fork-tracking metadata collection
-
-- **Depends on:** F1 (Foundation).
-- **Deliverable:** compute a version stamp / fork-lineage record from the
-  active git state at generation time.
-- **Guarantees:** projects without git present degrade gracefully — no
-  crash, no forced requirement, a clearly-absent lineage record rather
-  than a fabricated one.
-- **Tests:**
-  - Unit: version stamp matches actual git state.
-  - Unit: no-git environment produces the graceful-absence case, not a
-    crash.
-
-## Wire version stamps into the process-artifacts epic's `ComplianceReport/` output
-
-- **Depends on:** task 1 merged; the process-artifacts epic's sbom-emission task merged (the
-  `ComplianceReport/` module must exist to extend).
-- **Deliverable:** version stamp / fork-lineage fields added to the
-  SBOM/`ComplianceReport/` output — "one more field in something it
-  already emits," not a new artifact.
-- **Guarantees:** version lineage is recoverable for any generated
-  project by reading its `ComplianceReport/` output.
-- **Tests:**
-  - Integration: fork a harpia project, regenerate, confirm lineage
-    recorded in the `ComplianceReport/` output and traceable back to the
-    parent.
-- **Acceptance gate:** no-git environments still generate successfully,
-  `ComplianceReport/` output present with the graceful-absence case from
-  task 1, not a missing/broken artifact.
+- **Task 1:** `Util/gitstate.py` (new), `Dockerfile` (one line),
+  `Util/CLAUDE.md`, `UnitTests/test_gitstate.py` (new).
+- **Task 2:** `ComplianceReport/ComplianceReport.py`,
+  `ComplianceReport/requirements.py`, `UnitTests/run_pipeline.py`
+  (`_collect_compliancereport`), `ComplianceReport/CLAUDE.md`,
+  `UnitTests/golden/compliancereport/*`, the task-2 test file.
 
 ## Watch for
 
-- Don't start task 1 or task 2 before the process-artifacts epic's the sbom-emission task is at least merged — task 2
-  specifically has a hard dependency on the module existing.
-- This epic no longer touches `main.py` orchestration the way the
-  original Track-I-coupled scoping assumed — don't carry that assumption
-  forward into implementation without re-checking it against task 1's actual
-  shape once built.
+- This epic does **not** touch `main.py` orchestration — the old
+  continuable-process-coupled scoping assumed it did.
+  `ComplianceReport(...)` is already called at pipeline step 15.
+- `git` landing in the image is a one-time rebuild per clone;
+  `Docker/run.sh` picks the per-Dockerfile image tag automatically.
