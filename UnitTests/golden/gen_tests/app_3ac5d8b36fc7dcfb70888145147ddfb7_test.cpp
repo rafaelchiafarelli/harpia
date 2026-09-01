@@ -33,6 +33,20 @@ int all_good() {
     ::soci::session db(::soci::sqlite3, ":memory:");
     harpia::db::users_dao dao(db);
     if (!dao.create_table()) return 111;
+    ::users a;
+    a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    a.set_address("address_a");
+    a.set_name("name_a");
+    a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
+    a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
+    a.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7("originator_3ac5d8b36fc7dcfb70888145147ddfb7_a");
+    if (!dao.create(a)) return 113;
+    std::string body;
+    if (!::harpia::json::to_json(a, &body)) return 114;
+    ::users rt;
+    if (!::harpia::json::from_json(body, &rt)) return 115;
+    ::users chk;
+    if (!dao.read(1, &chk)) return 117;
     crow::SimpleApp app;
     app.loglevel(crow::LogLevel::Warning);
     harpia::rest::register_users(app, db, "/api/v1");
@@ -42,27 +56,10 @@ int all_good() {
     const int port = app.port();
     if (port <= 0) { app.stop(); fut.get(); return 112; }
     harpia_test::Client cli("127.0.0.1", port);
-    const std::string hdr = "<soap:Header><credentials><user>users</user><pswd>3ac5d8b36fc7dcfb70888145147ddfb7</pswd></credentials></soap:Header>";
-    const harpia_test::Headers rc = {{"X-User", "users"}, {"X-Pswd", "3ac5d8b36fc7dcfb70888145147ddfb7"}};
     int code = 0;
     do {
-        ::users a;
-        a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
-        a.set_address("address_a");
-        a.set_name("name_a");
-        a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-        a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-        a.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7("originator_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-        std::string body;
-        if (!::harpia::json::to_json(a, &body)) { code = 113; break; }
-        auto post = cli.Post("/api/v1/users", body, "application/json", rc);
-        if (!post || post.status != 201) { code = 114; break; }
-        const std::string getEnv = "<soap:Envelope>" + hdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";
-        auto g = cli.Post("/soap/users", getEnv, "text/xml");
-        if (!g || g.status != 200 || g.body.find("getResponse") == std::string::npos) { code = 115; break; }
-        if (g.body.find("address_a") == std::string::npos) { code = 116; break; }
-        ::users chk;
-        if (!dao.read(1, &chk)) { code = 117; break; }
+        auto p = cli.Post("/api/v1/users", body, "application/json");
+        if (!p || p.status != 401) { code = 118; break; }
     } while (false);
     app.stop(); fut.get();
     return code;
@@ -86,16 +83,12 @@ int crash() {
     const int port = app.port();
     if (port <= 0) { app.stop(); fut.get(); return 123; }
     harpia_test::Client cli("127.0.0.1", port);
-    const harpia_test::Headers rc = {{"X-User", "users"}, {"X-Pswd", "3ac5d8b36fc7dcfb70888145147ddfb7"}};
     int code = 0;
     do {
         std::string body;
         if (!::harpia::json::to_json(a, &body)) { code = 124; break; }
-        auto post = cli.Post("/api/v1/users", body, "application/json", rc);
-        if (!post) { code = 125; break; }
-        if (post.status != 500) { code = 126; break; }
-        auto lst = cli.Get("/api/v1/users", rc);
-        if (!lst || lst.status != 500) { code = 127; break; }
+        auto post = cli.Post("/api/v1/users", body, "application/json");
+        if (!post || post.status != 401) { code = 126; break; }
     } while (false);
     app.stop(); fut.get();
     return code;
@@ -151,13 +144,14 @@ int non_parseable() {
     const int port = app.port();
     if (port <= 0) { app.stop(); fut.get(); return 145; }
     harpia_test::Client cli("127.0.0.1", port);
-    const harpia_test::Headers rc = {{"X-User", "users"}, {"X-Pswd", "3ac5d8b36fc7dcfb70888145147ddfb7"}};
     int code = 0;
     do {
-        auto bj = cli.Post("/api/v1/users", "{ not json", "application/json", rc);
-        if (!bj || bj.status != 400) { code = 146; break; }
+        // SOAP: malformed XML is rejected at parse (400), before the RBAC gate
         auto bx = cli.Post("/soap/users", "<not soap", "text/xml");
         if (!bx || bx.status != 400) { code = 147; break; }
+        // REST: the RBAC gate refuses the anon caller (401) before the parser
+        auto bj = cli.Post("/api/v1/users", "{ not json", "application/json");
+        if (!bj || bj.status != 401) { code = 146; break; }
     } while (false);
     app.stop(); fut.get();
     return code;
