@@ -28,7 +28,7 @@
 #include "db/outpost_3ac5d8b36fc7dcfb70888145147ddfb7_crudl.h"
 #include "json/outpost_3ac5d8b36fc7dcfb70888145147ddfb7_json.h"
 #include "xml/outpost_3ac5d8b36fc7dcfb70888145147ddfb7_xml.h"
-
+#include "http/harpia_rbac.h"
 // RESTful CRUD for outpost, backed by the CRUDL DAO. Register on a
 // crow::SimpleApp with a base path (e.g. "/project/v1"); routes are then:
 //   GET    <base>/outpost        list   (?limit=&offset= to paginate)
@@ -50,10 +50,20 @@
 // contains "xml" (else JSON); a response is serialized as XML when the Accept
 // header asks for "xml" (else JSON).
 //
-// Every route enforces the generated access credential (Stage 5 access rights):
-// the request must carry X-User: outpost and X-Pswd: 3ac5d8b36fc7dcfb70888145147ddfb7, or it is rejected
-// with HTTP 401 before the operation runs.
-//
+// Access gate (compiled in at generation time; which variant depends on
+// transport_hardening_required(compliance) -- transport-authn epic, tasks 3+4):
+//   hardened  -> a three-role RBAC check (admin / main / guest). The verified
+//               mTLS client-certificate subject CommonName
+//               (crow::request::client_cert_cn) is resolved to a role via the
+//               HARPIA_RBAC_MAP file and checked against the route's operation
+//               (GET-list -> list, GET-item -> read, POST -> create, PUT ->
+//               update, DELETE -> remove). No / unverifiable identity -> 401;
+//               valid identity, wrong role -> 403. Every denial emits exactly
+//               one AuditSink "rbac_denied" record (names only, never a
+//               credential value). See generated http/harpia_rbac.h.
+//   otherwise -> the flat generated access credential: the request must carry
+//               X-User: outpost and X-Pswd: 3ac5d8b36fc7dcfb70888145147ddfb7, or it is rejected with 401
+//               before the operation runs.
 // The crow::SimpleApp itself is stood up by the generated
 // http/http_server_bringup.h (transport-authn epic, task 3) -- its
 // harpia::http_transport::HttpServer registers this binding and the matching
@@ -63,11 +73,24 @@
 namespace harpia {
 namespace rest {
 
-// True iff the request carries the correct credential for outpost. Exposed so it
-// can be unit-tested directly.
-inline bool authorized_outpost(const crow::request& req) {
-    return req.get_header_value("X-User") == "outpost" &&
-           req.get_header_value("X-Pswd") == "3ac5d8b36fc7dcfb70888145147ddfb7";
+// Role gate for outpost (transport-authn epic, task 4). Resolves the verified
+// mTLS client-certificate CommonName (crow::request::client_cert_cn) to a role
+// via the HARPIA_RBAC_MAP file and checks it against `op`. On deny it stamps
+// the response -- 401 (no / unverifiable identity) or 403 (valid identity,
+// wrong role) -- and returns false; ::harpia::rbac::decide has already emitted
+// the single AuditSink "rbac_denied" record. Exposed for direct unit testing.
+inline bool authz_outpost(const crow::request& req, crow::response& res,
+                         ::harpia::rbac::Operation op) {
+    switch (::harpia::rbac::decide(req.client_cert_cn, op, "outpost")) {
+        case ::harpia::rbac::Decision::allow:
+            return true;
+        case ::harpia::rbac::Decision::unauthenticated:
+            res.code = 401;
+            return false;
+        default:
+            res.code = 403;
+            return false;
+    }
 }
 
 // content negotiation: XML when asked for, JSON otherwise
@@ -103,7 +126,7 @@ inline void register_outpost(crow::SimpleApp& app, ::soci::session& db,
 
     app.route_dynamic(col).methods(crow::HTTPMethod::GET)(
         [dbp](const crow::request& req, crow::response& res) {
-            if (!authorized_outpost(req)) { res.code = 401; res.end(); return; }
+            if (!authz_outpost(req, res, ::harpia::rbac::Operation::list)) { res.end(); return; }
             ::harpia::db::outpost_dao dao(*dbp);
             std::vector<::outpost> rows;
             // ?limit=&offset= (or the table's declared pagination[size]
@@ -143,7 +166,7 @@ inline void register_outpost(crow::SimpleApp& app, ::soci::session& db,
 
     app.route_dynamic(item).methods(crow::HTTPMethod::GET)(
         [dbp](const crow::request& req, crow::response& res, int64_t id) {
-            if (!authorized_outpost(req)) { res.code = 401; res.end(); return; }
+            if (!authz_outpost(req, res, ::harpia::rbac::Operation::read)) { res.end(); return; }
             ::harpia::db::outpost_dao dao(*dbp);
             ::outpost msg;
             if (!dao.read(id, &msg)) { res.code = 404; res.end(); return; }
@@ -153,7 +176,7 @@ inline void register_outpost(crow::SimpleApp& app, ::soci::session& db,
 
     app.route_dynamic(col).methods(crow::HTTPMethod::POST)(
         [dbp](const crow::request& req, crow::response& res) {
-            if (!authorized_outpost(req)) { res.code = 401; res.end(); return; }
+            if (!authz_outpost(req, res, ::harpia::rbac::Operation::create)) { res.end(); return; }
             ::harpia::db::outpost_dao dao(*dbp);
             ::outpost msg;
             if (!parse_outpost(req, &msg)) { res.code = 400; res.end(); return; }
@@ -163,7 +186,7 @@ inline void register_outpost(crow::SimpleApp& app, ::soci::session& db,
 
     app.route_dynamic(item).methods(crow::HTTPMethod::PUT)(
         [dbp](const crow::request& req, crow::response& res, int64_t) {
-            if (!authorized_outpost(req)) { res.code = 401; res.end(); return; }
+            if (!authz_outpost(req, res, ::harpia::rbac::Operation::update)) { res.end(); return; }
             ::harpia::db::outpost_dao dao(*dbp);
             ::outpost msg;
             if (!parse_outpost(req, &msg)) { res.code = 400; res.end(); return; }
@@ -173,7 +196,7 @@ inline void register_outpost(crow::SimpleApp& app, ::soci::session& db,
 
     app.route_dynamic(item).methods(crow::HTTPMethod::DELETE)(
         [dbp](const crow::request& req, crow::response& res, int64_t id) {
-            if (!authorized_outpost(req)) { res.code = 401; res.end(); return; }
+            if (!authz_outpost(req, res, ::harpia::rbac::Operation::remove)) { res.end(); return; }
             ::harpia::db::outpost_dao dao(*dbp);
             if (!dao.remove(id)) { res.code = 500; res.end(); return; }
             res.code = 204; res.end();

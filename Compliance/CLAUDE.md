@@ -87,6 +87,25 @@ third added by the sensitive-data roadmap, not Foundation):
   doesn't hardcode a path into a sibling module.
 - `runtime/harpia_audit_sink.h` — F3: `AuditSink` (pure virtual `record()`)
   + `NoOpAuditSink` + `default_audit_sink()`. Hand-written, not generated.
+- `runtime/harpia_rbac.h` — **transport-authn epic, task 4 (rbac).** Hand-written
+  C++, copied verbatim into a generated project's `generated/cpp/{http,grpc}/`
+  next to the transport headers (same pattern as `harpia_audit_sink.h`), by
+  `Database/{RestAdapter,GrpcServiceAdapter}` when
+  `Crypto.backend.transport_hardening_required(compliance)`. `harpia::rbac`:
+  `Role{none,guest,main,admin}`, `Operation`, the fixed `permitted(role,op)`
+  matrix (admin=all, main=all-but-remove, guest=read-only, heartbeat open to
+  all — one matrix per project, never per-jurisdiction), `RoleMap` (identity →
+  role, loaded once at startup from the `HARPIA_RBAC_MAP` file — deployment
+  config, not schema, not compiled in), and `decide(cn, op, subject, sink)` →
+  `Decision{allow,unauthenticated,forbidden}` emitting exactly one
+  `AuditSink` `"rbac_denied"` record per non-allow (cn/role/op/decision
+  metadata only, Rule 5). `#include`s its sibling `harpia_audit_sink.h`.
+  Tested by `UnitTests/test_rbac.py`.
+- `rbac_common.py` — task-4 path constants (`RBAC_RUNTIME`/`RBAC_RUNTIME_SRC`
+  + `RBAC_RUNTIME_DEPS` = the co-copied `harpia_audit_sink.h`), same shape as
+  `audit_common.py` / `delivery_common.py`. Consumed by
+  `Database.RestAdapter` (copies into `generated/cpp/http/`) and
+  `Database.GrpcServiceAdapter` (into `generated/cpp/grpc/`).
 
 ## Key facts / gotchas
 - **Three failure modes, three different outcomes** -- don't conflate them:

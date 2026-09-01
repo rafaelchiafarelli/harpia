@@ -25,7 +25,7 @@
 #include "crow.h"
 #include "db/vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_crudl.h"
 #include "xml/vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_xml.h"   // brings tinyxml2 + the XML runtime
-
+#include "http/harpia_rbac.h"
 // Minimal SOAP-over-HTTP access for vip_users, backed by the CRUDL DAO. Register on
 // a crow::SimpleApp with a base path; POST a SOAP envelope to <base>/vip_users:
 //   <soap:Body><get><id>N</id></get></soap:Body>          -> the vip_users as XML
@@ -33,8 +33,20 @@
 //   <soap:Body><update><vip_users>...</vip_users></update></soap:Body> -> update
 //   <soap:Body><delete><id>N</id></delete></soap:Body>    -> delete
 //
-// Every request must carry the generated access credential in the SOAP Header
-// (Stage 5 access rights), or it is rejected with a SOAP Fault (HTTP 401):
+// Access gate (compiled in at generation time; which variant depends on
+// transport_hardening_required(compliance) -- transport-authn epic, tasks 3+4):
+//   hardened  -> a three-role RBAC check (admin / main / guest), run once the
+//               operation element has been parsed: the verified mTLS client-
+//               certificate subject CommonName (crow::request::client_cert_cn)
+//               is resolved to a role via the HARPIA_RBAC_MAP file and checked
+//               against the operation (get -> read, set -> create, update ->
+//               update, delete -> remove). No / unverifiable identity -> a
+//               401 SOAP Fault; valid identity, wrong role -> a 403 SOAP
+//               Fault. Every denial emits exactly one AuditSink "rbac_denied"
+//               record (names only, never a credential value). See generated
+//               http/harpia_rbac.h.
+//   otherwise -> the flat generated access credential in the SOAP Header, or
+//               the request is rejected with a SOAP Fault (HTTP 401):
 //   <soap:Header><credentials><user>vip_users</user><pswd>3ac5d8b36fc7dcfb70888145147ddfb7</pswd></credentials></soap:Header>
 // (WSDL generation is deferred.)
 //
@@ -83,23 +95,6 @@ inline std::string envelope_vip_users(const std::string& body) {
            "<soap:Body>" + body + "</soap:Body></soap:Envelope>";
 }
 
-// True iff the envelope carries the correct credential for vip_users. The handler
-// gates every operation on this; exposed so it can be unit-tested directly.
-inline bool authorized_vip_users(const ::tinyxml2::XMLDocument& doc) {
-    const auto* env = doc.RootElement();                       // soap:Envelope
-    const auto* header = ::harpia::soap::detail::find_child(env, "Header");
-    const auto* cred = ::harpia::soap::detail::find_child(header, "credentials");
-    if (!cred) return false;
-    return ::harpia::soap::detail::child_text(cred, "user") == "vip_users" &&
-           ::harpia::soap::detail::child_text(cred, "pswd") == "3ac5d8b36fc7dcfb70888145147ddfb7";
-}
-
-inline bool authorized_vip_users(const std::string& soap_xml) {
-    ::tinyxml2::XMLDocument doc;
-    if (doc.Parse(soap_xml.c_str()) != ::tinyxml2::XML_SUCCESS) return false;
-    return authorized_vip_users(doc);
-}
-
 inline void register_vip_users_soap(crow::SimpleApp& app, ::soci::session& db,
                                  const std::string& base) {
     // capture a session pointer (soci::session is non-copyable); the caller must
@@ -117,19 +112,35 @@ inline void register_vip_users_soap(crow::SimpleApp& app, ::soci::session& db,
         if (doc.Parse(req.body.c_str()) != ::tinyxml2::XML_SUCCESS) {
             res.code = 400; res.end(); return;
         }
-        if (!authorized_vip_users(doc)) {
-            res.code = 401;
-            reply(envelope_vip_users(
-                "<soap:Fault><faultcode>Client.Authentication</faultcode>"
-                "<faultstring>unauthorized</faultstring></soap:Fault>"));
-            res.end(); return;
-        }
+
         const auto* env = doc.RootElement();                  // soap:Envelope
         const auto* body = ::harpia::soap::detail::find_child(env, "Body");
         const auto* op = body ? body->FirstChildElement() : nullptr;   // operation
         if (!op) { res.code = 400; res.end(); return; }
         const std::string name = ::harpia::soap::detail::local_name(op);
-
+        ::harpia::rbac::Operation rbac_op = ::harpia::rbac::Operation::read;
+        bool rbac_known = true;
+        if (name == "get") rbac_op = ::harpia::rbac::Operation::read;
+        else if (name == "set") rbac_op = ::harpia::rbac::Operation::create;
+        else if (name == "update") rbac_op = ::harpia::rbac::Operation::update;
+        else if (name == "delete") rbac_op = ::harpia::rbac::Operation::remove;
+        else rbac_known = false;
+        if (rbac_known) {
+            const auto rbac_d =
+                ::harpia::rbac::decide(req.client_cert_cn, rbac_op, "vip_users");
+            if (rbac_d != ::harpia::rbac::Decision::allow) {
+                res.code = (rbac_d == ::harpia::rbac::Decision::unauthenticated)
+                               ? 401 : 403;
+                reply(envelope_vip_users(
+                    "<soap:Fault><faultcode>Client.Authentication</faultcode>"
+                    "<faultstring>" +
+                    std::string(
+                        rbac_d == ::harpia::rbac::Decision::unauthenticated
+                            ? "unauthenticated" : "forbidden") +
+                    "</faultstring></soap:Fault>"));
+                res.end(); return;
+            }
+        }
         if (name == "get") {
             const auto* idEl = op->FirstChildElement("id");
             const long long id =

@@ -42,6 +42,9 @@ from Util.util import loadTemplate, write_if_different, copy_if_different
 from Compliance.grpc_common import (
     GRPC_MTLS_RUNTIME, GRPC_MTLS_RUNTIME_SRC,
     GRPC_SERVER_BRINGUP, GRPC_SERVER_SELECTION)
+from Compliance.rbac_common import (
+    RBAC_RUNTIME, RBAC_RUNTIME_SRC, RBAC_RUNTIME_DEPS)
+from Database.auth_gate import grpc_auth_fills
 from Crypto.backend import get_backend as get_crypto_backend, \
     transport_hardening_required
 
@@ -67,6 +70,9 @@ class GrpcServiceAdapter:
 
     def Process(self):
         os.makedirs(self.outDir, exist_ok=True)
+        # transport-authn task 4: RBAC role check vs the flat x-user/x-pswd
+        # metadata credential, chosen by the same predicate that turns on mTLS.
+        rbac = transport_hardening_required(self.compliance)
         table_msgs = []
         for msg in self.messages:
             if getattr(msg, "isEnum", False) or not msg.tableName:
@@ -75,6 +81,7 @@ class GrpcServiceAdapter:
                 guard="HARPIA_GRPC_{}_{}".format(msg.name.upper(), msg.md5Hash),
                 name=msg.name,
                 hash=msg.md5Hash,
+                **grpc_auth_fills(msg.name, msg.md5Hash, rbac),
             )
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, GRPC_EXT)
             write_if_different(os.path.join(self.outDir, fileName), header)
@@ -82,6 +89,12 @@ class GrpcServiceAdapter:
 
         if table_msgs:
             self._write_server_bringup(table_msgs)
+            if rbac:
+                copy_if_different(
+                    RBAC_RUNTIME_SRC, os.path.join(self.outDir, RBAC_RUNTIME))
+                for dep_name, dep_src in RBAC_RUNTIME_DEPS:
+                    copy_if_different(
+                        dep_src, os.path.join(self.outDir, dep_name))
 
         self.log.print("generated {} gRPC service impl(s) into {}".format(
             len(table_msgs), self.outDir))

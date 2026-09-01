@@ -1,5 +1,31 @@
 ## RBAC (admin / main / guest)
 
+**Done 2026-09-01.** Store shape pinned: the identity → role binding is read
+once at startup from the `HARPIA_RBAC_MAP` file (one `CN role` per line;
+`#` comments; `admin`/`main`/`guest`) — deployment config, not schema, not a
+compiled-in list (same reasoning that keeps the mTLS certs out of the build).
+Mechanism: hand-written `Compliance/runtime/harpia_rbac.h` (`Role`,
+`Operation`, the fixed `permitted()` matrix, `RoleMap::from_env()`,
+`decide() → {allow, unauthenticated, forbidden}` with one value-free
+`AuditSink` `"rbac_denied"` record per non-allow), copied verbatim into
+`generated/cpp/{http,grpc}/` next to the transport headers. Gate code built by
+`Database/auth_gate.py` and spliced into `templates/{rest,soap,grpc_service}.h.tmpl`
+by the three emitters; the RBAC vs flat variant is one generation-time choice
+(`transport_hardening_required(compliance)` — the same predicate as mTLS),
+never per-jurisdiction. `crow::request::client_cert_cn` added by a
+`[harpia patch]` to vendored crow (`third_party/crow/VENDORED.md`); gRPC reads
+the x509 CN from `ServerContext::auth_context()`. REST/gRPC map: GET-list→list,
+GET-item/pullByID→read, POST/push→create, PUT→update, DELETE→remove,
+streamSrc→stream; heartBeat never gated. Differentiated 401 vs 403
+(UNAUTHENTICATED vs PERMISSION_DENIED). Tests: `UnitTests/test_rbac.py`
+(matrix allow/deny table, one-audit-record-per-denial, live 401/403/200 over
+mTLS across REST/SOAP/gRPC + in-process UNAUTHENTICATED); `test_stage11/12/13`
+pinned to a low-risk profile to keep exercising the flat gate; `test_grpc_mtls`
+/ `test_rest_soap_mtls` given an `HARPIA_RBAC_MAP` so their mTLS assertions
+still hold under the hardened profile. Golden regenerated (rest/soap/grpc
+headers move to the RBAC variant; new `{http,grpc}/harpia_rbac.h`). **Follow-up
+now unblocked:** the ZMQ CURVE ZAP allowlist can be scoped against this store.
+
 Scoped 2026-08-30. **Task 4** of the transport-authn epic. Replaces the flat
 `X-User`/`X-Pswd` (REST), `<credentials>` (SOAP) and credential-metadata (gRPC)
 gate with a three-role model across all three transports. **This task's identity
