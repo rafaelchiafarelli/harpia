@@ -201,6 +201,16 @@ def built(tmp_path_factory):
                        capture_output=True, text=True)
     assert p.returncode == 0, "mtls provisioning failed:\n" + p.stdout + p.stderr
 
+    # The repo compliance profile is class_c/cloud_connected, so this build is
+    # hardened -> the generated gate is RBAC (transport-authn task 4), not the
+    # flat X-User/X-Pswd check. mtls_provision.sh's default client identity is
+    # "harpia-client"; bind it to a role that may list/read so the mTLS
+    # behaviour under test (client-cert required, served vs handshake-refused)
+    # is what actually gets exercised.
+    rbac_map = os.path.join(str(out), "rbac_map.txt")
+    with open(rbac_map, "w", encoding="utf-8") as fh:
+        fh.write("harpia-client admin\n")
+
     return {
         "cpp_root": os.path.join(build, "generated", "cpp"),
         "tmp": str(out),
@@ -209,6 +219,7 @@ def built(tmp_path_factory):
         "client_key": os.path.join(certs, "client_key.pem"),
         "server_cert": os.path.join(certs, "server.pem"),
         "server_key": os.path.join(certs, "server_key.pem"),
+        "rbac_map": rbac_map,
     }
 
 
@@ -301,7 +312,8 @@ def test_live_https_requires_client_cert(built):
     proc = subprocess.Popen(
         [binary, str(port), built["ca"], built["server_cert"], built["server_key"]],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True)
+        text=True,
+        env={**os.environ, "HARPIA_RBAC_MAP": built["rbac_map"]})
 
     def _die(msg):
         try:

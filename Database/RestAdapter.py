@@ -49,6 +49,9 @@ from Database.model import pagination_default
 from Compliance.http_common import (
     HTTP_MTLS_RUNTIME, HTTP_MTLS_RUNTIME_SRC,
     HTTP_SERVER_BRINGUP, HTTP_SERVER_SELECTION, HTTP_OUT_SUBDIR)
+from Compliance.rbac_common import (
+    RBAC_RUNTIME, RBAC_RUNTIME_SRC, RBAC_RUNTIME_DEPS)
+from Database.auth_gate import rest_auth_fills
 from Crypto.backend import get_backend as get_crypto_backend, \
     transport_hardening_required
 
@@ -76,6 +79,10 @@ class RestAdapter:
 
     def Process(self):
         os.makedirs(self.outDir, exist_ok=True)
+        # transport-authn task 4: the per-route gate is a three-role RBAC check
+        # when the compliance profile mandates hardened transport (same
+        # predicate that turns on mTLS), else the flat X-User/X-Pswd credential.
+        rbac = transport_hardening_required(self.compliance)
         table_msgs = []
         for msg in self.messages:
             if getattr(msg, "isEnum", False) or not msg.tableName:
@@ -86,19 +93,20 @@ class RestAdapter:
                 name=msg.name,
                 hash=msg.md5Hash,
                 default_limit=default_limit,
+                **rest_auth_fills(msg.name, msg.md5Hash, rbac),
             )
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, REST_EXT)
             write_if_different(os.path.join(self.outDir, fileName), header)
             table_msgs.append((msg.name, msg.md5Hash))
 
         if table_msgs:
-            self._write_http_bringup(table_msgs)
+            self._write_http_bringup(table_msgs, rbac)
 
         self.log.print("generated {} REST binding(s) into {}".format(
             len(table_msgs), self.outDir))
         return None
 
-    def _write_http_bringup(self, table_msgs):
+    def _write_http_bringup(self, table_msgs, rbac):
         """The shared REST+SOAP server bring-up + mTLS selection
         (transport-authn task 3), emitted whenever the schema has at least one
         table-bearing message -- same "only when there's transport output"
@@ -107,6 +115,16 @@ class RestAdapter:
         os.makedirs(self.httpDir, exist_ok=True)
         copy_if_different(HTTP_MTLS_RUNTIME_SRC,
                           os.path.join(self.httpDir, HTTP_MTLS_RUNTIME))
+
+        # transport-authn task 4: the RBAC gate runtime (+ its AuditSink
+        # dependency) rides next to the transport headers, same pattern as
+        # harpia_http_mtls.h -- but only when the RBAC variant is compiled in.
+        if rbac:
+            copy_if_different(RBAC_RUNTIME_SRC,
+                              os.path.join(self.httpDir, RBAC_RUNTIME))
+            for dep_name, dep_src in RBAC_RUNTIME_DEPS:
+                copy_if_different(dep_src,
+                                  os.path.join(self.httpDir, dep_name))
 
         rest_includes = "\n".join(
             '#include "rest/{}_{}{}"'.format(name, h, REST_EXT)

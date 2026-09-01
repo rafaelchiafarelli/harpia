@@ -9,7 +9,8 @@
 #include <soci/soci.h>
 #include "protofiles/users_3ac5d8b36fc7dcfb70888145147ddfb7_service.grpc.pb.h"
 #include "db/users_3ac5d8b36fc7dcfb70888145147ddfb7_crudl.h"
-
+#include <grpcpp/security/auth_context.h>
+#include "grpc/harpia_rbac.h"
 // gRPC service implementation for users, backed by the CRUDL DAO -- the RPCs of
 // the generated users_Service are wired to create/read/list over SQLite:
 //   push(msg)      -> dao.create(msg)             -> errorCode
@@ -23,10 +24,21 @@
 // insecure transport credentials from transport_hardening_required(compliance)
 // at generation time (transport-authn epic, task 2; harpia_grpc_mtls.h).
 //
-// The data operations enforce the generated access credential (Stage 5): the
-// call must carry x-user: users and x-pswd: 3ac5d8b36fc7dcfb70888145147ddfb7 metadata, or it is rejected
-// with UNAUTHENTICATED (mirrors the SOAP <credentials> / REST X-User headers).
-// heartBeat stays open as a liveness probe.
+// Access gate (compiled in at generation time; which variant depends on
+// transport_hardening_required(compliance) -- transport-authn epic, tasks 2+4):
+//   hardened  -> a three-role RBAC check (admin / main / guest). The x509
+//               subject CommonName from ServerContext::auth_context() (the
+//               verified mTLS client cert) is resolved to a role via the
+//               HARPIA_RBAC_MAP file and checked against the RPC's operation
+//               (push -> create, pullByID -> read, streamSrc -> stream). No /
+//               unverifiable identity -> UNAUTHENTICATED; valid identity,
+//               wrong role -> PERMISSION_DENIED. Every denial emits exactly
+//               one AuditSink "rbac_denied" record (names only, never a
+//               credential value). See generated grpc/harpia_rbac.h.
+//   otherwise -> the flat generated access credential: the call must carry
+//               x-user: users and x-pswd: 3ac5d8b36fc7dcfb70888145147ddfb7 metadata, or it is rejected
+//               with UNAUTHENTICATED.
+// heartBeat stays open as a liveness probe in both variants.
 namespace harpia {
 namespace grpc_svc {
 
@@ -35,24 +47,41 @@ class users_service final
 public:
     explicit users_service(::soci::session& db) : db_(db) {}
 
-    // True iff the call carries the correct credential metadata for users. A
-    // null context (direct in-process call, no wire) is allowed; the wire path
-    // always supplies a context.
-    static bool authorized(::grpc::ServerContext* ctx) {
-        if (!ctx) return true;
-        const auto& md = ctx->client_metadata();
-        auto u = md.find("x-user");
-        auto p = md.find("x-pswd");
-        return u != md.end() && p != md.end() &&
-               ::std::string(u->second.data(), u->second.length()) == "users" &&
-               ::std::string(p->second.data(), p->second.length()) == "3ac5d8b36fc7dcfb70888145147ddfb7";
+    // x509 subject CommonName of the verified mTLS client certificate, or "".
+    static ::std::string peer_cn(::grpc::ServerContext* ctx) {
+        if (!ctx) return {};
+        const auto ac = ctx->auth_context();
+        if (!ac) return {};
+        const auto vals = ac->FindPropertyValues(GRPC_X509_CN_PROPERTY_NAME);
+        if (vals.empty()) return {};
+        return ::std::string(vals[0].data(), vals[0].size());
+    }
+
+    // Role gate for users (transport-authn epic, task 4): resolve peer_cn() to
+    // a role via the HARPIA_RBAC_MAP file and check it against `op`. OK ->
+    // proceed; UNAUTHENTICATED (no / unverifiable identity) or PERMISSION_DENIED
+    // (valid identity, wrong role) otherwise. ::harpia::rbac::decide has already
+    // emitted the single AuditSink "rbac_denied" record on a denial.
+    static ::grpc::Status rbac_check(::grpc::ServerContext* ctx,
+                                     ::harpia::rbac::Operation op) {
+        switch (::harpia::rbac::decide(peer_cn(ctx), op, "users")) {
+            case ::harpia::rbac::Decision::allow:
+                return ::grpc::Status::OK;
+            case ::harpia::rbac::Decision::unauthenticated:
+                return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED,
+                                      "unauthenticated");
+            default:
+                return ::grpc::Status(::grpc::StatusCode::PERMISSION_DENIED,
+                                      "forbidden");
+        }
     }
 
     ::grpc::Status push(::grpc::ServerContext* context,
                         const ::frameworkProtos::users_Message* request,
                         ::frameworkProtos::errorCode* response) override {
-        if (!authorized(context)) {
-            return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED, "unauthorized");
+        if (const auto rbac_s = rbac_check(context, ::harpia::rbac::Operation::create);
+            !rbac_s.ok()) {
+            return rbac_s;
         }
         ::harpia::db::users_dao dao(db_);
         const bool ok = dao.create(request->msg());
@@ -64,8 +93,9 @@ public:
     ::grpc::Status pullByID(::grpc::ServerContext* context,
                             const ::frameworkProtos::users_ID* request,
                             ::frameworkProtos::users_Message* response) override {
-        if (!authorized(context)) {
-            return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED, "unauthorized");
+        if (const auto rbac_s = rbac_check(context, ::harpia::rbac::Operation::read);
+            !rbac_s.ok()) {
+            return rbac_s;
         }
         ::harpia::db::users_dao dao(db_);
         if (!dao.read(request->id(), response->mutable_msg())) {
@@ -78,8 +108,9 @@ public:
             ::grpc::ServerContext* context,
             const ::frameworkProtos::users_Stream* request,
             ::grpc::ServerWriter< ::frameworkProtos::users_Message>* writer) override {
-        if (!authorized(context)) {
-            return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED, "unauthorized");
+        if (const auto rbac_s = rbac_check(context, ::harpia::rbac::Operation::stream);
+            !rbac_s.ok()) {
+            return rbac_s;
         }
         ::harpia::db::users_dao dao(db_);
         std::vector< ::users> rows;

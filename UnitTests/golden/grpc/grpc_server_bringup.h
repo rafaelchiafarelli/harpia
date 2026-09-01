@@ -10,8 +10,10 @@
 //              MtlsFiles throws harpia::grpc_transport::SecurityRefused
 //     false -> grpc::InsecureServerCredentials(), unchanged pre-mTLS behaviour
 //
-// The per-RPC x-user/x-pswd credential-metadata check in each <name>_grpc.h is
-// unchanged and still runs on top of the transport.
+// The per-RPC access gate in each <name>_grpc.h runs on top of the transport:
+// when kHardeningRequired it is the three-role RBAC check (transport-authn
+// epic, task 4; keyed on the x509 CN from ServerContext::auth_context() via
+// grpc/harpia_rbac.h), otherwise the flat x-user/x-pswd call metadata.
 #ifndef HARPIA_GRPC_SERVER_BRINGUP_H
 #define HARPIA_GRPC_SERVER_BRINGUP_H
 

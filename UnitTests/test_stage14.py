@@ -57,8 +57,17 @@ def _name_and_hash(test_filename):
 @pytest.fixture(scope="module")
 def generated(tmp_path_factory):
     out = tmp_path_factory.mktemp("harpia_stage14")
+    # transport-authn task 4: the generated per-message <name>_test.cpp exercise
+    # the flat X-User/X-Pswd / <credentials> / harpia::soap::authorized_<name>
+    # gate (TestAdapter is not RBAC-aware yet). Pin a low-risk compliance
+    # profile so the generated gate stays flat and those tests compile -- the
+    # RBAC gate itself is covered by UnitTests/test_rbac.py.
+    cfg = os.path.join(str(out), "low_risk.harpia.yaml")
+    with open(cfg, "w", encoding="utf-8") as fh:
+        fh.write("risk_class: class_a\ntopology: standalone\n")
+    env = {**os.environ, "HARPIA_COMPLIANCE_CONFIG": cfg}
     r = subprocess.run([sys.executable, RUNNER, str(out)],
-                       cwd=REPO_ROOT, capture_output=True, text=True)
+                       cwd=REPO_ROOT, capture_output=True, text=True, env=env)
     assert r.returncode == 0, r.stdout + r.stderr
     return os.path.join(str(out), "build")
 

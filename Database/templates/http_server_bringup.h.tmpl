@@ -14,8 +14,11 @@
 //              fail-safe -- no silent plaintext server).
 //     false -> plain HTTP, byte-for-byte the previous behaviour.
 //
-// The per-route X-User/X-Pswd (REST) and <credentials> (SOAP) checks are
-// unchanged and still run on top of the transport.
+// The per-route access gate in each <name>_rest.h / <name>_soap.h runs on top
+// of the transport: when kHardeningRequired it is the three-role RBAC check
+// (transport-authn epic, task 4; keyed on the verified client-cert CN via
+// http/harpia_rbac.h), otherwise the flat X-User/X-Pswd (REST) / <credentials>
+// (SOAP) credential.
 #ifndef HARPIA_HTTP_SERVER_BRINGUP_H
 #define HARPIA_HTTP_SERVER_BRINGUP_H
 

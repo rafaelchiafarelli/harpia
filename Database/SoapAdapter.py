@@ -17,6 +17,8 @@ import os
 
 from Logger.logger import logger
 from Util.util import loadTemplate, write_if_different
+from Database.auth_gate import soap_auth_fills
+from Crypto.backend import transport_hardening_required
 
 SOAP_EXT = "_soap.h"
 
@@ -33,6 +35,10 @@ class SoapAdapter:
 
     def Process(self):
         os.makedirs(self.outDir, exist_ok=True)
+        # transport-authn task 4: same gen-time RBAC-vs-flat choice as REST/gRPC
+        # (RestAdapter copies harpia_rbac.h into the shared generated/cpp/http/
+        # dir this endpoint #includes from, so nothing to copy here).
+        rbac = transport_hardening_required(self.compliance)
         written = 0
         for msg in self.messages:
             if getattr(msg, "isEnum", False) or not msg.tableName:
@@ -41,6 +47,7 @@ class SoapAdapter:
                 guard="HARPIA_SOAP_{}_{}".format(msg.name.upper(), msg.md5Hash),
                 name=msg.name,
                 hash=msg.md5Hash,
+                **soap_auth_fills(msg.name, msg.md5Hash, rbac),
             )
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, SOAP_EXT)
             write_if_different(os.path.join(self.outDir, fileName), header)
