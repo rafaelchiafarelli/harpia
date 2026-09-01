@@ -17,13 +17,16 @@ variants left to diff).
   tool and `skipif`s when the tool is absent — exactly the pattern
   `test_doxygen_docs.py` already uses for `doxygen`. Runs inside the
   existing Docker suite.
-- **2026-09-01 — static analysis: `cppcheck` with its CERT addon.** Not
-  `clang-tidy` (needs a generated-project compile database + the full
-  clang toolchain, a large image add). `cppcheck` is small, standalone,
-  added to the Docker image apt list (same pattern as `git` for the
-  versioning epic). A follow-on epic can add `clang-tidy` / `libFuzzer`
-  later if the `cppcheck` + g++/ASan coverage proves insufficient — noted,
-  not scoped.
+- **2026-09-01 — static analysis: `cppcheck` core checks.** Not
+  `clang-tidy` (needs a compile database + the full clang toolchain, a
+  large image add). `cppcheck` is small, standalone, added to the Docker
+  image apt list (same pattern as `git` for the versioning epic).
+  **Revised during task 1 implementation:** the `cppcheck` `cert` addon
+  was removed upstream and is absent from the Ubuntu package, so the job
+  runs cppcheck's built-in `warning,portability` analysis — the practical
+  stand-in for the CERT ruleset — rather than a CERT-tagged addon. A
+  follow-on can add `clang-tidy` / `libFuzzer` / `style`-level tightening
+  if this proves insufficient — noted, not scoped.
 - **2026-09-01 — fuzzing: a hand-rolled bounded loop, g++ + ASan/UBSan.**
   Not `libFuzzer` (needs clang). A small C++ driver reads a checked-in
   seed corpus, applies a seeded (reproducible) bit-flip mutator for N
@@ -48,9 +51,9 @@ variants left to diff).
 
 ## Gives
 
-- A `cppcheck`/CERT static-analysis pytest job over the generated C++ tree
-  + the hand-written runtime headers, failing on any **new** finding above
-  the agreed severity (baseline suppressed).
+- A `cppcheck` `warning,portability` static-analysis pytest job over the
+  generated C++ headers (the runtime headers included via the generated
+  tree), failing on any **new** finding not in the checked-in baseline.
 - Three fuzz-harness pytest jobs (JSON / XML / SOAP parsers), each running
   N iterations against a seed corpus with no ASan/UBSan crash.
 - **Consumed by:** nobody as a build dependency — a CI safety net that
@@ -60,7 +63,7 @@ variants left to diff).
 
 | # | File | Delivers | Adds to image |
 |---|---|---|---|
-| 1 | `tasks/1-cppcheck-cert-static-analysis.md` | `cppcheck` + CERT addon pytest job over generated + runtime C++; checked-in suppression baseline; acceptance gate = clean/triaged run. | `cppcheck` |
+| 1 | `tasks/1-cppcheck-cert-static-analysis.md` | **done** — `cppcheck --enable=warning,portability` pytest job (`test_cppcheck.py`) over every generated `cpp/` header; empty baseline (tree is clean); no CERT addon (removed upstream). | `cppcheck` |
 | 2 | `tasks/2-fuzz-harness-json-parser.md` | the shared fuzz driver (`UnitTests/fuzz/`) + the JSON-parser target (`harpia::serialize::from_json`) + seed corpus. | — |
 | 3 | `tasks/3-fuzz-harness-xml-parser.md` | the XML-parser target (`harpia::xml::from_xml`) + seed corpus, on task 2's driver. | — |
 | 4 | `tasks/4-fuzz-harness-soap-parser.md` | the SOAP-parser target + seed corpus, on task 2's driver. | — |
@@ -70,7 +73,7 @@ merged. Task 1 is fully independent of 2–4.
 
 ## Files this epic touches
 
-- `UnitTests/` (new: `test_cppcheck_cert.py`, `cppcheck_suppressions.txt`,
+- `UnitTests/` (new: `test_cppcheck.py`, `cppcheck_suppressions.txt`,
   `test_fuzz_parsers.py`, `fuzz/harpia_fuzz_main.cpp`,
   `fuzz/corpus/{json,xml,soap}/`), `Dockerfile` (one apt entry, task 1).
 - **No** generator source, **no** `UnitTests/golden/`.
