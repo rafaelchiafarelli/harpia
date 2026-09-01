@@ -1,5 +1,57 @@
 ## Token-based sessions with expiry / revocation
 
+**Done 2026-09-01.** Mechanism pinned: hand-written
+`Compliance/runtime/harpia_session.h` (`harpia::session`), copied verbatim into
+`generated/cpp/{http,grpc}/` next to `harpia_rbac.h` by the same two adapters
+under the same `transport_hardening_required(compliance)` gate (path constants
+in `Compliance/session_common.py`). Token = `v1.<b64url(payload)>.<hmac-sha256
+hex>`, payload `cn\nrole\niat\nexp\njti` (jti = 128-bit `RAND_bytes`);
+`issue(cn, role, ttl, now)` / `decode()` / `verify() -> Verdict{ok, no_key,
+malformed, bad_signature, expired, revoked}` / `from_authorization("Bearer …")`
+for the gates. Signing key + TTL + revocation file are deployment config read
+once from the environment (`HARPIA_SESSION_KEY` — raw or `@<path>`, empty ⇒
+sessions disabled; `HARPIA_SESSION_TTL` default 900;
+`HARPIA_SESSION_REVOCATIONS` re-read whenever its contents change,
+`std::mutex`-guarded), same posture as `HARPIA_RBAC_MAP`. Signing is real
+HMAC-SHA256 over a **self-contained SHA-256 bundled in the header** (FIPS-180-4
+/ RFC-4231 vectors checked in `test_sessions.py`) — deliberately not an OpenSSL
+call, so `harpia_session.h` stays pure-std and links anywhere `harpia_rbac.h`
+does (chosen after the OpenSSL route broke the plain-consumer / `test_stage14`
+link, which never link `-lcrypto`). Which crypto module a project is *validated*
+against is still the F5 seam's call, recorded next door in
+`{http,grpc}_server_selection.json`, so no new selection file. Every non-ok
+`verify()` emits exactly one `AuditSink` `"session_denied"` record
+(verdict/cn/jti metadata, never token bytes — Rule 5).
+
+Gate wiring (`Database/auth_gate.py`, `rbac=True` branch only, so the flat
+variant is byte-identical): each RBAC gate first calls
+`session::from_authorization()` on the `Authorization: Bearer` header
+(REST/SOAP) / `authorization` metadata (gRPC); a token that verifies supplies
+the CN `rbac::decide()` runs on, in place of the client cert; a
+presented-but-invalid token is refused outright (401 / UNAUTHENTICATED), never
+a fall-through to the cert. Issuance: REST `POST <rest_base>/session` (JSON
+`{"token":…}`) and SOAP `POST <soap_base>/session` (`<sessionToken>` envelope)
+spliced into `http_server_bringup.h`'s new `register_session()` by
+`RestAdapter`; gRPC `heartBeat` mints a `harpia-session-token` trailing-metadata
+value when the call carries `harpia-issue-session` metadata (new
+`{hb_ctx}`/`{session_issue}` template fills — empty in the flat variant).
+`HttpCapabilityAdapter/`'s standalone session mechanism was **not** reconciled
+(flagged optional; deferred — it is a capability-advertisement path, not an
+auth session, and touching it is out of this task's scope).
+
+Tests: `UnitTests/test_sessions.py` — unit (g++ + `-lcrypto`): issue/verify
+round trip + role-matches-identity, expiry, revocation (+ list re-read both
+ways), MAC-flip / body-splice / malformed / no-key rejection, one
+`session_denied` audit record per non-ok with no token bytes leaked;
+integration REST+SOAP over mTLS (a `mint` helper fabricates deterministically
+expired tokens): `POST /session` issuance, an admin token used from a guest
+cert gets the admin verbs, tampered/expired/revoked → 401; integration gRPC
+over mTLS: `heartBeat` issuance, `push` with `authorization: Bearer` on a guest
+channel succeeds, bad token → UNAUTHENTICATED. Golden regenerated (rest/soap/grpc
+headers + both bring-ups gain the session path; new `{http,grpc}/harpia_session.h`).
+Doc-comments: `harpia_session.h` top comment (the obtain/present/expiry/revoke
+flow), all three transport templates' gate comments, both bring-up templates.
+
 Scoped 2026-08-30. **Task 5** of the transport-authn epic.
 
 - **Depends on:** task 4 (`rbac`) merged — the RBAC gate and its identity store.

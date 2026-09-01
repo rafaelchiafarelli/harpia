@@ -51,6 +51,8 @@ from Compliance.http_common import (
     HTTP_SERVER_BRINGUP, HTTP_SERVER_SELECTION, HTTP_OUT_SUBDIR)
 from Compliance.rbac_common import (
     RBAC_RUNTIME, RBAC_RUNTIME_SRC, RBAC_RUNTIME_DEPS)
+from Compliance.session_common import (
+    SESSION_RUNTIME, SESSION_RUNTIME_SRC, SESSION_RUNTIME_DEPS)
 from Database.auth_gate import rest_auth_fills
 from Crypto.backend import get_backend as get_crypto_backend, \
     transport_hardening_required
@@ -60,6 +62,77 @@ SOAP_EXT = "_soap.h"
 
 _REST = loadTemplate(__file__, "rest.h.tmpl")
 _BRINGUP = loadTemplate(__file__, "http_server_bringup.h.tmpl")
+
+# transport-authn task 5 (token-sessions): the dedicated token-issuance routes,
+# spliced into http_server_bringup.h only for the hardened (RBAC) variant.
+# `register_session` is called from register_all(); the flat variant renders all
+# three fills as "" so that header stays byte-identical.
+_SESSION_INCLUDES = ('#include "http/harpia_rbac.h"\n'
+                     '#include "http/harpia_session.h"')
+
+_SESSION_REGISTRATION = "        register_session(rest_base, soap_base);\n"
+
+_SESSION_DEFS = r'''
+    // transport-authn task 5: issue a bearer token to a caller that has
+    // authenticated the mTLS transport (client cert -> RBAC CN -> role). The
+    // token then rides `Authorization: Bearer <token>` on subsequent calls in
+    // place of re-deriving the identity from the certificate. Needs
+    // HARPIA_SESSION_KEY configured (503 / Fault otherwise). Registered only
+    // for the hardened build.
+    void register_session(const std::string& rest_base,
+                          const std::string& soap_base) {
+        app_.route_dynamic(rest_base + "/session")
+            .methods(crow::HTTPMethod::POST)(
+            [](const crow::request& req, crow::response& res) {
+                const std::string cn = req.client_cert_cn;
+                if (cn.empty()) { res.code = 401; res.end(); return; }
+                const auto role = ::harpia::rbac::role_map().role_for(cn);
+                if (role == ::harpia::rbac::Role::none) {
+                    res.code = 403; res.end(); return;
+                }
+                const std::string tok = ::harpia::session::issue(
+                    cn, ::harpia::rbac::role_name(role));
+                if (tok.empty()) { res.code = 503; res.end(); return; }
+                res.set_header("Content-Type", "application/json");
+                res.body = std::string("{\"token\":\"") + tok +
+                           "\",\"token_type\":\"Bearer\"}";
+                res.end();
+            });
+        app_.route_dynamic(soap_base + "/session")
+            .methods(crow::HTTPMethod::POST)(
+            [](const crow::request& req, crow::response& res) {
+                auto envelope = [&res](const std::string& body) {
+                    res.set_header("Content-Type", "text/xml");
+                    res.body =
+                        "<?xml version=\"1.0\"?><soap:Envelope xmlns:soap=\""
+                        "http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body>"
+                        + body + "</soap:Body></soap:Envelope>";
+                };
+                auto fault = [&envelope](const char* s) {
+                    envelope(std::string("<soap:Fault><faultstring>") + s +
+                             "</faultstring></soap:Fault>");
+                };
+                const std::string cn = req.client_cert_cn;
+                if (cn.empty()) {
+                    res.code = 401; fault("no client certificate");
+                    res.end(); return;
+                }
+                const auto role = ::harpia::rbac::role_map().role_for(cn);
+                if (role == ::harpia::rbac::Role::none) {
+                    res.code = 403; fault("identity not authorized");
+                    res.end(); return;
+                }
+                const std::string tok = ::harpia::session::issue(
+                    cn, ::harpia::rbac::role_name(role));
+                if (tok.empty()) {
+                    res.code = 503; fault("sessions not configured");
+                    res.end(); return;
+                }
+                envelope("<sessionToken>" + tok + "</sessionToken>");
+                res.end();
+            });
+    }
+'''
 
 
 class RestAdapter:
@@ -125,6 +198,14 @@ class RestAdapter:
             for dep_name, dep_src in RBAC_RUNTIME_DEPS:
                 copy_if_different(dep_src,
                                   os.path.join(self.httpDir, dep_name))
+            # transport-authn task 5: the bearer-session runtime rides next to
+            # the RBAC gate it layers on (its harpia_audit_sink.h dep is the
+            # same file the RBAC copy just landed).
+            copy_if_different(SESSION_RUNTIME_SRC,
+                              os.path.join(self.httpDir, SESSION_RUNTIME))
+            for dep_name, dep_src in SESSION_RUNTIME_DEPS:
+                copy_if_different(dep_src,
+                                  os.path.join(self.httpDir, dep_name))
 
         rest_includes = "\n".join(
             '#include "rest/{}_{}{}"'.format(name, h, REST_EXT)
@@ -145,6 +226,9 @@ class RestAdapter:
                 rest_includes=rest_includes,
                 soap_includes=soap_includes,
                 registrations=registrations,
+                session_includes=_SESSION_INCLUDES if rbac else "",
+                session_registration=_SESSION_REGISTRATION if rbac else "",
+                session_defs=_SESSION_DEFS if rbac else "",
                 hardening="true" if hardening else "false",
                 crypto_backend=backend.name,
                 openssl_provider=backend.openssl_provider,

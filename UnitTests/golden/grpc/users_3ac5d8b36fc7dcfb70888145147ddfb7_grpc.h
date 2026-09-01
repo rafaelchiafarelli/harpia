@@ -11,6 +11,7 @@
 #include "db/users_3ac5d8b36fc7dcfb70888145147ddfb7_crudl.h"
 #include <grpcpp/security/auth_context.h>
 #include "grpc/harpia_rbac.h"
+#include "grpc/harpia_session.h"
 // gRPC service implementation for users, backed by the CRUDL DAO -- the RPCs of
 // the generated users_Service are wired to create/read/list over SQLite:
 //   push(msg)      -> dao.create(msg)             -> errorCode
@@ -39,6 +40,15 @@
 //               x-user: users and x-pswd: 3ac5d8b36fc7dcfb70888145147ddfb7 metadata, or it is rejected
 //               with UNAUTHENTICATED.
 // heartBeat stays open as a liveness probe in both variants.
+//
+// Session tokens (transport-authn epic, task 5; hardened variant only). Under
+// the RBAC gate, a call may present a bearer token as `authorization: Bearer
+// <token>` metadata instead of re-deriving its identity from the client cert;
+// a token that does not verify (signature / expiry / revocation) is
+// UNAUTHENTICATED, never a fall-through to the cert. A token is obtained by
+// calling heartBeat() with `harpia-issue-session` metadata -- the response
+// carries a fresh `harpia-session-token` in its trailing metadata. See
+// generated grpc/harpia_session.h.
 namespace harpia {
 namespace grpc_svc {
 
@@ -57,14 +67,38 @@ public:
         return ::std::string(vals[0].data(), vals[0].size());
     }
 
-    // Role gate for users (transport-authn epic, task 4): resolve peer_cn() to
-    // a role via the HARPIA_RBAC_MAP file and check it against `op`. OK ->
-    // proceed; UNAUTHENTICATED (no / unverifiable identity) or PERMISSION_DENIED
-    // (valid identity, wrong role) otherwise. ::harpia::rbac::decide has already
-    // emitted the single AuditSink "rbac_denied" record on a denial.
+    // Raw `authorization` call-metadata value ("Bearer <token>"), or "".
+    static ::std::string bearer_metadata(::grpc::ServerContext* ctx) {
+        if (!ctx) return {};
+        const auto& md = ctx->client_metadata();
+        const auto it = md.find("authorization");
+        if (it == md.end()) return {};
+        return ::std::string(it->second.data(), it->second.length());
+    }
+
+    // Role gate for users (transport-authn epic, tasks 4 + 5): identity is a
+    // valid `authorization: Bearer` session token (task 5) or, absent one,
+    // peer_cn() (the verified mTLS client cert); a presented-but-invalid token
+    // is UNAUTHENTICATED with no fall-through to the cert. The resolved CN is
+    // mapped to a role via the HARPIA_RBAC_MAP file and checked against `op`.
+    // OK -> proceed; UNAUTHENTICATED (no / unverifiable identity) or
+    // PERMISSION_DENIED (valid identity, wrong role) otherwise.
+    // ::harpia::rbac::decide has already emitted the single AuditSink
+    // "rbac_denied" record on a denial (a bad token emits one "session_denied"
+    // record instead).
     static ::grpc::Status rbac_check(::grpc::ServerContext* ctx,
                                      ::harpia::rbac::Operation op) {
-        switch (::harpia::rbac::decide(peer_cn(ctx), op, "users")) {
+        ::std::string cn = peer_cn(ctx);
+        const auto bearer =
+            ::harpia::session::from_authorization(bearer_metadata(ctx));
+        if (bearer.present) {
+            if (bearer.verdict != ::harpia::session::Verdict::ok) {
+                return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED,
+                                      "invalid session token");
+            }
+            cn = bearer.cn;
+        }
+        switch (::harpia::rbac::decide(cn, op, "users")) {
             case ::harpia::rbac::Decision::allow:
                 return ::grpc::Status::OK;
             case ::harpia::rbac::Decision::unauthenticated:
@@ -131,9 +165,29 @@ public:
         return ::grpc::Status::OK;
     }
 
-    ::grpc::Status heartBeat(::grpc::ServerContext*,
+    ::grpc::Status heartBeat(::grpc::ServerContext* context,
                              const ::frameworkProtos::users_HeartBeat* request,
                              ::frameworkProtos::users_HeartBeat* response) override {
+        // transport-authn task 5: heartBeat also issues session tokens. A
+        // caller that has authenticated the mTLS transport sends
+        // `harpia-issue-session` metadata and gets a signed bearer token
+        // carrying its RBAC CN + role back as `harpia-session-token` trailing
+        // metadata. Never gated -- heartBeat is the open liveness probe.
+        if (context) {
+            const auto& md = context->client_metadata();
+            if (md.find("harpia-issue-session") != md.end()) {
+                const ::std::string cn = peer_cn(context);
+                if (!cn.empty()) {
+                    const auto issue_role =
+                        ::harpia::rbac::role_map().role_for(cn);
+                    const ::std::string tok = ::harpia::session::issue(
+                        cn, ::harpia::rbac::role_name(issue_role));
+                    if (!tok.empty()) {
+                        context->AddTrailingMetadata("harpia-session-token", tok);
+                    }
+                }
+            }
+        }
         *response = *request;
         return ::grpc::Status::OK;
     }

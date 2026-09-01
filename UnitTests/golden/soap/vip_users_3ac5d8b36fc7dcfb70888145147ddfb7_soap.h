@@ -26,6 +26,7 @@
 #include "db/vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_crudl.h"
 #include "xml/vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_xml.h"   // brings tinyxml2 + the XML runtime
 #include "http/harpia_rbac.h"
+#include "http/harpia_session.h"
 // Minimal SOAP-over-HTTP access for vip_users, backed by the CRUDL DAO. Register on
 // a crow::SimpleApp with a base path; POST a SOAP envelope to <base>/vip_users:
 //   <soap:Body><get><id>N</id></get></soap:Body>          -> the vip_users as XML
@@ -48,6 +49,12 @@
 //   otherwise -> the flat generated access credential in the SOAP Header, or
 //               the request is rejected with a SOAP Fault (HTTP 401):
 //   <soap:Header><credentials><user>vip_users</user><pswd>3ac5d8b36fc7dcfb70888145147ddfb7</pswd></credentials></soap:Header>
+// Under the hardened variant a request may instead carry `Authorization:
+// Bearer <token>` -- a session token (transport-authn epic, task 5;
+// http/harpia_session.h) obtained from POST <soap_base>/session (returns a
+// <sessionToken> envelope). A valid token supplies the identity the RBAC check
+// runs on; a presented-but-invalid token is a 401 Fault with no fall-through to
+// the client certificate.
 // (WSDL generation is deferred.)
 //
 // The crow::SimpleApp itself is stood up by the generated
@@ -118,6 +125,25 @@ inline void register_vip_users_soap(crow::SimpleApp& app, ::soci::session& db,
         const auto* op = body ? body->FirstChildElement() : nullptr;   // operation
         if (!op) { res.code = 400; res.end(); return; }
         const std::string name = ::harpia::soap::detail::local_name(op);
+        // task 5: a valid Authorization: Bearer session token supplies the
+        // identity; a presented-but-invalid token is a 401 Fault (no
+        // fall-through to the client certificate).
+        std::string rbac_cn = req.client_cert_cn;
+        {
+            const auto rbac_bearer = ::harpia::session::from_authorization(
+                req.get_header_value("Authorization"));
+            if (rbac_bearer.present) {
+                if (rbac_bearer.verdict != ::harpia::session::Verdict::ok) {
+                    res.code = 401;
+                    reply(envelope_vip_users(
+                        "<soap:Fault><faultcode>Client.Authentication</faultcode>"
+                        "<faultstring>invalid session token</faultstring>"
+                        "</soap:Fault>"));
+                    res.end(); return;
+                }
+                rbac_cn = rbac_bearer.cn;
+            }
+        }
         ::harpia::rbac::Operation rbac_op = ::harpia::rbac::Operation::read;
         bool rbac_known = true;
         if (name == "get") rbac_op = ::harpia::rbac::Operation::read;
@@ -127,7 +153,7 @@ inline void register_vip_users_soap(crow::SimpleApp& app, ::soci::session& db,
         else rbac_known = false;
         if (rbac_known) {
             const auto rbac_d =
-                ::harpia::rbac::decide(req.client_cert_cn, rbac_op, "vip_users");
+                ::harpia::rbac::decide(rbac_cn, rbac_op, "vip_users");
             if (rbac_d != ::harpia::rbac::Decision::allow) {
                 res.code = (rbac_d == ::harpia::rbac::Decision::unauthenticated)
                                ? 401 : 403;
