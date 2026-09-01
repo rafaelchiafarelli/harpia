@@ -410,12 +410,22 @@ generated sender/receiver classes themselves (`ZmqAdapter`'s
 caller-side build flag the way TLS is in [§9](#9-enabling-tls-on-restsoapgrpc)
 — the generated constructors carry an extra, optional parameter for it.
 
-This is **encryption-only**: any client presenting valid CURVE crypto is
-accepted (there's no ZAP client-key allowlist), the ZMQ analogue of TLS with
-no client certificates — not mutual auth. ZMQ has no credential gate of its
-own at all today (REST/SOAP/gRPC each check an `X-User`/`X-Pswd`-equivalent;
-ZMQ doesn't), so CURVE is purely about encrypting the wire, not access
-control.
+CURVE itself is **encryption-only**: any client presenting valid CURVE crypto
+is accepted, the ZMQ analogue of TLS with no client certificates. On top of
+that, when the compliance profile mandates hardened transport
+(`transport_hardening_required` — the same predicate that turns on mTLS for
+REST/SOAP/gRPC), the generated `CURVE_SERVER` sockets add a **ZAP client-key
+allowlist** (transport-authn epic): the bind-side constructors call
+`::harpia::zap::ensure_running(ctx)` (`generated/cpp/zap/harpia_zap.h`), which
+runs a ZAP handler on `inproc://zeromq.zap.01` that checks each client's public
+key against the file named by the `HARPIA_ZMQ_ALLOWLIST` env var — one
+`<z85-client-public-key> <identity>` per line, `#` comments — and rejects an
+unknown key at the handshake even when its CURVE crypto is valid. **Fail-safe:
+with no allowlist file (or an empty one) every key is denied.** Each rejection
+emits one value-free `AuditSink` `"zap_denied"` record (the z85 key + identity,
+never secret material). `Assets/cmake/zmq_zap_provision.sh <out_dir> [id ...]`
+mints a server keypair + client identities and writes a starter allowlist.
+Without hardening, CURVE stays purely wire encryption, no allowlist.
 
 Every generated sender/receiver/publisher/subscriber constructor takes a
 trailing, defaulted curve-keys struct — pass nothing and you get exactly

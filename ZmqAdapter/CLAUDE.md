@@ -46,8 +46,28 @@
   wiring (`Assets/CMakeLists.txt`'s keygen probe) and the `ZMQ_LINGER`
   gotcha (a socket with an undelivered message from a failed handshake
   blocks on destruction forever unless linger is set to 0). This is
-  encryption only, not identity -- ZAP client-key allowlisting (mTLS's
-  analogue) was explicitly out of scope.
+  encryption only, not identity.
+- **CURVE ZAP client-key allowlist (transport-authn "zmq-zap-allowlist"):**
+  when `Crypto.backend.transport_hardening_required(compliance)` is true
+  (`self.hardened`), the bind-side (`_CURVE_SERVER_APPLY_ZAP`) socket ctors add
+  `::harpia::zap::ensure_running(ctx);` inside the `if (!curve.secret_key.empty())`
+  branch, right before `curve_server` is set, and every `*_zmq.h` gains
+  `#include "zap/harpia_zap.h"`; `ZmqAdapter` copies `harpia_zap.h` +
+  `harpia_audit_sink.h` into `generated/cpp/zap/`. The runtime
+  (`ZmqAdapter/runtime/harpia_zap.h`, hand-written like `harpia_grpc_mtls.h`,
+  needs cppzmq) runs one `ZapHandler` per `zmq::context_t` -- a REP loop on
+  `inproc://zeromq.zap.01` that z85-encodes each CURVE handshake's client key,
+  checks it against `AllowList::from_env()` (the `HARPIA_ZMQ_ALLOWLIST` file,
+  `<z85-key> <identity>` per line, `#` comments), and answers `200`/`400`.
+  Fail-safe: no file / empty file -> deny every key. One value-free `AuditSink`
+  `"zap_denied"` record per rejection (z85 key + identity, never secret
+  material -- Rule 5). Idempotent: a second `ensure_running` (or a caller's own
+  `ZapHandler`) that finds `inproc://zeromq.zap.01` already bound becomes inert
+  rather than throwing. Runtime cost is zero unless CURVE is actually
+  configured on the socket. Non-hardened output is byte-identical (bar the
+  header comment). Path constant: `Compliance/zap_common.py`. Tests:
+  `UnitTests/test_zmq_zap.py`; `test_stage13_zmq.py` is pinned to a low-risk
+  profile so its CURVE round-trip keeps exercising the encryption-only path.
 - **`stream` lifecycle (zmq-lifecycle epic tasks 1–2, process.md 13.2):** a
   message with the `stream` modifier gets a `<name>_stream` class on top of
   its SUB socket, in addition to the unchanged `<name>_subscriber`. It adds
