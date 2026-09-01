@@ -5,8 +5,9 @@
 per generation, for the *generated project*: a CycloneDX 1.5 SBOM
 (`sbom-emission`), a requirement→code→evidence traceability matrix
 (`traceability-matrix`), and one or more jurisdiction-selected compliance
-report shells (`jurisdiction-template-selection`). The `versioning` epic
-extends this module later with version/git lineage.
+report shells (`jurisdiction-template-selection`). The **`versioning`**
+epic (complete) extended it with six `harpia:git_*` SBOM properties —
+the git fork-lineage of the schema project being generated.
 
 **Entry point (from `main.py` / `run_pipeline.py`):**
 `ComplianceReport(messages, dest, compliance=complianceContext).Process()`.
@@ -19,6 +20,12 @@ Returns `None` (always — the artifacts are always meaningful; no
   `jurisdiction`).
 - `<dest>/build_metadata/crypto_backend.json` (F5, already written by the
   pipeline) → the `harpia:crypto_backend` value; `"unknown"` if absent.
+- `Util.gitstate.collect_git_state()` (read from the invoking working
+  directory — the schema project being generated) → six more
+  `metadata.properties`: `harpia:git_commit` / `git_ref` / `git_dirty`
+  (`"true"`/`"false"`) / `git_describe` / `git_origin_url` /
+  `git_parent_commit` (merge-base with `origin/HEAD`). All `"unknown"`
+  when git / the repo is absent — never omitted (versioning epic).
 - `messages` — walked by the traceability matrix (one row per `phi` field /
   `critical` message × applicable requirement). Unused by the SBOM.
 - `components.VENDORED` / `components.ENVIRONMENT` → the SBOM component list.
@@ -36,9 +43,11 @@ Returns `None` (always — the artifacts are always meaningful; no
 
 ## Files
 - `ComplianceReport.py` — `Process()` builds the CycloneDX dict and writes
-  `bom.json`. `_build_bom` / `_harpia_properties` / `_components` /
-  `_crypto_backend`. `_rfc3339_now()` is the only non-deterministic bit
-  (monkeypatch it in tests; the golden collector normalizes it).
+  `bom.json`. `_build_bom` / `_harpia_properties` / `_git_properties` /
+  `_components` / `_crypto_backend`. Two non-deterministic bits, both
+  monkeypatchable and both normalized by the golden collector:
+  `_rfc3339_now()` (the timestamp) and `_collect_git_state` (module-level
+  alias for `Util.gitstate.collect_git_state`, feeding `_git_properties()`).
 - `components.py` — the **declared** runtime-dependency manifest (not scraped
   from CMake — the standing "declare, don't infer" rule). `VENDORED` resolve
   version/license/source from `third_party/<dir>/VENDORED.md` (`_field` reads
@@ -81,18 +90,30 @@ Returns `None` (always — the artifacts are always meaningful; no
   in `UnitTests/golden/compliancereport/bom.json` as-is — a protobuf/grpc/zmq
   bump in the image will move the golden, same as it already would elsewhere
   in the suite (`HARPIA_UPDATE_GOLDEN=1`, review the diff).
+- **`harpia:git_*` properties are pinned in the golden.**
+  `run_pipeline.py::_collect_compliancereport` rewrites each of the six to a
+  fixed sentinel (`_GIT_PROP_SENTINELS`) before the snapshot copy — they
+  change every commit, like `metadata.timestamp`. The live `bom.json` in a
+  real generation carries the actual values; only the golden is pinned.
+  `git` is an installed Docker-image dependency (see `Util/gitstate.py` /
+  the versioning epic task 1) so the real values are available in CI.
 - The generated-project component (`metadata.component`, `type: application`)
   is named from `compliance.project` (default `"default"`).
 
 ## Touchpoints
 - Called by: `main.py` (step 15), `UnitTests/run_pipeline.py` (step 15 +
-  `_collect_compliancereport`, which normalizes `metadata.timestamp`).
+  `_collect_compliancereport`, which normalizes `metadata.timestamp` and the
+  six `harpia:git_*` properties).
 - Depends on: `Logger.logger`, `Util.util.write_if_different`,
-  `ComplianceReport.components`; reads `third_party/*/VENDORED.md` and
-  `<dest>/build_metadata/crypto_backend.json`.
+  `Util.gitstate.collect_git_state`, `ComplianceReport.components`; reads
+  `third_party/*/VENDORED.md` and `<dest>/build_metadata/crypto_backend.json`.
 - Tested by: `UnitTests/test_sbom_emission.py` (SBOM structure vs the
   vendored schema, `harpia:*` properties, vendored-version resolution,
-  `unknown` degradation, write-if-different); `UnitTests/test_traceability.py`
+  `unknown` degradation, write-if-different);
+  `UnitTests/test_version_lineage.py` (the six `harpia:git_*` props: order
+  after the context pairs, `dirty` string form, all-`unknown` graceful
+  absence, `0.2.0` tool version, no-repo generation, real-repo HEAD stamp,
+  fork-point traceable to parent); `UnitTests/test_traceability.py`
   (row well-formedness, catalog-derived row count, table-less phi field gets
   redaction but no DB rows, critical-message rows, evidence spot-checks,
   determinism, no-timestamp); `UnitTests/test_jurisdiction_templates.py`
@@ -103,4 +124,5 @@ Returns `None` (always — the artifacts are always meaningful; no
   `traceability.{json,md}` + generic `compliance_report.md` snapshot).
   `test_compliance.py`'s `compliance_smoke.txt` check covers the pipeline
   wiring.
-- Extended later by: the `versioning` epic (version/git lineage fields).
+- Extended by: the `versioning` epic (the six `harpia:git_*` lineage
+  properties — complete).
