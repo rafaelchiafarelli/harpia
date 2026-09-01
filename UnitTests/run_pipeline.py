@@ -371,12 +371,27 @@ def _collect_serialize(build_dir, dest):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
+# versioning epic: the six harpia:git_* properties are wall-clock-equivalent
+# (they change on every commit / dirty edit), so the golden collector pins
+# each to a fixed sentinel -- same treatment as metadata.timestamp. Shapes
+# are kept plausible so a structural reader of the golden still makes sense.
+_GIT_PROP_SENTINELS = {
+    "harpia:git_commit": "0" * 40,
+    "harpia:git_ref": "unknown",
+    "harpia:git_dirty": "false",
+    "harpia:git_describe": "unknown",
+    "harpia:git_origin_url": "unknown",
+    "harpia:git_parent_commit": "0" * 40,
+}
+
+
 def _collect_compliancereport(build_dir, dest):
     # the CycloneDX SBOM (process-artifacts epic). metadata.timestamp is
-    # wall-clock, so it is normalized to a fixed value here -- everything
-    # else in bom.json is deterministic (vendored versions come from the
-    # checked-in VENDORED.md files; environment versions from the Docker
-    # toolchain, treated as fixed the same way the rest of the suite does).
+    # wall-clock and the harpia:git_* properties are commit-dependent, so
+    # both are normalized to fixed values here -- everything else in bom.json
+    # is deterministic (vendored versions come from the checked-in
+    # VENDORED.md files; environment versions from the Docker toolchain,
+    # treated as fixed the same way the rest of the suite does).
     src = os.path.join(build_dir, "generated", "ComplianceReport")
     if os.path.exists(dest):
         shutil.rmtree(dest)
@@ -386,6 +401,9 @@ def _collect_compliancereport(build_dir, dest):
         with open(bom_path) as f:
             bom = json.load(f)
         bom.setdefault("metadata", {})["timestamp"] = "1970-01-01T00:00:00Z"
+        for prop in bom.get("metadata", {}).get("properties", []):
+            if prop.get("name") in _GIT_PROP_SENTINELS:
+                prop["value"] = _GIT_PROP_SENTINELS[prop["name"]]
         with open(os.path.join(dest, "bom.json"), "w") as f:
             f.write(json.dumps(bom, indent=2) + "\n")
     # the traceability matrix (task 2) + jurisdiction reports (task 3) have no

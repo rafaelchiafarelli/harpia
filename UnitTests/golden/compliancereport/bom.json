@@ -9,7 +9,7 @@
       {
         "vendor": "harpia",
         "name": "harpia",
-        "version": "0.1.0"
+        "version": "0.2.0"
       }
     ],
     "component": {
@@ -37,6 +37,30 @@
       {
         "name": "harpia:jurisdiction",
         "value": ""
+      },
+      {
+        "name": "harpia:git_commit",
+        "value": "0000000000000000000000000000000000000000"
+      },
+      {
+        "name": "harpia:git_ref",
+        "value": "unknown"
+      },
+      {
+        "name": "harpia:git_dirty",
+        "value": "false"
+      },
+      {
+        "name": "harpia:git_describe",
+        "value": "unknown"
+      },
+      {
+        "name": "harpia:git_origin_url",
+        "value": "unknown"
+      },
+      {
+        "name": "harpia:git_parent_commit",
+        "value": "0000000000000000000000000000000000000000"
       }
     ]
   },
