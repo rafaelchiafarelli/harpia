@@ -311,6 +311,8 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `test_stage11_soap.py` — SOAP-over-HTTP endpoint (credential gate).
 - `test_stage12_rest.py` — REST HTTP CRUD, credential-gated.
 - `test_stage13.py` — gRPC services compile, CRUDL-backed impl, metadata auth.
+- `test_rbac.py` — transport-authn epic task 4: `admin`/`main`/`guest` RBAC on the generated REST/SOAP/gRPC transports under a hardened profile. Unit (g++): the `harpia_rbac.h` role×operation matrix, the 401/403 decision map, one `AuditSink` record per denial. Integration (protoc+g+++openssl+crow/grpc): the generated HttpServer / GrpcServer over real mTLS — admin served every verb, guest 403'd on writes, unmapped cert 403'd, no cert refused at the handshake.
+- `test_sessions.py` — transport-authn epic task 5: bearer session tokens layered on the RBAC gate. Unit (g++ + `-lcrypto`, against `Compliance/runtime/harpia_session.h`): issue/verify round trip + the role in a token matches the issuing identity; an expired token → `Verdict::expired`; a revoked token → `Verdict::revoked` (and the `HARPIA_SESSION_REVOCATIONS` list re-read when it changes, both ways); a MAC-flipped / body-spliced / malformed token rejected; no `HARPIA_SESSION_KEY` → `no_key` (fail-safe); exactly one `AuditSink` `"session_denied"` record per non-ok verdict, no token bytes in the detail. Integration REST+SOAP over mTLS: `POST /session` mints a token for the mTLS-authenticated caller; presenting `Authorization: Bearer <admin token>` from a *guest* client cert gets the admin verbs (the token, not the cert, is the identity); a tampered/expired/revoked token is 401. A `mint` helper binary built from the copied `harpia_session.h` fabricates deterministically-expired tokens. Integration gRPC over mTLS: `heartBeat` + `harpia-issue-session` metadata returns a `harpia-session-token`; a later `push` with `authorization: Bearer` on a guest channel succeeds; a bad token → UNAUTHENTICATED. Pins `HASH`.
 - `test_fieldmap.py` — field-identity (wire-number freeze) unit tests, from the message-versioning effort: `message.FieldMap.freeze`
   driven directly (no lexer) — first-generation freeze, reorder/insert
   stability, delete-retires-number, rename-keeps-number, unresolvable-rename
@@ -474,7 +476,7 @@ old name). The full, actual list (re-derive via `grep -rl '^HASH = "<hash>"'
 UnitTests/*.py` before ever trusting this list again):
 - `test_stage8_db.py`, `test_stage10_xml.py`, `test_stage11_soap.py`,
   `test_stage12_rest.py`, `test_stage13.py`, `test_stage13_zmq.py`,
-  `test_critical_delivery_roundtrip.py`
+  `test_critical_delivery_roundtrip.py`, `test_rbac.py`, `test_sessions.py`
 - `test_java_db_crudl.py`, `test_java_full_demo.py`, `test_java_gradle_wiring.py`,
   `test_java_junit_tests.py`, `test_java_rest.py`, `test_java_soap.py`,
   `test_java_zmq.py`
@@ -507,7 +509,11 @@ runtime is not snapshotted, same convention as `harpia_xml.h`),
 serialization task 2; `harpia_serialize.h` runtime not snapshotted), `db/`
 (per-message `<name>_<hash>_crudl.h` **plus** the one project-wide
 `harpia_db_registry.h` — the db-segregation epic public/private DB registry), `migrate/`,
-`dbio/`, `rest/`, `soap/`, `wsdl/`, `gen_tests/` (generated unit tests
+`dbio/`, `rest/`, `soap/`, `wsdl/`, `http/` + `grpc/` (the shared REST+SOAP /
+gRPC server bring-ups + `*_server_selection.json`; under a hardened profile
+also the copied-verbatim `harpia_rbac.h` (transport-authn task 4) and
+`harpia_session.h` (transport-authn task 5) + `harpia_audit_sink.h`),
+`gen_tests/` (generated unit tests
 + CTest CMakeLists), `sidecars/` (per-message SQL schema + modifier/access/pswd
 flag files, subdirs `database/ modifier/ access_modifier/ database_access/`),
 `dds/` (per-message `<name>_<hash>_dds.h` + the vendored `harpia_dds_frame.idl`

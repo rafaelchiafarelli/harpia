@@ -15,19 +15,30 @@
 #endif
 #include <zmq.hpp>
 #include "protofiles/users_3ac5d8b36fc7dcfb70888145147ddfb7.pb.h"
+#include "zap/harpia_zap.h"
 
 namespace harpia {
 namespace zmq_transport {
 
-// CURVE key material (encryption-only: no ZAP client-key allowlisting, so any
-// client presenting valid CURVE crypto is accepted -- the ZMQ analogue of TLS
-// with no client certs). Guarded separately from the per-message HARPIA_ZMQ_USERS_3ac5d8b36fc7dcfb70888145147ddfb7 so
-// these definitions stay single even when several *_zmq.h headers land in one
-// translation unit. An empty key means "CURVE disabled" -- the default.
+// CURVE key material. Encryption is always available; whether an *identity*
+// check runs on top depends on the compliance profile at generation time
+// (transport-authn epic):
+//   not hardened -> encryption only: any client presenting valid CURVE crypto
+//                   is accepted (the ZMQ analogue of TLS with no client certs).
+//   hardened     -> the bind-side ctors also call
+//                   ::harpia::zap::ensure_running(ctx) (zap/harpia_zap.h): a
+//                   ZAP handler on inproc://zeromq.zap.01 checks each client
+//                   public key against the HARPIA_ZMQ_ALLOWLIST file and
+//                   rejects an unknown key at the handshake even when its
+//                   CURVE crypto is valid. Fail-safe deny-all with no file.
+// Guarded separately from the per-message HARPIA_ZMQ_USERS_3ac5d8b36fc7dcfb70888145147ddfb7 so these definitions stay
+// single even when several *_zmq.h headers land in one translation unit. An
+// empty key means "CURVE disabled" -- the default.
 #ifndef HARPIA_ZMQ_CURVE_KEYS_DEFINED
 #define HARPIA_ZMQ_CURVE_KEYS_DEFINED
 // Bind side (PULL receiver / PUB publisher): only its own secret key is
-// needed -- CURVE_SERVER accepts any client with valid crypto.
+// needed. CURVE_SERVER accepts any client with valid crypto unless the
+// generated ZAP handler (hardened profile) allowlists client keys.
 struct CurveServerKeys {
     std::string secret_key;
 };
@@ -107,6 +118,7 @@ public:
                   CurveServerKeys curve = CurveServerKeys())
         : socket_(ctx, ::zmq::socket_type::pull) {
         if (!curve.secret_key.empty()) {
+            ::harpia::zap::ensure_running(ctx);
             socket_.set(::zmq::sockopt::curve_server, true);
             socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);
         }
@@ -136,6 +148,7 @@ public:
                   const std::string& origin, CurveServerKeys curve = CurveServerKeys())
         : origin_(origin), socket_(ctx, ::zmq::socket_type::pub) {
         if (!curve.secret_key.empty()) {
+            ::harpia::zap::ensure_running(ctx);
             socket_.set(::zmq::sockopt::curve_server, true);
             socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);
         }

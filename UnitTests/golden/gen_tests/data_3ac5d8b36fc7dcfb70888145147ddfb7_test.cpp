@@ -134,12 +134,17 @@ int database_roundtrip() {
 }
 
 int access_rights() {
-    const std::string good = "<soap:Envelope><soap:Header><credentials><user>data</user><pswd>3ac5d8b36fc7dcfb70888145147ddfb7</pswd></credentials></soap:Header><soap:Body/></soap:Envelope>";
-    const std::string wrong = "<soap:Envelope><soap:Header><credentials><user>data</user><pswd>wrong-password</pswd></credentials></soap:Header><soap:Body/></soap:Envelope>";
-    const std::string none = "<soap:Envelope><soap:Body/></soap:Envelope>";
-    if (!harpia::soap::authorized_data(good)) return 50;
-    if (harpia::soap::authorized_data(wrong)) return 51;
-    if (harpia::soap::authorized_data(none)) return 52;
+    using ::harpia::rbac::Role;
+    using ::harpia::rbac::Operation;
+    using ::harpia::rbac::Decision;
+    if (!::harpia::rbac::permitted(Role::admin, Operation::remove)) return 50;
+    if (::harpia::rbac::permitted(Role::guest, Operation::create)) return 51;
+    if (!::harpia::rbac::permitted(Role::guest, Operation::read)) return 52;
+    if (::harpia::rbac::permitted(Role::main, Operation::remove)) return 53;
+    if (!::harpia::rbac::permitted(Role::none, Operation::heartbeat)) return 54;
+    // no client-cert identity -> unauthenticated (fail-closed)
+    if (::harpia::rbac::decide("", Operation::create, "data")
+            != Decision::unauthenticated) return 55;
     return 0;
 }
 
@@ -231,56 +236,16 @@ int rest_api() {
     const int port = app.port();
     if (port <= 0) { app.stop(); fut.get(); return 82; }
     harpia_test::Client cli("127.0.0.1", port);
-    const harpia_test::Headers cred = {{"X-User", "data"}, {"X-Pswd", "3ac5d8b36fc7dcfb70888145147ddfb7"}};
-    const harpia_test::Headers credx = {{"X-User", "data"}, {"X-Pswd", "3ac5d8b36fc7dcfb70888145147ddfb7"}, {"Accept", "application/xml"}};
     int code = 0;
     do {
-        // every route requires the generated credential (X-User/X-Pswd)
-        auto noc = cli.Get("/api/v1/data");
-        if (!noc || noc.status != 401) { code = 93; break; }
-        auto bad = cli.Get("/api/v1/data", harpia_test::Headers{{"X-User", "data"}, {"X-Pswd", "nope"}});
-        if (!bad || bad.status != 401) { code = 94; break; }
-        ::data a;
-        a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
-        a.set_i(1);
-        a.set_j(1);
-        a.set_car(static_cast<::grower>(1));
-        a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-        a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-        a.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7("originator_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-        std::string body;
-        if (!::harpia::json::to_json(a, &body)) { code = 83; break; }
-        auto post = cli.Post("/api/v1/data", body, "application/json", cred);
-        if (!post || post.status != 201) { code = 84; break; }
-        auto got = cli.Get("/api/v1/data/1", cred);
-        if (!got || got.status != 200) { code = 85; break; }
-        if (got.body.find("status_3ac5d8b36fc7dcfb70888145147ddfb7_a") == std::string::npos) { code = 86; break; }
-        auto lst = cli.Get("/api/v1/data", cred);
-        if (!lst || lst.status != 200) { code = 87; break; }
-        // content negotiation: XML response, and an XML request body
-        auto gx = cli.Get("/api/v1/data/1", credx);
-        if (!gx || gx.status != 200 || gx.body.find("<") == std::string::npos) { code = 95; break; }
-        if (gx.body.find("status_3ac5d8b36fc7dcfb70888145147ddfb7_a") == std::string::npos) { code = 96; break; }
-        ::data ax = a;
-        ax.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(2);
-        const std::string axml = ::harpia::xml::to_xml(ax);
-        auto xpost = cli.Post("/api/v1/data", axml, "application/xml", cred);
-        if (!xpost || xpost.status != 201) { code = 97; break; }
-        auto gx2 = cli.Get("/api/v1/data/2", credx);
-        if (!gx2 || gx2.status != 200) { code = 98; break; }
-        if (gx2.body.find("status_3ac5d8b36fc7dcfb70888145147ddfb7_a") == std::string::npos) { code = 99; break; }
-        ::data b = a;
-        b.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_u");
-        std::string bb;
-        if (!::harpia::json::to_json(b, &bb)) { code = 88; break; }
-        auto put = cli.Put("/api/v1/data/1", bb, "application/json", cred);
-        if (!put || put.status != 204) { code = 89; break; }
-        auto g2 = cli.Get("/api/v1/data/1", cred);
-        if (!g2 || g2.body.find("status_3ac5d8b36fc7dcfb70888145147ddfb7_u") == std::string::npos) { code = 90; break; }
-        auto del = cli.Delete("/api/v1/data/1", cred);
-        if (!del || del.status != 204) { code = 91; break; }
-        auto gone = cli.Get("/api/v1/data/1", cred);
-        if (!gone || gone.status != 404) { code = 92; break; }
+        auto gl = cli.Get("/api/v1/data");
+        if (!gl || gl.status != 401) { code = 93; break; }
+        auto gi = cli.Get("/api/v1/data/1");
+        if (!gi || gi.status != 401) { code = 94; break; }
+        auto po = cli.Post("/api/v1/data", "{}", "application/json");
+        if (!po || po.status != 401) { code = 95; break; }
+        auto de = cli.Delete("/api/v1/data/1");
+        if (!de || de.status != 401) { code = 96; break; }
     } while (false);
     app.stop(); fut.get();
     return code;
@@ -298,42 +263,14 @@ int soap_api() {
     const int port = app.port();
     if (port <= 0) { app.stop(); fut.get(); return 102; }
     harpia_test::Client cli("127.0.0.1", port);
-    const std::string hdr = "<soap:Header><credentials><user>data</user><pswd>3ac5d8b36fc7dcfb70888145147ddfb7</pswd></credentials></soap:Header>";
-    const std::string badhdr = "<soap:Header><credentials><user>data</user><pswd>nope</pswd></credentials></soap:Header>";
+    const std::string getEnv = "<soap:Envelope><soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";
+    const std::string setEnv = "<soap:Envelope><soap:Body><set><data></data></set></soap:Body></soap:Envelope>";
     int code = 0;
     do {
-        ::data a;
-        a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
-        a.set_i(1);
-        a.set_j(1);
-        a.set_car(static_cast<::grower>(1));
-        a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-        a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-        a.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7("originator_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-        const std::string mx = ::harpia::xml::to_xml(a);
-        const std::string setEnv = "<soap:Envelope>" + hdr + "<soap:Body><set>" + mx + "</set></soap:Body></soap:Envelope>";
-        auto s = cli.Post("/soap/data", setEnv, "text/xml");
-        if (!s || s.status != 200 || s.body.find("<ok>true</ok>") == std::string::npos) { code = 103; break; }
-        const std::string badEnv = "<soap:Envelope>" + badhdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";
-        auto na = cli.Post("/soap/data", badEnv, "text/xml");
-        if (!na || na.status != 401) { code = 104; break; }
-        const std::string getEnv = "<soap:Envelope>" + hdr + "<soap:Body><get><id>1</id></get></soap:Body></soap:Envelope>";
         auto g = cli.Post("/soap/data", getEnv, "text/xml");
-        if (!g || g.status != 200 || g.body.find("getResponse") == std::string::npos) { code = 105; break; }
-        if (g.body.find("status_3ac5d8b36fc7dcfb70888145147ddfb7_a") == std::string::npos) { code = 106; break; }
-        ::data b = a;
-        b.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_u");
-        const std::string ux = ::harpia::xml::to_xml(b);
-        const std::string updEnv = "<soap:Envelope>" + hdr + "<soap:Body><update>" + ux + "</update></soap:Body></soap:Envelope>";
-        auto u = cli.Post("/soap/data", updEnv, "text/xml");
-        if (!u || u.status != 200 || u.body.find("<ok>true</ok>") == std::string::npos) { code = 107; break; }
-        auto g2 = cli.Post("/soap/data", getEnv, "text/xml");
-        if (!g2 || g2.body.find("status_3ac5d8b36fc7dcfb70888145147ddfb7_u") == std::string::npos) { code = 108; break; }
-        const std::string delEnv = "<soap:Envelope>" + hdr + "<soap:Body><delete><id>1</id></delete></soap:Body></soap:Envelope>";
-        auto d = cli.Post("/soap/data", delEnv, "text/xml");
-        if (!d || d.status != 200 || d.body.find("<ok>true</ok>") == std::string::npos) { code = 109; break; }
-        auto g3 = cli.Post("/soap/data", getEnv, "text/xml");
-        if (!g3 || g3.body.find("not found") == std::string::npos) { code = 111; break; }
+        if (!g || g.status != 401) { code = 103; break; }
+        auto s = cli.Post("/soap/data", setEnv, "text/xml");
+        if (!s || s.status != 401) { code = 104; break; }
     } while (false);
     app.stop(); fut.get();
     return code;

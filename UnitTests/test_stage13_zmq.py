@@ -63,8 +63,17 @@ def _pkgconfig(*args):
 @pytest.fixture(scope="module")
 def built(tmp_path_factory):
     out = tmp_path_factory.mktemp("harpia_zmq")
+    # transport-authn "zmq-zap-allowlist": under a hardened profile the
+    # generated CURVE_SERVER sockets start a ZAP handler that denies every key
+    # unless HARPIA_ZMQ_ALLOWLIST names it -- which would break the
+    # encryption-only CURVE round-trip below. Pin a low-risk profile so ZAP
+    # stays compiled out; the allowlist path is covered by test_zmq_zap.py.
+    cfg = os.path.join(str(out), "low_risk.harpia.yaml")
+    with open(cfg, "w", encoding="utf-8") as fh:
+        fh.write("risk_class: class_a\ntopology: standalone\n")
+    env = {**os.environ, "HARPIA_COMPLIANCE_CONFIG": cfg}
     r = subprocess.run([sys.executable, RUNNER, str(out)],
-                       cwd=REPO_ROOT, capture_output=True, text=True)
+                       cwd=REPO_ROOT, capture_output=True, text=True, env=env)
     assert r.returncode == 0, r.stdout + r.stderr
 
     from ProtoFile.ProtoCompiler import ProtoCompiler

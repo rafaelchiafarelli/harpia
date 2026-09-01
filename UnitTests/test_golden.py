@@ -377,6 +377,27 @@ def test_grpc_service_impls(artifacts):
         _check(os.path.join(produced_dir, rel), os.path.join("grpc", rel))
 
 
+def test_http_server_bringup(artifacts):
+    # the shared REST+SOAP crow::SimpleApp bring-up + mTLS selection
+    # (transport-authn task 3): harpia_http_mtls.h, http_server_bringup.h,
+    # http_server_selection.json
+    produced_dir = os.path.join(artifacts, "http")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "http")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel), os.path.join("http", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "http"))
+    assert produced == expected, "set of generated HTTP bring-up files changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("http", rel))
+
+
 def test_capability_advertisement(artifacts):
     produced_dir = os.path.join(artifacts, "capability")
     produced = _relpaths(produced_dir)

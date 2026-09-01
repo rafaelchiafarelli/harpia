@@ -26,6 +26,6 @@
   install to prove the stack.
 
 ## Key facts / gotchas
-- **Do not edit** the library sources — they are upstream vendored copies. Update by re-vendoring the upstream release, not by patching in place.
+- **Do not edit** the library sources — they are upstream vendored copies. Update by re-vendoring the upstream release, not by patching in place. **One sanctioned exception:** `crow/crow.h` carries deliberate local edits, each tagged `[harpia patch]` and documented in `crow/VENDORED.md` "Local patches" (the transport-authn RBAC task needs the client-cert CN, which upstream Crow never exposes to a handler). `grep -n "\[harpia patch\]" crow/crow.h`; re-apply on any re-vendor.
 - These are inputs to the *generated* C++ build (the CMake tree under `HARPIA_OUTPUT_DIR`, e.g. `HarpiaTest/test_build`), not imported by any Python module.
 - The pipeline copies its own scaffolding from `Assets/` (proto, server/client templates, CMake); these libraries are the compile-time deps that scaffolding and generated adapters rely on.

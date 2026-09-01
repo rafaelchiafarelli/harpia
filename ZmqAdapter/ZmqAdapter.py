@@ -41,6 +41,9 @@ from Errors.Error import Error, Types, Classes
 from Util.util import loadTemplate, write_if_different, copy_if_different
 from Compliance.delivery_common import (
     DELIVERY_RUNTIME, DELIVERY_RUNTIME_SRC, DELIVERY_RUNTIME_DEPS)
+from Compliance.zap_common import (
+    ZAP_RUNTIME, ZAP_RUNTIME_SRC, ZAP_RUNTIME_DEPS, ZAP_OUT_SUBDIR)
+from Crypto.backend import transport_hardening_required
 
 ZMQ_EXT = "_zmq.h"
 
@@ -129,6 +132,20 @@ _CURVE_SERVER_APPLY = (
     "            socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);\n"
     "        }\n"
 )
+# Hardened profile (transport-authn "zmq-zap-allowlist"): before the socket
+# becomes a CURVE_SERVER, start the per-context ZAP handler so libzmq consults
+# the HARPIA_ZMQ_ALLOWLIST at the handshake -- an unknown client key is rejected
+# even with valid CURVE crypto. ensure_running() is idempotent per context.
+_CURVE_SERVER_APPLY_ZAP = (
+    "        if (!curve.secret_key.empty()) {\n"
+    "            ::harpia::zap::ensure_running(ctx);\n"
+    "            socket_.set(::zmq::sockopt::curve_server, true);\n"
+    "            socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);\n"
+    "        }\n"
+)
+# Injected at file scope for every ZMQ header under a hardened profile (every
+# header has a bind-side CURVE_SERVER socket). Empty otherwise -> byte-identical.
+_ZAP_INCLUDE = '#include "{}/{}"\n'.format(ZAP_OUT_SUBDIR, ZAP_RUNTIME)
 _CURVE_CLIENT_APPLY = (
     "        if (!curve.server_public_key.empty()) {\n"
     "            socket_.set(::zmq::sockopt::curve_serverkey, curve.server_public_key);\n"
@@ -161,6 +178,11 @@ def _is_one_to_many(mods):
 class ZmqAdapter:
     def __init__(self, messages, dest, compliance=None) -> None:
         self.compliance = compliance
+        # transport-authn "zmq-zap-allowlist": under a hardened profile the
+        # generated CURVE_SERVER sockets start a ZAP handler enforcing the
+        # HARPIA_ZMQ_ALLOWLIST at the handshake. Same predicate as mTLS / RBAC,
+        # never per-jurisdiction.
+        self.hardened = transport_hardening_required(compliance)
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "zmq")
@@ -168,7 +190,11 @@ class ZmqAdapter:
         # (mirroring the capability runtime's generated/cpp/capability/ home)
         # only when at least one `critical` transport-bearing message exists.
         self.deliveryDir = os.path.join(dest, "generated", "cpp", "delivery")
+        self.zapDir = os.path.join(dest, "generated", "cpp", ZAP_OUT_SUBDIR)
         self.log = logger(outFile=None, moduleName="ZmqAdapter")
+
+    def _curve_server_apply(self):
+        return _CURVE_SERVER_APPLY_ZAP if self.hardened else _CURVE_SERVER_APPLY
 
     @staticmethod
     def _modifiers(msg):
@@ -213,6 +239,20 @@ class ZmqAdapter:
                            "({} critical transport(s))".format(
                                self.deliveryDir, critical))
 
+        if self.hardened and written:
+            # Every generated ZMQ header has a bind-side CURVE_SERVER socket, so
+            # a hardened build always ships the ZAP handler (+ its F3 AuditSink
+            # dependency, #included at the same relative path). Runtime cost is
+            # still zero unless CURVE is actually configured on that socket.
+            os.makedirs(self.zapDir, exist_ok=True)
+            copy_if_different(ZAP_RUNTIME_SRC,
+                              os.path.join(self.zapDir, ZAP_RUNTIME))
+            for dep_name, dep_src in ZAP_RUNTIME_DEPS:
+                copy_if_different(dep_src,
+                                  os.path.join(self.zapDir, dep_name))
+            self.log.print("copied ZAP allowlist runtime into {} "
+                           "(hardened profile)".format(self.zapDir))
+
         if written == 0:
             self.log.print("no transport-bearing messages; no ZMQ adapters")
             return Error(errCl=Classes.MESSAGES,
@@ -230,6 +270,8 @@ class ZmqAdapter:
         # is unchanged. Non-critical messages are byte-identical to before.
         sender_tmpl = _SENDER_CRITICAL if is_critical else _SENDER
         extra_includes = _DELIVERY_INCLUDE if is_critical else ""
+        if self.hardened:
+            extra_includes += _ZAP_INCLUDE
         # A `stream` message additionally gets the process.md 13.2 lifecycle
         # consumer (<name>_stream) after its SUB subscriber; `event`-only and
         # push/pull-only messages emit neither slot and stay byte-identical.
@@ -258,7 +300,7 @@ class ZmqAdapter:
             body += _RECEIVER.format(
                 name=msg.name, role="receiver", sock="pull",
                 setup="socket_.bind(endpoint);", verb="recv", cls=cls,
-                curve_type="CurveServerKeys", curve_apply=_CURVE_SERVER_APPLY)
+                curve_type="CurveServerKeys", curve_apply=self._curve_server_apply())
         if pub_sub:
             body += sender_tmpl.format(
                 comment="// pub/sub (streaming/event): {n}_publisher publishes "
@@ -267,7 +309,7 @@ class ZmqAdapter:
                 connect="bind", verb="publish",
                 cls=cls, origin_id=origin_id, stamp=stamp,
                 default_id_expr=default_id_expr,
-                curve_type="CurveServerKeys", curve_apply=_CURVE_SERVER_APPLY)
+                curve_type="CurveServerKeys", curve_apply=self._curve_server_apply())
             body += _RECEIVER.format(
                 name=msg.name, role="subscriber", sock="sub",
                 setup='socket_.connect(endpoint);\n'

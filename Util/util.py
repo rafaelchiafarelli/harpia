@@ -227,6 +227,12 @@ def copyCMakeFiles(src, dest):
     ddsSecProvisionSrc = "{}/{}".format(src, "cmake/dds_security_provision.sh")
     copy_if_different(ddsSecProvisionSrc,
                        os.path.join(dest, "cmake", "dds_security_provision.sh"))
+    # transport-authn task 1: the mTLS client-cert PKI provisioning script,
+    # same treatment as the DDS-Security probe so `-DUSE_MTLS=ON` resolves it
+    # in the generated tree.
+    mtlsProvisionSrc = "{}/{}".format(src, "cmake/mtls_provision.sh")
+    copy_if_different(mtlsProvisionSrc,
+                       os.path.join(dest, "cmake", "mtls_provision.sh"))
 
     protoCMakePathSrc = "{}/{}".format(src, "proto/CMakeLists.txt")
     if not os.path.exists(os.path.join(dest, "proto")):

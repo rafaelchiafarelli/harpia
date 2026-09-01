@@ -25,7 +25,15 @@ inline bool from_json(const std::string& in, ::vitals_publication* msg) {
 }
 
 // is the JSON a valid vitals_publication message? (same unknown-field tolerance as from_json)
-inline bool is_valid_json(const std::string& in) {
+//
+// The trailing defaulted, unused ::vitals_publication* makes this an overload keyed on the
+// message type, not a plain free function: a translation unit that includes
+// several <name>_json.h headers at once (e.g. the generated
+// http/http_server_bringup.h, which pulls in every REST binding) then has one
+// distinct is_valid_json per message rather than an ODR clash. Existing
+// single-header callers -- `harpia::json::is_valid_json(js)` -- resolve through
+// the default argument exactly as before.
+inline bool is_valid_json(const std::string& in, const ::vitals_publication* = nullptr) {
     ::vitals_publication probe;
     ::google::protobuf::util::JsonParseOptions opts;
     opts.ignore_unknown_fields = true;

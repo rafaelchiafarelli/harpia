@@ -311,7 +311,8 @@ if __name__ == '__main__':
         log.print(ddsError.__str__())
 
     #13 (grpc impl). wire the generated gRPC service to CRUDL (per table message)
-    grpcSvcError = GrpcServiceAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    grpcSvcError = GrpcServiceAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext,
+                                     crypto_backend=cryptoBackend).Process()
     if grpcSvcError is not None:
         log.print(grpcSvcError.__str__())
 
@@ -371,7 +372,8 @@ if __name__ == '__main__':
         log.print(dbioError.__str__())
 
     #12. generate the REST bindings (HTTP CRUD over CRUDL + JSON)
-    restError = RestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    restError = RestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext,
+                            crypto_backend=cryptoBackend).Process()
     if restError is not None:
         log.print(restError.__str__())
 
