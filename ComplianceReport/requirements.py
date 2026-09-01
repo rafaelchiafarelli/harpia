@@ -54,6 +54,17 @@ REQUIREMENTS = [
         "and the build toolchain, with an explicit 'unknown' fallback.",
         ["test_sbom_emission.py::test_", "test_golden.py::test_compliancereport"]),
 
+    Req("VERSION-LINEAGE", "master plan -- versioning", "project",
+        "Every generation records the git fork-lineage of the schema project "
+        "(commit, ref, dirty-tree, describe, origin, fork-point) as recoverable "
+        "submission evidence; a project generated without git degrades to an "
+        "explicit 'unknown', never a fabricated or missing record.",
+        "Util/gitstate.collect_git_state() -> ComplianceReport._git_properties() "
+        "-> six harpia:git_* entries in generated/ComplianceReport/bom.json "
+        "metadata.properties; all-'unknown' when the git binary or repo is absent.",
+        ["test_version_lineage.py::test_", "test_gitstate.py::test_",
+         "test_golden.py::test_compliancereport"]),
+
     Req("R5-AUDIT-OPTOUT", "design-rules Rule 5", "project",
         "Disabling phi redaction for output is an explicit, non-default, audited "
         "action -- never silent.",

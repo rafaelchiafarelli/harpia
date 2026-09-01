@@ -11,6 +11,9 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
 
 ## Files
 - `util.py` — every helper below lives here.
+- `gitstate.py` — `collect_git_state()` only (the versioning epic, task 1).
+  Kept separate from `util.py` (cohesive, independently testable; `util.py`'s
+  own header discourages accretion).
 
 ## Public functions (in util.py)
 - `write_if_different(path, content) -> bool` — writes `content` to `path`
@@ -88,6 +91,15 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
   `./Assets/proto/protofiles/<templateName>` and substitutes `%USER_MESSAGE%`.
 - `switch` — tiny class implementing a `switch`/`case` idiom (`switch(x)` +
   `switch.case(a, b)`).
+- `gitstate.collect_git_state(start_path=None) -> dict` (in `gitstate.py`,
+  not `util.py`) — the versioning epic, task 1. Shells out to the `git`
+  binary and returns a fixed six-field dict (`commit`, `ref`, `dirty`,
+  `describe`, `origin_url`, `parent_commit`). Every field is guarded
+  independently: git absent / not a repo / a failing subcommand → that
+  field is the string `"unknown"` (`dirty` included), never a raise. `git`
+  is an installed Docker-image dependency because `parent_commit` needs
+  `git merge-base`. Task 2 emits these as `harpia:git_*` properties in
+  `ComplianceReport/`'s `bom.json`.
 
 ## Key facts / gotchas
 - Hidden-field prefixes: `_HIDDEN_PREFIXES = ("ID_","STATUS_","ERROR_","ORIGINATOR")`.
