@@ -19,6 +19,15 @@
 // (transport-authn epic, task 4; keyed on the verified client-cert CN via
 // http/harpia_rbac.h), otherwise the flat X-User/X-Pswd (REST) / <credentials>
 // (SOAP) credential.
+//
+// Sessions (transport-authn epic, task 5; only when kHardeningRequired). This
+// bring-up also registers POST <rest_base>/session (returns a JSON
+// {"token": ...}) and POST <soap_base>/session (returns a <sessionToken>
+// envelope): a caller that has authenticated the mTLS transport gets back a
+// signed bearer token carrying its RBAC CN + role + expiry, which it then
+// presents as `Authorization: Bearer <token>` on subsequent calls instead of
+// re-deriving its identity from the certificate each time. Needs
+// HARPIA_SESSION_KEY configured (503 otherwise). See http/harpia_session.h.
 #ifndef HARPIA_HTTP_SERVER_BRINGUP_H
 #define HARPIA_HTTP_SERVER_BRINGUP_H
 
@@ -57,6 +66,8 @@
 #include "soap/patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
 #include "soap/alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
 #include "soap/telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
+#include "http/harpia_rbac.h"
+#include "http/harpia_session.h"
 #ifdef CROW_ENABLE_SSL
 #include "http/harpia_http_mtls.h"
 #endif
@@ -133,6 +144,67 @@ private:
         ::harpia::soap::register_alarm_event_soap(app_, db, soap_base);
         ::harpia::rest::register_telemetry(app_, db, rest_base);
         ::harpia::soap::register_telemetry_soap(app_, db, soap_base);
+        register_session(rest_base, soap_base);
+    }
+
+    // transport-authn task 5: issue a bearer token to a caller that has
+    // authenticated the mTLS transport (client cert -> RBAC CN -> role). The
+    // token then rides `Authorization: Bearer <token>` on subsequent calls in
+    // place of re-deriving the identity from the certificate. Needs
+    // HARPIA_SESSION_KEY configured (503 / Fault otherwise). Registered only
+    // for the hardened build.
+    void register_session(const std::string& rest_base,
+                          const std::string& soap_base) {
+        app_.route_dynamic(rest_base + "/session")
+            .methods(crow::HTTPMethod::POST)(
+            [](const crow::request& req, crow::response& res) {
+                const std::string cn = req.client_cert_cn;
+                if (cn.empty()) { res.code = 401; res.end(); return; }
+                const auto role = ::harpia::rbac::role_map().role_for(cn);
+                if (role == ::harpia::rbac::Role::none) {
+                    res.code = 403; res.end(); return;
+                }
+                const std::string tok = ::harpia::session::issue(
+                    cn, ::harpia::rbac::role_name(role));
+                if (tok.empty()) { res.code = 503; res.end(); return; }
+                res.set_header("Content-Type", "application/json");
+                res.body = std::string("{\"token\":\"") + tok +
+                           "\",\"token_type\":\"Bearer\"}";
+                res.end();
+            });
+        app_.route_dynamic(soap_base + "/session")
+            .methods(crow::HTTPMethod::POST)(
+            [](const crow::request& req, crow::response& res) {
+                auto envelope = [&res](const std::string& body) {
+                    res.set_header("Content-Type", "text/xml");
+                    res.body =
+                        "<?xml version=\"1.0\"?><soap:Envelope xmlns:soap=\""
+                        "http://schemas.xmlsoap.org/soap/envelope/\"><soap:Body>"
+                        + body + "</soap:Body></soap:Envelope>";
+                };
+                auto fault = [&envelope](const char* s) {
+                    envelope(std::string("<soap:Fault><faultstring>") + s +
+                             "</faultstring></soap:Fault>");
+                };
+                const std::string cn = req.client_cert_cn;
+                if (cn.empty()) {
+                    res.code = 401; fault("no client certificate");
+                    res.end(); return;
+                }
+                const auto role = ::harpia::rbac::role_map().role_for(cn);
+                if (role == ::harpia::rbac::Role::none) {
+                    res.code = 403; fault("identity not authorized");
+                    res.end(); return;
+                }
+                const std::string tok = ::harpia::session::issue(
+                    cn, ::harpia::rbac::role_name(role));
+                if (tok.empty()) {
+                    res.code = 503; fault("sessions not configured");
+                    res.end(); return;
+                }
+                envelope("<sessionToken>" + tok + "</sessionToken>");
+                res.end();
+            });
     }
 
     crow::SimpleApp app_;

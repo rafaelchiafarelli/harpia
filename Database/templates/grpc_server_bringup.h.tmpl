@@ -13,7 +13,10 @@
 // The per-RPC access gate in each <name>_grpc.h runs on top of the transport:
 // when kHardeningRequired it is the three-role RBAC check (transport-authn
 // epic, task 4; keyed on the x509 CN from ServerContext::auth_context() via
-// grpc/harpia_rbac.h), otherwise the flat x-user/x-pswd call metadata.
+// grpc/harpia_rbac.h), otherwise the flat x-user/x-pswd call metadata. Under
+// the hardened variant a call may instead present an `authorization: Bearer`
+// session token (transport-authn epic, task 5; grpc/harpia_session.h) obtained
+// by calling heartBeat() with `harpia-issue-session` metadata.
 #ifndef HARPIA_GRPC_SERVER_BRINGUP_H
 #define HARPIA_GRPC_SERVER_BRINGUP_H
 

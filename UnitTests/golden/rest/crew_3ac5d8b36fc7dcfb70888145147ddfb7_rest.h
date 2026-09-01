@@ -29,6 +29,7 @@
 #include "json/crew_3ac5d8b36fc7dcfb70888145147ddfb7_json.h"
 #include "xml/crew_3ac5d8b36fc7dcfb70888145147ddfb7_xml.h"
 #include "http/harpia_rbac.h"
+#include "http/harpia_session.h"
 // RESTful CRUD for crew, backed by the CRUDL DAO. Register on a
 // crow::SimpleApp with a base path (e.g. "/project/v1"); routes are then:
 //   GET    <base>/crew        list   (?limit=&offset= to paginate)
@@ -64,6 +65,11 @@
 //   otherwise -> the flat generated access credential: the request must carry
 //               X-User: crew and X-Pswd: 3ac5d8b36fc7dcfb70888145147ddfb7, or it is rejected with 401
 //               before the operation runs.
+// Under the hardened variant a request may instead carry `Authorization:
+// Bearer <token>` -- a session token (transport-authn epic, task 5;
+// http/harpia_session.h) obtained from POST <base>/session. A valid token
+// supplies the identity the RBAC check runs on; a presented-but-invalid token
+// is a 401 with no fall-through to the client certificate.
 // The crow::SimpleApp itself is stood up by the generated
 // http/http_server_bringup.h (transport-authn epic, task 3) -- its
 // harpia::http_transport::HttpServer registers this binding and the matching
@@ -73,15 +79,29 @@
 namespace harpia {
 namespace rest {
 
-// Role gate for crew (transport-authn epic, task 4). Resolves the verified
-// mTLS client-certificate CommonName (crow::request::client_cert_cn) to a role
-// via the HARPIA_RBAC_MAP file and checks it against `op`. On deny it stamps
-// the response -- 401 (no / unverifiable identity) or 403 (valid identity,
-// wrong role) -- and returns false; ::harpia::rbac::decide has already emitted
-// the single AuditSink "rbac_denied" record. Exposed for direct unit testing.
+// Role gate for crew (transport-authn epic, tasks 4 + 5). Identity is either
+// a valid `Authorization: Bearer` session token (task 5) or, absent one, the
+// verified mTLS client-certificate CommonName (crow::request::client_cert_cn);
+// a token that is presented but does not verify is refused (401) with no
+// fall-through to the cert. The resolved CN is mapped to a role via the
+// HARPIA_RBAC_MAP file and checked against `op`. On deny it stamps the
+// response -- 401 (no / unverifiable identity) or 403 (valid identity, wrong
+// role) -- and returns false; ::harpia::rbac::decide has already emitted the
+// single AuditSink "rbac_denied" record (a bad token emits one
+// "session_denied" record instead). Exposed for direct unit testing.
 inline bool authz_crew(const crow::request& req, crow::response& res,
                          ::harpia::rbac::Operation op) {
-    switch (::harpia::rbac::decide(req.client_cert_cn, op, "crew")) {
+    std::string cn = req.client_cert_cn;
+    const auto bearer = ::harpia::session::from_authorization(
+        req.get_header_value("Authorization"));
+    if (bearer.present) {
+        if (bearer.verdict != ::harpia::session::Verdict::ok) {
+            res.code = 401;
+            return false;
+        }
+        cn = bearer.cn;
+    }
+    switch (::harpia::rbac::decide(cn, op, "crew")) {
         case ::harpia::rbac::Decision::allow:
             return true;
         case ::harpia::rbac::Decision::unauthenticated:

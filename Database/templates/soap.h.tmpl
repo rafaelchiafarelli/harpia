@@ -48,6 +48,12 @@
 //   otherwise -> the flat generated access credential in the SOAP Header, or
 //               the request is rejected with a SOAP Fault (HTTP 401):
 //   <soap:Header><credentials><user>{name}</user><pswd>{hash}</pswd></credentials></soap:Header>
+// Under the hardened variant a request may instead carry `Authorization:
+// Bearer <token>` -- a session token (transport-authn epic, task 5;
+// http/harpia_session.h) obtained from POST <soap_base>/session (returns a
+// <sessionToken> envelope). A valid token supplies the identity the RBAC check
+// runs on; a presented-but-invalid token is a 401 Fault with no fall-through to
+// the client certificate.
 // (WSDL generation is deferred.)
 //
 // The crow::SimpleApp itself is stood up by the generated

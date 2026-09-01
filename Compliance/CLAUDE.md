@@ -106,6 +106,41 @@ third added by the sensitive-data roadmap, not Foundation):
   `audit_common.py` / `delivery_common.py`. Consumed by
   `Database.RestAdapter` (copies into `generated/cpp/http/`) and
   `Database.GrpcServiceAdapter` (into `generated/cpp/grpc/`).
+- `runtime/harpia_session.h` — **transport-authn epic, task 5 (token-sessions).**
+  Hand-written C++, copied verbatim into `generated/cpp/{http,grpc}/` next to
+  `harpia_rbac.h` (by the same two adapters, under the same
+  `transport_hardening_required(compliance)` gate). `harpia::session`:
+  `Claims{cn,role,jti,issued_at,expires_at}`, `Verdict{ok,no_key,malformed,
+  bad_signature,expired,revoked}`, `issue(cn, role, ttl, now)` (mints
+  `v1.<b64url(payload)>.<hmac-sha256 hex>`, payload = `cn\nrole\niat\nexp\njti`,
+  jti = 128-bit `RAND_bytes`), `decode()` (payload only, no checks),
+  `verify(token, *out, now, sink)` → `Verdict` emitting exactly one `AuditSink`
+  `"session_denied"` record (subject `"session"`, detail
+  `verdict=/cn=/jti=` — never token bytes, Rule 5) per non-ok, and
+  `from_authorization("Bearer …")` → `{present, verdict, cn, role}` for the
+  transport gates. `RevocationList` re-reads `HARPIA_SESSION_REVOCATIONS`
+  whenever the file content changes (content-hash, not mtime — a test revokes
+  ms after issuing), `std::mutex`-guarded (thread-safe, unlike the load-once
+  `RoleMap`). Config from the environment at startup: `HARPIA_SESSION_KEY`
+  (raw, or `@<path>`; empty ⇒ sessions disabled — `issue()`→`""`,
+  `verify()`→`no_key`), `HARPIA_SESSION_TTL` (default 900),
+  `HARPIA_SESSION_REVOCATIONS`. HMAC-SHA256 is **real HMAC over a self-contained
+  SHA-256 bundled in the header** (checked against FIPS-180-4 / RFC-4231 vectors
+  in `test_sessions.py`) — deliberately NOT an OpenSSL call, so the header stays
+  pure-std and links anywhere `harpia_rbac.h` does (a plain downstream consumer
+  of a hardened project needs no new `-lcrypto` — the reason it isn't OpenSSL).
+  WHICH crypto module a project is *validated* against (openssl / openssl_fips)
+  is still the F5 seam's call, recorded in `{http,grpc}_server_selection.json`
+  next to the mTLS choice; a future real-crypto-backend binding is where this
+  would route through the provider's own HMAC. `#include`s its sibling
+  `harpia_audit_sink.h`. Tested by `UnitTests/test_sessions.py`.
+- `session_common.py` — task-5 path constants
+  (`SESSION_RUNTIME`/`SESSION_RUNTIME_SRC` + `SESSION_RUNTIME_DEPS` = the
+  co-copied `harpia_audit_sink.h`), same shape as `rbac_common.py`. Consumed
+  by `Database.RestAdapter` (into `generated/cpp/http/`) and
+  `Database.GrpcServiceAdapter` (into `generated/cpp/grpc/`), only when
+  `transport_hardening_required(compliance)` — right after each lands
+  `harpia_rbac.h`.
 - `zap_common.py` — transport-authn "zmq-zap-allowlist" path constants
   (`ZAP_RUNTIME`/`ZAP_RUNTIME_SRC`/`ZAP_RUNTIME_DEPS`/`ZAP_OUT_SUBDIR`). The
   runtime it points at, `ZmqAdapter/runtime/harpia_zap.h`, is the hand-written

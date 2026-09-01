@@ -64,6 +64,11 @@
 //   otherwise -> the flat generated access credential: the request must carry
 //               X-User: {name} and X-Pswd: {hash}, or it is rejected with 401
 //               before the operation runs.
+// Under the hardened variant a request may instead carry `Authorization:
+// Bearer <token>` -- a session token (transport-authn epic, task 5;
+// http/harpia_session.h) obtained from POST <base>/session. A valid token
+// supplies the identity the RBAC check runs on; a presented-but-invalid token
+// is a 401 with no fall-through to the client certificate.
 // The crow::SimpleApp itself is stood up by the generated
 // http/http_server_bringup.h (transport-authn epic, task 3) -- its
 // harpia::http_transport::HttpServer registers this binding and the matching

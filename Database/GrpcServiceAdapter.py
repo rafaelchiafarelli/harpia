@@ -44,6 +44,8 @@ from Compliance.grpc_common import (
     GRPC_SERVER_BRINGUP, GRPC_SERVER_SELECTION)
 from Compliance.rbac_common import (
     RBAC_RUNTIME, RBAC_RUNTIME_SRC, RBAC_RUNTIME_DEPS)
+from Compliance.session_common import (
+    SESSION_RUNTIME, SESSION_RUNTIME_SRC, SESSION_RUNTIME_DEPS)
 from Database.auth_gate import grpc_auth_fills
 from Crypto.backend import get_backend as get_crypto_backend, \
     transport_hardening_required
@@ -93,6 +95,14 @@ class GrpcServiceAdapter:
                 copy_if_different(
                     RBAC_RUNTIME_SRC, os.path.join(self.outDir, RBAC_RUNTIME))
                 for dep_name, dep_src in RBAC_RUNTIME_DEPS:
+                    copy_if_different(
+                        dep_src, os.path.join(self.outDir, dep_name))
+                # transport-authn task 5: the bearer-session runtime rides next
+                # to the RBAC gate it layers on.
+                copy_if_different(
+                    SESSION_RUNTIME_SRC,
+                    os.path.join(self.outDir, SESSION_RUNTIME))
+                for dep_name, dep_src in SESSION_RUNTIME_DEPS:
                     copy_if_different(
                         dep_src, os.path.join(self.outDir, dep_name))
 

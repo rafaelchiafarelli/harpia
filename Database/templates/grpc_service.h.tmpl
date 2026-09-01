@@ -38,6 +38,15 @@
 //               x-user: {name} and x-pswd: {hash} metadata, or it is rejected
 //               with UNAUTHENTICATED.
 // heartBeat stays open as a liveness probe in both variants.
+//
+// Session tokens (transport-authn epic, task 5; hardened variant only). Under
+// the RBAC gate, a call may present a bearer token as `authorization: Bearer
+// <token>` metadata instead of re-deriving its identity from the client cert;
+// a token that does not verify (signature / expiry / revocation) is
+// UNAUTHENTICATED, never a fall-through to the cert. A token is obtained by
+// calling heartBeat() with `harpia-issue-session` metadata -- the response
+// carries a fresh `harpia-session-token` in its trailing metadata. See
+// generated grpc/harpia_session.h.
 namespace harpia {{
 namespace grpc_svc {{
 
@@ -93,10 +102,10 @@ public:
         return ::grpc::Status::OK;
     }}
 
-    ::grpc::Status heartBeat(::grpc::ServerContext*,
+    ::grpc::Status heartBeat(::grpc::ServerContext*{hb_ctx},
                              const ::frameworkProtos::{name}_HeartBeat* request,
                              ::frameworkProtos::{name}_HeartBeat* response) override {{
-        *response = *request;
+{session_issue}        *response = *request;
         return ::grpc::Status::OK;
     }}
 
