@@ -29,9 +29,15 @@ import os
 
 from Logger.logger import logger
 from Util.util import loadTemplate, write_if_different
+from Util.gitstate import collect_git_state
 
 from ComplianceReport import components, jurisdictions
 from ComplianceReport.requirements import REQUIREMENTS
+
+#: indirection so tests can monkeypatch the git read (same pattern as
+#: ``_rfc3339_now``). The versioning epic emits its result as
+#: ``harpia:git_*`` properties in ``bom.json``.
+_collect_git_state = collect_git_state
 
 SBOM_DIRNAME = "ComplianceReport"
 SBOM_FILENAME = "bom.json"
@@ -44,7 +50,8 @@ SCHEMA_URL = "http://cyclonedx.org/schema/bom-1.5.schema.json"
 _REPORT_TMPL = loadTemplate(__file__, "compliance_report.md.tmpl")
 
 #: bumped when this module's own output shape changes
-HARPIA_TOOL_VERSION = "0.1.0"
+#: 0.2.0 -- versioning epic: six harpia:git_* properties added to bom.json
+HARPIA_TOOL_VERSION = "0.2.0"
 
 
 class ComplianceReport:
@@ -167,7 +174,31 @@ class ComplianceReport:
             ("harpia:crypto_backend", self._crypto_backend()),
             ("harpia:jurisdiction", jurisdiction),
         ]
+        pairs.extend(self._git_properties())
         return [{"name": n, "value": v} for n, v in pairs]
+
+    def _git_properties(self):
+        """versioning epic: the git fork-lineage of the schema project being
+        generated (read from the invoking working directory via
+        `Util.gitstate`), as six `harpia:git_*` pairs appended after the
+        `harpia:*` context pairs. Every value is a string -- `dirty`
+        serializes as ``"true"`` / ``"false"``; an unavailable field is the
+        string ``"unknown"`` (graceful-absence contract, never omitted).
+        `run_pipeline.py::_collect_compliancereport` normalizes these to
+        fixed sentinels so `test_golden.py` can snapshot `bom.json`."""
+        st = _collect_git_state()
+
+        def s(v):
+            return "true" if v is True else "false" if v is False else str(v)
+
+        return [
+            ("harpia:git_commit", s(st["commit"])),
+            ("harpia:git_ref", s(st["ref"])),
+            ("harpia:git_dirty", s(st["dirty"])),
+            ("harpia:git_describe", s(st["describe"])),
+            ("harpia:git_origin_url", s(st["origin_url"])),
+            ("harpia:git_parent_commit", s(st["parent_commit"])),
+        ]
 
     def _crypto_backend(self):
         path = os.path.join(self.dest, "build_metadata", "crypto_backend.json")

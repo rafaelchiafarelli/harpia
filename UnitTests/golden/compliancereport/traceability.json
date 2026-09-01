@@ -43,6 +43,18 @@
       ]
     },
     {
+      "construct": "(project)",
+      "requirement_id": "VERSION-LINEAGE",
+      "rule_ref": "master plan -- versioning",
+      "requirement": "Every generation records the git fork-lineage of the schema project (commit, ref, dirty-tree, describe, origin, fork-point) as recoverable submission evidence; a project generated without git degrades to an explicit 'unknown', never a fabricated or missing record.",
+      "mechanism": "Util/gitstate.collect_git_state() -> ComplianceReport._git_properties() -> six harpia:git_* entries in generated/ComplianceReport/bom.json metadata.properties; all-'unknown' when the git binary or repo is absent.",
+      "evidence": [
+        "test_version_lineage.py::test_",
+        "test_gitstate.py::test_",
+        "test_golden.py::test_compliancereport"
+      ]
+    },
+    {
       "construct": "alarm_event",
       "requirement_id": "R3-INTEGRITY",
       "rule_ref": "design-rules Rule 3",
