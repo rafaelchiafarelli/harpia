@@ -1,158 +1,382 @@
-> The 15-stage pipeline below is the baseline spec. A medical-device
-> compliance profile (PHI field tagging, message-level criticality,
-> key management, mTLS/RBAC, audit trails — see stages 5 and 8 below,
-> which this profile extends) is scoped separately, not yet part of this
-> baseline: see `Initiatives/medical_devices/`.
+# Harpia pipeline
 
-- 0. pre-process check (pre_lex)
-  - 0.0. check for non-utf8 characters
-  - 0.0.1. open file and read all its contents
-  - 0.0.2. check each characters for non-utf8 characters (simple regex)
-  - 0.0.3. create destination folder
-  - 0.0.4. check for inconsistent terminators ( parentesis, comments, brackets, etc)
-  - 0.0.5. check for harpia imports in folder, proto imports are handled diferently
-  - 0.0.6. create md5hash for the file
+Harpia turns one `.harpia` definition file into a self-contained, compilable
+C++ project: protobuf messages, a SQL persistence layer, JSON / XML / YAML
+serialization, REST / SOAP / gRPC / ZeroMQ / DDS transports, in-process event
+channels, schema migration, generated tests, and — when a compliance profile
+asks for it — field-level PHI encryption, delivery guarantees for critical
+messages, mTLS + RBAC + bearer sessions, and a CycloneDX SBOM.
 
-- 1. tokenize harpia file (LexicalAnalyzer)
-  - 1.0. tokenization is the transformation of every "word" into one token.
-    - 1.0.1. tokenize line-by-line
-  - 1.1. check for inconsistencies in indexes (indexes >=1)
-    - 1.1.1. get all the tokens that are inside messages, after the equal sign and before the ";" token.
-    - 1.1.2. non-numeric elements will generate an error.
-    - 1.1.3. if a number of indexes is 0 or less then 0, it will generate an error.
-    - 1.1.4. all hapia files included must be present in the include folders
-    - 1.1.5. all import lines must end with semi-colomn (;)
-  - 1.2. remove all comments -- token navigation
-    - 1.2.0. remove the tokens from the list
-    - 1.2.1. comments starting with double slash will comment the rest of the line
-    - 1.2.3. comments starting with slash asterix will finish when a asterix slash is found
-  - 1.3. separate each message into one separated tmp file (MessageCreator)
-    - 1.3.0. messages start after the "message" word until it reaches the closing brackets
-      - 1.3.0.1. messages without name are not allowed
-      - 1.3.0.2. messages without opening brackets are not allowed
-      - 1.3.0.3. messages with sub-messages are allowed
-      - 1.3.0.3.1. sub-messages that are databases, have a mandatory UNIQUE foreyn_key (one-key per line in database). Sub-messages without database will only be accessed by messages containing it.
-      - 1.3.0.3.2. sub-messages can be either public or private, but will have a table if the message containing it have a table. If name is not provided, but a table name is present at the containin message, then the sub-message will have a "hash" as a name
-      - 1.3.0.3.3. sub-messages CANNOT have modifiers (pull, push, event, etc)
-            - 1. sub-messages can have variables as messages
-      - 1.3.0.4. if message names are "status", "version", "error", the hidden message names will be changed to h_<message_name>
-      - 1.3.0.5. no two messages with equal names are allowed
-      - 1.3.0.6. messages with variable containing itself is not allowed
-      - 1.3.0.7. messages containing messages of other files are allowed, but files must be included
-      - 1.3.0.8. messages containing messages of the same file are allowed, This sub-message will have a NON-UNIQUE forein_key.
-      - 1.3.0.8.1. If message is contained by others, than it will have a NON-UNIQUE forein-key per inclusion in other messages
-      - 1.3.0.9. sub-messages described inside a message can-not be included in other messages
-      - 1.3.0.10. events of messages internal to other messages can have cascade effect events (change in an internal message can have effect on containing message if the message has the event modifier)
-    - 1.3.1. insert the hidden elements (FileCreator):
-      - 1.3.1.1. hidden elements are inserted in the token tree
-        - 1.3.1.1. equal names for hidden variables and/or messages are not allowed
-        - 1.3.1.1. change the name of the hidden element to h_###, where ### is the number formed by the md5 of the file this message resides in.
-      - 1.3.1.1. message originator (unique number related to the sender)
-        - 1.3.1.1.0. only one method of message originator will be allowed per message.
-        - 1.3.1.1.1. if the publisher is unique (one-to-many or one-to-one), then this is a compilation problem and not a runtime problem
-          - 1.3.1.1.1.1. create the number via the hash of the project, and the hash of the generated file.
-          - 1.3.1.1.1.2. the number is used when the sender will register itself into the zmq/socket application
-          - 1.3.1.1.1.3. only one application is available with that unique number.
-        - 1.3.1.1.0. if the publisher is many-to-many or many-to-one, then sender unique number is given in runtime.
-          - 1.3.1.1.0.1. unique number is created in time of setup of the sender function, either in zmq or in socket. This means this is a runtime problem, not a compilation problem.
-          - 1.3.1.1.0.2. when the application furst opens the socket and or register itself as a publisher, it receives a unique number from the zmq/socket module
+This file is the **stage-by-stage spec** of what the generator does. For the
+consumer's guide ("I have a `.harpia` file, how do I use the output") see
+`USAGE.md`.
 
-    - 1.3.2. insert the ???
-  - 1.4. create an order of process (if one message uses elements from another )
-  - 1.5. check for foreing-key existance (variable name as a message type)
+---
 
-- 2. generate flags for other processes (FileCreator)
-  - 2.1. flags for access-generators
-    - 2.1.1. access-modifier
-    - 2.1.2. table names and properties (public private)
-    - 2.1.3.
-  - 2.2. flags for regex and indexes
-    - 2.2.1. flag for regex: each variable contais a regex
-    - 2.2.1.1. if the regex is not present, the type must generate a regex
-    - 2.2.1.1.1. for instance: int a = 2; will have a regex allowing a number of 32 bits with one bit per signal.
-    - 2.2.1.1.2. for undefined types, such as other messages, the regex is constructed as a simple string.
-    - 2.2.2. if the regex is present in the type, a regex checker must exist.
-    - 2.2.2.1. this is not going to be implemented now but the idea is we have a way to check if a regex is fit to the type we are dealing with.
-    - 2.2.3.
-  - 2.3. flags for access types in variables
-    - 2.3.1. repeateable flags - will be used to check if can be repeateable
-      - 2.3.1.1. the repeateable can be a constant (memory bound) or no limit (dynamic memory bound)
-    - 2.3.2. pagination flags
-    - 2.3.3. optional
-    - 2.3.4. required
-    - 2.3.5. unique
+## Inputs
 
-- 4. check flags for inconsistencies
-  - 4.1. a repeateable flag without delimitation and no table name will be created as vector or list.
-  - 4.2. a option flag cannot exist with a required flag
-  - 4.3. a required flag can exist with a unique flag
-  - 4.4. a optional flag can exist with a unique flag
-  - .
-  - .
-  - .
+- **one root `.harpia` file** + an optional `Include/` folder of modules it
+  `import`s.
+- **`project.harpia.yaml`** (optional) — the project-wide compliance profile.
+  Resolved by `Compliance/context.py` into a `ComplianceContext`; missing file
+  or omitted field falls back **per-field** to the strictest value (fail-safe).
+  Fields:
+  - `risk_class` — `class_a` / `class_b` / `class_c` (IEC 62304; strictest `class_c`)
+  - `topology` — `standalone` / `networked` / `cloud_connected` (strictest `cloud_connected`)
+  - `phi_handling` — `none` / `opt_in` / `required`
+  - `jurisdiction` — free-form list of strings (feeds the compliance report only)
+  - `project` — a name string (default `"default"`), the owner key for
+    public/private DB segregation
+  An unknown enum value or a malformed `jurisdiction` is a hard error, never a
+  silent default. `risk_class == class_c` **or** `topology == cloud_connected`
+  makes **`transport_hardening_required(context)`** true — the single predicate
+  that turns on mTLS, RBAC, session tokens, the ZMQ ZAP allowlist and the FIPS
+  crypto backend.
 
-- 5. check access rights and create passwords (FileCreator)
-  - 5.1. encrypted passwords be created. They are related to the tokenization result (unchanged by comments)
-  - 5.1.1. e
-  - 5.2. encrypted passwords must be added to the flags of CRUDL
-  - 5.3. encrypted passwords must be added to the SOAP access tool
+---
 
-- 6. create the clean proto file
-  - 6.1. add all messages into one or as many files as needed to conform with the version of protobuf we are using
+## Stage −1 — profile + crypto backend
 
-- 7. execute protobuf compiler
-  - 7.1. this will generate all the access functions from the protobuf
+- Load the `ComplianceContext` (above) and thread it into **every** stage
+  constructor as `compliance=`. Most stages only store it; the ones that branch
+  on it are called out below.
+- Pick the `CryptoBackend` (`Crypto/backend.py`, F5 seam): a standard backend by
+  default, the FIPS backend when hardening is required or named explicitly.
+  Written as `build_metadata/crypto_backend.json`. `transport_security()` /
+  `transport_hardening_required()` are read by the transport stages.
+- Load the F6 Doxygen config (`Assets/Doxyfile`) and assemble the mainpage.
 
-- 8. create the database accesses
-  - 8.1. with the data from the tokens and the data from protobuf (functions names, namespaces, etc)
-  - 8.2. create the validation function for versions
-    - 8.2.1. create the "transformative" functions from one version to another.
-    - 8.2.2. create the read functions
-    - 8.2.3. create the write functions
-    - 8.2.4. create all the creation and deletion functions (drop database etc)
-    - 8.2.5. create the final sql-schema file (with all the elements pertinent)
+## Stage 0 — pre-process (`pre_lex`)
 
-- 9. create the json addapter
-  - 9.1. function to generate the json and json-checker
-  - 9.2. function to generate a message from a json
-  - 9.3. function to update the database from a json
-  - 9.4. function to update the json from the database
-  - 9.5. function to export to json from database
-  - 9.6. function to import to database from json
+- reject non-UTF-8 bytes; check balanced parens / brackets / comments.
+- resolve `import "x.harpia";` against the include folders (every import must
+  end with `;` and resolve to a file present in an include folder).
+- create the output tree; compute the **md5 hash of the root file's text** —
+  this hash qualifies every generated filename and the hidden-field names, so
+  two same-named messages from different roots never collide.
 
-- 10. create the xml addapter
-  - 10.1. function to generate the xml and the xsd
-  - 10.2. function to generate a message from a xml
-  - 10.3. function to update the database from a xml
-  - 10.4. function to update the json xml the database
-  - 10.5. function to export to xml from database
-  - 10.6. function to import to database from xml
-- 11. create the SOAP access
-  - 11.1. create the xml access tool knonwn as SOAP
+## Stage 1 — tokenize + build messages (`LexicalAnalyzer`, `MessageCreator`)
 
-- 12. create the HTML bindings
-  - 12.1. RESTFull API for json
-  - 12.2. RESTFull API for xml
-  - 12.3. RESTFull API for SOAP
+- line-by-line tokenization; strip `//` and `/* */` comments by removing their
+  tokens (comment characters — brackets, quotes — inside a comment never raise).
+- validate field wire numbers: present, numeric, `>= 1`, never reused.
+- carve each `message` / `enum` into its own unit:
+  - a message with a **trailing table name** (`… message Foo { … } foo_table;`)
+    is persisted; without one it is serialize-only.
+  - sub-messages (declared inside another message) may themselves own a table;
+    an un-named sub-message with a table gets a hash for a name. Sub-messages
+    carry **no** transport modifiers.
+  - names `status` / `version` / `error` are rewritten to `h_<name>`.
+  - a message referencing itself, or two messages with the same name, is an
+    error.
+- classify each message's **transport modifiers** (`stream` / `pull` / `push` /
+  `event` / `event[cached]` / `event[not-cached]` / `dds`) and **type
+  modifiers** (`critical`). These are AST flags only — a message with any of
+  them emits **byte-identical `.proto`** to the same message without them.
+- build a processing order from cross-message references; check every composed
+  field's type name resolves.
 
-- 13. create the zmq/socket access functions
-  - 13.1. create the push/pull functions
-  - 13.2. create the streamming functions
-  - 13.3. create the gRPC access functions
+## Stage 2 — front-end flags (`FileCreator`)
 
-- 14. create the unit tests
-  - 14.1. test simple access
-  - 14.2. test database
-  - 14.3. test access rights
-  - 14.4. test access modifiers
-  - 14.5. test json parser
-  - 14.6. test xml parser
-  - 14.7. test html RESTFull API
-  - 14.8. test SOAP API - HTML
-  - 14.9. test xml API - HTML
-  - 14.10. test json API - HTML
-  - 14.11. create/test the "all-good" application tests
-  - 14.12. create/test the "crash" applications
-  - 14.13. create/test the "slower" applications
-  - 14.14. create/test the non-parseable functions
+Per message / field, emit the sidecar flags later stages read:
 
+- **access / table** — `public` / `private` visibility, table name + properties.
+- **field modifiers** — `optional`, `required`, `unique`, `repeteable`
+  (bounded via `pagination[N]` or unbounded → `vector`/`list`), `pagination[N]`,
+  `renamed_from[old]`.
+- **`phi`** (Foundation F2) — a per-field confidentiality tag. Composes with
+  every other field modifier; a message may mix `phi` and non-`phi` fields.
+  Flag only in the front end — the `.proto` is unaffected; the DB / serialize /
+  DDS / FHIR stages act on it.
+- **field-identity map** (`Message/FieldMap.py`) — freezes each field's wire
+  number across regenerations (reorder-stable, delete-retires-a-number,
+  rename-keeps-its-number), written to a `schema_registry` sidecar so a later
+  version stays wire-compatible.
+
+## Stage 3–4 — flag consistency
+
+- `optional` + `required` on one field is an error; `unique` may combine with
+  either.
+- an unbounded `repeteable` with no table becomes an in-memory `vector`/`list`.
+
+## Stage 5 — access rights (`FileCreator`)
+
+- derive a per-message credential (user = message name, pswd = a hash bound to
+  the tokenization result) used by the **flat** REST / SOAP / gRPC access gate.
+- when `transport_hardening_required(context)` the flat gate is replaced at
+  generation time by the RBAC gate (Stage 12/13, below) — the credential is
+  still emitted but unused.
+
+## Stage 6 — clean `.proto`
+
+- emit every message + enum as protobuf (`proto3`), split across files as
+  needed. Service protos (`<name>_service.proto`) for the gRPC surface, plus the
+  framework protos (`errorCode`, `heartBeat`).
+- `phi` / `critical` / `dds` / transport modifiers leave **no trace** here.
+
+## Stage 7 — `protoc`
+
+- compile every `.proto` to `.pb.{h,cc}` (message classes) and, for service
+  protos, the gRPC stubs.
+
+## Stage 8 — persistence (`Database/`)
+
+Everything derives from one shared schema model (`Database/model.py`), so
+schema, DAO SQL, migration and WSDL never drift.
+
+- **SQL schema** (`SqlAdapter`) → `database/<name>_<hash>_table.sql`:
+  `CREATE TABLE` per persisted message plus a child table per `map<K,V>`
+  (`<table>__<field>`, owner+key+value), per repeated scalar (owner+ordinal+
+  value), per repeated composed→table message (link table storing the child
+  PK), and per repeated composed→table-less message (one column per the
+  target's flattened fields). `ID_*` → INTEGER PRIMARY KEY; `required` → NOT
+  NULL; `unique` → UNIQUE.
+- **CRUDL DAO** (`CrudlAdapter`) → `generated/cpp/db/<name>_<hash>_crudl.h`,
+  `harpia::db::<name>_dao` over SOCI: `create` / `read` / `update` / `remove` /
+  `list` (+ a paginated `list(out, offset, limit)` overload, default limit from
+  the field carrying `pagination[N]`) + `create_table` / `drop_table`.
+  Singular FK columns persist/load the child via its own DAO; flattened
+  table-less embeds become prefixed columns (`journey.path.start.city` →
+  `path_start_city`); maps / repeated fields cascade through their child tables.
+  - **`phi` fields (db-encryption epic)** — the DAO gains a
+    `::harpia::crypto::KeyProvider& kp_` and a
+    `::harpia::compliance::AuditSink& audit_` (both defaulted ctor params, so a
+    non-`phi` DAO is byte-identical). `create`/`update` wrap the value in
+    `encrypt_field(kp_, …)` (`enc:v1:` + hex frame over the envelope from
+    `harpia_key_provider.h`); `read`/`list` run `decrypt_field[_ll|_int|_double]`.
+    Exactly one value-free `audit_.record("phi_<op>", "<table>", "<phi cols>")`
+    per op. Runtimes copied into `generated/cpp/crypto/`:
+    `harpia_encrypted_column.h`, `harpia_key_provider{,_local,_kms}.h`,
+    `harpia_audit_sink.h`.
+  - **`event` messages (events-callbacks epic)** — the DAO `#include`s
+    `events/<name>_<hash>_events.h` and calls `<name>_channel().publish(msg)` at
+    the end of a successful `create()` and `update()` only (never read/list/
+    remove); a message that is `event` **and** `phi` also records one
+    `phi_event_onchange`.
+- **public/private registry** (`DbRegistryAdapter`) → one project-wide
+  `generated/cpp/db/harpia_db_registry.h`: every table with its visibility and
+  `owner_project`, plus `db_access_check(requesting_project, table)` →
+  `ALLOWED` / `DENIED_PRIVATE_CROSS_PROJECT` / `DENIED_UNKNOWN_TABLE`. A second
+  generated project `#include`s this to ask "am I allowed at their table".
+- **migration** (`MigrationAdapter`) → `generated/cpp/migrate/<name>_<hash>_migrate.h`,
+  `migrate_<name>(db, data_transform = {})`: ensures tables exist, RENAMEs a
+  column carrying `renamed_from[old]`, `ADD COLUMN` for anything an older
+  version lacks, runs the caller's optional `data_transform` hook (after ADD,
+  before DROP — so a new column exists to write and a retiring column still
+  exists to read), DROPs columns the schema no longer declares, RETYPEs columns
+  whose live type drifted. Child tables (`<table>__*`) get the same
+  rename / orphan-reap / retype treatment.
+- **DB ⇄ JSON/XML bulk io** (`DbIoAdapter`) → `generated/cpp/dbio/…`:
+  `export_json` / `import_json` (NDJSON) and `export_xml` / `import_xml`.
+
+## Stage 9 — JSON (`JsonAdapter`)
+
+- `generated/cpp/json/<name>_<hash>_json.h`: `harpia::json::to_json(msg, &str)`
+  / `from_json(str, &msg)` over protobuf's own JSON util (camelCase, proto3
+  defaults omitted, unknown fields ignored on parse).
+
+## Stage 10 — XML / YAML / unified serialize
+
+- **XML** (`XmlAdapter`) → `generated/cpp/xml/`: `harpia_xml.h` (reflection
+  runtime, vendored tinyxml2) + per-message wrapper. `to_xml(msg)` /
+  `from_xml(str, &msg)` / `from_xml_element(node, &msg)`, plus `xsd(descriptor)`.
+- **YAML** (`YamlAdapter`) → `generated/cpp/yaml/`: `harpia_yaml.h` (reflection
+  runtime, no vendored lib) + wrapper. `to_yaml(msg)` / `from_yaml(str, &msg)` —
+  block style, two-space indent, top-level mapping. Parses exactly the subset it
+  emits, not general YAML.
+- **unified façade** (`SerializeAdapter`) → `generated/cpp/serialize/`:
+  - `harpia_serialize.h` — `harpia::serialize::{Format::JSON|XML|YAML,
+    to_string(msg, Format), from_string(str, &msg, Format)}`. One dispatch
+    point over the three engines; for a message with **no `phi`** field it is a
+    straight pass-through (JSON/XML output byte-identical to the per-format
+    adapters).
+  - **`phi` redaction (serialization epic)** — when the message tree declares a
+    `phi` field and `redaction_enabled()` (default **true**), `to_string`
+    renders every `phi` value as `[REDACTED]` in all three formats through one
+    reflection walk; the three engines are untouched. Redacted output is a
+    lossy view, not a round-trip format.
+  - `harpia_redaction.h` — `kPlaceholder`, `redaction_enabled()`,
+    `set_redaction_enabled(bool)`.
+  - `harpia_redaction_audit.h` — the **audited opt-out**:
+    `allow_phi_print(AuditSink&, reason)` reveals real values and emits one
+    `phi_unredacted_output_enabled` record; `restore_phi_redaction(AuditSink&)`
+    flips back and audits it.
+  - `harpia_phi_registry.h` — **generated**: a `constexpr` array of the
+    schema's `(message, field)` `phi` pairs + `is_phi()` / `message_has_phi()`.
+
+## Stage 11 — SOAP + WSDL + SDC
+
+- **SOAP** (`SoapAdapter`) → `generated/cpp/soap/`: `<name>_<hash>_soap.h`
+  registers a SOAP-over-HTTP endpoint on a `crow::SimpleApp`
+  (`<Body>` holds `get` / `set` / `update` / `delete`) backed by the DAO + XML
+  adapter. The transport-free parse is the hand-written seam
+  `soap/harpia_soap.h` (`harpia::soap::{parse_envelope, find_operation,
+  message_from_request}`) — the handler is a thin caller of it (so the fuzz
+  harness exercises the real parse path).
+- **WSDL** (`WsdlAdapter`) → `wsdl/<name>_<hash>.wsdl` (WSDL 1.1, document/
+  literal).
+- **WS-Discovery / SDC** (`SdcAdapter`) → `generated/cpp/sdc/`: a
+  `<name>_<hash>_sdc.h` participant descriptor + `<name>_<hash>.wsdd.xml`
+  sidecar, and `harpia_wsdiscovery.h` (C++17 responder on
+  `239.255.255.250:3702`, POSIX multicast, Windows-inert) advertising the SOAP
+  endpoint. Full BICEPS modelling is a design doc only (`sdc_biceps_design.md`).
+
+## Stage 12 — REST + HTTP server bring-up (`RestAdapter`)
+
+- `generated/cpp/rest/<name>_<hash>_rest.h`: CRUD routes on a `crow::SimpleApp`
+  (`route_dynamic`), content-negotiated JSON/XML, GET-list paginated via
+  `?limit=&offset=`.
+- **access gate** (`Database/auth_gate.py`) — two generation-time variants,
+  chosen by `transport_hardening_required`:
+  - **flat**: `X-User` / `X-Pswd` headers must match the Stage 5 credential
+    (401 otherwise). This is what the stage tests exercise (pinned low-risk).
+  - **hardened (RBAC)**: `admin` / `main` / `guest` role check on the verified
+    mTLS client-cert CN (resolved via the `HARPIA_RBAC_MAP` file — deployment
+    config, not compiled in), or on the CN inside a valid `Authorization:
+    Bearer` session token. Fixed matrix in `harpia_rbac.h` (admin = all,
+    main = all but remove, guest = read/list/stream, heartbeat open).
+    401/UNAUTHENTICATED (no identity) vs 403/PERMISSION_DENIED (wrong role);
+    one value-free `rbac_denied` audit record per denial.
+- **project-wide HTTP bring-up** (emitted whenever ≥1 table message exists):
+  `http/http_server_bringup.h` (`harpia::http_transport::HttpServer` — every
+  `register_<name>` + `register_<name>_soap` on one app), `http/harpia_http_mtls.h`
+  (fail-safe `asio::ssl::context` with `verify_fail_if_no_peer_cert`),
+  `http/http_server_selection.json`. When hardened it also copies
+  `http/harpia_rbac.h` + `http/harpia_session.h` + `http/harpia_audit_sink.h`
+  and splices a `POST <base>/session` token-issuance route.
+
+## Stage 13 — ZeroMQ / streams / events / gRPC / capability / DDS
+
+- **ZeroMQ** (`ZmqAdapter`) → `generated/cpp/zmq/<name>_<hash>_zmq.h` for any
+  message with a transport modifier:
+  - `push`/`pull` → sender/receiver; `event`/`stream` → publisher/subscriber.
+    The sender stamps an **origin id** (compile-time for one-to-one/one-to-many,
+    runtime-assigned for many-to-*).
+  - **`critical` (critical-delivery epic)** — the sender/publisher routes
+    through `harpia::delivery::BoundedQueue`: `send()`/`publish()` stamps a
+    CRC-32 + monotonic-seq `Envelope` and enqueues it (returns
+    `optional<PushOutcome>`), overflow rotates the oldest with a
+    `queue_rotated` audit record (never a silent drop); a separate `flush()`
+    drains to the wire oldest-first. Runtime copied to
+    `generated/cpp/delivery/` (`harpia_delivery.h` + `harpia_audit_sink.h`).
+  - **`stream` (zmq-lifecycle epic)** — an extra `<name>_stream` consumer with
+    the explicit lifecycle: `setup(StreamConfig, CurveClientKeys = {})` →
+    `StreamStatus`; `read([timeout_ms])` → `ReadResult` (`OK`+msg / `TIMEOUT` /
+    `STOPPED` / `INVALID`), always timed, never blocking; `stop()` idempotent;
+    RAII close with `ZMQ_LINGER=0`. Two synchronous time-based teardowns
+    (no timer thread): a stop-deadline watchdog and dead-connection
+    reclamation.
+  - **CURVE** — every constructor takes a trailing defaulted curve-keys struct
+    (`CurveServerKeys` on bind, `CurveClientKeys` on connect); empty = today's
+    plaintext. When hardened, bind-side `CURVE_SERVER` sockets also start a
+    **ZAP client-key allowlist** (`zap/harpia_zap.h` — a REP handler on
+    `inproc://zeromq.zap.01` checking each client key against the
+    `HARPIA_ZMQ_ALLOWLIST` file; deny-all with no file; one `zap_denied`
+    record per rejection).
+- **events / callbacks** (`CallbackAdapter`) → `generated/cpp/events/`: one
+  `<name>_<hash>_events.h` per `event` message defining
+  `harpia::events::EventChannel<T>& <name>_channel()`. `subscribe(cb)` /
+  `unsubscribe(id)` / `publish(const T&)`. Dispatch is **detached-thread +
+  exception-isolated** (a throwing callback neither propagates nor terminates;
+  recorded as `event_callback_exception`). `event[cached]` (or bare `event`)
+  replays the last value to a late subscriber; `event[not-cached]` retains
+  nothing. A `phi` event channel records one `phi_event_dispatch` per publish.
+  Runtime: `harpia_event_cache.h` + `harpia_audit_sink.h`.
+- **gRPC service impl** (`GrpcServiceAdapter`) →
+  `generated/cpp/grpc/<name>_<hash>_grpc.h`: concrete impl of the Stage 6/7
+  service skeleton, RPCs backed by the DAO (`push`→create, `pullByID`→read,
+  `streamSrc`→list [paginated], `heartBeat`→echo). Same flat/RBAC access gate
+  as REST/SOAP. **Project-wide gRPC bring-up** (≥1 table message):
+  `grpc/grpc_server_bringup.h` (`harpia::grpc_transport::GrpcServer` — every
+  service on one `ServerBuilder`, mTLS or insecure `ServerCredentials` per the
+  hardening flag), `grpc/harpia_grpc_mtls.h` (fail-safe: incomplete PEM paths
+  under hardening → throw, never a silent downgrade),
+  `grpc/grpc_server_selection.json`. When hardened, also `grpc/harpia_rbac.h` +
+  `grpc/harpia_session.h` (`heartBeat` mints a `harpia-session-token` on
+  `harpia-issue-session` metadata; gated RPCs accept `authorization: Bearer`).
+- **capability handshake** (`{Grpc,Http,Zmq}CapabilityAdapter`) →
+  `generated/cpp/capability/`: a per-project advertisement of the message-type
+  set + `harpia::capability::{negotiate(), Dispatcher}` — a peer without the
+  capability service resolves to a named "legacy peer" outcome, never a hang.
+- **DDS** (`DdsAdapter`) → `generated/cpp/dds/<name>_<hash>_dds.h` for any `dds`
+  message: per-message publisher/subscriber with the QoS mapping
+  (`critical` → RELIABLE + KEEP_ALL + RESOURCE_LIMITS, else BEST_EFFORT +
+  KEEP_LAST(1)). DDS-Security via the `CryptoBackend` seam: fail-safe
+  `secured_participant` (`SecurityRefused`, never a silent plaintext peer),
+  strict `security/governance.xml`, per-schema `security/permissions.xml`,
+  `security/dds_security_selection.json`; throwaway-PKI provisioning script.
+  A `phi` field over DDS emits one value-free `phi_publish` audit record per
+  publish. Vendored Cyclone DDS + `ddscxx`.
+
+## Stage 14 — generated tests (`TestAdapter`)
+
+- `tests/<name>_test.cpp` per table message + a CTest `CMakeLists.txt`
+  (`cmake -DHARPIA_BUILD_TESTS=ON` → `ctest`): simple access, DB round-trip,
+  access rights, access modifiers, JSON/XML parse. Under a hardened profile the
+  bodies are RBAC-aware (role×operation matrix + fail-closed 401 asserts).
+- demo `client/` + `server/` apps (`Assets/`), buildable with `-DUSE_TLS=ON` /
+  `-DUSE_ZMQ_CURVE=ON`.
+
+## Stage 15 — compliance report (`ComplianceReport/`)
+
+- `generated/ComplianceReport/`:
+  - `bom.json` — a CycloneDX 1.5 SBOM (vendored versions from the checked-in
+    `VENDORED.md` files, toolchain versions, and six `harpia:git_*` provenance
+    properties from `Util/gitstate.py`).
+  - `traceability.{json,md}` — a requirement catalog (`requirements.py`) mapped
+    to the code + tests that satisfy each entry.
+  - `compliance_report[.<jurisdiction>].md` — per-jurisdiction document shells
+    over the same evidence.
+
+---
+
+## Companion runtime headers (hand-written, copied verbatim into the output)
+
+| header | lands in | provided by | purpose |
+|---|---|---|---|
+| `harpia_audit_sink.h` | `compliance/`, `crypto/`, `delivery/`, `events/`, `http/`, `grpc/`, `zap/`, `serialize/` | Foundation F3 | `AuditSink::record(op, subject, detail)` — metadata only, structurally cannot carry a value (design-rules Rule 5); `NoOpAuditSink`; `default_audit_sink()` |
+| `harpia_key_provider.h` / `_local.h` / `_kms.h` | `crypto/` | key-management epic | `KeyProvider` (envelope encryption, KEK rotation, per-DEK crypto-shred, zeroizing `Dek`); no-KMS `LocalKeyProvider`; KMS/HSM `KmsKeyProvider` + `MockKms` |
+| `harpia_encrypted_column.h` | `crypto/` | db-encryption epic | `encrypt_field` / `decrypt_field{,_ll,_int,_double}` — `enc:v1:` hex frame over the envelope; unrecoverable → default, never a throw |
+| `harpia_delivery.h` | `delivery/` | critical-delivery epic | `Envelope` (origin CRC-32 + monotonic seq), `check_on_arrival`, `BoundedQueue` (rotate-oldest + audit), `Mailbox` (latest-value + audit), `peek()` |
+| `harpia_event_cache.h` | `events/` | events-callbacks epic | `EventChannel<T>` — subscribe/unsubscribe/publish, detached-thread dispatch, `CacheMode::{Cached, NotCached}` |
+| `harpia_serialize.h` / `harpia_redaction.h` / `harpia_redaction_audit.h` | `serialize/` | serialization epic | unified `to_string`/`from_string` façade + `phi`→`[REDACTED]` control point + audited opt-out |
+| `harpia_rbac.h` | `http/`, `grpc/` | transport-authn epic | `Role`, `Operation`, the fixed `permitted(role, op)` matrix, `RoleMap` (from `HARPIA_RBAC_MAP`), `decide(cn, op, subject, sink)` |
+| `harpia_session.h` | `http/`, `grpc/` | transport-authn epic | bearer session tokens — HMAC-SHA256 (self-contained SHA-256) over CN + role + expiry + jti; `issue` / `verify` / `from_authorization`; `RevocationList` (`HARPIA_SESSION_REVOCATIONS`) |
+| `harpia_http_mtls.h` / `harpia_grpc_mtls.h` | `http/` / `grpc/` | transport-authn epic | fail-safe mTLS context / credentials — incomplete PEM paths under hardening → throw |
+| `harpia_zap.h` | `zap/` | transport-authn epic | CURVE ZAP client-key allowlist handler (`HARPIA_ZMQ_ALLOWLIST`), deny-all default, `zap_denied` audit |
+| `harpia_dds_security.h` | `dds/security/` | dds-transport epic | fail-safe `secured_participant`, governance/permissions plumbing |
+| `harpia_wsdiscovery.h` | `sdc/` | sdc-biceps epic | C++17 WS-Discovery responder advertising the SOAP endpoint |
+| `harpia_soap.h` | `soap/` | static-fuzz-ci epic | transport-free SOAP envelope parse seam |
+| `harpia_db_registry.h` | `db/` | db-segregation epic | project-wide table visibility + `db_access_check` (**generated**, not copied) |
+| `harpia_phi_registry.h` | `serialize/` | serialization epic | the schema's `(message, field)` `phi` pairs (**generated**, not copied) |
+| `harpia_xml.h` / `harpia_yaml.h` | `xml/` / `yaml/` | XML/YAML adapters | reflection serialization runtimes |
+| `harpia_capability_dispatch.h` | `capability/` | message-versioning | transport-agnostic capability `Dispatcher` |
+
+---
+
+## The `.harpia` grammar in one place
+
+```
+import "mod.harpia";                       // from an Include/ folder
+
+enum Name { a; b = 3; c; }                 // exactly one enumerator must be 0
+
+[type-mod] [transport-mod...] message Name {
+    [field-mod...] <type> field;           // int | string | Enum | Message |
+                                           //   map<K,V> | repeteable <t>
+    message Sub { ... } sub_table;         // nested; may own a table; no mods
+} [table_name];                            // trailing name => persisted
+```
+
+- **transport modifiers** (message): `stream`, `pull`, `push`, `event`,
+  `event[cached]`, `event[not-cached]`, `dds` — combinable; emit identical
+  `.proto`.
+- **type modifier** (message): `critical` — delivery guarantees; combinable
+  with any transport modifier; identical `.proto`.
+- **field modifiers**: `optional` / `required` (mutually exclusive), `unique`,
+  `repeteable`, `pagination[N]`, `renamed_from[old]`, `phi`.
+- **types**: `int`, `string`, an enum name, another message name (composed —
+  embed or FK), `map<K,V>`, `repeteable <type>`.
+
+`HarpiaTest/test.harpia` + `HarpiaTest/Include/file3.harpia` exercise every
+construct and are the canonical worked example.
