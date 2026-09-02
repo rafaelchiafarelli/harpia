@@ -1,0 +1,1 @@
+<x:Envelope xmlns:x="urn:not-soap"><x:Body><update><FuzzMsg><i1>notanumber</i1></FuzzMsg></update></x:Body></x:Envelope>

@@ -38,8 +38,7 @@ TINYXML2 = os.path.join(REPO_ROOT, "third_party", "tinyxml2")
 
 ITERS = os.environ.get("HARPIA_FUZZ_ITERS", "5000")
 
-# Only targets whose parser entry point + corpus exist. Grown by task 4.
-TARGETS = ["json", "xml"]
+TARGETS = ["json", "xml", "soap"]
 
 pytestmark = [
     pytest.mark.fuzz,
