@@ -95,6 +95,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libsqlite3-dev \
         libboost-dev \
         cmake \
+        cppcheck \
         g++ \
         git \
         make \
