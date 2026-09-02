@@ -20,7 +20,7 @@ struct PhiField {
     std::string_view field;
 };
 
-inline constexpr std::size_t kPhiFieldCount = 7;
+inline constexpr std::size_t kPhiFieldCount = 8;
 inline constexpr std::array<PhiField, kPhiFieldCount> kPhiFields = {{
     harpia::serialize::phi::PhiField{"patient_vitals", "patient_id"},
     harpia::serialize::phi::PhiField{"patient_vitals", "heart_rate"},
@@ -28,7 +28,8 @@ inline constexpr std::array<PhiField, kPhiFieldCount> kPhiFields = {{
     harpia::serialize::phi::PhiField{"lab_result", "subject_ref"},
     harpia::serialize::phi::PhiField{"lab_result", "analyte_code"},
     harpia::serialize::phi::PhiField{"lab_result", "value_scaled"},
-    harpia::serialize::phi::PhiField{"lab_result", "reference_high"}
+    harpia::serialize::phi::PhiField{"lab_result", "reference_high"},
+    harpia::serialize::phi::PhiField{"vitals_publication", "patient_ref"}
 }};
 
 // is (message, field) a `phi` field?

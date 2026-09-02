@@ -1,0 +1,13 @@
+// dds-transport epic, task 2a -- throwaway spike type.
+//
+// One keyed sample, the shape a generated DdsAdapter message would take:
+// a key field plus a couple of payload fields. Compiled to C++ by Cyclone's
+// `idlc` + the `idlcxx` plugin (see CMakeLists.txt). Not a HarpiaTest
+// fixture and not wired into the generator -- 2b builds the real thing.
+module harpia_dds_spike {
+  struct VitalsSample {
+    @key long device_id;
+    long spo2;
+    long pulse_rate;
+  };
+};

@@ -29,8 +29,27 @@ class LexicalAnalyzer:
             ('STREAM',r'stream '),
             ('PULL',r'pull '),
             ('PUSH',r'push '),
-            ('EVENT',r'event '),
+            # `event` optionally carries a cache-mode bracket
+            # (`event[cached]` / `event[not-cached]`), same single-token
+            # shape as RENAMED_FROM below -- the bracket text stays in the
+            # lexeme and Message.py reads it into `event_cache_mode`
+            # (bare `event ` == cached, the standard). One EVENT token for
+            # all three forms, so ZmqAdapter/JavaZmqAdapter/Util one-to-many
+            # detection (which keys off the token type) is untouched.
+            ('EVENT',r'event(\[\s*(cached|not-cached)\s*\])? '),
             ('PUSHPULL',r'pushpull '),
+            # DDS transport-selection modifier (dds-transport epic, task 1 --
+            # ASTM F2761 / OpenICE-class bedside bus). Sits in the same slot as
+            # the transport kinds above (before `message `), trailing space so
+            # it never matches a bare identifier. A message picks `dds` when it
+            # needs to be published onto / read from a DDS bus, independent of
+            # whether it is also reachable via ZMQ or gRPC. Flag only: no
+            # DdsAdapter / QoS / DDS-Security machinery lands with this token
+            # (those are tasks 2a/2b/3). Consumed by Message/Message.py ->
+            # Message.is_dds, the same way CRITICAL -> Message.is_critical and
+            # PHI -> variable.is_phi. Composes freely with any transport kind
+            # and with `critical`, order-independent.
+            ('DDS', r'dds '),
             # message-type criticality modifier (sensitive-data design rules
             # §0, the *criticality* axis -- independent of PHI's confidentiality
             # axis). A keyword-only modifier that sits in the same slot as the

@@ -4,17 +4,18 @@ file and report, as one JSON object on stdout:
 
     {"error": None,
      "fields":   [{"message": ..., "field": ..., "is_phi": bool}, ...],
-     "messages": [{"name": ..., "is_critical": bool, "is_enum": bool}, ...],
+     "messages": [{"name": ..., "is_critical": bool, "is_dds": bool, "is_enum": bool}, ...],
      "proto": "<concatenated .proto text for every message>"}
 
 or, on a front-end failure:
 
     {"error": "PRELEX|LEX|MSG <ErrorType>", "fields": [], "messages": [], "proto": ""}
 
-Used by test_phi_modifier.py (Foundation F2, `variable.is_phi`) and
-test_critical_modifier.py (Phase 1a, `Message.is_critical`) to inspect the
-AST's sensitive-data modifier flags and confirm the emitted .proto is
-unaffected by either. Mirrors run_frontend.py's pattern (fresh subprocess per
+Used by test_phi_modifier.py (Foundation F2, `variable.is_phi`),
+test_critical_modifier.py (Phase 1a, `Message.is_critical`) and
+test_dds_modifier.py (dds-transport epic task 1, `Message.is_dds`) to inspect
+the AST's sensitive-data / transport modifier flags and confirm the emitted
+.proto is unaffected by any of them. Mirrors run_frontend.py's pattern (fresh subprocess per
 invocation, required because LexicalAnalyzer accumulates tokens in class-level
 state) plus the FileCreator step from run_pipeline.py.
 
@@ -69,6 +70,7 @@ def run(harpia_file, dest):
         is_enum = bool(getattr(msg, "isEnum", False))
         messages.append({"name": msg.name,
                          "is_critical": bool(getattr(msg, "is_critical", False)),
+                         "is_dds": bool(getattr(msg, "is_dds", False)),
                          "is_enum": is_enum})
         for v in msg.variables:
             # enum members are (name, int) tuples, not `variable` objects --

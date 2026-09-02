@@ -52,6 +52,7 @@ inline void register_capabilities(crow::SimpleApp& app, const std::string& base)
             "alarm_event",
             "another_sage",
             "beacon_log",
+            "bed_state",
             "courier",
             "crew",
             "crew_quarters",
@@ -62,14 +63,17 @@ inline void register_capabilities(crow::SimpleApp& app, const std::string& base)
             "parcel",
             "patient_vitals",
             "prince",
+            "pump_tick",
             "queen",
             "route",
+            "sensor_feed",
             "shipment",
             "telemetry",
             "top_users",
             "trace_row",
             "users",
             "vip_users",
+            "vitals_publication",
             "waypoint"
             };
             ::frameworkProtos::capabilities_Response response;

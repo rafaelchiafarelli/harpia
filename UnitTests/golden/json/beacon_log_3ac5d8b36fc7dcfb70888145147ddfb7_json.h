@@ -25,7 +25,15 @@ inline bool from_json(const std::string& in, ::beacon_log* msg) {
 }
 
 // is the JSON a valid beacon_log message? (same unknown-field tolerance as from_json)
-inline bool is_valid_json(const std::string& in) {
+//
+// The trailing defaulted, unused ::beacon_log* makes this an overload keyed on the
+// message type, not a plain free function: a translation unit that includes
+// several <name>_json.h headers at once (e.g. the generated
+// http/http_server_bringup.h, which pulls in every REST binding) then has one
+// distinct is_valid_json per message rather than an ODR clash. Existing
+// single-header callers -- `harpia::json::is_valid_json(js)` -- resolve through
+// the default argument exactly as before.
+inline bool is_valid_json(const std::string& in, const ::beacon_log* = nullptr) {
     ::beacon_log probe;
     ::google::protobuf::util::JsonParseOptions opts;
     opts.ignore_unknown_fields = true;

@@ -41,6 +41,9 @@ from Errors.Error import Error, Types, Classes
 from Util.util import loadTemplate, write_if_different, copy_if_different
 from Compliance.delivery_common import (
     DELIVERY_RUNTIME, DELIVERY_RUNTIME_SRC, DELIVERY_RUNTIME_DEPS)
+from Compliance.zap_common import (
+    ZAP_RUNTIME, ZAP_RUNTIME_SRC, ZAP_RUNTIME_DEPS, ZAP_OUT_SUBDIR)
+from Crypto.backend import transport_hardening_required
 
 ZMQ_EXT = "_zmq.h"
 
@@ -49,6 +52,68 @@ _HEADER = loadTemplate(__file__, "header.h.tmpl")
 _SENDER = loadTemplate(__file__, "sender.tmpl")
 _SENDER_CRITICAL = loadTemplate(__file__, "sender_critical.tmpl")
 _RECEIVER = loadTemplate(__file__, "receiver.tmpl")
+_STREAM = loadTemplate(__file__, "stream.tmpl")
+
+# stream lifecycle (process.md 13.2, zmq-lifecycle epic task 1). Only a
+# message carrying the `stream` modifier gets the `<name>_stream` consumer
+# surface layered on its SUB socket; `event`-only and non-pub/sub messages
+# are byte-identical to before. Two injection points, both empty unless the
+# message has `stream`:
+#   _STREAM_INCLUDES -> file scope, before `namespace harpia` (the stream
+#     class needs <chrono>/<optional>, the shared config needs <cstddef>).
+#   _STREAM_SHARED   -> inside the namespace, behind its own
+#     HARPIA_ZMQ_STREAM_DEFINED guard (same single-definition pattern as the
+#     CURVE key structs) -- StreamStatus, StreamConfig, stream_config_valid().
+#     The per-message ReadResult (it carries a concrete message type) is
+#     emitted by stream.tmpl in the body instead.
+_STREAM_INCLUDES = (
+    "#include <chrono>\n"
+    "#include <cstddef>\n"
+    "#include <optional>\n"
+)
+# NOTE: this is spliced into the header AFTER _HEADER.format(), so it must be
+# final literal text -- no str.format placeholders, single braces.
+_STREAM_SHARED = (
+    "\n"
+    "// stream lifecycle shared types (process.md 13.2). Guarded separately\n"
+    "// from the per-message include guard so they stay single when several\n"
+    "// *_zmq.h headers with a stream surface land in one translation unit --\n"
+    "// same pattern as the CURVE key structs above.\n"
+    "#ifndef HARPIA_ZMQ_STREAM_DEFINED\n"
+    "#define HARPIA_ZMQ_STREAM_DEFINED\n"
+    "// setup() may return INVALID; read() reports TIMEOUT instead of\n"
+    "// blocking; stop() -> STOPPED; the un-stopped-connection watchdog\n"
+    "// -> INVALID.\n"
+    "enum class StreamStatus { OK, INVALID, TIMEOUT, STOPPED };\n"
+    "\n"
+    "// Passed to <name>_stream::setup(). Durations are milliseconds.\n"
+    "struct StreamConfig {\n"
+    "    std::string endpoint;             // tcp:// | ipc:// | inproc://\n"
+    "    std::string topic;                // SUB filter (\"\" = every message)\n"
+    "    int    read_timeout_ms  = 1000;   // default per-read timeout; read(ms) overrides\n"
+    "    int    stop_deadline_ms = 30000;  // no successful read within this of the last\n"
+    "                                      //   one -> force-kill, read() -> INVALID\n"
+    "    int    reclaim_after_ms = 60000;  // dead-connection reclamation window\n"
+    "                                      //   (enforced by this epic's task 2)\n"
+    "    std::size_t max_records = 10000;  // per-read record cap (process.md: bound the\n"
+    "                                      //   \"known maximum number of registers\")\n"
+    "};\n"
+    "\n"
+    "// Rejects the enumerated bad-config cases: no endpoint, an endpoint with\n"
+    "// no tcp:// / ipc:// / inproc:// scheme, a non-positive timeout or\n"
+    "// deadline, or a zero record cap.\n"
+    "inline bool stream_config_valid(const StreamConfig& c) {\n"
+    "    if (c.endpoint.empty()) return false;\n"
+    "    if (c.endpoint.rfind(\"tcp://\", 0) != 0 &&\n"
+    "        c.endpoint.rfind(\"ipc://\", 0) != 0 &&\n"
+    "        c.endpoint.rfind(\"inproc://\", 0) != 0) return false;\n"
+    "    if (c.read_timeout_ms <= 0) return false;\n"
+    "    if (c.stop_deadline_ms <= 0) return false;\n"
+    "    if (c.max_records == 0) return false;\n"
+    "    return true;\n"
+    "}\n"
+    "#endif  // HARPIA_ZMQ_STREAM_DEFINED\n"
+)
 
 # Injected at file scope (before `namespace harpia {`) only for a `critical`
 # message type; empty for every other message, so a non-critical transport
@@ -67,6 +132,20 @@ _CURVE_SERVER_APPLY = (
     "            socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);\n"
     "        }\n"
 )
+# Hardened profile (transport-authn "zmq-zap-allowlist"): before the socket
+# becomes a CURVE_SERVER, start the per-context ZAP handler so libzmq consults
+# the HARPIA_ZMQ_ALLOWLIST at the handshake -- an unknown client key is rejected
+# even with valid CURVE crypto. ensure_running() is idempotent per context.
+_CURVE_SERVER_APPLY_ZAP = (
+    "        if (!curve.secret_key.empty()) {\n"
+    "            ::harpia::zap::ensure_running(ctx);\n"
+    "            socket_.set(::zmq::sockopt::curve_server, true);\n"
+    "            socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);\n"
+    "        }\n"
+)
+# Injected at file scope for every ZMQ header under a hardened profile (every
+# header has a bind-side CURVE_SERVER socket). Empty otherwise -> byte-identical.
+_ZAP_INCLUDE = '#include "{}/{}"\n'.format(ZAP_OUT_SUBDIR, ZAP_RUNTIME)
 _CURVE_CLIENT_APPLY = (
     "        if (!curve.server_public_key.empty()) {\n"
     "            socket_.set(::zmq::sockopt::curve_serverkey, curve.server_public_key);\n"
@@ -99,6 +178,11 @@ def _is_one_to_many(mods):
 class ZmqAdapter:
     def __init__(self, messages, dest, compliance=None) -> None:
         self.compliance = compliance
+        # transport-authn "zmq-zap-allowlist": under a hardened profile the
+        # generated CURVE_SERVER sockets start a ZAP handler enforcing the
+        # HARPIA_ZMQ_ALLOWLIST at the handshake. Same predicate as mTLS / RBAC,
+        # never per-jurisdiction.
+        self.hardened = transport_hardening_required(compliance)
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "generated", "cpp", "zmq")
@@ -106,7 +190,11 @@ class ZmqAdapter:
         # (mirroring the capability runtime's generated/cpp/capability/ home)
         # only when at least one `critical` transport-bearing message exists.
         self.deliveryDir = os.path.join(dest, "generated", "cpp", "delivery")
+        self.zapDir = os.path.join(dest, "generated", "cpp", ZAP_OUT_SUBDIR)
         self.log = logger(outFile=None, moduleName="ZmqAdapter")
+
+    def _curve_server_apply(self):
+        return _CURVE_SERVER_APPLY_ZAP if self.hardened else _CURVE_SERVER_APPLY
 
     @staticmethod
     def _modifiers(msg):
@@ -126,10 +214,11 @@ class ZmqAdapter:
             if not (push_pull or pub_sub):
                 continue
             is_critical = bool(getattr(msg, "is_critical", False))
+            has_stream = "STREAM" in mods
             default_id_expr = ("origin_id()" if _is_one_to_many(mods)
                                else "runtime_origin_id()")
             header = self._render(msg, push_pull, pub_sub, default_id_expr,
-                                  is_critical)
+                                  is_critical, has_stream)
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, ZMQ_EXT)
             write_if_different(os.path.join(self.outDir, fileName), header)
             written += 1
@@ -150,6 +239,20 @@ class ZmqAdapter:
                            "({} critical transport(s))".format(
                                self.deliveryDir, critical))
 
+        if self.hardened and written:
+            # Every generated ZMQ header has a bind-side CURVE_SERVER socket, so
+            # a hardened build always ships the ZAP handler (+ its F3 AuditSink
+            # dependency, #included at the same relative path). Runtime cost is
+            # still zero unless CURVE is actually configured on that socket.
+            os.makedirs(self.zapDir, exist_ok=True)
+            copy_if_different(ZAP_RUNTIME_SRC,
+                              os.path.join(self.zapDir, ZAP_RUNTIME))
+            for dep_name, dep_src in ZAP_RUNTIME_DEPS:
+                copy_if_different(dep_src,
+                                  os.path.join(self.zapDir, dep_name))
+            self.log.print("copied ZAP allowlist runtime into {} "
+                           "(hardened profile)".format(self.zapDir))
+
         if written == 0:
             self.log.print("no transport-bearing messages; no ZMQ adapters")
             return Error(errCl=Classes.MESSAGES,
@@ -161,12 +264,19 @@ class ZmqAdapter:
         return None
 
     def _render(self, msg, push_pull, pub_sub, default_id_expr,
-                is_critical=False):
+                is_critical=False, has_stream=False):
         # A `critical` message routes its send path through the Rule 4a
         # bounded rotating queue (sender_critical.tmpl); its receiving half
         # is unchanged. Non-critical messages are byte-identical to before.
         sender_tmpl = _SENDER_CRITICAL if is_critical else _SENDER
         extra_includes = _DELIVERY_INCLUDE if is_critical else ""
+        if self.hardened:
+            extra_includes += _ZAP_INCLUDE
+        # A `stream` message additionally gets the process.md 13.2 lifecycle
+        # consumer (<name>_stream) after its SUB subscriber; `event`-only and
+        # push/pull-only messages emit neither slot and stay byte-identical.
+        stream_includes = _STREAM_INCLUDES if has_stream else ""
+        stream_shared = _STREAM_SHARED if has_stream else ""
         cls = "::{}".format(msg.name)
         guard = "HARPIA_ZMQ_{}_{}".format(msg.name.upper(), msg.md5Hash)
         pb = "protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash)
@@ -190,7 +300,7 @@ class ZmqAdapter:
             body += _RECEIVER.format(
                 name=msg.name, role="receiver", sock="pull",
                 setup="socket_.bind(endpoint);", verb="recv", cls=cls,
-                curve_type="CurveServerKeys", curve_apply=_CURVE_SERVER_APPLY)
+                curve_type="CurveServerKeys", curve_apply=self._curve_server_apply())
         if pub_sub:
             body += sender_tmpl.format(
                 comment="// pub/sub (streaming/event): {n}_publisher publishes "
@@ -199,12 +309,22 @@ class ZmqAdapter:
                 connect="bind", verb="publish",
                 cls=cls, origin_id=origin_id, stamp=stamp,
                 default_id_expr=default_id_expr,
-                curve_type="CurveServerKeys", curve_apply=_CURVE_SERVER_APPLY)
+                curve_type="CurveServerKeys", curve_apply=self._curve_server_apply())
             body += _RECEIVER.format(
                 name=msg.name, role="subscriber", sock="sub",
                 setup='socket_.connect(endpoint);\n'
                       '        socket_.set(::zmq::sockopt::subscribe, "");',
                 verb="receive", cls=cls,
                 curve_type="CurveClientKeys", curve_apply=_CURVE_CLIENT_APPLY)
+            if has_stream:
+                body += _STREAM.format(
+                    comment="// stream (process.md 13.2): {n}_stream is the "
+                            "lifecycle consumer surface\n// layered on "
+                            "{n}_subscriber's SUB socket.".format(n=msg.name),
+                    name=msg.name, cls=cls,
+                    curve_type="CurveClientKeys",
+                    curve_apply=_CURVE_CLIENT_APPLY)
         return _HEADER.format(guard=guard, pb_header=pb, body=body,
-                              extra_includes=extra_includes)
+                              extra_includes=extra_includes,
+                              stream_includes=stream_includes,
+                              stream_shared=stream_shared)

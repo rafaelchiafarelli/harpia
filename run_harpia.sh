@@ -24,8 +24,6 @@
 #
 set -euo pipefail
 
-IMAGE=harpia-build
-
 usage() {
     echo "usage: $0 <input_folder> <output_folder> [--no-build]" >&2
     exit 2
@@ -48,6 +46,11 @@ OUTPUT_FOLDER=${POSITIONAL[1]}
 # Repo root = the directory this script lives in (mounted read-write at /harpia:
 # it holds main.py, Assets/, and the third_party/ that gets vendored out).
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+
+# Per-Dockerfile image ref + per-clone Gradle cache volume, so several clones
+# can run this concurrently. Sets HARPIA_IMAGE / HARPIA_GRADLE_VOLUME /
+# harpia_ensure_image (override the two vars in the environment if needed).
+. "$REPO_ROOT/Docker/_env.sh"
 
 [ -d "$INPUT_FOLDER" ] || { echo "error: input folder not found: $INPUT_FOLDER" >&2; exit 1; }
 
@@ -74,10 +77,7 @@ OUTPUT_ABS=$(realpath -m "$OUTPUT_FOLDER")
 mkdir -p "$OUTPUT_ABS"   # create as the host user before Docker mounts it
 
 # The image is built on first use (same as Docker/run.sh).
-if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
-    echo "docker image '$IMAGE' not found; building it (first run only)..." >&2
-    docker build -t "$IMAGE" "$REPO_ROOT"
-fi
+harpia_ensure_image
 
 # Container paths: repo at /harpia (workdir), input read-only, output read-write.
 C_INPUT=/harpia_input
@@ -125,13 +125,13 @@ docker run --rm -i \
     -v "$REPO_ROOT":/harpia -w /harpia \
     -v "$INPUT_MOUNT" \
     -v "$OUTPUT_ABS":"$C_OUTPUT" \
-    -v harpia-gradle-cache:/tmp/.gradle \
+    -v "$HARPIA_GRADLE_VOLUME":/tmp/.gradle \
     -e HOME=/tmp \
     -e GRADLE_USER_HOME=/tmp/.gradle \
     -e HARPIA_INPUT_FILE="$C_INPUT/$HARPIA_NAME" \
     -e HARPIA_INCLUDE_FOLDER="$C_INPUT/$INCLUDE_SUBPATH" \
     -e HARPIA_OUTPUT_DIR="$C_OUTPUT" \
-    "$IMAGE" bash -c "$RUN_CMD"
+    "$HARPIA_IMAGE" bash -c "$RUN_CMD"
 
 # Drop a build guide into the output folder so it's a complete, portable example.
 # Written after codegen (not before) simply because it documents that run's output.
