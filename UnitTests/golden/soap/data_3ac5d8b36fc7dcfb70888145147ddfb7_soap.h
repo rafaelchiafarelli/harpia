@@ -25,6 +25,7 @@
 #include "crow.h"
 #include "db/data_3ac5d8b36fc7dcfb70888145147ddfb7_crudl.h"
 #include "xml/data_3ac5d8b36fc7dcfb70888145147ddfb7_xml.h"   // brings tinyxml2 + the XML runtime
+#include "soap/harpia_soap.h"       // harpia::soap:: envelope-parse seam
 #include "http/harpia_rbac.h"
 #include "http/harpia_session.h"
 // Minimal SOAP-over-HTTP access for data, backed by the CRUDL DAO. Register on
@@ -66,35 +67,10 @@
 namespace harpia {
 namespace soap {
 
-// Shared XML helpers, defined once across all generated SOAP headers.
-#ifndef HARPIA_SOAP_DETAIL
-#define HARPIA_SOAP_DETAIL
-namespace detail {
-
-// element name without its namespace prefix ("soap:Body" -> "Body")
-inline std::string local_name(const ::tinyxml2::XMLElement* e) {
-    std::string n = e->Name();
-    const auto pos = n.find(':');
-    return pos == std::string::npos ? n : n.substr(pos + 1);
-}
-
-// first child element whose local (prefix-stripped) name matches
-inline const ::tinyxml2::XMLElement* find_child(
-        const ::tinyxml2::XMLElement* parent, const char* local) {
-    if (!parent) return nullptr;
-    for (auto* c = parent->FirstChildElement(); c; c = c->NextSiblingElement())
-        if (local_name(c) == local) return c;
-    return nullptr;
-}
-
-inline std::string child_text(const ::tinyxml2::XMLElement* parent,
-                              const char* local) {
-    const auto* c = find_child(parent, local);
-    return (c && c->GetText()) ? c->GetText() : std::string();
-}
-
-}  // namespace detail
-#endif  // HARPIA_SOAP_DETAIL
+// The envelope-parse seam (detail::local_name / find_child / child_text,
+// parse_envelope, find_operation, message_from_request) lives in the
+// hand-written soap/harpia_soap.h included above -- one definition, and the
+// same code path UnitTests/test_fuzz_parsers.py fuzzes.
 
 inline std::string envelope_data(const std::string& body) {
     return "<?xml version=\"1.0\"?>"
@@ -116,15 +92,16 @@ inline void register_data_soap(crow::SimpleApp& app, ::soci::session& db,
         };
         ::harpia::db::data_dao dao(*dbp);
         ::tinyxml2::XMLDocument doc;
-        if (doc.Parse(req.body.c_str()) != ::tinyxml2::XML_SUCCESS) {
+        if (!::harpia::soap::parse_envelope(req.body, &doc)) {
             res.code = 400; res.end(); return;
         }
 
-        const auto* env = doc.RootElement();                  // soap:Envelope
-        const auto* body = ::harpia::soap::detail::find_child(env, "Body");
-        const auto* op = body ? body->FirstChildElement() : nullptr;   // operation
-        if (!op) { res.code = 400; res.end(); return; }
-        const std::string name = ::harpia::soap::detail::local_name(op);
+        ::harpia::soap::Request soap_req;
+        if (!::harpia::soap::find_operation(doc, &soap_req)) {
+            res.code = 400; res.end(); return;
+        }
+        const auto* op = soap_req.op;                         // operation element
+        const std::string name = soap_req.operation;
         // task 5: a valid Authorization: Bearer session token supplies the
         // identity; a presented-but-invalid token is a 401 Fault (no
         // fall-through to the client certificate).
