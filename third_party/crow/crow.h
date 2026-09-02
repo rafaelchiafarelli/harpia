@@ -1006,6 +1006,9 @@ namespace crow
             f(error_code());
         }
 
+        // [harpia patch] no client certificate on a plain TCP connection.
+        std::string peer_cert_cn() const { return {}; }
+
         tcp::socket socket_;
     };
 
@@ -1076,6 +1079,9 @@ namespace crow
         {
             f(error_code());
         }
+
+        // [harpia patch] no client certificate on a unix-socket connection.
+        std::string peer_cert_cn() const { return {}; }
 
         stream_protocol::socket socket_;
     };
@@ -1163,6 +1169,21 @@ namespace crow
                                          [f](const error_code& ec) {
                                              f(ec);
                                          });
+        }
+
+        // [harpia patch] subject CommonName of the peer's (verified) client
+        // certificate, or "" if none was presented. Used by the generated
+        // RBAC gate (transport-authn epic, task 4). See VENDORED.md.
+        std::string peer_cert_cn() const
+        {
+            if (!ssl_socket_) return {};
+            ::X509* cert = ::SSL_get_peer_certificate(ssl_socket_->native_handle());
+            if (!cert) return {};
+            char buf[256] = {0};
+            int n = ::X509_NAME_get_text_by_NID(
+              ::X509_get_subject_name(cert), NID_commonName, buf, sizeof(buf));
+            ::X509_free(cert);
+            return n > 0 ? std::string(buf, static_cast<std::size_t>(n)) : std::string{};
         }
 
         std::unique_ptr<asio::ssl::stream<tcp::socket>> ssl_socket_;
@@ -2552,6 +2573,7 @@ namespace crow // NOTE: Already documented in "crow/app.h"
         ci_map headers;
         std::string body;
         std::string remote_ip_address; ///< The IP address from which the request was sent.
+        std::string client_cert_cn;    ///< [harpia patch] subject CommonName of the verified client certificate (mTLS), or "" (plain HTTP / no client cert). See third_party/crow/VENDORED.md.
         unsigned char http_ver_major, http_ver_minor;
         bool keep_alive,    ///< Whether or not the server should send a `connection: Keep-Alive` header to the client.
           close_connection, ///< Whether or not the server should shut down the TCP connection once a response is sent.
@@ -6638,6 +6660,7 @@ namespace crow
             req_.middleware_container = static_cast<void*>(middlewares_);
             req_.io_context = &adaptor_.get_io_context();
             req_.remote_ip_address = adaptor_.address();
+            req_.client_cert_cn = adaptor_.peer_cert_cn(); // [harpia patch] mTLS RBAC identity
             add_keep_alive_ = req_.keep_alive;
             close_connection_ = req_.close_connection;
 

@@ -43,8 +43,9 @@ Invoked from `main.py` and `UnitTests/run_pipeline.py` after all other adapters.
   what the other adapters emit (all keyed off `Message.md5Hash`).
 - `_pick_rep` prefers a message with a PK + text field + no composed field so the
   cross-layer app round-trip stays flat/deterministic.
-- Credential gates: SOAP uses `<credentials><user>=msg.name</user><pswd>=md5Hash`;
-  REST uses `X-User`/`X-Pswd` headers. Wrong/absent → 401.
+- **Access gate — two variants, chosen by `transport_hardening_required(self.compliance)`** (same predicate the transport templates use; `self.hardened` set in `__init__`):
+  - **flat** (default when not hardened): SOAP `<credentials><user>=msg.name</user><pswd>=md5Hash`; REST `X-User`/`X-Pswd` headers. Wrong/absent → 401. The generated `access_rights()` unit-tests `harpia::soap::authorized_<name>` directly; `rest_api()`/`soap_api()`/the app test do full credentialed round-trips.
+  - **RBAC** (hardened — transport-authn task 4): the flat helper doesn't exist, so `_access_rights_body` checks the `harpia::rbac` matrix (`permitted()` for a spread of `(Role, Operation)` + `decide("", …) == unauthenticated`) against the copied `harpia_rbac.h`; `_rest_body`/`_soap_body`/`_app_all_good`/`_app_crash`/`_app_non_parseable` do their substance via the DAO + serializers directly and assert the HTTP surface is **fail-closed** (an anon, no-client-cert caller gets 401 / a 401 SOAP Fault) — the lightweight in-process harness can't present an mTLS identity, so 403/200 over mTLS stays harpia's own `UnitTests/test_rbac.py`. `test_stage14.py` runs the repo's (hardened) profile for `generated`; `test_flat_profile_ctest_builds_and_passes` covers the flat bodies under a low-risk profile.
 - `_vendor_deps` copies from repo `third_party/` only if present; `_write_cmake`
   compiles sqlite as C (`enable_language(C)`), links `protofiles harpia_sqlite
   harpia_tinyxml2`, adds `add_test` per unit.
@@ -63,6 +64,7 @@ Invoked from `main.py` and `UnitTests/run_pipeline.py` after all other adapters.
 ## Touchpoints
 - Called by: `main.py`, `UnitTests/run_pipeline.py`.
 - Depends on: `Util.util.loadTemplate` (reads templates dir next to this file),
-  `Database.model`, `Logger.logger`, repo-level `third_party/`.
+  `Database.model`, `Crypto.backend.transport_hardening_required` (the RBAC-vs-flat
+  gate switch), `Logger.logger`, repo-level `third_party/`.
 - Verified by: `UnitTests/test_stage14.py` and golden snapshots in
   `UnitTests/golden/gen_tests/`.
