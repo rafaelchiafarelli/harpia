@@ -267,7 +267,7 @@ private:
 
     std::uint32_t h_[8];
     std::uint64_t total_ = 0;
-    unsigned char buf_[64];
+    unsigned char buf_[64]{};
     std::size_t fill_ = 0;
 };
 

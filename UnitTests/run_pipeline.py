@@ -467,6 +467,8 @@ def _collect_rest(build_dir, dest):
 
 
 def _collect_soap(build_dir, dest):
+    # per-message wrappers only; harpia_soap.h is the static runtime (lives in
+    # the repo under SoapAdapter/runtime -- same convention as _collect_xml)
     src = os.path.join(build_dir, "generated", "cpp", "soap")
     if os.path.exists(dest):
         shutil.rmtree(dest)
@@ -474,7 +476,7 @@ def _collect_soap(build_dir, dest):
     if not os.path.isdir(src):
         return
     for name in sorted(os.listdir(src)):
-        if name.endswith(".h"):
+        if name.endswith(".h") and name != "harpia_soap.h":
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
