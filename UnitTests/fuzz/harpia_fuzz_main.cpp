@@ -61,7 +61,7 @@
 #if HARPIA_FUZZ_TARGET_ID == HARPIA__json
 #  include "serialize/harpia_serialize.h"   // harpia::serialize::detail::from_json
 #elif HARPIA_FUZZ_TARGET_ID == HARPIA__xml
-#  error "the xml fuzz target is delivered by static-fuzz-ci task 3"
+#  include "xml/harpia_xml.h"               // harpia::xml::from_xml
 #elif HARPIA_FUZZ_TARGET_ID == HARPIA__soap
 #  error "the soap fuzz target is delivered by static-fuzz-ci task 4"
 #else
@@ -137,6 +137,8 @@ bool target_run(const std::string& in) {
     std::unique_ptr<Message> msg(g_prototype->New());
 #if HARPIA_FUZZ_TARGET_ID == HARPIA__json
     return ::harpia::serialize::detail::from_json(in, msg.get());
+#elif HARPIA_FUZZ_TARGET_ID == HARPIA__xml
+    return ::harpia::xml::from_xml(in, msg.get());
 #endif
 }
 
