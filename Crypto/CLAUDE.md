@@ -30,13 +30,27 @@
    cipher lands when a backend is bound to the F5 seam. See
    `Initiatives/medical_devices/epics/key-management/`.
 
-**F5's real consumers still don't exist:** the key-management epic's `KeyProvider` links
-against the F5 seam for a *real* cipher, but key-management tasks 1–5 do no actual crypto
-(placeholder XOR). the transport-authn epic (TLS stack) hasn't started.
+**F5's first real consumer: DDS-Security (dds-transport task 3).** the
+key-management epic's `KeyProvider` links against the F5 seam for a *real*
+cipher, but key-management tasks 1–5 do no actual crypto (placeholder XOR);
+the transport-authn epic (mTLS stack) still hasn't started. `DdsAdapter`
+(task 3) is the first code to actually read the seam for *transport* crypto:
+it records `CryptoBackend.transport_security()` + whether the compliance
+profile mandates hardened transport into
+`generated/cpp/dds/security/dds_security_selection.json`, and its
+`harpia_dds_security.h` wires the OpenSSL-backed Cyclone DDS-Security builtin
+plugins. The seam was extended for this — see `transport_security()` /
+`transport_hardening_required()` below — so the transport-authn epic's mTLS
+work keys off the same descriptor and predicate and the two can't drift onto
+different modules or diverge on when hardening is mandatory.
 **Entry points (F5):** `get_backend(name=None, compliance=None)` ->
 `CryptoBackend`; `write_build_metadata(backend, dest)` -> path to the
 written sidecar; `register(backend)` (extension point for a later real
-HSM-backed backend).
+HSM-backed backend); `transport_hardening_required(compliance)` -> bool
+(`risk_class == CLASS_C` or `topology == CLOUD_CONNECTED`, §0a — the one
+predicate `get_backend()` itself now keys the FIPS default off);
+`CryptoBackend.transport_security()` -> `{cmake_package, openssl_provider,
+fips}` descriptor for transport-security consumers.
 **Entry points (the key-management epic):** `harpia::crypto::KeyProvider` (C++ ABC:
 `active_kek_version` / `generate_dek` / `wrap_dek` / `unwrap_dek` ->
 `std::optional<Dek>` / `rotate` / `shred_dek`); `shred_key(w)`,
@@ -53,11 +67,15 @@ the backends → `harpia_key_provider.h` + its deps), mirroring
 
 ## Files
 - `backend.py` — `CryptoBackend` (ABC: `cmake_package`, `openssl_provider`,
-  `sbom_entry()`), two concrete stubs (`StandardOpenSSLBackend` /
-  `FipsOpenSSLBackend`, name+fips only -- no actual crypto operations exist
-  anywhere in this repo to implement yet), the `_REGISTRY`/`_ALIASES`
-  singleton registry + `get_backend()`/`register()` (identical shape to
-  `Database/backends/__init__.py`), and `write_build_metadata()`.
+  `transport_security()` -> descriptor dict, `sbom_entry()` -- which now
+  carries a `"transport_security"` key), two concrete stubs
+  (`StandardOpenSSLBackend` / `FipsOpenSSLBackend`, name+fips only -- no
+  actual crypto operations exist anywhere in this repo to implement yet),
+  the `_REGISTRY`/`_ALIASES` singleton registry + `get_backend()`/
+  `register()` (identical shape to `Database/backends/__init__.py`), the
+  module-level `transport_hardening_required(compliance)` predicate (§0a --
+  `get_backend()` factors its own FIPS-default check through it), and
+  `write_build_metadata()`.
 - `runtime/harpia_key_provider.h` — the key-management epic.
   `harpia::crypto`: `detail::secure_zero` / `detail::random_bytes`, `Dek`
   (`seal`/`open` — DEK-only touches the value; XOR placeholder; **key-management task 4**
@@ -110,12 +128,23 @@ the backends → `harpia_key_provider.h` + its deps), mirroring
 ## Key facts / gotchas
 - **Selection order in `get_backend()`:** explicit `name` (e.g.
   `HARPIA_CRYPTO_BACKEND` env var, same convention as
-  `HARPIA_DB_BACKEND`) wins outright; otherwise, if `compliance` is given,
-  `risk_class == CLASS_C` or `topology == CLOUD_CONNECTED` defaults to the
-  FIPS backend (§0a's "one project-wide floor" -- never per-jurisdiction);
-  otherwise `DEFAULT_BACKEND` ("openssl"). Unknown name -> `ValueError`,
-  same hard-fail-at-generation-time convention as
-  `Database.backends.get_backend`.
+  `HARPIA_DB_BACKEND`) wins outright; otherwise, if
+  `transport_hardening_required(compliance)` (`risk_class == CLASS_C` or
+  `topology == CLOUD_CONNECTED`, §0a's "one project-wide floor" -- never
+  per-jurisdiction), the FIPS backend; otherwise `DEFAULT_BACKEND`
+  ("openssl"). Unknown name -> `ValueError`, same
+  hard-fail-at-generation-time convention as
+  `Database.backends.get_backend`. `transport_hardening_required()` is the
+  single source of truth for that predicate so DDS-Security (dds-transport
+  task 3) and the transport-authn epic's mTLS default-on off the exact same
+  rule.
+- **`transport_security()` vs `transport_hardening_required()`:** the first
+  is *which* module (backend-derived: `cmake_package` / `openssl_provider` /
+  `fips`); the second is *whether* a project must harden its transport
+  (compliance-derived). DDS-Security's `dds_security_selection.json` records
+  both. Keep them separate -- a project can be on the FIPS backend without
+  `risk_class == CLASS_C` (explicit `HARPIA_CRYPTO_BACKEND`), and "FIPS" is
+  not the same statement as "mTLS/DDS-Security mandatory".
 - **Backends are stateless singletons, provably shared** -- `get_backend()`
   returns the identical object across calls (`_REGISTRY` is built once at
   import time). This is what makes "the key-management epic and the transport-authn epic provably use the
@@ -134,14 +163,23 @@ the backends → `harpia_key_provider.h` + its deps), mirroring
   `Compliance`), no cycle.
 
 ## Touchpoints
-- Called by: `main.py`, `UnitTests/run_pipeline.py` (F5's `backend.py`).
+- Called by: `main.py`, `UnitTests/run_pipeline.py` (F5's `backend.py`) --
+  both resolve the `CryptoBackend` once and now also hand it to
+  `DdsAdapter(crypto_backend=…)` (dds-transport task 3), the same pattern as
+  `CrudlAdapter(backend=dbBackend)`. `DdsAdapter` reads
+  `transport_security()` + `transport_hardening_required()` for
+  `dds/security/dds_security_selection.json`.
   `runtime/harpia_key_provider.h` + `runtime/harpia_encrypted_column.h` are
   `copy_if_different`'d into `generated/cpp/crypto/` by
   `Database/CrudlAdapter.py` (the db-encryption epic) for any message with a `phi`
   column, via `Crypto.key_provider_common`.
 - Depends on: `Compliance.context`, `Util.util.write_if_different` (F5);
   C++ standard library only for the key-management task 1 / db-encryption task 1 runtime headers.
-- Tested by: `UnitTests/test_crypto_backend.py` (F5),
+- Tested by: `UnitTests/test_crypto_backend.py` (F5 -- including
+  `transport_security()` tracking the backend and
+  `transport_hardening_required()` following `risk_class`/`topology`);
+  `UnitTests/test_dds_security.py` (dds-transport task 3 -- the first
+  transport consumer of the seam);
   `UnitTests/test_key_provider.py` (key-management task 1), `test_local_key_provider.py`
   (key-management task 2), `test_crypto_shred.py` (key-management task 3), `test_key_provider_audit.py`
   (key-management task 4), `test_kms_key_provider.py` (key-management task 5) — the the key-management tasks ones g++-gated and

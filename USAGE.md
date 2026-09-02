@@ -410,12 +410,22 @@ generated sender/receiver classes themselves (`ZmqAdapter`'s
 caller-side build flag the way TLS is in [§9](#9-enabling-tls-on-restsoapgrpc)
 — the generated constructors carry an extra, optional parameter for it.
 
-This is **encryption-only**: any client presenting valid CURVE crypto is
-accepted (there's no ZAP client-key allowlist), the ZMQ analogue of TLS with
-no client certificates — not mutual auth. ZMQ has no credential gate of its
-own at all today (REST/SOAP/gRPC each check an `X-User`/`X-Pswd`-equivalent;
-ZMQ doesn't), so CURVE is purely about encrypting the wire, not access
-control.
+CURVE itself is **encryption-only**: any client presenting valid CURVE crypto
+is accepted, the ZMQ analogue of TLS with no client certificates. On top of
+that, when the compliance profile mandates hardened transport
+(`transport_hardening_required` — the same predicate that turns on mTLS for
+REST/SOAP/gRPC), the generated `CURVE_SERVER` sockets add a **ZAP client-key
+allowlist** (transport-authn epic): the bind-side constructors call
+`::harpia::zap::ensure_running(ctx)` (`generated/cpp/zap/harpia_zap.h`), which
+runs a ZAP handler on `inproc://zeromq.zap.01` that checks each client's public
+key against the file named by the `HARPIA_ZMQ_ALLOWLIST` env var — one
+`<z85-client-public-key> <identity>` per line, `#` comments — and rejects an
+unknown key at the handshake even when its CURVE crypto is valid. **Fail-safe:
+with no allowlist file (or an empty one) every key is denied.** Each rejection
+emits one value-free `AuditSink` `"zap_denied"` record (the z85 key + identity,
+never secret material). `Assets/cmake/zmq_zap_provision.sh <out_dir> [id ...]`
+mints a server keypair + client identities and writes a starter allowlist.
+Without hardening, CURVE stays purely wire encryption, no allowlist.
 
 Every generated sender/receiver/publisher/subscriber constructor takes a
 trailing, defaulted curve-keys struct — pass nothing and you get exactly
@@ -457,8 +467,9 @@ command-line layer, e.g. Make's `#`-starts-a-comment / `$`-is-a-variable
 handling, will silently corrupt). See `Assets/CLAUDE.md` for the mechanism.
 
 On Windows, vcpkg's `zeromq` port needs the `curve`+`sodium` features (see
-`Assets/vcpkg.json`) — not yet build-verified on Windows (see
-[§12](#12-building-on-windows)'s known-gaps note).
+`Assets/vcpkg.json`); `-DUSE_ZMQ_CURVE=ON` is build- and run-verified there
+(MSVC 2022 + vcpkg, real `tcp://` CURVE client/server exchange — see
+[§12](#12-building-on-windows)).
 
 ---
 
@@ -607,10 +618,15 @@ comment at its site explaining why:
 ### Known gaps on Windows
 
 - `-DUSE_ZMQ_CURVE=ON` ([§10](#10-enabling-curve-encryption-on-zmq)):
-  `Assets/vcpkg.json`'s `zeromq` dependency requests the `curve`+`sodium`
-  features so the port itself builds with CURVE support, but the keygen
-  probe / demo build with CURVE on has not been build-verified on Windows
-  yet (only on Linux/Docker) — flag this if you hit issues.
+  **verified on Windows** (MSVC 2022 + vcpkg `zeromq[curve,sodium]`,
+  configure → build → a real `tcp://` CURVE client/server message
+  exchange). Getting there fixed two Windows-only bugs in the root
+  `CMakeLists.txt`'s CURVE branch (see `Assets/CLAUDE.md`): the keygen
+  probe's `try_run` was handed the bare `libzmq` *target name* (unusable
+  in `try_run`'s isolated sub-project → `LNK1104`), and the probe's
+  `\r\n` stdout on Windows leaked a trailing `\r` into the parsed Z85
+  secret keys (41-byte "key" → libzmq rejects it → cppzmq throws → the
+  demo dies at startup with `0xC0000409`).
 - **Antivirus false positives**: freshly-built, unsigned, network-listening
   executables (`server.exe` especially) can get locked or silently removed
   by a real-time antivirus's behavioral heuristics (observed with Avast).

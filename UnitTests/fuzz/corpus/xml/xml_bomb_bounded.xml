@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<!DOCTYPE lolz [
+ <!ENTITY a "aaaaaaaaaa">
+ <!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">
+ <!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">
+]>
+<FuzzMsg><s1>&c;</s1></FuzzMsg>

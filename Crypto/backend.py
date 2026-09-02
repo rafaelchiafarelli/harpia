@@ -44,13 +44,31 @@ class CryptoBackend(ABC):
         the actual FIPS-module swap, once Track O/C wire real TLS/envelope-
         encryption code against this seam."""
 
+    def transport_security(self) -> dict:
+        """Descriptor every *transport*-security consumer reads so they
+        provably harden against the same crypto module within one build --
+        F5's guarantee, extended from envelope-encryption (the key-management
+        epic) to transport crypto. First consumer: DDS-Security's OpenSSL-
+        backed authentication / access-control / cryptographic builtin
+        plugins (dds-transport task 3, wired by `DdsAdapter`). The
+        transport-authn epic's mTLS stack keys off this same descriptor so
+        DDS-Security and mTLS can't silently drift onto different modules.
+
+        Backend-derived only -- *whether* a project must harden its
+        transport is a compliance-profile question, answered by
+        `transport_hardening_required()` below, not by the backend."""
+        return {"cmake_package": self.cmake_package,
+                "openssl_provider": self.openssl_provider,
+                "fips": self.fips}
+
     def sbom_entry(self) -> dict:
         """Build metadata for Track M's future SBOM emission: which crypto
         module this project actually links against. Track M doesn't exist
         yet -- this is the record it will read once it does."""
         return {"crypto_backend": self.name, "fips_validated": self.fips,
                 "cmake_package": self.cmake_package,
-                "openssl_provider": self.openssl_provider}
+                "openssl_provider": self.openssl_provider,
+                "transport_security": self.transport_security()}
 
     def __repr__(self):
         return "<CryptoBackend {!r} (fips={})>".format(self.name, self.fips)
@@ -84,6 +102,23 @@ class FipsOpenSSLBackend(CryptoBackend):
 
 DEFAULT_BACKEND = "openssl"
 
+
+def transport_hardening_required(compliance) -> bool:
+    """True when the compliance profile mandates authenticated / encrypted
+    transport as the project-wide floor (`harpia_medical_master_plan.md`
+    §0a): `risk_class == CLASS_C` or a cloud-connected `topology`. One
+    predicate, so DDS-Security (dds-transport task 3) and the transport-authn
+    epic's mTLS gate default-on off the *same* rule and can't diverge on
+    when hardening is mandatory. Never per-jurisdiction (§0a). Returns
+    ``False`` for an absent context -- the fail-safe here is that
+    `load_compliance_context()` already substitutes the strictest profile
+    when the config is missing, so a genuine ``None`` means "no compliance
+    plumbing at all", i.e. a non-medical build."""
+    if compliance is None:
+        return False
+    return (compliance.risk_class == RiskClass.CLASS_C
+            or compliance.topology == Topology.CLOUD_CONNECTED)
+
 # name -> singleton (backends are stateless, same as Database/backends).
 _REGISTRY = {b.name: b for b in (StandardOpenSSLBackend(), FipsOpenSSLBackend())}
 _ALIASES = {"standard": "openssl", "fips": "openssl_fips"}
@@ -103,10 +138,8 @@ def get_backend(name=None, compliance=None):
          hardening floor per project, never a per-jurisdiction fan-out.
       3. otherwise DEFAULT_BACKEND ("openssl").
     """
-    if name is None and compliance is not None:
-        if (compliance.risk_class == RiskClass.CLASS_C
-                or compliance.topology == Topology.CLOUD_CONNECTED):
-            name = "openssl_fips"
+    if name is None and transport_hardening_required(compliance):
+        name = "openssl_fips"
 
     key = (name or DEFAULT_BACKEND).strip().lower()
     key = _ALIASES.get(key, key)
@@ -142,4 +175,4 @@ def write_build_metadata(backend, dest):
 
 __all__ = ["CryptoBackend", "StandardOpenSSLBackend", "FipsOpenSSLBackend",
            "get_backend", "register", "write_build_metadata",
-           "DEFAULT_BACKEND"]
+           "transport_hardening_required", "DEFAULT_BACKEND"]

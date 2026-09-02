@@ -1,0 +1,102 @@
+// dds-transport epic, task 2b -- generated-DDS-transport demo.
+//
+// Proves the QoS mapping does what design-rules §4 asks under a simulated
+// transient receiver gap (the subscriber stops draining while the publisher
+// keeps going -- the DDS analogue of the ZMQ demo's publish-while-stalled):
+//
+//   critical (alarm_event, RELIABLE + KEEP_ALL)   -> every sample retained
+//                                                     and delivered in order
+//   non-critical (vitals_publication,
+//                 BEST_EFFORT + KEEP_LAST(1))      -> only the newest survives
+//
+// @HASH@ is substituted by test_dds_demo.py.
+#include <chrono>
+#include <cstdio>
+#include <thread>
+
+#include "dds/dds.hpp"
+#include "dds/alarm_event_@HASH@_dds.h"
+#include "dds/vitals_publication_@HASH@_dds.h"
+
+using harpia::dds_transport::alarm_event_publisher;
+using harpia::dds_transport::alarm_event_subscriber;
+using harpia::dds_transport::vitals_publication_publisher;
+using harpia::dds_transport::vitals_publication_subscriber;
+
+static constexpr int kN = 20;
+
+template <typename Pub, typename Sub>
+static bool wait_match(Pub& p, Sub& s, std::chrono::milliseconds timeout) {
+  const auto deadline = std::chrono::steady_clock::now() + timeout;
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (p.matched_subscribers() > 0 && s.matched_publishers() > 0) return true;
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+  return false;
+}
+
+int main() {
+  try {
+    ::dds::domain::DomainParticipant dp(0);
+
+    alarm_event_publisher crit_pub(dp);
+    alarm_event_subscriber crit_sub(dp);
+    vitals_publication_publisher best_pub(dp);
+    vitals_publication_subscriber best_sub(dp);
+
+    if (!wait_match(crit_pub, crit_sub, std::chrono::milliseconds(5000)) ||
+        !wait_match(best_pub, best_sub, std::chrono::milliseconds(5000))) {
+      std::printf("DDS_DEMO FAIL pub/sub never matched\n");
+      return 1;
+    }
+
+    // --- simulated transient gap: neither subscriber drains while we send ---
+    for (int i = 0; i < kN; ++i) {
+      ::alarm_event a;
+      a.set_patient_id("p-1");
+      a.set_alarm_type("apnea");
+      a.set_severity(i);
+      crit_pub.publish(a);
+
+      ::vitals_publication v;
+      v.set_patient_ref("p-1");
+      v.set_spo2(90 + i);
+      v.set_pulse_rate(i);
+      best_pub.publish(v);
+    }
+
+    // let the middleware settle the samples into the readers' caches
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+    int crit_got = 0;
+    bool order_ok = true;
+    ::alarm_event a;
+    while (crit_sub.receive(&a)) {
+      if (a.severity() != crit_got) order_ok = false;  // FIFO within KEEP_ALL
+      ++crit_got;
+    }
+
+    int best_got = 0, best_last = -1;
+    ::vitals_publication v;
+    while (best_sub.receive(&v)) {
+      ++best_got;
+      best_last = v.pulse_rate();
+    }
+
+    std::printf("DDS_DEMO critical_received=%d order_ok=%d "
+                "non_critical_received=%d non_critical_last=%d\n",
+                crit_got, order_ok ? 1 : 0, best_got, best_last);
+
+    // critical: RELIABLE + KEEP_ALL retained every stalled sample, in order
+    // non-critical: BEST_EFFORT + KEEP_LAST(1) collapsed the burst to the last
+    if (crit_got == kN && order_ok && best_got <= 1) {
+      std::printf("DDS_DEMO OK\n");
+      return 0;
+    }
+    std::printf("DDS_DEMO FAIL semantics did not differ as specified\n");
+    return 1;
+  } catch (const ::dds::core::Exception& e) {
+    std::printf("DDS_DEMO FAIL dds exception: %s\n", e.what());
+    return 2;
+  }
+}

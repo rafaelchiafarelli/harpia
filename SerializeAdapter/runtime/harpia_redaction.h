@@ -8,8 +8,11 @@
 //   * which fields are `phi`  -> the generated serialize/harpia_phi_registry.h
 //   * whether redaction is on -> redaction_enabled() (default TRUE)
 //
-// F.4 will flip redaction_enabled() off behind an explicit `--allow-phi-print`
-// flag (and audit that), via set_redaction_enabled().
+// Opting OUT of redaction is an explicit, audited action: call
+// harpia::redaction::allow_phi_print(AuditSink&) from the sibling header
+// harpia_redaction_audit.h (serialization epic, task 4). It records the event
+// then calls set_redaction_enabled(false). The bare setter below stays as the
+// low-level mechanism and the F.3 test seam.
 #ifndef HARPIA_REDACTION_RUNTIME_H
 #define HARPIA_REDACTION_RUNTIME_H
 

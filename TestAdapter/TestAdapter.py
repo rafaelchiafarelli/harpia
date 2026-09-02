@@ -23,6 +23,7 @@ from Logger.logger import logger
 from Util.util import loadTemplate, write_if_different, copy_if_different
 from Database.model import (analyze, type_registry, map_fields, repeated_fields,
                             RepeatedComposedField)
+from Crypto.backend import transport_hardening_required
 
 TEST_EXT = "_test.cpp"
 
@@ -103,6 +104,12 @@ def _map_val(kind, i):
 class TestAdapter:
     def __init__(self, messages, dest, compliance=None) -> None:
         self.compliance = compliance
+        # transport-authn task 4: under a hardened profile the generated
+        # transport gate is the three-role RBAC check, not the flat
+        # X-User/X-Pswd / <credentials> credential -- so the access / REST / SOAP
+        # test bodies exercise the RBAC mechanism instead (see the body
+        # builders). Same predicate the transport templates key off.
+        self.hardened = transport_hardening_required(compliance)
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "tests")
@@ -274,10 +281,31 @@ class TestAdapter:
         return "\n".join(L)
 
     def _access_rights_body(self, msg):
-        # 14.3: the SOAP endpoint requires the generated credential
+        cls = msg.name
+        if self.hardened:
+            # 14.3 (hardened): the flat <credentials> gate is replaced by the
+            # three-role RBAC check (transport-authn task 4). The mechanism is
+            # compiled into this project (harpia_rbac.h, copied next to the
+            # transport headers). Verify the fixed role x operation matrix and
+            # the fail-closed default here; the full 401/403/200 enforcement
+            # over mTLS is harpia's own UnitTests/test_rbac.py.
+            return "\n".join([
+                "    using ::harpia::rbac::Role;",
+                "    using ::harpia::rbac::Operation;",
+                "    using ::harpia::rbac::Decision;",
+                "    if (!::harpia::rbac::permitted(Role::admin, Operation::remove)) return 50;",
+                "    if (::harpia::rbac::permitted(Role::guest, Operation::create)) return 51;",
+                "    if (!::harpia::rbac::permitted(Role::guest, Operation::read)) return 52;",
+                "    if (::harpia::rbac::permitted(Role::main, Operation::remove)) return 53;",
+                "    if (!::harpia::rbac::permitted(Role::none, Operation::heartbeat)) return 54;",
+                "    // no client-cert identity -> unauthenticated (fail-closed)",
+                '    if (::harpia::rbac::decide("", Operation::create, "{}")'.format(cls),
+                "            != Decision::unauthenticated) return 55;",
+                "    return 0;",
+            ])
+        # 14.3 (flat): the SOAP endpoint requires the generated credential
         # (user=<name>, pswd=<hash>). authorized_<name>() is the gate the handler
         # uses; unit-test it directly without standing up a server.
-        cls = msg.name
         cred = ('<credentials><user>{cls}</user><pswd>{{}}</pswd></credentials>'
                 .format(cls=cls))
         env = ('<soap:Envelope><soap:Header>' + cred +
@@ -404,6 +432,34 @@ class TestAdapter:
         if pk is None:
             return ("    // no primary key: REST id routing deferred (Stage 14d)"
                     "\n    return 0;")
+        if self.hardened:
+            # hardened profile: the RBAC gate keys on the verified mTLS
+            # client-cert CN. This plain (non-TLS) client carries no identity,
+            # so every gated route is fail-closed with 401 (UNAUTHENTICATED).
+            # The role matrix over mTLS is harpia's UnitTests/test_rbac.py.
+            L = [
+                '    ::soci::session db(::soci::sqlite3, ":memory:");',
+                "    harpia::db::" + cls + "_dao dao(db);",
+                "    if (!dao.create_table()) return 81;",
+            ]
+            L += self._serve(
+                ['harpia::rest::register_' + cls + '(app, db, "/api/v1");'], 82)
+            L += [
+                "    int code = 0;",
+                "    do {",
+                '        auto gl = cli.Get("/api/v1/' + cls + '");',
+                "        if (!gl || gl.status != 401) { code = 93; break; }",
+                '        auto gi = cli.Get("/api/v1/' + cls + '/1");',
+                "        if (!gi || gi.status != 401) { code = 94; break; }",
+                '        auto po = cli.Post("/api/v1/' + cls + '", "{}", "application/json");',
+                "        if (!po || po.status != 401) { code = 95; break; }",
+                '        auto de = cli.Delete("/api/v1/' + cls + '/1");',
+                "        if (!de || de.status != 401) { code = 96; break; }",
+                "    } while (false);",
+                "    app.stop(); fut.get();",
+                "    return code;",
+            ]
+            return "\n".join(L)
         probe = next((c for c in non_pk if c.kind == "text"), None)
         cred = ('const harpia_test::Headers cred = {{"X-User", "' + cls +
                 '"}, {"X-Pswd", "' + msg.md5Hash + '"}};')
@@ -499,6 +555,34 @@ class TestAdapter:
         if pk is None:
             return ("    // no primary key: SOAP id routing deferred (Stage 14d)"
                     "\n    return 0;")
+        if self.hardened:
+            # hardened profile: the RBAC gate (run after the operation element is
+            # parsed) keys on the mTLS client-cert CN. This plain client has no
+            # identity, so a gated operation is fail-closed with a 401 SOAP
+            # Fault. Full role enforcement over mTLS is harpia's test_rbac.py.
+            L = [
+                '    ::soci::session db(::soci::sqlite3, ":memory:");',
+                "    harpia::db::" + cls + "_dao dao(db);",
+                "    if (!dao.create_table()) return 101;",
+            ]
+            L += self._serve(
+                ['harpia::soap::register_' + cls + '_soap(app, db, "/soap");'], 102)
+            L += [
+                '    const std::string getEnv = "<soap:Envelope><soap:Body>'
+                '<get><id>1</id></get></soap:Body></soap:Envelope>";',
+                '    const std::string setEnv = "<soap:Envelope><soap:Body>'
+                '<set><' + cls + '></' + cls + '></set></soap:Body></soap:Envelope>";',
+                "    int code = 0;",
+                "    do {",
+                '        auto g = cli.Post("/soap/' + cls + '", getEnv, "text/xml");',
+                "        if (!g || g.status != 401) { code = 103; break; }",
+                '        auto s = cli.Post("/soap/' + cls + '", setEnv, "text/xml");',
+                "        if (!s || s.status != 401) { code = 104; break; }",
+                "    } while (false);",
+                "    app.stop(); fut.get();",
+                "    return code;",
+            ]
+            return "\n".join(L)
         probe = next((c for c in non_pk if c.kind == "text"), None)
         good = ('<soap:Header><credentials><user>' + cls + '</user><pswd>' +
                 msg.md5Hash + '</pswd></credentials></soap:Header>')
@@ -620,6 +704,45 @@ class TestAdapter:
 
     def _app_all_good(self, msg, pk, non_pk, probe):
         cls = msg.name
+        if self.hardened:
+            # hardened profile: the RBAC-gated HTTP surface needs an mTLS
+            # identity this in-process harness has no way to present, so the
+            # cross-layer round-trip goes DAO + serializers directly, and the
+            # HTTP check just proves the gate is fail-closed for an anon caller.
+            L = [
+                "int all_good() {",
+                '    ::soci::session db(::soci::sqlite3, ":memory:");',
+                "    harpia::db::" + cls + "_dao dao(db);",
+                "    if (!dao.create_table()) return 111;",
+                "    ::" + cls + " a;",
+                "    a.set_" + pk.accessor + "(1);",
+            ]
+            L += ["    a.set_" + c.accessor + "(" + _value(c, "a") + ");"
+                  for c in non_pk]
+            L += [
+                "    if (!dao.create(a)) return 113;",
+                "    std::string body;",
+                "    if (!::harpia::json::to_json(a, &body)) return 114;",
+                "    ::" + cls + " rt;",
+                "    if (!::harpia::json::from_json(body, &rt)) return 115;",
+                "    ::" + cls + " chk;",
+                "    if (!dao.read(1, &chk)) return 117;",
+            ]
+            L += self._serve([
+                'harpia::rest::register_' + cls + '(app, db, "/api/v1");',
+                'harpia::soap::register_' + cls + '_soap(app, db, "/soap");',
+            ], 112)
+            L += [
+                "    int code = 0;",
+                "    do {",
+                '        auto p = cli.Post("/api/v1/' + cls + '", body, "application/json");',
+                "        if (!p || p.status != 401) { code = 118; break; }",
+                "    } while (false);",
+                "    app.stop(); fut.get();",
+                "    return code;",
+                "}",
+            ]
+            return "\n".join(L)
         L = [
             "int all_good() {",
             '    ::soci::session db(::soci::sqlite3, ":memory:");',
@@ -681,6 +804,24 @@ class TestAdapter:
         ]
         L += self._serve(
             ['harpia::rest::register_' + cls + '(app, db, "/api/v1");'], 123)
+        if self.hardened:
+            # hardened profile: the RBAC gate refuses the anonymous caller (401)
+            # before the (missing-table) backend is reached -- still a clean
+            # rejection, no crash. The backend-fails-cleanly guarantee is
+            # covered above by the direct dao.create/read calls.
+            L += [
+                "    int code = 0;",
+                "    do {",
+                "        std::string body;",
+                "        if (!::harpia::json::to_json(a, &body)) { code = 124; break; }",
+                '        auto post = cli.Post("/api/v1/' + cls + '", body, "application/json");',
+                "        if (!post || post.status != 401) { code = 126; break; }",
+                "    } while (false);",
+                "    app.stop(); fut.get();",
+                "    return code;",
+                "}",
+            ]
+            return "\n".join(L)
         L += [
             "    " + self._rest_headers_decl(msg),
             "    int code = 0;",
@@ -749,19 +890,35 @@ class TestAdapter:
         ] + self._serve([
             'harpia::rest::register_' + cls + '(app, db, "/api/v1");',
             'harpia::soap::register_' + cls + '_soap(app, db, "/soap");',
-        ], 145) + [
-            "    " + self._rest_headers_decl(msg),
-            "    int code = 0;",
-            "    do {",
-            '        auto bj = cli.Post("/api/v1/' + cls + '", "{ not json", "application/json", rc);',
-            "        if (!bj || bj.status != 400) { code = 146; break; }",
-            '        auto bx = cli.Post("/soap/' + cls + '", "<not soap", "text/xml");',
-            "        if (!bx || bx.status != 400) { code = 147; break; }",
-            "    } while (false);",
-            "    app.stop(); fut.get();",
-            "    return code;",
-            "}",
-        ])
+        ], 145) + (
+            [
+                "    int code = 0;",
+                "    do {",
+                "        // SOAP: malformed XML is rejected at parse (400), "
+                "before the RBAC gate",
+                '        auto bx = cli.Post("/soap/' + cls + '", "<not soap", "text/xml");',
+                "        if (!bx || bx.status != 400) { code = 147; break; }",
+                "        // REST: the RBAC gate refuses the anon caller (401) "
+                "before the parser",
+                '        auto bj = cli.Post("/api/v1/' + cls + '", "{ not json", "application/json");',
+                "        if (!bj || bj.status != 401) { code = 146; break; }",
+                "    } while (false);",
+                "    app.stop(); fut.get();",
+                "    return code;",
+                "}",
+            ] if self.hardened else [
+                "    " + self._rest_headers_decl(msg),
+                "    int code = 0;",
+                "    do {",
+                '        auto bj = cli.Post("/api/v1/' + cls + '", "{ not json", "application/json", rc);',
+                "        if (!bj || bj.status != 400) { code = 146; break; }",
+                '        auto bx = cli.Post("/soap/' + cls + '", "<not soap", "text/xml");',
+                "        if (!bx || bx.status != 400) { code = 147; break; }",
+                "    } while (false);",
+                "    app.stop(); fut.get();",
+                "    return code;",
+                "}",
+            ]))
 
     # -- generated project plumbing ----------------------------------------
     def _vendor_deps(self):

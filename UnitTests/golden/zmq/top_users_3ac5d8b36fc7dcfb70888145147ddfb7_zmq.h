@@ -15,19 +15,33 @@
 #endif
 #include <zmq.hpp>
 #include "protofiles/top_users_3ac5d8b36fc7dcfb70888145147ddfb7.pb.h"
+#include "zap/harpia_zap.h"
+#include <chrono>
+#include <cstddef>
+#include <optional>
 
 namespace harpia {
 namespace zmq_transport {
 
-// CURVE key material (encryption-only: no ZAP client-key allowlisting, so any
-// client presenting valid CURVE crypto is accepted -- the ZMQ analogue of TLS
-// with no client certs). Guarded separately from the per-message HARPIA_ZMQ_TOP_USERS_3ac5d8b36fc7dcfb70888145147ddfb7 so
-// these definitions stay single even when several *_zmq.h headers land in one
-// translation unit. An empty key means "CURVE disabled" -- the default.
+// CURVE key material. Encryption is always available; whether an *identity*
+// check runs on top depends on the compliance profile at generation time
+// (transport-authn epic):
+//   not hardened -> encryption only: any client presenting valid CURVE crypto
+//                   is accepted (the ZMQ analogue of TLS with no client certs).
+//   hardened     -> the bind-side ctors also call
+//                   ::harpia::zap::ensure_running(ctx) (zap/harpia_zap.h): a
+//                   ZAP handler on inproc://zeromq.zap.01 checks each client
+//                   public key against the HARPIA_ZMQ_ALLOWLIST file and
+//                   rejects an unknown key at the handshake even when its
+//                   CURVE crypto is valid. Fail-safe deny-all with no file.
+// Guarded separately from the per-message HARPIA_ZMQ_TOP_USERS_3ac5d8b36fc7dcfb70888145147ddfb7 so these definitions stay
+// single even when several *_zmq.h headers land in one translation unit. An
+// empty key means "CURVE disabled" -- the default.
 #ifndef HARPIA_ZMQ_CURVE_KEYS_DEFINED
 #define HARPIA_ZMQ_CURVE_KEYS_DEFINED
 // Bind side (PULL receiver / PUB publisher): only its own secret key is
-// needed -- CURVE_SERVER accepts any client with valid crypto.
+// needed. CURVE_SERVER accepts any client with valid crypto unless the
+// generated ZAP handler (hardened profile) allowlists client keys.
 struct CurveServerKeys {
     std::string secret_key;
 };
@@ -39,6 +53,45 @@ struct CurveClientKeys {
     std::string secret_key;
 };
 #endif  // HARPIA_ZMQ_CURVE_KEYS_DEFINED
+
+// stream lifecycle shared types (process.md 13.2). Guarded separately
+// from the per-message include guard so they stay single when several
+// *_zmq.h headers with a stream surface land in one translation unit --
+// same pattern as the CURVE key structs above.
+#ifndef HARPIA_ZMQ_STREAM_DEFINED
+#define HARPIA_ZMQ_STREAM_DEFINED
+// setup() may return INVALID; read() reports TIMEOUT instead of
+// blocking; stop() -> STOPPED; the un-stopped-connection watchdog
+// -> INVALID.
+enum class StreamStatus { OK, INVALID, TIMEOUT, STOPPED };
+
+// Passed to <name>_stream::setup(). Durations are milliseconds.
+struct StreamConfig {
+    std::string endpoint;             // tcp:// | ipc:// | inproc://
+    std::string topic;                // SUB filter ("" = every message)
+    int    read_timeout_ms  = 1000;   // default per-read timeout; read(ms) overrides
+    int    stop_deadline_ms = 30000;  // no successful read within this of the last
+                                      //   one -> force-kill, read() -> INVALID
+    int    reclaim_after_ms = 60000;  // dead-connection reclamation window
+                                      //   (enforced by this epic's task 2)
+    std::size_t max_records = 10000;  // per-read record cap (process.md: bound the
+                                      //   "known maximum number of registers")
+};
+
+// Rejects the enumerated bad-config cases: no endpoint, an endpoint with
+// no tcp:// / ipc:// / inproc:// scheme, a non-positive timeout or
+// deadline, or a zero record cap.
+inline bool stream_config_valid(const StreamConfig& c) {
+    if (c.endpoint.empty()) return false;
+    if (c.endpoint.rfind("tcp://", 0) != 0 &&
+        c.endpoint.rfind("ipc://", 0) != 0 &&
+        c.endpoint.rfind("inproc://", 0) != 0) return false;
+    if (c.read_timeout_ms <= 0) return false;
+    if (c.stop_deadline_ms <= 0) return false;
+    if (c.max_records == 0) return false;
+    return true;
+}
+#endif  // HARPIA_ZMQ_STREAM_DEFINED
 
 // Runtime-unique sender id for many-to-* (push/pushpull) publishers, where a
 // shared compile-time id would make every "many" sender indistinguishable
@@ -107,6 +160,7 @@ public:
                   CurveServerKeys curve = CurveServerKeys())
         : socket_(ctx, ::zmq::socket_type::pull) {
         if (!curve.secret_key.empty()) {
+            ::harpia::zap::ensure_running(ctx);
             socket_.set(::zmq::sockopt::curve_server, true);
             socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);
         }
@@ -136,6 +190,7 @@ public:
                   const std::string& origin, CurveServerKeys curve = CurveServerKeys())
         : origin_(origin), socket_(ctx, ::zmq::socket_type::pub) {
         if (!curve.secret_key.empty()) {
+            ::harpia::zap::ensure_running(ctx);
             socket_.set(::zmq::sockopt::curve_server, true);
             socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);
         }
@@ -187,6 +242,163 @@ private:
     ::zmq::socket_t socket_;
 };
 
+// stream (process.md 13.2): top_users_stream is the lifecycle consumer surface
+// layered on top_users_subscriber's SUB socket.
+// `stream` message type (process.md 13.2, "streamming functions"): a
+// hardware-interface-like consumer surface layered on the SUB socket. It is
+// NOT the pub/sub `top_users_subscriber` above -- it adds the spec's explicit
+// lifecycle:
+//   * `setup()` may reject a bad config with INVALID;
+//   * `read()` is always timed and reports TIMEOUT rather than blocking;
+//   * `stop()` tears the connection down and is idempotent;
+//   * if `stop()` is never called, a watchdog force-kills the connection
+//     `stop_deadline_ms` after the last successful read and every later
+//     `read()` returns INVALID;
+//   * a dead connection -- one that has produced no inbound frame at all
+//     (handshake never completed, or the peer went away) for
+//     `reclaim_after_ms` -- is reclaimed on the next `read()` / `stop()` /
+//     destructor and every later `read()` returns INVALID. This is separate
+//     from the `stop_deadline_ms` watchdog above: that one measures time
+//     since the caller last got a usable message; this one measures time
+//     since ANY wire activity, so it fires for a connection that is
+//     genuinely gone even while the caller is still polling.
+// Destroying the object releases the socket with ZMQ_LINGER=0 (a half-open
+// CURVE handshake would otherwise block forever on close).
+//
+// NOT thread-safe -- caller-synchronized, same contract as the delivery
+// runtime and harpia_capability_dispatch.h. All reclamation is synchronous,
+// inside the caller's read()/stop()/dtor -- there is no timer thread.
+//
+// `read()` returns the outcome alongside the decoded message. `msg` is
+// engaged only when `status == OK`; it is empty for TIMEOUT / STOPPED /
+// INVALID. This result type is per-message because it carries a concrete
+// `::top_users`; StreamStatus / StreamConfig / stream_config_valid() are shared
+// across the translation unit (see HARPIA_ZMQ_STREAM_DEFINED above).
+struct top_users_read_result {
+    StreamStatus status;
+    ::std::optional<::top_users> msg;
+};
+
+class top_users_stream {
+public:
+    using ReadResult = top_users_read_result;
+
+    explicit top_users_stream(::zmq::context_t& ctx) : ctx_(ctx) {}
+    ~top_users_stream() { reclaim_if_dead(); kill(); }
+
+    top_users_stream(const top_users_stream&) = delete;
+    top_users_stream& operator=(const top_users_stream&) = delete;
+
+    // Open the SUB connection. Returns INVALID (and opens nothing) for a
+    // config that fails stream_config_valid(). The trailing curve keys
+    // default to disabled (empty), so a caller passing nothing gets
+    // plaintext, exactly like top_users_subscriber.
+    StreamStatus setup(const StreamConfig& config,
+                       CurveClientKeys curve = CurveClientKeys()) {
+        if (!stream_config_valid(config)) return StreamStatus::INVALID;
+        config_ = config;
+        socket_ = ::zmq::socket_t(ctx_, ::zmq::socket_type::sub);
+        if (!curve.server_public_key.empty()) {
+            socket_.set(::zmq::sockopt::curve_serverkey, curve.server_public_key);
+            socket_.set(::zmq::sockopt::curve_publickey, curve.public_key);
+            socket_.set(::zmq::sockopt::curve_secretkey, curve.secret_key);
+        }
+        socket_.set(::zmq::sockopt::linger, 0);
+        socket_.set(::zmq::sockopt::rcvtimeo, config_.read_timeout_ms);
+        socket_.connect(config_.endpoint);
+        socket_.set(::zmq::sockopt::subscribe, config_.topic);
+        open_ = true;
+        state_ = StreamStatus::OK;
+        const auto now = ::std::chrono::steady_clock::now();
+        last_read_ok_ = now;
+        last_activity_ = now;
+        return StreamStatus::OK;
+    }
+
+    // Timed read. OK + msg on data; TIMEOUT (no msg) when nothing arrives
+    // within the timeout; STOPPED once stop() has run; INVALID before a
+    // successful setup(), after the stop_deadline_ms watchdog or the
+    // reclaim_after_ms dead-connection sweep fires, or on an undecodable
+    // frame. The no-arg form uses config.read_timeout_ms.
+    ReadResult read() { return read(config_.read_timeout_ms); }
+
+    ReadResult read(int timeout_ms) {
+        if (state_ == StreamStatus::STOPPED) return {StreamStatus::STOPPED, ::std::nullopt};
+        if (state_ != StreamStatus::OK)      return {StreamStatus::INVALID, ::std::nullopt};
+        // dead-connection reclamation: no inbound frame at all within
+        // reclaim_after_ms -> the connection is gone; reclaim and latch INVALID.
+        if (reclaim_if_dead()) return {StreamStatus::INVALID, ::std::nullopt};
+        // watchdog: stop() was never called and no usable message has been
+        // read within stop_deadline_ms -> reclaim it, and stay INVALID.
+        if (elapsed_ms(last_read_ok_) >= config_.stop_deadline_ms) {
+            kill();
+            state_ = StreamStatus::INVALID;
+            return {StreamStatus::INVALID, ::std::nullopt};
+        }
+        if (timeout_ms <= 0) timeout_ms = 1;
+        socket_.set(::zmq::sockopt::rcvtimeo, timeout_ms);
+        ::zmq::message_t frame;
+        if (!socket_.recv(frame, ::zmq::recv_flags::none).has_value())
+            return {StreamStatus::TIMEOUT, ::std::nullopt};
+        // a frame on the wire is liveness even if it does not decode.
+        last_activity_ = ::std::chrono::steady_clock::now();
+        ::top_users decoded;
+        if (!decoded.ParseFromArray(frame.data(), static_cast<int>(frame.size())))
+            return {StreamStatus::INVALID, ::std::nullopt};
+        last_read_ok_ = ::std::chrono::steady_clock::now();
+        return {StreamStatus::OK, ::std::move(decoded)};
+    }
+
+    // Kill the connection. Idempotent -- a second call is a no-op and still
+    // returns STOPPED. If the connection was already dead past
+    // reclaim_after_ms this still returns STOPPED (the caller asked to
+    // stop); a prior read() would have latched INVALID.
+    StreamStatus stop() {
+        reclaim_if_dead();
+        kill();
+        if (state_ != StreamStatus::INVALID) state_ = StreamStatus::STOPPED;
+        return StreamStatus::STOPPED;
+    }
+
+    StreamStatus state() const { return state_; }
+    const StreamConfig& config() const { return config_; }
+    ::zmq::socket_t& socket() { return socket_; }
+
+private:
+    static long long elapsed_ms(::std::chrono::steady_clock::time_point since) {
+        return ::std::chrono::duration_cast<::std::chrono::milliseconds>(
+            ::std::chrono::steady_clock::now() - since).count();
+    }
+
+    // Reclaim a connection that has produced no inbound frame for
+    // reclaim_after_ms: kill the socket (ZMQ_LINGER=0) and latch INVALID.
+    // Returns true iff it reclaimed on this call.
+    bool reclaim_if_dead() {
+        if (open_ && state_ == StreamStatus::OK
+                && elapsed_ms(last_activity_) >= config_.reclaim_after_ms) {
+            kill();
+            state_ = StreamStatus::INVALID;
+            return true;
+        }
+        return false;
+    }
+
+    void kill() {
+        if (open_) {
+            socket_.set(::zmq::sockopt::linger, 0);
+            socket_.close();
+            open_ = false;
+        }
+    }
+
+    ::zmq::context_t& ctx_;
+    ::zmq::socket_t socket_;
+    StreamConfig config_;
+    bool open_ = false;
+    StreamStatus state_ = StreamStatus::INVALID;  // unusable until setup() returns OK
+    ::std::chrono::steady_clock::time_point last_read_ok_{};
+    ::std::chrono::steady_clock::time_point last_activity_{};
+};
 }  // namespace zmq_transport
 }  // namespace harpia
 

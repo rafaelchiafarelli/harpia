@@ -1,0 +1,1 @@
+-- vitals_publication: no table declared

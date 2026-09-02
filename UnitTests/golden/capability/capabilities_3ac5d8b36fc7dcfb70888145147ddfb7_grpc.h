@@ -34,6 +34,7 @@ public:
         "alarm_event",
         "another_sage",
         "beacon_log",
+        "bed_state",
         "courier",
         "crew",
         "crew_quarters",
@@ -44,14 +45,17 @@ public:
         "parcel",
         "patient_vitals",
         "prince",
+        "pump_tick",
         "queen",
         "route",
+        "sensor_feed",
         "shipment",
         "telemetry",
         "top_users",
         "trace_row",
         "users",
         "vip_users",
+        "vitals_publication",
         "waypoint"
         };
         for (const auto& t : kTypes) response->add_message_types(t);

@@ -20,6 +20,7 @@ from Crypto.backend import (
     FipsOpenSSLBackend,
     StandardOpenSSLBackend,
     get_backend,
+    transport_hardening_required,
     write_build_metadata,
 )
 
@@ -101,7 +102,33 @@ def test_write_build_metadata_produces_valid_sidecar(tmp_path):
         "fips_validated": True,
         "cmake_package": "OpenSSL",
         "openssl_provider": "fips",
+        "transport_security": {
+            "cmake_package": "OpenSSL",
+            "openssl_provider": "fips",
+            "fips": True,
+        },
     }
+
+
+# -- transport hardening (dds-transport task 3 extended the F5 seam) --------
+
+def test_transport_security_descriptor_tracks_the_backend():
+    assert get_backend("openssl").transport_security() == {
+        "cmake_package": "OpenSSL", "openssl_provider": "default", "fips": False}
+    assert get_backend("openssl_fips").transport_security() == {
+        "cmake_package": "OpenSSL", "openssl_provider": "fips", "fips": True}
+
+
+def test_transport_hardening_required_follows_risk_class_and_topology():
+    # same rule get_backend() keys the FIPS default off -- one predicate so
+    # DDS-Security and the transport-authn epic's mTLS can't diverge.
+    assert transport_hardening_required(
+        _ctx(risk_class=RiskClass.CLASS_C)) is True
+    assert transport_hardening_required(
+        _ctx(topology=Topology.CLOUD_CONNECTED)) is True
+    assert transport_hardening_required(
+        _ctx(risk_class=RiskClass.CLASS_A, topology=Topology.STANDALONE)) is False
+    assert transport_hardening_required(None) is False
 
 
 def test_write_build_metadata_is_write_if_different(tmp_path):

@@ -57,6 +57,11 @@ def _name_and_hash(test_filename):
 @pytest.fixture(scope="module")
 def generated(tmp_path_factory):
     out = tmp_path_factory.mktemp("harpia_stage14")
+    # Runs the repo's real compliance profile (class_c / cloud_connected ->
+    # hardened), so the generated <name>_test.cpp / app test exercise the
+    # RBAC-gated variant of the access / REST / SOAP bodies (transport-authn
+    # task 4 + rbac-generated-tests). The flat-gate variant is covered by
+    # test_flat_profile_ctest_builds_and_passes below.
     r = subprocess.run([sys.executable, RUNNER, str(out)],
                        cwd=REPO_ROOT, capture_output=True, text=True)
     assert r.returncode == 0, r.stdout + r.stderr
@@ -180,6 +185,44 @@ def test_ctest_target_builds_and_passes(generated, tmp_path):
     targets = ["{}_test".format(_name_and_hash(os.path.basename(c))[0])
                for c in sorted(glob.glob(os.path.join(generated, "tests",
                                                       "*_test.cpp")))]
+    assert targets, "no unit-test targets to build"
+    b = subprocess.run(["cmake", "--build", build, "-j", "4", "--target", *targets],
+                       capture_output=True, text=True, timeout=600)
+    assert b.returncode == 0, "building test targets failed:\n" + b.stdout + b.stderr
+
+    t = subprocess.run(["ctest", "--output-on-failure"], cwd=build,
+                       capture_output=True, text=True, timeout=120)
+    assert t.returncode == 0, "ctest failed:\n" + t.stdout + t.stderr
+
+
+@pytest.mark.skipif(
+    shutil.which("cmake") is None or shutil.which("protoc") is None,
+    reason="CTest wiring proof needs cmake + protoc + gRPC (harpia Docker image)")
+def test_flat_profile_ctest_builds_and_passes(tmp_path):
+    """The flat (non-hardened) gate variant: regenerate under a low-risk
+    compliance profile so the generated tests carry the X-User/X-Pswd /
+    <credentials> / authorized_<name> bodies, then build + ctest that suite
+    green -- the counterpart to test_ctest_target_builds_and_passes (which runs
+    the repo's hardened profile -> the RBAC bodies)."""
+    out = str(tmp_path / "gen_flat")
+    cfg = os.path.join(out, "low_risk.harpia.yaml")
+    os.makedirs(out, exist_ok=True)
+    with open(cfg, "w", encoding="utf-8") as fh:
+        fh.write("risk_class: class_a\ntopology: standalone\n")
+    env = {**os.environ, "HARPIA_COMPLIANCE_CONFIG": cfg}
+    r = subprocess.run([sys.executable, RUNNER, out],
+                       cwd=REPO_ROOT, capture_output=True, text=True, env=env)
+    assert r.returncode == 0, r.stdout + r.stderr
+    gen = os.path.join(out, "build")
+
+    build = str(tmp_path / "ctest_build_flat")
+    cfg_r = subprocess.run(
+        ["cmake", "-S", gen, "-B", build, "-DHARPIA_BUILD_TESTS=ON"],
+        capture_output=True, text=True, timeout=300)
+    assert cfg_r.returncode == 0, "cmake configure failed:\n" + cfg_r.stdout + cfg_r.stderr
+
+    targets = ["{}_test".format(_name_and_hash(os.path.basename(c))[0])
+               for c in sorted(glob.glob(os.path.join(gen, "tests", "*_test.cpp")))]
     assert targets, "no unit-test targets to build"
     b = subprocess.run(["cmake", "--build", build, "-j", "4", "--target", *targets],
                        capture_output=True, text=True, timeout=600)

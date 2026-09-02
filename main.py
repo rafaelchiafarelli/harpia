@@ -11,9 +11,12 @@ from ProtoFile.ProtoCompiler import ProtoCompiler
 from ProtoFile.GrpcCompiler import GrpcCompiler
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
+from DdsAdapter.DdsAdapter import DdsAdapter
+from Callback.CallbackAdapter import CallbackAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from YamlAdapter.YamlAdapter import YamlAdapter
 from SerializeAdapter.SerializeAdapter import SerializeAdapter
+from ComplianceReport.ComplianceReport import ComplianceReport
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
 from Database.DbRegistryAdapter import DbRegistryAdapter
@@ -22,6 +25,7 @@ from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
 from Database.WsdlAdapter import WsdlAdapter
+from SdcAdapter.SdcAdapter import SdcAdapter
 from Database.GrpcServiceAdapter import GrpcServiceAdapter
 from GrpcCapabilityAdapter.GrpcCapabilityAdapter import GrpcCapabilityAdapter
 from HttpCapabilityAdapter.HttpCapabilityAdapter import HttpCapabilityAdapter
@@ -282,6 +286,16 @@ if __name__ == '__main__':
     if zmqError is not None:
         log.print(zmqError.__str__())
 
+    #13 (events). in-process event/callback channels for `event[cached/not-cached]`
+    # messages (events-callbacks epic). One EventChannel<T> accessor per event
+    # message + the hand-written runtime; the CRUDL DAO fires publish() on
+    # create/update for the table-bearing ones.
+    callbackError = CallbackAdapter(messages=msgFactory.messages,
+                                    dest=testDestination,
+                                    compliance=complianceContext).Process()
+    if callbackError is not None:
+        log.print(callbackError.__str__())
+
     #13 (zmq capability handshake). advertise this project's message-type set
     zmqCapError = ZmqCapabilityAdapter(messages=msgFactory.messages,
                                        dest=testDestination,
@@ -290,8 +304,16 @@ if __name__ == '__main__':
     if zmqCapError is not None:
         log.print(zmqCapError.__str__())
 
+    #13 (dds). generate the DDS transport for messages carrying the `dds` modifier
+    ddsError = DdsAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext,
+                          crypto_backend=cryptoBackend).Process()
+    if ddsError is not None:
+        #non-fatal: NOTHING_TO_REPORT when no message declares `dds`
+        log.print(ddsError.__str__())
+
     #13 (grpc impl). wire the generated gRPC service to CRUDL (per table message)
-    grpcSvcError = GrpcServiceAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    grpcSvcError = GrpcServiceAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext,
+                                     crypto_backend=cryptoBackend).Process()
     if grpcSvcError is not None:
         log.print(grpcSvcError.__str__())
 
@@ -351,7 +373,8 @@ if __name__ == '__main__':
         log.print(dbioError.__str__())
 
     #12. generate the REST bindings (HTTP CRUD over CRUDL + JSON)
-    restError = RestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    restError = RestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext,
+                            crypto_backend=cryptoBackend).Process()
     if restError is not None:
         log.print(restError.__str__())
 
@@ -364,6 +387,11 @@ if __name__ == '__main__':
     wsdlError = WsdlAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if wsdlError is not None:
         log.print(wsdlError.__str__())
+
+    #11 (SDC). generate the WS-Discovery responder that advertises the SOAP endpoint
+    sdcError = SdcAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    if sdcError is not None:
+        log.print(sdcError.__str__())
 
     #11/12 (http capability handshake). shared by REST and SOAP -- both
     # register routes on the same crow::SimpleApp in a real deployment.
@@ -378,6 +406,11 @@ if __name__ == '__main__':
     testError = TestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
     if testError is not None:
         log.print(testError.__str__())
+
+    #15. compliance report -- CycloneDX SBOM for the generated project (process-artifacts epic)
+    sbomError = ComplianceReport(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()
+    if sbomError is not None:
+        log.print(sbomError.__str__())
 
 
     

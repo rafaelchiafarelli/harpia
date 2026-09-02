@@ -1,0 +1,37 @@
+syntax = "proto3";
+package frameworkProtos;
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+//standard protofile with error code and standard heartBeat messages
+import "protofiles/errorCode.proto";
+import "protofiles/heartBeat.proto";
+
+//user imports from harpia process
+import "protofiles/vitals_publication_3ac5d8b36fc7dcfb70888145147ddfb7.proto";
+
+message vitals_publication_Message {
+    vitals_publication msg = 1;
+}
+//message for the standard functions 
+message vitals_publication_HeartBeat {
+    heartBeat hb = 1;
+}
+
+//message for the pullByID function
+message vitals_publication_ID {
+    int32 id = 1;
+}
+message vitals_publication_Stream {
+    int32 id = 1;
+    string name = 2;
+    // pagination (spec: "pagination" field modifier): limit <= 0 means
+    // unbounded (return everything, matching pre-pagination behavior).
+    int32 offset = 3;
+    int32 limit = 4;
+}
+service vitals_publication_Service {
+    rpc heartBeat(vitals_publication_HeartBeat) returns (vitals_publication_HeartBeat) {}
+    rpc streamSrc(vitals_publication_Stream ) returns (stream vitals_publication_Message) {}
+    rpc pullByID(vitals_publication_ID) returns (vitals_publication_Message) {}
+    rpc push(vitals_publication_Message) returns (errorCode) {}
+}

@@ -1,0 +1,7 @@
+{
+  "cmake_package": "OpenSSL",
+  "crypto_backend": "openssl_fips",
+  "fips": true,
+  "hardening_required": true,
+  "openssl_provider": "fips"
+}
