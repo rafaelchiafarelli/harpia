@@ -3,7 +3,7 @@
 - **Depends on:** the sbom-emission task merged (`ComplianceReport/` module
   exists).
 - **Origin:** raised by the transport-authn epic
-  (`../../transport-authn/`), its final task (`full-acceptance-gate-note`).
+  (`../../transport-authn-done/`), its final task (`full-acceptance-gate-note`).
   The epic hardens every transport a `phi`- or `critical`-bearing message can
   cross (master plan §0a — once `risk_class` implies medical-device grade the
   hardened path is the project-wide floor, not a per-message opt-in), so it is
