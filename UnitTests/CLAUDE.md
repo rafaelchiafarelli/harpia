@@ -433,7 +433,9 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   guarantee.
 - `test_stage8_pg.py` — **opt-in** live-PostgreSQL CRUDL round-trip (generates with
   `HARPIA_DB_BACKEND=postgresql`); skipped unless `HARPIA_PG_DSN` points at a
-  reachable server.
+  reachable server. `Docker/run_pg_tests.sh` runs this and
+  `test_java_db_crudl_postgres.py` against a throwaway Postgres container
+  (last full green run 2026-09-02, PostgreSQL 16).
 - `test_consumer_example.py` — downstream-consumption contract: builds + runs
   `HarpiaTest/app_example/consumer/` against a freshly generated project
   (`cmake -DHARPIA_GEN=<gen>`), asserting the black-box wiring still works.
