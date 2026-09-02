@@ -8,5 +8,4 @@ build/
 .pytest_cache
 *.pyc
 .gradle/
-TestProjects/_gen/
 schema_registry/
