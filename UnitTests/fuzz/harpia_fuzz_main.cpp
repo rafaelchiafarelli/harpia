@@ -63,7 +63,7 @@
 #elif HARPIA_FUZZ_TARGET_ID == HARPIA__xml
 #  include "xml/harpia_xml.h"               // harpia::xml::from_xml
 #elif HARPIA_FUZZ_TARGET_ID == HARPIA__soap
-#  error "the soap fuzz target is delivered by static-fuzz-ci task 4"
+#  include "soap/harpia_soap.h"             // harpia::soap::message_from_request
 #else
 #  error "unknown HARPIA_FUZZ_TARGET (want json | xml | soap)"
 #endif
@@ -139,6 +139,8 @@ bool target_run(const std::string& in) {
     return ::harpia::serialize::detail::from_json(in, msg.get());
 #elif HARPIA_FUZZ_TARGET_ID == HARPIA__xml
     return ::harpia::xml::from_xml(in, msg.get());
+#elif HARPIA_FUZZ_TARGET_ID == HARPIA__soap
+    return ::harpia::soap::message_from_request(in, msg.get());
 #endif
 }
 

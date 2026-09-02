@@ -1,0 +1,1 @@
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><delete><id>-1</id></delete></soap:Body></soap:Envelope>
