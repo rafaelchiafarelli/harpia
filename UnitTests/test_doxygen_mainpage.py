@@ -89,12 +89,14 @@ def test_missing_section_raises(tmp_path):
 
 def test_real_usage_md_default_sections_extract_cleanly():
     # against the actual repo USAGE.md, not the fake fixture above.
+    # DEFAULT_SECTIONS is (5, 7, 16) since the V1 USAGE.md rewrite.
     content = extract_usage_sections()
-    assert "## 4. What gets generated" in content
-    assert "## 6. Wiring the generated code into your own project" in content
-    assert "## 11. Notes & limits" in content
-    assert "## 5." not in content
-    assert "## 12." not in content
+    assert "## 5. What gets generated" in content
+    assert "## 7. Consuming the generated code from your own app" in content
+    assert "## 16. Notes & limits" in content
+    assert "## 6." not in content
+    assert "## 8." not in content
+    assert "## 15." not in content
 
 
 def test_write_mainpage_writes_expected_file(tmp_path):

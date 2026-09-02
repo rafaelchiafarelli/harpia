@@ -1,14 +1,14 @@
 """Assembles the Doxygen mainpage for a generated project (Foundation F6).
 
 Per the F6 deliverable: `USE_MDFILE_AS_MAINPAGE` should point at "a landing
-page assembled from the relevant slice of USAGE.md (S4 'What gets
-generated', S6 'Wiring the generated code into your own project', S11
+page assembled from the relevant slice of USAGE.md (S5 'What gets
+generated', S7 'Consuming the generated code from your own app', S16
 'Notes & limits') ... referenced, not re-authored, so there's one place to
 keep the narrative accurate." Rather than a hand-copied static file that
 could drift from USAGE.md, this module extracts those sections' real text
-at generation time, every run -- if USAGE.md's S4/S6/S11 change, the next
+at generation time, every run -- if USAGE.md's S5/S7/S16 change, the next
 run's mainpage changes with them, with nothing to remember to update by
-hand.
+hand. (The section numbers were 4/6/11 before the V1 USAGE.md rewrite.)
 """
 import os
 
@@ -21,8 +21,9 @@ DEFAULT_USAGE_MD = os.path.join(_REPO_ROOT, "USAGE.md")
 #: must match Assets/Doxyfile's USE_MDFILE_AS_MAINPAGE/INPUT entries.
 MAINPAGE_FILENAME = "USAGE_EXCERPT.md"
 
-#: (number, title) -- USAGE.md section numbers F6 pulls, in this order.
-DEFAULT_SECTIONS = (4, 6, 11)
+#: USAGE.md section numbers F6 pulls, in this order: "What gets generated",
+#: "Consuming the generated code from your own app", "Notes & limits".
+DEFAULT_SECTIONS = (5, 7, 16)
 
 
 def _extract_section(text, number):

@@ -1,11 +1,15 @@
-"""fhir-facade epic -- the hand-mapped HeartRateReading -> FHIR Observation
+"""FHIR façade -- the hand-mapped HeartRateReading -> FHIR Observation
 worked example validates against the vendored FHIR R4 schema.
 
 Design-validation only: no FhirAdapter/ code exists (that's a follow-on
 epic). Pure Python, always runs, standard library only -- structural checks
-against worked-example/fhir.schema.json's Observation definition, the same
-posture test_sbom_emission.py takes against the vendored CycloneDX schema.
-No jsonschema dependency, no network.
+against fhir_worked_example/fhir.schema.json's Observation definition, the
+same posture test_sbom_emission.py takes against the vendored CycloneDX
+schema. No jsonschema dependency, no network.
+
+The worked-example fixtures live in `UnitTests/fhir_worked_example/`
+(schema, example JSON, mapping notes, VENDORED.md) -- moved here from the
+now-removed medical_devices initiative folder at V1.
 """
 import json
 import os
@@ -14,8 +18,7 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
-WE = os.path.join(REPO_ROOT, "Initiatives", "medical_devices", "epics",
-                  "fhir-facade-done", "worked-example")
+WE = os.path.join(HERE, "fhir_worked_example")
 SCHEMA_PATH = os.path.join(WE, "fhir.schema.json")
 EXAMPLE_PATH = os.path.join(WE, "heartrate_observation.example.json")
 
