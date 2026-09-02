@@ -95,8 +95,11 @@ message patient_vitals{
 // (a patient-specific alarm is both high-criticality and high-confidentiality).
 // checked-in canonical fixture for the delivery-guarantee machinery (Phase 3
 // of sensitive-data-implementation-roadmap.md) to build its send/receive
-// integration test against.
-critical event message alarm_event{
+// integration test against. Also carries dds (dds-transport epic) -- a
+// patient alarm is exactly what crosses an ASTM F2761 / OpenICE bus -- so it
+// is the critical-QoS-profile fixture for the DDS adapter (RELIABLE +
+// KEEP_ALL) alongside vitals_publication for the non-critical profile.
+critical event dds message alarm_event{
     phi string patient_id;
     string alarm_type;
     int severity;
@@ -112,6 +115,16 @@ message lab_result{
     phi string analyte_code;
     phi int value_scaled;
     phi float reference_high;
+};
+
+// exercises the zmq-lifecycle epic stream lifecycle (setup / read / stop
+// plus the timeout watchdog). stream only, no push pull or event, so the
+// generated stream consumer class is exercised in isolation. table less on
+// purpose, plain scalar fields, to keep the golden blast radius to the zmq
+// adapter alone.
+stream message sensor_feed{
+    string sensor_id;
+    int reading;
 };
 
 // exercises Track H.1, repeated-scalar child-table schema migration.
@@ -138,3 +151,37 @@ message telemetry{
     renamed_from[old_flags] map<int,string> flags;
     renamed_from[old_traces] repeteable trace_row traces;
 }telemetry_table;
+
+// exercises the dds transport-selection modifier (dds-transport epic,
+// task 1). dds marks a message for publish onto / subscribe from an ASTM
+// F2761 / OpenICE-class DDS bus, independent of whether the same message is
+// also reachable via ZMQ or gRPC. flag only in the front end -- a dds
+// message emits byte-identical .proto to the same message without it, the
+// same guarantee phi and critical already hold. composed with phi on one
+// field so the dds-transport epic phi-over-DDS audit task (task 4) has a
+// checked-in fixture. table-less on purpose to keep the golden blast radius
+// off the DB adapters.
+dds message vitals_publication{
+    phi string patient_ref;
+    float spo2;
+    int pulse_rate;
+};
+
+// exercises the explicit event[cached] cache mode form (events-callbacks
+// epic task 1). bare event also means cached, the standard when the
+// bracket is omitted. table less on purpose so the golden blast radius is
+// the proto, zmq and events adapters only, no table or DAO. appended at
+// end of file so no existing message shifts line numbers.
+event[cached] message bed_state{
+    int bed_id;
+    int occupied;
+};
+
+// exercises the event[not-cached] cache mode (events-callbacks epic task
+// 1). a not-cached channel retains nothing, so a subscriber that joins
+// after a publish gets nothing until the next one. table less, same
+// blast-radius reasoning as bed_state above.
+event[not-cached] message pump_tick{
+    int sequence;
+    int rate_mhz;
+};

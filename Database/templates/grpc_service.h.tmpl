@@ -9,7 +9,7 @@
 #include <soci/soci.h>
 #include "protofiles/{name}_{hash}_service.grpc.pb.h"
 #include "db/{name}_{hash}_crudl.h"
-
+{auth_extra_includes}
 // gRPC service implementation for {name}, backed by the CRUDL DAO -- the RPCs of
 // the generated {name}_Service are wired to create/read/list over SQLite:
 //   push(msg)      -> dao.create(msg)             -> errorCode
@@ -17,12 +17,36 @@
 //   streamSrc()    -> dao.list() streamed back    -> stream {name}_Message
 //                     (paginated via the request's offset/limit when limit>0)
 //   heartBeat(hb)  -> echo                         (no CRUDL, unauthenticated)
-// Construct with a soci::session the caller owns; register with a grpc::ServerBuilder.
+// Construct with a soci::session the caller owns; register with a grpc::ServerBuilder,
+// or let the generated grpc/grpc_server_bringup.h do it -- its
+// harpia::grpc_transport::GrpcServer registers every service and picks mTLS vs
+// insecure transport credentials from transport_hardening_required(compliance)
+// at generation time (transport-authn epic, task 2; harpia_grpc_mtls.h).
 //
-// The data operations enforce the generated access credential (Stage 5): the
-// call must carry x-user: {name} and x-pswd: {hash} metadata, or it is rejected
-// with UNAUTHENTICATED (mirrors the SOAP <credentials> / REST X-User headers).
-// heartBeat stays open as a liveness probe.
+// Access gate (compiled in at generation time; which variant depends on
+// transport_hardening_required(compliance) -- transport-authn epic, tasks 2+4):
+//   hardened  -> a three-role RBAC check (admin / main / guest). The x509
+//               subject CommonName from ServerContext::auth_context() (the
+//               verified mTLS client cert) is resolved to a role via the
+//               HARPIA_RBAC_MAP file and checked against the RPC's operation
+//               (push -> create, pullByID -> read, streamSrc -> stream). No /
+//               unverifiable identity -> UNAUTHENTICATED; valid identity,
+//               wrong role -> PERMISSION_DENIED. Every denial emits exactly
+//               one AuditSink "rbac_denied" record (names only, never a
+//               credential value). See generated grpc/harpia_rbac.h.
+//   otherwise -> the flat generated access credential: the call must carry
+//               x-user: {name} and x-pswd: {hash} metadata, or it is rejected
+//               with UNAUTHENTICATED.
+// heartBeat stays open as a liveness probe in both variants.
+//
+// Session tokens (transport-authn epic, task 5; hardened variant only). Under
+// the RBAC gate, a call may present a bearer token as `authorization: Bearer
+// <token>` metadata instead of re-deriving its identity from the client cert;
+// a token that does not verify (signature / expiry / revocation) is
+// UNAUTHENTICATED, never a fall-through to the cert. A token is obtained by
+// calling heartBeat() with `harpia-issue-session` metadata -- the response
+// carries a fresh `harpia-session-token` in its trailing metadata. See
+// generated grpc/harpia_session.h.
 namespace harpia {{
 namespace grpc_svc {{
 
@@ -31,25 +55,11 @@ class {name}_service final
 public:
     explicit {name}_service(::soci::session& db) : db_(db) {{}}
 
-    // True iff the call carries the correct credential metadata for {name}. A
-    // null context (direct in-process call, no wire) is allowed; the wire path
-    // always supplies a context.
-    static bool authorized(::grpc::ServerContext* ctx) {{
-        if (!ctx) return true;
-        const auto& md = ctx->client_metadata();
-        auto u = md.find("x-user");
-        auto p = md.find("x-pswd");
-        return u != md.end() && p != md.end() &&
-               ::std::string(u->second.data(), u->second.length()) == "{name}" &&
-               ::std::string(p->second.data(), p->second.length()) == "{hash}";
-    }}
-
+{auth_helper}
     ::grpc::Status push(::grpc::ServerContext* context,
                         const ::frameworkProtos::{name}_Message* request,
                         ::frameworkProtos::errorCode* response) override {{
-        if (!authorized(context)) {{
-            return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED, "unauthorized");
-        }}
+        {auth_guard_create}
         ::harpia::db::{name}_dao dao(db_);
         const bool ok = dao.create(request->msg());
         response->set_code(ok ? 0 : 1);
@@ -60,9 +70,7 @@ public:
     ::grpc::Status pullByID(::grpc::ServerContext* context,
                             const ::frameworkProtos::{name}_ID* request,
                             ::frameworkProtos::{name}_Message* response) override {{
-        if (!authorized(context)) {{
-            return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED, "unauthorized");
-        }}
+        {auth_guard_read}
         ::harpia::db::{name}_dao dao(db_);
         if (!dao.read(request->id(), response->mutable_msg())) {{
             return ::grpc::Status(::grpc::StatusCode::NOT_FOUND, "not found");
@@ -74,9 +82,7 @@ public:
             ::grpc::ServerContext* context,
             const ::frameworkProtos::{name}_Stream* request,
             ::grpc::ServerWriter< ::frameworkProtos::{name}_Message>* writer) override {{
-        if (!authorized(context)) {{
-            return ::grpc::Status(::grpc::StatusCode::UNAUTHENTICATED, "unauthorized");
-        }}
+        {auth_guard_stream}
         ::harpia::db::{name}_dao dao(db_);
         std::vector< ::{name}> rows;
         // limit <= 0 (proto3 default / not set) means unbounded, matching
@@ -96,10 +102,10 @@ public:
         return ::grpc::Status::OK;
     }}
 
-    ::grpc::Status heartBeat(::grpc::ServerContext*,
+    ::grpc::Status heartBeat(::grpc::ServerContext*{hb_ctx},
                              const ::frameworkProtos::{name}_HeartBeat* request,
                              ::frameworkProtos::{name}_HeartBeat* response) override {{
-        *response = *request;
+{session_issue}        *response = *request;
         return ::grpc::Status::OK;
     }}
 

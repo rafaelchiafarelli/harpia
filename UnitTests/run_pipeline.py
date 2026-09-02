@@ -17,6 +17,7 @@ Run from the repository root:
 Each invocation is a fresh process, which matters: LexicalAnalyzer accumulates
 tokens in a class-level list, so capturing must happen in a clean interpreter.
 """
+import json
 import os
 import shutil
 import sys
@@ -34,9 +35,12 @@ from LexicalAnalizer.MessageCreator import MessageCreator
 from ProtoFile.FileCreator import FileCreator
 from JsonAdapter.JsonAdapter import JsonAdapter
 from ZmqAdapter.ZmqAdapter import ZmqAdapter
+from DdsAdapter.DdsAdapter import DdsAdapter
+from Callback.CallbackAdapter import CallbackAdapter
 from XmlAdapter.XmlAdapter import XmlAdapter
 from YamlAdapter.YamlAdapter import YamlAdapter
 from SerializeAdapter.SerializeAdapter import SerializeAdapter
+from ComplianceReport.ComplianceReport import ComplianceReport
 from Database.SqlAdapter import SqlAdapter
 from Database.CrudlAdapter import CrudlAdapter
 from Database.DbRegistryAdapter import DbRegistryAdapter
@@ -45,6 +49,7 @@ from Database.DbIoAdapter import DbIoAdapter
 from Database.RestAdapter import RestAdapter
 from Database.SoapAdapter import SoapAdapter
 from Database.WsdlAdapter import WsdlAdapter
+from SdcAdapter.SdcAdapter import SdcAdapter
 from Database.GrpcServiceAdapter import GrpcServiceAdapter
 from GrpcCapabilityAdapter.GrpcCapabilityAdapter import GrpcCapabilityAdapter
 from HttpCapabilityAdapter.HttpCapabilityAdapter import HttpCapabilityAdapter
@@ -148,12 +153,20 @@ def run(output_dir):
     # 13 (zmq). ZMQ/socket transport for push/pull + event/stream messages
     _mark("ZmqAdapter", ZmqAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
+    # 13 (events). in-process event/callback channels (events-callbacks epic)
+    _mark("CallbackAdapter", CallbackAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+
     # 13 (zmq capability handshake). advertise this project's message-type set
     _mark("ZmqCapabilityAdapter", ZmqCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
                          rootHash=root_file.getHash(), compliance=compliance)).Process()
 
+    # 13 (dds). DDS transport for messages carrying the `dds` modifier
+    _mark("DdsAdapter", DdsAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance,
+                     crypto_backend=crypto_backend)).Process()
+
     # 13 (grpc impl). concrete gRPC service wired to CRUDL (per table message)
-    _mark("GrpcServiceAdapter", GrpcServiceAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+    _mark("GrpcServiceAdapter", GrpcServiceAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance,
+                      crypto_backend=crypto_backend)).Process()
 
     # 13 (grpc capability handshake). advertise this project's message-type set
     _mark("GrpcCapabilityAdapter", GrpcCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
@@ -172,7 +185,8 @@ def run(output_dir):
     _mark("DbIoAdapter", DbIoAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
     # 12. REST bindings (HTTP CRUD over CRUDL + JSON)
-    _mark("RestAdapter", RestAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+    _mark("RestAdapter", RestAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance,
+                  crypto_backend=crypto_backend)).Process()
 
     # 11. SOAP endpoints (XML over HTTP, get/set over CRUDL)
     _mark("SoapAdapter", SoapAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
@@ -180,12 +194,18 @@ def run(output_dir):
     # 11 (WSDL). WSDL descriptor for the SOAP service
     _mark("WsdlAdapter", WsdlAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
+    # 11 (SDC). WS-Discovery responder advertising the SOAP endpoint (sdc-biceps epic)
+    _mark("SdcAdapter", SdcAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+
     # 11/12 (http capability handshake). shared by REST and SOAP
     _mark("HttpCapabilityAdapter", HttpCapabilityAdapter(messages=msg_factory.messages, dest=build_dir,
                           rootHash=root_file.getHash(), compliance=compliance)).Process()
 
     # 14. generated unit tests (opt-in CTest target over CRUDL + messages)
     _mark("TestAdapter", TestAdapter(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
+
+    # 15. compliance report -- CycloneDX SBOM (process-artifacts epic)
+    _mark("ComplianceReport", ComplianceReport(messages=msg_factory.messages, dest=build_dir, compliance=compliance)).Process()
 
     _dump_compliance_smoke(os.path.join(output_dir, "compliance_smoke.txt"), compliance_smoke)
 
@@ -195,6 +215,8 @@ def run(output_dir):
     _collect_protos(build_dir, os.path.join(output_dir, "proto"))
     _collect_json(build_dir, os.path.join(output_dir, "json"))
     _collect_zmq(build_dir, os.path.join(output_dir, "zmq"))
+    _collect_dds(build_dir, os.path.join(output_dir, "dds"))
+    _collect_events(build_dir, os.path.join(output_dir, "events"))
     _collect_grpc(build_dir, os.path.join(output_dir, "grpc"))
     _collect_capability(build_dir, os.path.join(output_dir, "capability"))
     _collect_xml(build_dir, os.path.join(output_dir, "xml"))
@@ -205,9 +227,12 @@ def run(output_dir):
     _collect_dbio(build_dir, os.path.join(output_dir, "dbio"))
     _collect_rest(build_dir, os.path.join(output_dir, "rest"))
     _collect_soap(build_dir, os.path.join(output_dir, "soap"))
+    _collect_http(build_dir, os.path.join(output_dir, "http"))
     _collect_wsdl(build_dir, os.path.join(output_dir, "wsdl"))
+    _collect_sdc(build_dir, os.path.join(output_dir, "sdc"))
     _collect_gen_tests(build_dir, os.path.join(output_dir, "gen_tests"))
     _collect_sidecars(build_dir, os.path.join(output_dir, "sidecars"))
+    _collect_compliancereport(build_dir, os.path.join(output_dir, "compliancereport"))
 
 
 def _dump_tokens(path, tokens):
@@ -264,6 +289,45 @@ def _collect_zmq(build_dir, dest):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
+def _collect_dds(build_dir, dest):
+    # per-message *_dds.h headers plus the shared frame IDL + its CMakeLists
+    # (copied verbatim, but snapshotted so the vendored-scaffolding stays
+    # visible in the golden diff if it ever moves).
+    src = os.path.join(build_dir, "generated", "cpp", "dds")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for dirpath, _, names in os.walk(src):
+        rel = os.path.relpath(dirpath, src)
+        for name in sorted(names):
+            if not (name.endswith((".h", ".idl", ".xml", ".json"))
+                    or name == "CMakeLists.txt"):
+                continue
+            out_sub = dest if rel == "." else os.path.join(dest, rel)
+            os.makedirs(out_sub, exist_ok=True)
+            shutil.copy2(os.path.join(dirpath, name),
+                         os.path.join(out_sub, name))
+
+
+def _collect_events(build_dir, dest):
+    # per-message event-channel wrappers only; harpia_event_cache.h and its
+    # harpia_audit_sink.h dependency are static runtime copies (live in the
+    # repo under Callback/runtime and Compliance/runtime) -- same convention
+    # as _collect_xml / _collect_capability
+    static = {"harpia_event_cache.h", "harpia_audit_sink.h"}
+    src = os.path.join(build_dir, "generated", "cpp", "events")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith(".h") and name not in static:
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
 def _collect_xml(build_dir, dest):
     # the per-message wrappers only; harpia_xml.h is the static runtime (lives in
     # the repo under XmlAdapter/runtime, no need to re-snapshot the copy)
@@ -295,10 +359,11 @@ def _collect_yaml(build_dir, dest):
 def _collect_serialize(build_dir, dest):
     # the per-message wrappers + the generated harpia_phi_registry.h (schema-
     # derived, worth snapshotting like db/harpia_db_registry.h). The static
-    # runtimes harpia_serialize.h / harpia_redaction.h live in the repo under
-    # SerializeAdapter/runtime -- same convention as _collect_xml.
+    # runtimes harpia_serialize.h / harpia_redaction.h / harpia_redaction_audit.h
+    # live in the repo under SerializeAdapter/runtime -- same convention as
+    # _collect_xml.
     src = os.path.join(build_dir, "generated", "cpp", "serialize")
-    static = {"harpia_serialize.h", "harpia_redaction.h"}
+    static = {"harpia_serialize.h", "harpia_redaction.h", "harpia_redaction_audit.h"}
     if os.path.exists(dest):
         shutil.rmtree(dest)
     os.makedirs(dest, exist_ok=True)
@@ -307,6 +372,50 @@ def _collect_serialize(build_dir, dest):
     for name in sorted(os.listdir(src)):
         if name.endswith(".h") and name not in static:
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+# versioning epic: the six harpia:git_* properties are wall-clock-equivalent
+# (they change on every commit / dirty edit), so the golden collector pins
+# each to a fixed sentinel -- same treatment as metadata.timestamp. Shapes
+# are kept plausible so a structural reader of the golden still makes sense.
+_GIT_PROP_SENTINELS = {
+    "harpia:git_commit": "0" * 40,
+    "harpia:git_ref": "unknown",
+    "harpia:git_dirty": "false",
+    "harpia:git_describe": "unknown",
+    "harpia:git_origin_url": "unknown",
+    "harpia:git_parent_commit": "0" * 40,
+}
+
+
+def _collect_compliancereport(build_dir, dest):
+    # the CycloneDX SBOM (process-artifacts epic). metadata.timestamp is
+    # wall-clock and the harpia:git_* properties are commit-dependent, so
+    # both are normalized to fixed values here -- everything else in bom.json
+    # is deterministic (vendored versions come from the checked-in
+    # VENDORED.md files; environment versions from the Docker toolchain,
+    # treated as fixed the same way the rest of the suite does).
+    src = os.path.join(build_dir, "generated", "ComplianceReport")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    bom_path = os.path.join(src, "bom.json")
+    if os.path.isfile(bom_path):
+        with open(bom_path) as f:
+            bom = json.load(f)
+        bom.setdefault("metadata", {})["timestamp"] = "1970-01-01T00:00:00Z"
+        for prop in bom.get("metadata", {}).get("properties", []):
+            if prop.get("name") in _GIT_PROP_SENTINELS:
+                prop["value"] = _GIT_PROP_SENTINELS[prop["name"]]
+        with open(os.path.join(dest, "bom.json"), "w") as f:
+            f.write(json.dumps(bom, indent=2) + "\n")
+    # the traceability matrix (task 2) + jurisdiction reports (task 3) have no
+    # timestamp -- copy them verbatim.
+    if os.path.isdir(src):
+        for name in sorted(os.listdir(src)):
+            if name in ("traceability.json", "traceability.md") \
+                    or (name.startswith("compliance_report") and name.endswith(".md")):
+                shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
 def _collect_crudl(build_dir, dest):
@@ -358,6 +467,8 @@ def _collect_rest(build_dir, dest):
 
 
 def _collect_soap(build_dir, dest):
+    # per-message wrappers only; harpia_soap.h is the static runtime (lives in
+    # the repo under SoapAdapter/runtime -- same convention as _collect_xml)
     src = os.path.join(build_dir, "generated", "cpp", "soap")
     if os.path.exists(dest):
         shutil.rmtree(dest)
@@ -365,11 +476,29 @@ def _collect_soap(build_dir, dest):
     if not os.path.isdir(src):
         return
     for name in sorted(os.listdir(src)):
-        if name.endswith(".h"):
+        if name.endswith(".h") and name != "harpia_soap.h":
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_http(build_dir, dest):
+    # the shared REST+SOAP server bring-up (transport-authn task 3):
+    # harpia_http_mtls.h copied verbatim, http_server_bringup.h rendered,
+    # http_server_selection.json from the F5 seam.
+    src = os.path.join(build_dir, "generated", "cpp", "http")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith((".h", ".json")):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
 def _collect_grpc(build_dir, dest):
+    # per-message *_grpc.h impls, plus the project-wide server bring-up
+    # (harpia_grpc_mtls.h copied verbatim, grpc_server_bringup.h rendered,
+    # grpc_server_selection.json from the F5 seam -- transport-authn task 2).
     src = os.path.join(build_dir, "generated", "cpp", "grpc")
     if os.path.exists(dest):
         shutil.rmtree(dest)
@@ -377,7 +506,7 @@ def _collect_grpc(build_dir, dest):
     if not os.path.isdir(src):
         return
     for name in sorted(os.listdir(src)):
-        if name.endswith(".h"):
+        if name.endswith((".h", ".json")):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
@@ -406,6 +535,22 @@ def _collect_wsdl(build_dir, dest):
         return
     for name in sorted(os.listdir(src)):
         if name.endswith(".wsdl"):
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
+
+
+def _collect_sdc(build_dir, dest):
+    # per-message *_sdc.h participant headers + *.wsdd.xml static descriptors;
+    # harpia_wsdiscovery.h is a static runtime copy (lives in the repo under
+    # SdcAdapter/runtime) but is snapshotted so a move shows in the golden
+    # diff, same as _collect_dds does for the frame IDL.
+    src = os.path.join(build_dir, "generated", "cpp", "sdc")
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    os.makedirs(dest, exist_ok=True)
+    if not os.path.isdir(src):
+        return
+    for name in sorted(os.listdir(src)):
+        if name.endswith((".h", ".xml")):
             shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 

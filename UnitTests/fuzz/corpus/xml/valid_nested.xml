@@ -1,0 +1,1 @@
+<FuzzMsg><s1>hello &amp; bye</s1><i1>7</i1><i2>-9007199254740993</i2><d1>3.5</d1><b1>true</b1><u1>18446744073709551615</u1><rs>a</rs><rs>b</rs><rs>c</rs><by>bytes</by><inner><x>deep</x><y>-2</y></inner><ri><x>p</x><y>1</y></ri><ri><x>q</x><y>2</y></ri></FuzzMsg>

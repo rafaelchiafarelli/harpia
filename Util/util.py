@@ -216,11 +216,23 @@ def copyCMakeFiles(src, dest):
     vcpkgManifestPathSrc = "{}/{}".format(src, "vcpkg.json")
     copy_if_different(vcpkgManifestPathSrc, os.path.join(dest, "vcpkg.json"))
 
-    curveProbePathSrc = "{}/{}".format(src, "cmake/curve_keygen_probe.cpp")
     if not os.path.exists(os.path.join(dest, "cmake")):
         os.makedirs(os.path.join(dest, "cmake"))
+    curveProbePathSrc = "{}/{}".format(src, "cmake/curve_keygen_probe.cpp")
     copy_if_different(curveProbePathSrc,
                        os.path.join(dest, "cmake", "curve_keygen_probe.cpp"))
+    # dds-transport task 3: the DDS-Security PKI provisioning probe, same
+    # treatment as the CURVE probe so `-DUSE_DDS_SECURITY=ON` resolves it in
+    # the generated tree.
+    ddsSecProvisionSrc = "{}/{}".format(src, "cmake/dds_security_provision.sh")
+    copy_if_different(ddsSecProvisionSrc,
+                       os.path.join(dest, "cmake", "dds_security_provision.sh"))
+    # transport-authn task 1: the mTLS client-cert PKI provisioning script,
+    # same treatment as the DDS-Security probe so `-DUSE_MTLS=ON` resolves it
+    # in the generated tree.
+    mtlsProvisionSrc = "{}/{}".format(src, "cmake/mtls_provision.sh")
+    copy_if_different(mtlsProvisionSrc,
+                       os.path.join(dest, "cmake", "mtls_provision.sh"))
 
     protoCMakePathSrc = "{}/{}".format(src, "proto/CMakeLists.txt")
     if not os.path.exists(os.path.join(dest, "proto")):

@@ -58,9 +58,10 @@ def test_doxyfile_and_mainpage_are_copied_into_the_generated_project(generated):
 
     with open(mainpage) as f:
         mainpage_text = f.read()
-    assert "## 4. What gets generated" in mainpage_text
-    assert "## 6. Wiring the generated code into your own project" in mainpage_text
-    assert "## 11. Notes & limits" in mainpage_text
+    # Doxygen/mainpage.py DEFAULT_SECTIONS is (5, 7, 16) since the V1 USAGE.md rewrite.
+    assert "## 5. What gets generated" in mainpage_text
+    assert "## 7. Consuming the generated code from your own app" in mainpage_text
+    assert "## 16. Notes & limits" in mainpage_text
 
 
 @pytest.mark.skipif(shutil.which("doxygen") is None, reason="doxygen not available")

@@ -25,7 +25,9 @@
 #include "crow.h"
 #include "db/telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_crudl.h"
 #include "xml/telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_xml.h"   // brings tinyxml2 + the XML runtime
-
+#include "soap/harpia_soap.h"       // harpia::soap:: envelope-parse seam
+#include "http/harpia_rbac.h"
+#include "http/harpia_session.h"
 // Minimal SOAP-over-HTTP access for telemetry, backed by the CRUDL DAO. Register on
 // a crow::SimpleApp with a base path; POST a SOAP envelope to <base>/telemetry:
 //   <soap:Body><get><id>N</id></get></soap:Body>          -> the telemetry as XML
@@ -33,64 +35,47 @@
 //   <soap:Body><update><telemetry>...</telemetry></update></soap:Body> -> update
 //   <soap:Body><delete><id>N</id></delete></soap:Body>    -> delete
 //
-// Every request must carry the generated access credential in the SOAP Header
-// (Stage 5 access rights), or it is rejected with a SOAP Fault (HTTP 401):
+// Access gate (compiled in at generation time; which variant depends on
+// transport_hardening_required(compliance) -- transport-authn epic, tasks 3+4):
+//   hardened  -> a three-role RBAC check (admin / main / guest), run once the
+//               operation element has been parsed: the verified mTLS client-
+//               certificate subject CommonName (crow::request::client_cert_cn)
+//               is resolved to a role via the HARPIA_RBAC_MAP file and checked
+//               against the operation (get -> read, set -> create, update ->
+//               update, delete -> remove). No / unverifiable identity -> a
+//               401 SOAP Fault; valid identity, wrong role -> a 403 SOAP
+//               Fault. Every denial emits exactly one AuditSink "rbac_denied"
+//               record (names only, never a credential value). See generated
+//               http/harpia_rbac.h.
+//   otherwise -> the flat generated access credential in the SOAP Header, or
+//               the request is rejected with a SOAP Fault (HTTP 401):
 //   <soap:Header><credentials><user>telemetry</user><pswd>3ac5d8b36fc7dcfb70888145147ddfb7</pswd></credentials></soap:Header>
+// Under the hardened variant a request may instead carry `Authorization:
+// Bearer <token>` -- a session token (transport-authn epic, task 5;
+// http/harpia_session.h) obtained from POST <soap_base>/session (returns a
+// <sessionToken> envelope). A valid token supplies the identity the RBAC check
+// runs on; a presented-but-invalid token is a 401 Fault with no fall-through to
+// the client certificate.
 // (WSDL generation is deferred.)
+//
+// The crow::SimpleApp itself is stood up by the generated
+// http/http_server_bringup.h (transport-authn epic, task 3) -- its
+// harpia::http_transport::HttpServer registers this endpoint and the matching
+// REST binding on one app and, when transport_hardening_required(compliance)
+// was true at generation time, configures it for mTLS (client cert required
+// AND verified, harpia_http_mtls.h) with plaintext refused.
 namespace harpia {
 namespace soap {
 
-// Shared XML helpers, defined once across all generated SOAP headers.
-#ifndef HARPIA_SOAP_DETAIL
-#define HARPIA_SOAP_DETAIL
-namespace detail {
-
-// element name without its namespace prefix ("soap:Body" -> "Body")
-inline std::string local_name(const ::tinyxml2::XMLElement* e) {
-    std::string n = e->Name();
-    const auto pos = n.find(':');
-    return pos == std::string::npos ? n : n.substr(pos + 1);
-}
-
-// first child element whose local (prefix-stripped) name matches
-inline const ::tinyxml2::XMLElement* find_child(
-        const ::tinyxml2::XMLElement* parent, const char* local) {
-    if (!parent) return nullptr;
-    for (auto* c = parent->FirstChildElement(); c; c = c->NextSiblingElement())
-        if (local_name(c) == local) return c;
-    return nullptr;
-}
-
-inline std::string child_text(const ::tinyxml2::XMLElement* parent,
-                              const char* local) {
-    const auto* c = find_child(parent, local);
-    return (c && c->GetText()) ? c->GetText() : std::string();
-}
-
-}  // namespace detail
-#endif  // HARPIA_SOAP_DETAIL
+// The envelope-parse seam (detail::local_name / find_child / child_text,
+// parse_envelope, find_operation, message_from_request) lives in the
+// hand-written soap/harpia_soap.h included above -- one definition, and the
+// same code path UnitTests/test_fuzz_parsers.py fuzzes.
 
 inline std::string envelope_telemetry(const std::string& body) {
     return "<?xml version=\"1.0\"?>"
            "<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\">"
            "<soap:Body>" + body + "</soap:Body></soap:Envelope>";
-}
-
-// True iff the envelope carries the correct credential for telemetry. The handler
-// gates every operation on this; exposed so it can be unit-tested directly.
-inline bool authorized_telemetry(const ::tinyxml2::XMLDocument& doc) {
-    const auto* env = doc.RootElement();                       // soap:Envelope
-    const auto* header = ::harpia::soap::detail::find_child(env, "Header");
-    const auto* cred = ::harpia::soap::detail::find_child(header, "credentials");
-    if (!cred) return false;
-    return ::harpia::soap::detail::child_text(cred, "user") == "telemetry" &&
-           ::harpia::soap::detail::child_text(cred, "pswd") == "3ac5d8b36fc7dcfb70888145147ddfb7";
-}
-
-inline bool authorized_telemetry(const std::string& soap_xml) {
-    ::tinyxml2::XMLDocument doc;
-    if (doc.Parse(soap_xml.c_str()) != ::tinyxml2::XML_SUCCESS) return false;
-    return authorized_telemetry(doc);
 }
 
 inline void register_telemetry_soap(crow::SimpleApp& app, ::soci::session& db,
@@ -107,22 +92,58 @@ inline void register_telemetry_soap(crow::SimpleApp& app, ::soci::session& db,
         };
         ::harpia::db::telemetry_dao dao(*dbp);
         ::tinyxml2::XMLDocument doc;
-        if (doc.Parse(req.body.c_str()) != ::tinyxml2::XML_SUCCESS) {
+        if (!::harpia::soap::parse_envelope(req.body, &doc)) {
             res.code = 400; res.end(); return;
         }
-        if (!authorized_telemetry(doc)) {
-            res.code = 401;
-            reply(envelope_telemetry(
-                "<soap:Fault><faultcode>Client.Authentication</faultcode>"
-                "<faultstring>unauthorized</faultstring></soap:Fault>"));
-            res.end(); return;
-        }
-        const auto* env = doc.RootElement();                  // soap:Envelope
-        const auto* body = ::harpia::soap::detail::find_child(env, "Body");
-        const auto* op = body ? body->FirstChildElement() : nullptr;   // operation
-        if (!op) { res.code = 400; res.end(); return; }
-        const std::string name = ::harpia::soap::detail::local_name(op);
 
+        ::harpia::soap::Request soap_req;
+        if (!::harpia::soap::find_operation(doc, &soap_req)) {
+            res.code = 400; res.end(); return;
+        }
+        const auto* op = soap_req.op;                         // operation element
+        const std::string name = soap_req.operation;
+        // task 5: a valid Authorization: Bearer session token supplies the
+        // identity; a presented-but-invalid token is a 401 Fault (no
+        // fall-through to the client certificate).
+        std::string rbac_cn = req.client_cert_cn;
+        {
+            const auto rbac_bearer = ::harpia::session::from_authorization(
+                req.get_header_value("Authorization"));
+            if (rbac_bearer.present) {
+                if (rbac_bearer.verdict != ::harpia::session::Verdict::ok) {
+                    res.code = 401;
+                    reply(envelope_telemetry(
+                        "<soap:Fault><faultcode>Client.Authentication</faultcode>"
+                        "<faultstring>invalid session token</faultstring>"
+                        "</soap:Fault>"));
+                    res.end(); return;
+                }
+                rbac_cn = rbac_bearer.cn;
+            }
+        }
+        ::harpia::rbac::Operation rbac_op = ::harpia::rbac::Operation::read;
+        bool rbac_known = true;
+        if (name == "get") rbac_op = ::harpia::rbac::Operation::read;
+        else if (name == "set") rbac_op = ::harpia::rbac::Operation::create;
+        else if (name == "update") rbac_op = ::harpia::rbac::Operation::update;
+        else if (name == "delete") rbac_op = ::harpia::rbac::Operation::remove;
+        else rbac_known = false;
+        if (rbac_known) {
+            const auto rbac_d =
+                ::harpia::rbac::decide(rbac_cn, rbac_op, "telemetry");
+            if (rbac_d != ::harpia::rbac::Decision::allow) {
+                res.code = (rbac_d == ::harpia::rbac::Decision::unauthenticated)
+                               ? 401 : 403;
+                reply(envelope_telemetry(
+                    "<soap:Fault><faultcode>Client.Authentication</faultcode>"
+                    "<faultstring>" +
+                    std::string(
+                        rbac_d == ::harpia::rbac::Decision::unauthenticated
+                            ? "unauthenticated" : "forbidden") +
+                    "</faultstring></soap:Fault>"));
+                res.end(); return;
+            }
+        }
         if (name == "get") {
             const auto* idEl = op->FirstChildElement("id");
             const long long id =

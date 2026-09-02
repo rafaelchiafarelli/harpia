@@ -81,18 +81,17 @@ design vision, not current status):
   REST/SOAP HTTP test client ported to Winsock2) — `USAGE.md` §12.
   Unverified on Windows (vcpkg feature added, build not run): the
   PostgreSQL backend, and `-DUSE_ZMQ_CURVE=ON`.
-- **Compliance implementation threads — Foundation ✅, threads not started.**
-  Foundation F1–F6 shipped and merged to `dev`: `ComplianceContext`
-  (`Compliance/context.py`; `project.harpia.yaml` → risk-class / topology /
-  phi-handling), the `phi` field modifier (lexer + `Message/Variables.py`
-  `is_phi`), the audit scaffold (`Compliance/audit_common.py`,
-  `Compliance/runtime/`), and the F6 Doxygen plumbing above. The five
-  parallel threads it unblocks — DB field encryption, audit-on-access,
-  multi-tier RBAC, key management, FHIR facade — are **not started**. Scoped
-  at `Initiatives/medical_devices/` (see `harpia_medical_master_plan.md` for
-  the dependency graph and
-  `Initiatives/medical_devices/epics/foundation-handoff.md` for what
-  Foundation concretely shipped).
+- **Compliance / medical-device profile — ✅ shipped (V1).** A
+  `project.harpia.yaml` compliance profile (`Compliance/context.py`) now
+  drives, when `risk_class: class_c` or `topology: cloud_connected`:
+  field-level `phi` encryption at rest + audit-on-access + `[REDACTED]`
+  serialization, `critical`-message delivery guarantees, mTLS + `admin`/
+  `main`/`guest` RBAC + bearer session tokens on REST/SOAP/gRPC, a ZMQ
+  CURVE ZAP client-key allowlist, DDS transport with DDS-Security, in-process
+  `event` callback channels, a `stream` lifecycle, schema migration with a
+  `data_transform` hook, public/private DB segregation, WS-Discovery, an
+  HL7 FHIR façade design, and a CycloneDX SBOM + traceability matrix. See
+  `harpia.process.md` (pipeline) and `USAGE.md` (consumer guide).
 
 **Using Harpia / consuming the generated code:** see [`USAGE.md`](USAGE.md) — the
 consumer's guide (generate, the `.harpia` language by example, what gets
@@ -162,7 +161,7 @@ script sets: `HARPIA_INPUT_FILE`, `HARPIA_INCLUDE_FOLDER`, `HARPIA_OUTPUT_DIR`.
 | `third_party/` | vendored third-party source (tinyxml2, SQLite, Crow + standalone asio) |
 | `UnitTests/` | golden snapshots + per-stage compile/run tests (see `UnitTests/README.md`) |
 | `HarpiaTest/` | the sample `test.harpia` and its includes |
-| `Initiatives/` | scoping docs for larger, not-yet-started or in-progress work (multi-language targets, Postgres migration, `medical_devices/` — a multi-session plan for a medical-device-compliance profile: PHI field tagging, message-level criticality, key management, mTLS/RBAC, audit) — not part of the pipeline itself |
+| `Initiatives/` | scoping docs for larger cross-session work not yet started (the medical-device compliance profile shipped in V1 and its plan folder was removed) — not part of the pipeline itself |
 
 ## objective:
 Create a generalized interface for processes and threads to share data among themselves, database and web that has gRPC, ORM, RESTFull, SOAP, CRUDL, multi-project, multi-language and a  multi-thread library to exchange data.

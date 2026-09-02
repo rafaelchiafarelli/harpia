@@ -21,9 +21,51 @@ if(USE_ZMQ_CURVE)
         # find_library("zmq") equivalent doesn't resolve on the vcpkg layout,
         # same gotcha server_template/client_template's CMakeLists already
         # document for the demo targets themselves.
+        #
+        # try_run() below builds an ISOLATED sub-project that does NOT re-run
+        # find_package, so handing it the imported target *name* `libzmq` is
+        # useless there -- MSVC's linker then looks for a plain `libzmq.lib`
+        # on the default search path and fails with LNK1104 (vcpkg's shared
+        # build actually produces e.g. `libzmq-mt-4_3_5.lib`). Resolve the
+        # imported target to a concrete import-lib path + include dir here and
+        # pass those instead. Also prepend the DLL dir to PATH so the probe
+        # (which try_run *executes* at configure time) can load libzmq.
         find_package(ZeroMQ CONFIG REQUIRED)
-        set(HARPIA_CURVE_PROBE_LIBS libzmq)
-        set(HARPIA_CURVE_PROBE_INCLUDES "${ZeroMQ_INCLUDE_DIR}")
+        set(_harpia_zmq_tgt libzmq)
+        if(NOT TARGET ${_harpia_zmq_tgt})
+            set(_harpia_zmq_tgt libzmq-static)
+        endif()
+        if(NOT TARGET ${_harpia_zmq_tgt})
+            message(FATAL_ERROR "USE_ZMQ_CURVE: find_package(ZeroMQ CONFIG) defined no libzmq/libzmq-static target")
+        endif()
+        set(HARPIA_CURVE_PROBE_LIBS "")
+        foreach(_prop
+                IMPORTED_IMPLIB_RELEASE IMPORTED_IMPLIB_DEBUG IMPORTED_IMPLIB
+                IMPORTED_LOCATION_RELEASE IMPORTED_LOCATION_DEBUG IMPORTED_LOCATION
+                LOCATION_RELEASE LOCATION_DEBUG LOCATION)
+            if(NOT HARPIA_CURVE_PROBE_LIBS)
+                get_target_property(_v ${_harpia_zmq_tgt} ${_prop})
+                if(_v)
+                    set(HARPIA_CURVE_PROBE_LIBS "${_v}")
+                endif()
+            endif()
+        endforeach()
+        if(NOT HARPIA_CURVE_PROBE_LIBS)
+            message(FATAL_ERROR "USE_ZMQ_CURVE: could not resolve a link library from the ${_harpia_zmq_tgt} CONFIG target")
+        endif()
+        get_target_property(HARPIA_CURVE_PROBE_INCLUDES ${_harpia_zmq_tgt} INTERFACE_INCLUDE_DIRECTORIES)
+        if(NOT HARPIA_CURVE_PROBE_INCLUDES)
+            set(HARPIA_CURVE_PROBE_INCLUDES "")
+        endif()
+        # DLL dir for the executed probe: sibling `bin/` of the resolved lib,
+        # or vcpkg_installed's bin. Best-effort -- harmless if it doesn't exist.
+        get_filename_component(_harpia_zmq_libdir "${HARPIA_CURVE_PROBE_LIBS}" DIRECTORY)
+        get_filename_component(_harpia_zmq_prefix "${_harpia_zmq_libdir}" DIRECTORY)
+        foreach(_bindir "${_harpia_zmq_prefix}/bin" "${_harpia_zmq_prefix}/debug/bin" "${_harpia_zmq_libdir}")
+            if(EXISTS "${_bindir}")
+                set(ENV{PATH} "${_bindir};$ENV{PATH}")
+            endif()
+        endforeach()
     else()
         find_library(HARPIA_ZMQ_LIB NAMES zmq)
         if(NOT HARPIA_ZMQ_LIB)
@@ -48,6 +90,15 @@ if(USE_ZMQ_CURVE)
     if(NOT HARPIA_CURVE_KEYGEN_RUN_RESULT EQUAL 0)
         message(FATAL_ERROR "USE_ZMQ_CURVE: keygen probe exited non-zero -- libzmq may have been built without CURVE support")
     endif()
+
+    # RUN_OUTPUT_VARIABLE keeps the probe's platform line endings: on Windows
+    # that is \r\n, and the greedy [^ \n]+ captures below would fold the
+    # trailing \r into each Z85 key. A 41-byte "key" is neither 32 (binary)
+    # nor 40 (Z85), so libzmq rejects it -- cppzmq then throws from the
+    # curve_*key setsockopt and the demo dies at startup with 0xC0000409
+    # (STATUS_STACK_BUFFER_OVERRUN, an uncaught-exception fastfail). Strip CR
+    # before parsing so the keys are clean on every platform.
+    string(REPLACE "\r" "" HARPIA_CURVE_KEYGEN_OUTPUT "${HARPIA_CURVE_KEYGEN_OUTPUT}")
 
     # Probe stdout: line 1 "<server_pub> <server_sec>", line 2 "<client_pub> <client_sec>"
     string(REGEX MATCH "^([^ \n]+) ([^ \n]+)\n([^ \n]+) ([^ \n]+)" _ "${HARPIA_CURVE_KEYGEN_OUTPUT}")
@@ -76,6 +127,88 @@ inline constexpr char kHarpiaZmqCurveClientPublic[] = \"${HARPIA_ZMQ_CURVE_CLIEN
 inline constexpr char kHarpiaZmqCurveClientSecret[] = \"${HARPIA_ZMQ_CURVE_CLIENT_SECRET}\";
 ")
     message(STATUS "USE_ZMQ_CURVE: generated ephemeral CURVE keypairs for the ZMQ demo (${HARPIA_ZMQ_CURVE_KEYS_HEADER})")
+endif()
+
+# OMG DDS-Security for the generated DDS transport (dds-transport epic, task
+# 3). Off by default so the plain build is unchanged. No CLI PKI tool is
+# assumed, so cmake/dds_security_provision.sh is run here at configure time
+# (execute_process) -- the DDS-Security analogue of curve_keygen_probe.cpp --
+# minting a THROWAWAY CA + identity and S/MIME-signing the emitted
+# governance/permissions, then writing the six file paths into a generated
+# harpia_dds_security_files.h (same "generated header, not compile-defs"
+# shape as USE_ZMQ_CURVE). A real deployment provisions its own PKI and does
+# not set this.
+option(USE_DDS_SECURITY "Provision a throwaway DDS-Security PKI for the generated DDS transport demo" OFF)
+if(USE_DDS_SECURITY)
+    set(HARPIA_DDS_SEC_SRC "${CMAKE_SOURCE_DIR}/generated/cpp/dds/security")
+    if(NOT EXISTS "${HARPIA_DDS_SEC_SRC}/governance.xml")
+        message(FATAL_ERROR "USE_DDS_SECURITY: ${HARPIA_DDS_SEC_SRC}/governance.xml not found -- the schema has no `dds` message, so there is no DDS-Security scaffolding to provision.")
+    endif()
+    set(HARPIA_DDS_SEC_OUT "${CMAKE_BINARY_DIR}/dds_security")
+    execute_process(
+        COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/cmake/dds_security_provision.sh"
+                "${HARPIA_DDS_SEC_OUT}"
+                "${HARPIA_DDS_SEC_SRC}/governance.xml"
+                "${HARPIA_DDS_SEC_SRC}/permissions.xml"
+        RESULT_VARIABLE HARPIA_DDS_SEC_RC
+        OUTPUT_VARIABLE HARPIA_DDS_SEC_LOG
+        ERROR_VARIABLE HARPIA_DDS_SEC_LOG)
+    if(NOT HARPIA_DDS_SEC_RC EQUAL 0)
+        message(FATAL_ERROR "USE_DDS_SECURITY: provisioning failed (is openssl installed?):\n${HARPIA_DDS_SEC_LOG}")
+    endif()
+    set(HARPIA_DDS_SECURITY_FILES_HEADER "${CMAKE_BINARY_DIR}/harpia_dds_security_files.h")
+    file(WRITE "${HARPIA_DDS_SECURITY_FILES_HEADER}" "\
+#pragma once
+// Generated at configure time by USE_DDS_SECURITY -- THROWAWAY, not for reuse.
+// Feed these into harpia::dds_security::SecurityFiles / secured_participant().
+inline constexpr char kHarpiaDdsIdentityCA[]          = \"${HARPIA_DDS_SEC_OUT}/identity_ca.pem\";
+inline constexpr char kHarpiaDdsIdentityCertificate[] = \"${HARPIA_DDS_SEC_OUT}/identity_certificate.pem\";
+inline constexpr char kHarpiaDdsPrivateKey[]          = \"${HARPIA_DDS_SEC_OUT}/private_key.pem\";
+inline constexpr char kHarpiaDdsPermissionsCA[]       = \"${HARPIA_DDS_SEC_OUT}/permissions_ca.pem\";
+inline constexpr char kHarpiaDdsGovernance[]          = \"${HARPIA_DDS_SEC_OUT}/governance.p7s\";
+inline constexpr char kHarpiaDdsPermissions[]         = \"${HARPIA_DDS_SEC_OUT}/permissions.p7s\";
+")
+    message(STATUS "USE_DDS_SECURITY: provisioned throwaway DDS-Security PKI (${HARPIA_DDS_SECURITY_FILES_HEADER})")
+endif()
+
+# mTLS client-cert PKI for the generated gRPC / REST / SOAP transports
+# (transport-authn epic, task 1). Off by default so the plain build is
+# unchanged. The mTLS analogue of USE_DDS_SECURITY: cmake/mtls_provision.sh
+# runs here at configure time (execute_process), minting a local CA + a
+# server cert + one client cert, then a generated harpia_mtls_files.h carries
+# the file paths (same "generated header, not compile-defs" shape as
+# USE_ZMQ_CURVE / USE_DDS_SECURITY). transport-authn tasks 2/3 (mTLS on gRPC
+# and on REST/SOAP) consume this header; a real deployment provisions its own
+# PKI and does not set this. -DHARPIA_MTLS_SERVER_CN overrides the server CN;
+# the HARPIA_MTLS_PROVIDER env var (default|fips) tracks the F5 CryptoBackend
+# selection and sets the key strength.
+option(USE_MTLS "Provision a local mTLS client-cert PKI for the generated gRPC/REST/SOAP transports" OFF)
+if(USE_MTLS)
+    set(HARPIA_MTLS_OUT "${CMAKE_BINARY_DIR}/mtls")
+    if(NOT DEFINED HARPIA_MTLS_SERVER_CN)
+        set(HARPIA_MTLS_SERVER_CN "localhost")
+    endif()
+    execute_process(
+        COMMAND sh "${CMAKE_CURRENT_SOURCE_DIR}/cmake/mtls_provision.sh"
+                "${HARPIA_MTLS_OUT}" "${HARPIA_MTLS_SERVER_CN}"
+        RESULT_VARIABLE HARPIA_MTLS_RC
+        OUTPUT_VARIABLE HARPIA_MTLS_LOG
+        ERROR_VARIABLE HARPIA_MTLS_LOG)
+    if(NOT HARPIA_MTLS_RC EQUAL 0)
+        message(FATAL_ERROR "USE_MTLS: provisioning failed (is openssl installed?):\n${HARPIA_MTLS_LOG}")
+    endif()
+    set(HARPIA_MTLS_FILES_HEADER "${CMAKE_BINARY_DIR}/harpia_mtls_files.h")
+    file(WRITE "${HARPIA_MTLS_FILES_HEADER}" "\
+#pragma once
+// Generated at configure time by USE_MTLS -- local dev PKI, not for reuse.
+// Feed these into the generated gRPC / crow TLS listener config (transport-authn tasks 2/3).
+inline constexpr char kHarpiaMtlsCA[]         = \"${HARPIA_MTLS_OUT}/ca.pem\";
+inline constexpr char kHarpiaMtlsServerCert[] = \"${HARPIA_MTLS_OUT}/server.pem\";
+inline constexpr char kHarpiaMtlsServerKey[]  = \"${HARPIA_MTLS_OUT}/server_key.pem\";
+inline constexpr char kHarpiaMtlsClientCert[] = \"${HARPIA_MTLS_OUT}/client.pem\";
+inline constexpr char kHarpiaMtlsClientKey[]  = \"${HARPIA_MTLS_OUT}/client_key.pem\";
+")
+    message(STATUS "USE_MTLS: provisioned local mTLS PKI (${HARPIA_MTLS_FILES_HEADER})")
 endif()
 
 add_subdirectory(client)

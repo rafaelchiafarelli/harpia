@@ -8,7 +8,7 @@ written fresh every run to `<dest>/USAGE_EXCERPT.md`. The rest of F6 (the
 `Initiatives/medical_devices/epics/foundation-handoff.md` (the Foundation
 thread itself was merged to `dev` and removed; see git history for the
 original implementation write-up).
-**Entry points:** `write_mainpage(dest, usage_md_path=None, sections=(4,6,11))`
+**Entry points:** `write_mainpage(dest, usage_md_path=None, sections=(5,7,16))`
 -> path written; `extract_usage_sections(usage_md_path=None, sections=...)`
 -> assembled markdown string (the piece `write_mainpage` persists).
 
@@ -25,12 +25,15 @@ original implementation write-up).
   able to drift the moment `USAGE.md` changes and nobody remembers to
   re-copy it; extracting the real section text at generation time instead
   means there's nothing to remember -- the next run's mainpage always
-  matches whatever `USAGE.md` §4/§6/§11 currently say.
+  matches whatever `USAGE.md`'s "What gets generated" / "Consuming the
+  generated code from your own app" / "Notes & limits" sections currently
+  say.
 - **Section boundary detection is purely `## N. ` heading-prefix matching**
-  (`DEFAULT_SECTIONS = (4, 6, 11)`, matching `USAGE.md`'s exact heading
-  numbers, verified as an exact string match -- no renumbering was needed).
+  (`DEFAULT_SECTIONS = (5, 7, 16)` since the V1 USAGE.md rewrite -- the
+  three sections named above, matching `USAGE.md`'s exact heading numbers).
   Fragile to `USAGE.md` renumbering its top-level sections; if that ever
-  happens, update `DEFAULT_SECTIONS` here to match.
+  happens, update `DEFAULT_SECTIONS` here and the two doxygen tests to
+  match.
 - Cross-references inside the extracted USAGE.md prose (e.g. a relative
   link to `HarpiaTest/app_example/consumer/README.md`) are copied as-is and may not
   resolve correctly from inside an arbitrary generated project's own

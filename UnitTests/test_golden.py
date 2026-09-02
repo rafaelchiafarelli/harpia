@@ -9,6 +9,7 @@ committed snapshots in UnitTests/golden/:
   - proto/*.proto    every emitted proto (message + service)
   - json/*.h         every emitted JSON adapter (Stage 9)
   - zmq/*.h          every emitted ZMQ transport (Stage 13 zmq)
+  - events/*.h       every emitted event-channel wrapper (events-callbacks epic)
   - xml/*.h          every emitted XML adapter wrapper (Stage 10)
   - yaml/*.h         every emitted YAML adapter wrapper (Stage 10)
   - serialize/*.h    every emitted unified-serialization wrapper (Stage 10)
@@ -20,6 +21,8 @@ committed snapshots in UnitTests/golden/:
   - soap/*.h         every emitted SOAP endpoint header (Stage 11)
   - gen_tests/       every emitted unit-test program + CTest CMakeLists (Stage 14)
   - sidecars/        the SQL schema + access/modifier flag files per message
+  - compliancereport/bom.json   the CycloneDX SBOM (process-artifacts epic;
+                     metadata.timestamp normalized by the collector)
 
 To (re)generate the golden snapshots after an intentional change:
 
@@ -152,6 +155,45 @@ def test_zmq_adapters(artifacts):
         _check(os.path.join(produced_zmq_dir, rel), os.path.join("zmq", rel))
 
 
+def test_dds_adapters(artifacts):
+    produced_dds_dir = os.path.join(artifacts, "dds")
+    produced = _relpaths(produced_dds_dir)
+
+    if UPDATE:
+        golden_dds_dir = os.path.join(GOLDEN_DIR, "dds")
+        if os.path.exists(golden_dds_dir):
+            shutil.rmtree(golden_dds_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dds_dir, rel), os.path.join("dds", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "dds"))
+    assert produced == expected, "set of generated DDS transports changed"
+    for rel in produced:
+        _check(os.path.join(produced_dds_dir, rel), os.path.join("dds", rel))
+
+
+def test_event_channel_wrappers(artifacts):
+    # per-message events/<name>_<hash>_events.h wrappers (events-callbacks
+    # epic); the harpia_event_cache.h runtime is not snapshotted, same
+    # convention as the zmq / capability runtimes.
+    produced_dir = os.path.join(artifacts, "events")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "events")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel), os.path.join("events", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "events"))
+    assert produced == expected, "set of generated event channel wrappers changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("events", rel))
+
+
 def test_xml_adapters(artifacts):
     produced_dir = os.path.join(artifacts, "xml")
     produced = _relpaths(produced_dir)
@@ -205,6 +247,26 @@ def test_serialize_adapters(artifacts):
     assert produced == expected, "set of generated serialization wrappers changed"
     for rel in produced:
         _check(os.path.join(produced_dir, rel), os.path.join("serialize", rel))
+
+
+def test_compliancereport(artifacts):
+    produced_dir = os.path.join(artifacts, "compliancereport")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "compliancereport")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel),
+                   os.path.join("compliancereport", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "compliancereport"))
+    assert produced == expected, "compliancereport artifact set changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel),
+               os.path.join("compliancereport", rel))
 
 
 def test_crudl_daos(artifacts):
@@ -315,6 +377,27 @@ def test_grpc_service_impls(artifacts):
         _check(os.path.join(produced_dir, rel), os.path.join("grpc", rel))
 
 
+def test_http_server_bringup(artifacts):
+    # the shared REST+SOAP crow::SimpleApp bring-up + mTLS selection
+    # (transport-authn task 3): harpia_http_mtls.h, http_server_bringup.h,
+    # http_server_selection.json
+    produced_dir = os.path.join(artifacts, "http")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "http")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel), os.path.join("http", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "http"))
+    assert produced == expected, "set of generated HTTP bring-up files changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("http", rel))
+
+
 def test_capability_advertisement(artifacts):
     produced_dir = os.path.join(artifacts, "capability")
     produced = _relpaths(produced_dir)
@@ -349,6 +432,27 @@ def test_wsdl(artifacts):
     assert produced == expected, "set of generated WSDL descriptors changed"
     for rel in produced:
         _check(os.path.join(produced_dir, rel), os.path.join("wsdl", rel))
+
+
+def test_sdc(artifacts):
+    # SdcAdapter (sdc-biceps epic): per-message *_sdc.h participant headers +
+    # *.wsdd.xml static descriptors, plus the copied harpia_wsdiscovery.h
+    # responder runtime.
+    produced_dir = os.path.join(artifacts, "sdc")
+    produced = _relpaths(produced_dir)
+
+    if UPDATE:
+        golden_dir = os.path.join(GOLDEN_DIR, "sdc")
+        if os.path.exists(golden_dir):
+            shutil.rmtree(golden_dir)
+        for rel in produced:
+            _check(os.path.join(produced_dir, rel), os.path.join("sdc", rel))
+        return
+
+    expected = _relpaths(os.path.join(GOLDEN_DIR, "sdc"))
+    assert produced == expected, "set of generated WS-Discovery descriptors changed"
+    for rel in produced:
+        _check(os.path.join(produced_dir, rel), os.path.join("sdc", rel))
 
 
 def test_gen_tests(artifacts):
