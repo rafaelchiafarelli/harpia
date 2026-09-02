@@ -64,19 +64,25 @@ variants left to diff).
 | # | File | Delivers | Adds to image |
 |---|---|---|---|
 | 1 | `tasks/1-cppcheck-cert-static-analysis.md` | **done** — `cppcheck --enable=warning,portability` pytest job (`test_cppcheck.py`) over every generated `cpp/` header; empty baseline (tree is clean); no CERT addon (removed upstream). | `cppcheck` |
-| 2 | `tasks/2-fuzz-harness-json-parser.md` | the shared fuzz driver (`UnitTests/fuzz/`) + the JSON-parser target (`harpia::serialize::from_json`) + seed corpus. | — |
-| 3 | `tasks/3-fuzz-harness-xml-parser.md` | the XML-parser target (`harpia::xml::from_xml`) + seed corpus, on task 2's driver. | — |
-| 4 | `tasks/4-fuzz-harness-soap-parser.md` | the SOAP-parser target + seed corpus, on task 2's driver. | — |
+| 2 | `tasks/2-fuzz-harness-json-parser.md` | **done** — the shared fuzz driver (`UnitTests/fuzz/`, in-process `FuzzMsg` descriptor) + the JSON-parser target (`harpia::serialize::detail::from_json`) + 8-file seed corpus + `test_fuzz_parsers.py`. | — |
+| 3 | `tasks/3-fuzz-harness-xml-parser.md` | **done** — the XML-parser target (`harpia::xml::from_xml`) + 10-file seed corpus, on task 2's driver. | — |
+| 4a | `tasks/4a-extract-soap-parse-seam.md` | `SoapAdapter/runtime/harpia_soap.h` (pure Envelope→Body→message parse), `soap.h.tmpl` rewired to it, golden re-blessed. **The one task with a generator-source + golden footprint.** | — |
+| 4b | `tasks/4b-fuzz-harness-soap-parser.md` | the SOAP-parser target (`harpia::soap::message_from_request`) + seed corpus, on task 2's driver. | — |
 
-Task 2 carries the shared driver; 3 and 4 are thin additions once 2 has
-merged. Task 1 is fully independent of 2–4.
+Task 2 carries the shared driver; 3 and 4b are thin additions once their
+prerequisite has merged. Task 4 was split into 4a (extract the parse seam
+— it had no standalone string→message entry point) + 4b (fuzz it) on
+2026-09-01. Task 1 is fully independent of 2–4b.
 
 ## Files this epic touches
 
 - `UnitTests/` (new: `test_cppcheck.py`, `cppcheck_suppressions.txt`,
   `test_fuzz_parsers.py`, `fuzz/harpia_fuzz_main.cpp`,
   `fuzz/corpus/{json,xml,soap}/`), `Dockerfile` (one apt entry, task 1).
-- **No** generator source, **no** `UnitTests/golden/`.
+- **Task 4a only:** `SoapAdapter/runtime/harpia_soap.h` (new),
+  `Database/SoapAdapter.py`, `Database/templates/soap.h.tmpl`,
+  `UnitTests/run_pipeline.py`, and `UnitTests/golden/soap/` (re-blessed).
+  Tasks 1–3 touch no generator source and no golden.
 
 ## Watch for
 
