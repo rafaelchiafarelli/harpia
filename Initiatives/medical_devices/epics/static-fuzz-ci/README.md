@@ -1,9 +1,17 @@
 # Static / fuzz analysis CI
 
-Planning complete 2026-09-01 — four task files under `tasks/`. Pure
-tooling: no generator change, no golden movement, no dependency on any
-other epic or on Foundation. Every task is independent — pick up any of
-them whenever a session-line has a gap.
+**Done 2026-09-01 — all 5 tasks (1, 2, 3, 4a, 4b).** `cppcheck`
+warning/portability gate over the generated tree + one hand-rolled
+ASan/UBSan fuzz driver (`UnitTests/fuzz/`) covering the JSON, XML and SOAP
+parser entry points, bounded + deterministic, `@pytest.mark.fuzz`, running
+in the Docker suite. Task 4 was split into **4a** (extract the SOAP parse
+seam into `SoapAdapter/runtime/harpia_soap.h` — it had no standalone
+entry point) + **4b** (fuzz it); 4a is the epic's one generator-source +
+golden change. Full suite green at the merge-up.
+
+Planning was complete 2026-09-01 — originally four task files, "pure
+tooling, no generator change" (held for tasks 1–3; task 4a needed the SOAP
+seam extraction). No dependency on any other epic or on Foundation.
 
 No cross-variant parity gate — dropped per `harpia_medical_master_plan.md`
 §0a (one project-wide `risk_class` floor, no per-jurisdiction build
