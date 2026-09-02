@@ -1,0 +1,1 @@
+<ns:FuzzMsg xmlns:ns="urn:x" attr="v" i1="ignored"><ns:i1 t="int">42</ns:i1><s1/><b1></b1><d1>NaN</d1></ns:FuzzMsg>

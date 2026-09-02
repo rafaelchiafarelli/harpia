@@ -12,6 +12,11 @@
 #   - protobuf-compiler (protoc) + libprotobuf-dev     : Stage 7, .proto -> C++
 #   - protobuf-compiler-grpc + libgrpc++-dev           : Stage 13 gRPC stubs
 #   - libzmq3-dev + cppzmq-dev                         : Stage 13 ZMQ transport
+#   - Eclipse Cyclone DDS + ddscxx (built from source near the end of this
+#                                                      file, not apt)
+#                                                      : the dds-transport epic's
+#                                                      DDS transport (ASTM F2761 /
+#                                                      OpenICE-class bedside bus)
 #   - libsoci-dev + libsoci-sqlite3/postgresql + libpq + libsqlite3-dev
 #                                                      : Stage 8 persistence
 #       (SOCI is the DB-agnostic access layer the generated DAO is emitted
@@ -90,7 +95,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libsqlite3-dev \
         libboost-dev \
         cmake \
+        cppcheck \
         g++ \
+        git \
         make \
         libssl-dev \
         openssl \
@@ -137,6 +144,37 @@ ENV PATH="${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platf
 RUN yes | sdkmanager --licenses >/dev/null \
     && sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0" \
         "emulator" "system-images;android-34;default;x86_64" >/dev/null
+
+# Eclipse Cyclone DDS + its ddscxx C++ binding -- the ASTM F2761 / OpenICE-class
+# bedside-bus transport for the dds-transport epic. Not in Ubuntu 24.04 apt, and
+# a full CMake C library with no amalgamation, so (unlike the header-only /
+# amalgamated third_party/ libs compiled inline by the generated project) it is
+# built once here from the exact vendored source snapshot under third_party/ --
+# the same "heavier lib, built in the toolchain image, like on a board" posture
+# as protobuf/gRPC/ZMQ/SOCI above. See third_party/cyclonedds/VENDORED.md.
+# Security plugins are OpenSSL-backed (libssl-dev, above) so they line up with
+# the F5 CryptoBackend seam dds-transport task 3 wires in. Placed last so
+# touching the DDS snapshot doesn't invalidate the apt / JDK / Android layers.
+# Two COPY+RUN pairs (core, then the C++ binding) so editing the ddscxx
+# snapshot doesn't force a core rebuild, and vice versa.
+COPY third_party/cyclonedds /tmp/dds-src/cyclonedds
+RUN cmake -S /tmp/dds-src/cyclonedds -B /tmp/dds-src/build-core \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF -DBUILD_DDSPERF=OFF \
+        -DBUILD_IDLC=ON -DENABLE_SECURITY=ON -DENABLE_SSL=ON -DENABLE_LTO=OFF \
+    && cmake --build /tmp/dds-src/build-core -j"$(nproc)" \
+    && cmake --install /tmp/dds-src/build-core \
+    && ldconfig && rm -rf /tmp/dds-src/build-core
+COPY third_party/cyclonedds-cxx /tmp/dds-src/cyclonedds-cxx
+RUN cmake -S /tmp/dds-src/cyclonedds-cxx -B /tmp/dds-src/build-cxx \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local \
+        -DBUILD_TESTING=OFF -DBUILD_EXAMPLES=OFF \
+    && cmake --build /tmp/dds-src/build-cxx -j"$(nproc)" \
+    && cmake --install /tmp/dds-src/build-cxx \
+    && ldconfig && rm -rf /tmp/dds-src
+# /usr/local is already a default CMake search prefix; set it explicitly so
+# find_package(CycloneDDS-CXX) resolves even when a caller overrides the path.
+ENV CMAKE_PREFIX_PATH="/usr/local"
 
 WORKDIR /harpia
 

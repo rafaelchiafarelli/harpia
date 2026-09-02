@@ -1,0 +1,72 @@
+{comment}
+class {name}_publisher {{
+public:
+    explicit {name}_publisher(
+        ::dds::domain::DomainParticipant participant,
+        const ::std::string& topic_name = "{topic}"{audit_ctor_param})
+        : participant_(participant),
+          topic_(participant_, topic_name),
+          publisher_(participant_),
+          writer_(publisher_, topic_,
+                  {name}_writer_qos(publisher_.default_datawriter_qos())){audit_ctor_init} {{}}
+
+    // Serialize `msg` to protobuf and publish it as a harpia_dds::Frame --
+    // the same wire payload the ZMQ / gRPC transports move.
+    bool publish(const ::{cls}& msg) {{
+        ::std::string bytes;
+        if (!msg.SerializeToString(&bytes)) return false;
+        ::{frame_ns}::{frame_type} frame;
+        frame.message_type("{name}");
+        frame.payload(::std::vector<uint8_t>(bytes.begin(), bytes.end()));
+        writer_.write(frame);
+{audit_call}        return true;
+    }}
+
+    int32_t matched_subscribers() {{
+        return writer_.publication_matched_status().current_count();
+    }}
+    ::dds::pub::DataWriter<::{frame_ns}::{frame_type}>& writer() {{ return writer_; }}
+
+private:
+    ::dds::domain::DomainParticipant participant_;
+    ::dds::topic::Topic<::{frame_ns}::{frame_type}> topic_;
+    ::dds::pub::Publisher publisher_;
+    ::dds::pub::DataWriter<::{frame_ns}::{frame_type}> writer_;{audit_member}
+}};
+
+class {name}_subscriber {{
+public:
+    explicit {name}_subscriber(
+        ::dds::domain::DomainParticipant participant,
+        const ::std::string& topic_name = "{topic}")
+        : participant_(participant),
+          topic_(participant_, topic_name),
+          subscriber_(participant_),
+          reader_(subscriber_, topic_,
+                  {name}_reader_qos(subscriber_.default_datareader_qos())) {{}}
+
+    // Take the oldest available message; false when none is available or the
+    // frame did not parse. Bounded to one sample per call so repeated calls
+    // drain the reader's history in order (KEEP_ALL for a `critical` type,
+    // KEEP_LAST(1) otherwise) without dropping the rest of a batch.
+    bool receive(::{cls}* msg) {{
+        auto samples = reader_.select().max_samples(1).take();
+        for (const auto& s : samples) {{
+            if (!s.info().valid()) continue;
+            const auto& p = s.data().payload();
+            return msg->ParseFromArray(p.data(), static_cast<int>(p.size()));
+        }}
+        return false;
+    }}
+
+    int32_t matched_publishers() {{
+        return reader_.subscription_matched_status().current_count();
+    }}
+    ::dds::sub::DataReader<::{frame_ns}::{frame_type}>& reader() {{ return reader_; }}
+
+private:
+    ::dds::domain::DomainParticipant participant_;
+    ::dds::topic::Topic<::{frame_ns}::{frame_type}> topic_;
+    ::dds::sub::Subscriber subscriber_;
+    ::dds::sub::DataReader<::{frame_ns}::{frame_type}> reader_;
+}};
