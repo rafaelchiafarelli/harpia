@@ -170,8 +170,20 @@ int main() {{
 @pytest.fixture(scope="module")
 def built(tmp_path_factory):
     out = tmp_path_factory.mktemp("harpia_wsd")
+    # The live half opens the generated Stage 11 SOAP endpoint over plain HTTP
+    # and expects a 200 for a request carrying the flat <credentials> header.
+    # Under the repo's own (class_c / cloud_connected) profile that endpoint is
+    # RBAC- + mTLS-gated (transport-authn), so a plain HTTP call is a 401 Fault.
+    # Pin a low-risk profile so the flat-credential gate is emitted -- this test
+    # is about WS-Discovery reaching the endpoint, not transport hardening
+    # (which has its own coverage in test_rbac.py / test_sessions.py). Same pin
+    # as test_stage11_soap.py / test_stage12_rest.py.
+    cfg = os.path.join(str(out), "low_risk.harpia.yaml")
+    with open(cfg, "w", encoding="utf-8") as fh:
+        fh.write("risk_class: class_a\ntopology: standalone\n")
+    env = {**os.environ, "HARPIA_COMPLIANCE_CONFIG": cfg}
     r = subprocess.run([sys.executable, RUNNER, str(out)],
-                       cwd=REPO_ROOT, capture_output=True, text=True)
+                       cwd=REPO_ROOT, capture_output=True, text=True, env=env)
     assert r.returncode == 0, r.stdout + r.stderr
 
     from ProtoFile.ProtoCompiler import ProtoCompiler
