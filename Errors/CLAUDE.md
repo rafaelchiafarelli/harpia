@@ -6,7 +6,7 @@
 
 ## Files
 - `Error.py` — three definitions:
-  - `Types(Enum)` — ~39 specific error codes (lexical, brace/paren/bracket/comment count mismatches, import incomplete, malformed pagination/repeteable/map/enum, no name in message, regex not found, protoc/gRPC compilation failures, etc.).
+  - `Types(Enum)` — ~41 specific error codes (lexical, brace/paren/bracket/comment count mismatches, import incomplete, malformed pagination/repeteable/map/enum, no name in message, regex not found, protoc/gRPC compilation failures, a reused frozen field number, conflicting `protected`/`open` message-hardening modifiers, etc.).
   - `Classes(Enum)` — coarse category (FILE_HAS_ERROR, BRACES, MODIFIERS, VARTYPES, ENUMTYPES, MESSAGES, REGEX, PROTO_COMPILATION, ...).
   - `Error` — holds `errType`, `errClass`, `FileNme` (sic — misspelled attribute), `FileLine`, `CharacterNumber`. `__init__` uses `inspect.stack()[1]` to record the CALLER's filename+line into `self.outMsg`.
 
