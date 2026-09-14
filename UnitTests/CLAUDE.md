@@ -41,11 +41,18 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `run_phi_check.py` — front-end + `FileCreator` (Stages 0-6) on one file;
   prints one `PHI_CHECK_RESULT <json>` line: `{"error": ..., "fields":
   [{"message","field","is_phi"}, ...], "messages":
-  [{"name","is_critical","is_enum"}, ...], "proto": "<concatenated .proto
-  text>"}`. Used by `test_phi_modifier.py` (Foundation F2, `variable.is_phi`)
-  and `test_critical_modifier.py` (sensitive-data roadmap Phase 1a,
-  `Message.is_critical`) to inspect the sensitive-data modifier flags and
-  confirm the emitted `.proto` is unaffected by either.
+  [{"name","is_critical","is_dds","is_protected","is_open","is_enum"}, ...],
+  "proto": "<concatenated .proto text>"}`. Used by `test_phi_modifier.py`
+  (Foundation F2, `variable.is_phi`), `test_critical_modifier.py`
+  (sensitive-data roadmap Phase 1a, `Message.is_critical`),
+  `test_dds_modifier.py` (dds-transport epic task 1, `Message.is_dds`) and
+  `test_protected_open_modifiers.py` (message-level-hardening initiative,
+  protected-open-modifiers epic task 1, `Message.is_protected`/`is_open`) to
+  inspect the modifier flags and confirm the emitted `.proto` is unaffected
+  by any of them. A `protected`+`open` conflict on one message surfaces as
+  `result["error"] == "MSG CONFLICTING_HARDENING_MODIFIERS"` (the front-end
+  `Error` return, same path as any other `MSG <ErrorType>` failure) rather
+  than a flag in `"messages"`.
   Unlike `run_frontend.py`, does NOT `chdir` into the fixture's folder --
   `FileCreator.Process()` needs repo-root-relative `./Assets/...` to
   resolve its service-proto template, so it stays at the repo root and
@@ -86,6 +93,17 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   Integration: the emitted `.proto` for a `critical` message contains no trace
   of the modifier and is line-for-line identical to the same message without
   it (flag only — the delivery-guarantee machinery is Phase 3). Pure Python.
+- `test_protected_open_modifiers.py` — message-level-hardening initiative,
+  protected-open-modifiers epic task 1: the `protected`/`open` message-type
+  modifiers. Parses with/without either, alone and composed with each
+  transport kind, `critical`/`dds`, and a `phi`/`optional`/`repeteable` field
+  (order-independent), confirming `Message.is_protected`/`Message.is_open`
+  via `run_phi_check.py`. `protected` + `open` together (either order) is a
+  hard `CONFLICTING_HARDENING_MODIFIERS` error, not a flag. Integration: the
+  emitted `.proto` for a `protected`/`open` message contains no trace of the
+  modifier and is line-for-line identical to the same message without it, and
+  neither modifier flips `isOneToMany` (no `ORIGINATOR_<hash>` field) — flag
+  only, the REST/SOAP/gRPC auth-gate wiring is epic task 3. Pure Python.
 - `test_delivery_runtime.py` — sensitive-data roadmap Phase 3a's
   `Compliance/runtime/harpia_delivery.h` (hand-written C++, like
   `harpia_audit_sink.h` — compiles/runs small standalone programs against the

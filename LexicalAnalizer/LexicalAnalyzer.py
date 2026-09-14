@@ -50,6 +50,25 @@ class LexicalAnalyzer:
             # PHI -> variable.is_phi. Composes freely with any transport kind
             # and with `critical`, order-independent.
             ('DDS', r'dds '),
+            # message-level hardening modifiers (message-level-hardening
+            # initiative, protected-open-modifiers epic, task 1) -- the
+            # RBAC/session-gate axis, independent of DDS's transport-selection
+            # axis and CRITICAL's criticality axis. Same keyword-only,
+            # trailing-space shape and slot (before `message `) as CRITICAL/
+            # DDS. `protected` forces the REST/SOAP/gRPC auth gate on for this
+            # message regardless of the project-wide default; `open` forces it
+            # off. Neither present -> inherits the project-wide default,
+            # unchanged (this is what keeps every existing fixture
+            # byte-identical). Both present on one message is a hard
+            # generation-time error (Message.py returns
+            # Types.CONFLICTING_HARDENING_MODIFIERS), never a silent
+            # precedence rule. Consumed by Message/Message.py ->
+            # Message.is_protected / Message.is_open, the same way CRITICAL ->
+            # Message.is_critical. Flag only in this task: no adapter reads
+            # either flag yet (that is epic task 3). Composes freely with any
+            # transport kind and with `critical`/`dds`, order-independent.
+            ('PROTECTED', r'protected '),
+            ('OPEN', r'open '),
             # message-type criticality modifier (sensitive-data design rules
             # §0, the *criticality* axis -- independent of PHI's confidentiality
             # axis). A keyword-only modifier that sits in the same slot as the
