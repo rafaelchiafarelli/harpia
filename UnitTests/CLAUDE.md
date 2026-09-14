@@ -104,6 +104,22 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   modifier and is line-for-line identical to the same message without it, and
   neither modifier flips `isOneToMany` (no `ORIGINATOR_<hash>` field) — flag
   only, the REST/SOAP/gRPC auth-gate wiring is epic task 3. Pure Python.
+- `test_mtls_optional_mode_spike.py` — message-level-hardening initiative,
+  protected-open-modifiers epic task 2: the mTLS-optional-mode go/no-go
+  spike (see its module docstring for the full written finding — go, both
+  transports already expose the override needed). Two live,
+  toolchain-gated tests, neither touching `auth_gate.py`/any adapter:
+  `test_rest_optional_client_cert` — a throwaway Crow server with its own
+  `asio::ssl::context` (`verify_peer` only, no `fail_if_no_peer_cert`); no
+  cert connects with `/whoami` → `""`, a trusted-CA cert connects with
+  `/whoami` → the cert's CN, an untrusted-CA cert fails the handshake.
+  `test_grpc_optional_client_cert` — the real, unmodified generated
+  `users_service` fronted by a throwaway `ServerBuilder` using
+  `GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY`; a certless `push` RPC
+  gets `UNAUTHENTICATED` (not a transport failure), a trusted cert (mapped
+  to `admin` via `HARPIA_RBAC_MAP`) gets `OK`, an untrusted-CA cert is
+  rejected at the transport. (g++, and for the gRPC half protoc +
+  grpc_cpp_plugin + grpc++ + openssl)
 - `test_delivery_runtime.py` — sensitive-data roadmap Phase 3a's
   `Compliance/runtime/harpia_delivery.h` (hand-written C++, like
   `harpia_audit_sink.h` — compiles/runs small standalone programs against the
