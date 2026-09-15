@@ -46,7 +46,7 @@ from Compliance.rbac_common import (
     RBAC_RUNTIME, RBAC_RUNTIME_SRC, RBAC_RUNTIME_DEPS)
 from Compliance.session_common import (
     SESSION_RUNTIME, SESSION_RUNTIME_SRC, SESSION_RUNTIME_DEPS)
-from Database.auth_gate import grpc_auth_fills
+from Database.auth_gate import grpc_auth_fills, effective_rbac, transport_mode
 from Crypto.backend import get_backend as get_crypto_backend, \
     transport_hardening_required
 
@@ -72,10 +72,13 @@ class GrpcServiceAdapter:
 
     def Process(self):
         os.makedirs(self.outDir, exist_ok=True)
-        # transport-authn task 4: RBAC role check vs the flat x-user/x-pswd
-        # metadata credential, chosen by the same predicate that turns on mTLS.
-        rbac = transport_hardening_required(self.compliance)
+        # message-level-hardening epic, protected-open-modifiers task 3: the
+        # per-RPC gate is now computed per message (auth_gate.effective_rbac)
+        # instead of once for the whole project -- see RestAdapter's identical
+        # change for the full reasoning.
+        hardening_required = transport_hardening_required(self.compliance)
         table_msgs = []
+        table_msg_objs = []
         for msg in self.messages:
             if getattr(msg, "isEnum", False) or not msg.tableName:
                 continue
@@ -83,15 +86,20 @@ class GrpcServiceAdapter:
                 guard="HARPIA_GRPC_{}_{}".format(msg.name.upper(), msg.md5Hash),
                 name=msg.name,
                 hash=msg.md5Hash,
-                **grpc_auth_fills(msg.name, msg.md5Hash, rbac),
+                **grpc_auth_fills(msg.name, msg.md5Hash,
+                                  effective_rbac(msg, hardening_required)),
             )
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, GRPC_EXT)
             write_if_different(os.path.join(self.outDir, fileName), header)
             table_msgs.append((msg.name, msg.md5Hash))
+            table_msg_objs.append(msg)
 
         if table_msgs:
-            self._write_server_bringup(table_msgs)
-            if rbac:
+            self._write_server_bringup(table_msgs, table_msg_objs,
+                                       hardening_required)
+            any_rbac = any(effective_rbac(m, hardening_required)
+                           for m in table_msg_objs)
+            if any_rbac:
                 copy_if_different(
                     RBAC_RUNTIME_SRC, os.path.join(self.outDir, RBAC_RUNTIME))
                 for dep_name, dep_src in RBAC_RUNTIME_DEPS:
@@ -110,7 +118,8 @@ class GrpcServiceAdapter:
             len(table_msgs), self.outDir))
         return None
 
-    def _write_server_bringup(self, table_msgs):
+    def _write_server_bringup(self, table_msgs, table_msg_objs,
+                              hardening_required):
         """The project-wide gRPC server bring-up + mTLS credentials selection
         (transport-authn task 2), emitted whenever the schema has at least one
         table-bearing message -- same "only when there's transport output"
@@ -126,19 +135,49 @@ class GrpcServiceAdapter:
                 name)
             for name, _ in table_msgs)
         backend = self.crypto_backend
-        hardening = transport_hardening_required(self.compliance)
+
+        # protected-open-modifiers task 3: same mixed-mode detection as
+        # RestAdapter -- byte-identical 2-argument server_credentials() call
+        # for any project where no message's effective_rbac() diverges from
+        # hardening_required (this includes every project using neither
+        # `protected` nor `open` anywhere).
+        emit_tls, client_cert_required = transport_mode(
+            table_msg_objs, hardening_required)
+        mixed = (emit_tls != hardening_required
+                or client_cert_required != hardening_required)
+        if mixed:
+            tls_guard_flag = "kEmitTls"
+            tls_cert_required_arg = ", kClientCertRequired"
+            tls_extra_constants = (
+                "\n"
+                "// message-level-hardening epic, protected-open-modifiers task 3:\n"
+                "// at least one message's protected/open modifier diverges from\n"
+                "// the project-wide default -- see Database/auth_gate.py's\n"
+                "// transport_mode().\n"
+                "inline constexpr bool kEmitTls = {};\n"
+                "inline constexpr bool kClientCertRequired = {};").format(
+                "true" if emit_tls else "false",
+                "true" if client_cert_required else "false")
+        else:
+            tls_guard_flag = "kHardeningRequired"
+            tls_cert_required_arg = ""
+            tls_extra_constants = ""
+
         write_if_different(
             os.path.join(self.outDir, GRPC_SERVER_BRINGUP),
             _BRINGUP.format(
                 includes=includes,
                 registrations=registrations,
-                hardening="true" if hardening else "false",
+                hardening="true" if hardening_required else "false",
+                tls_extra_constants=tls_extra_constants,
+                tls_guard_flag=tls_guard_flag,
+                tls_cert_required_arg=tls_cert_required_arg,
                 crypto_backend=backend.name,
                 openssl_provider=backend.openssl_provider,
             ))
 
         selection = {
-            "hardening_required": hardening,
+            "hardening_required": hardening_required,
             "crypto_backend": backend.name,
             "cmake_package": backend.cmake_package,
             "openssl_provider": backend.openssl_provider,
