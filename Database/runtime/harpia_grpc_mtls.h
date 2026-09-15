@@ -21,6 +21,21 @@
 //                                grpc::InsecureChannelCredentials() -- the
 //                                pre-mTLS behaviour, byte-for-byte.
 //
+// `server_credentials()`'s `client_cert_required` (message-level-hardening
+// epic, protected-open-modifiers task 3; default true, so every existing call
+// site is unaffected): when `hardening_required` is true but the project
+// mixes a project-wide default with a per-message override (an `open`
+// message under a hardened default, or a `protected` message forcing
+// hardening on in an otherwise-open project -- see Database/auth_gate.py's
+// `transport_mode()`), pass false for task 2's confirmed
+// GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY ("requested, not required")
+// instead of the REQUIRE variant: a certless channel still completes the
+// handshake (`ServerContext::auth_context()`'s CN lookup comes back empty,
+// which the generated `rbac_check()` already resolves to UNAUTHENTICATED),
+// while a certificate that IS presented is still fully verified. The
+// per-message RBAC/flat choice (unchanged, computed by auth_gate.py) is what
+// actually enforces each message's own requirement on top of this.
+//
 // This is the mechanism, not the policy. The per-RPC x-user/x-pswd
 // credential-metadata check in each <name>_grpc.h is unchanged and still runs
 // on top of whatever transport this selects.
@@ -83,10 +98,14 @@ inline std::string read_pem(const std::string& path) {
 }  // namespace detail
 
 // Server-side transport credentials. `hardening_required` false -> the
-// unchanged grpc::InsecureServerCredentials(). True -> mTLS with client-cert
-// verification required; an incomplete `files` throws SecurityRefused.
+// unchanged grpc::InsecureServerCredentials(). True -> TLS with client-cert
+// verification; an incomplete `files` throws SecurityRefused.
+// `client_cert_required` true (default): the REQUIRE variant, unchanged.
+// false: request-but-don't-require (task 2) -- a certless channel still
+// connects, one presenting a certificate is still fully verified.
 inline std::shared_ptr<::grpc::ServerCredentials> server_credentials(
-        bool hardening_required, const MtlsFiles& files) {
+        bool hardening_required, const MtlsFiles& files,
+        bool client_cert_required = true) {
     if (!hardening_required) return ::grpc::InsecureServerCredentials();
     if (!files.complete()) {
         throw SecurityRefused(
@@ -94,7 +113,9 @@ inline std::shared_ptr<::grpc::ServerCredentials> server_credentials(
             "private key)");
     }
     ::grpc::SslServerCredentialsOptions opts(
-        GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY);
+        client_cert_required
+            ? GRPC_SSL_REQUEST_AND_REQUIRE_CLIENT_CERTIFICATE_AND_VERIFY
+            : GRPC_SSL_REQUEST_CLIENT_CERTIFICATE_AND_VERIFY);
     opts.pem_root_certs = detail::read_pem(files.ca_certificate);
     opts.pem_key_cert_pairs.push_back(
         {detail::read_pem(files.private_key),

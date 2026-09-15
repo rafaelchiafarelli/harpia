@@ -27,3 +27,37 @@
   anonymous request the same way today's hardened-project flat gate does.
   Reuse `UnitTests/test_rbac.py`'s existing harness pattern rather than
   building a new one.
+
+## Implementation note
+
+Two design questions surfaced only once the call graph was traced, and were
+resolved with Rafael before landing (not silently inferred):
+
+- **No composition propagation.** A message's own `is_protected`/`is_open`
+  is the *only* input to its own gate. Composing an `open` message inside a
+  `protected` one does not force it protected (and the reverse can't
+  conflict either) — a deliberate simplicity choice: "if a message is
+  protected, it is protected; if it is not, it is not." Losing the
+  protection this way is the schema author's call, not something harpia
+  infers or blocks; a discouragement log for this case, and any actual
+  per-version propagation tooling, are explicitly deferred to a future task,
+  not built here.
+- **Transport promotion.** A `protected` message in an otherwise-unhardened
+  project (or an `open` message in an otherwise-hardened one) promotes that
+  *project's* REST/SOAP/gRPC bring-up to the shape it needs (TLS-capable,
+  client-cert requested-not-required per task 2's confirmed approach) —
+  `Database/auth_gate.py`'s `transport_mode()`. This never touches a project
+  where no message's `effective_rbac()` diverges from the project-wide
+  default, which is what keeps a project using neither modifier anywhere
+  byte-identical (`UnitTests/test_golden.py`/`test_golden_java.py`
+  unaffected; the only golden drift from this task is in the two hand-written
+  runtime headers' own doc comments and new optional parameter,
+  `harpia_http_mtls.h` / `harpia_grpc_mtls.h`, which ship verbatim into every
+  generated project).
+
+Landed in `Database/auth_gate.py` (`effective_rbac()`, `transport_mode()`),
+`RestAdapter.py`/`SoapAdapter.py`/`GrpcServiceAdapter.py` (per-message gate +
+mixed-mode bring-up), `Database/runtime/harpia_{http,grpc}_mtls.h` (new
+optional `client_cert_required` param, default `true`), and the two bring-up
+templates (new fills, all no-ops in the byte-identical case). Tests:
+`UnitTests/test_message_hardening_gate.py`.

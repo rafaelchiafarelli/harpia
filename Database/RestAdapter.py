@@ -53,7 +53,7 @@ from Compliance.rbac_common import (
     RBAC_RUNTIME, RBAC_RUNTIME_SRC, RBAC_RUNTIME_DEPS)
 from Compliance.session_common import (
     SESSION_RUNTIME, SESSION_RUNTIME_SRC, SESSION_RUNTIME_DEPS)
-from Database.auth_gate import rest_auth_fills
+from Database.auth_gate import rest_auth_fills, effective_rbac, transport_mode
 from Crypto.backend import get_backend as get_crypto_backend, \
     transport_hardening_required
 
@@ -152,11 +152,15 @@ class RestAdapter:
 
     def Process(self):
         os.makedirs(self.outDir, exist_ok=True)
-        # transport-authn task 4: the per-route gate is a three-role RBAC check
-        # when the compliance profile mandates hardened transport (same
-        # predicate that turns on mTLS), else the flat X-User/X-Pswd credential.
-        rbac = transport_hardening_required(self.compliance)
+        # message-level-hardening epic, protected-open-modifiers task 3: the
+        # per-route gate is now computed per message (auth_gate.effective_rbac)
+        # instead of once for the whole project -- a `protected` message
+        # always gets the RBAC check, an `open` one always gets the flat
+        # credential, and a message using neither inherits this project-wide
+        # default unchanged (transport-authn task 4's original rule).
+        hardening_required = transport_hardening_required(self.compliance)
         table_msgs = []
+        table_msg_objs = []
         for msg in self.messages:
             if getattr(msg, "isEnum", False) or not msg.tableName:
                 continue
@@ -166,20 +170,24 @@ class RestAdapter:
                 name=msg.name,
                 hash=msg.md5Hash,
                 default_limit=default_limit,
-                **rest_auth_fills(msg.name, msg.md5Hash, rbac),
+                **rest_auth_fills(msg.name, msg.md5Hash,
+                                  effective_rbac(msg, hardening_required)),
             )
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, REST_EXT)
             write_if_different(os.path.join(self.outDir, fileName), header)
             table_msgs.append((msg.name, msg.md5Hash))
+            table_msg_objs.append(msg)
 
         if table_msgs:
-            self._write_http_bringup(table_msgs, rbac)
+            self._write_http_bringup(table_msgs, table_msg_objs,
+                                     hardening_required)
 
         self.log.print("generated {} REST binding(s) into {}".format(
             len(table_msgs), self.outDir))
         return None
 
-    def _write_http_bringup(self, table_msgs, rbac):
+    def _write_http_bringup(self, table_msgs, table_msg_objs,
+                            hardening_required):
         """The shared REST+SOAP server bring-up + mTLS selection
         (transport-authn task 3), emitted whenever the schema has at least one
         table-bearing message -- same "only when there's transport output"
@@ -191,8 +199,12 @@ class RestAdapter:
 
         # transport-authn task 4: the RBAC gate runtime (+ its AuditSink
         # dependency) rides next to the transport headers, same pattern as
-        # harpia_http_mtls.h -- but only when the RBAC variant is compiled in.
-        if rbac:
+        # harpia_http_mtls.h -- but only when at least one message actually
+        # compiles in the RBAC variant (protected-open-modifiers task 3: no
+        # longer just "when the whole project is hardened").
+        any_rbac = any(effective_rbac(m, hardening_required)
+                       for m in table_msg_objs)
+        if any_rbac:
             copy_if_different(RBAC_RUNTIME_SRC,
                               os.path.join(self.httpDir, RBAC_RUNTIME))
             for dep_name, dep_src in RBAC_RUNTIME_DEPS:
@@ -219,23 +231,57 @@ class RestAdapter:
                 n=name)
             for name, _ in table_msgs)
         backend = self.crypto_backend
-        hardening = transport_hardening_required(self.compliance)
+
+        # protected-open-modifiers task 3: a project mixing the project-wide
+        # default with a per-message override needs a transport shape
+        # kHardeningRequired alone can't express -- emit the extra
+        # kEmitTls/kClientCertRequired constants and point the ssl()/
+        # server_credentials() call at them ONLY when that's actually the
+        # case, so a project where no message's effective_rbac() diverges
+        # from hardening_required (this includes every project using neither
+        # `protected` nor `open` anywhere) renders the exact byte-identical
+        # 2-argument call this bring-up always emitted.
+        emit_tls, client_cert_required = transport_mode(
+            table_msg_objs, hardening_required)
+        mixed = (emit_tls != hardening_required
+                or client_cert_required != hardening_required)
+        if mixed:
+            tls_guard_flag = "kEmitTls"
+            tls_cert_required_arg = ", kClientCertRequired"
+            tls_extra_constants = (
+                "\n"
+                "// message-level-hardening epic, protected-open-modifiers task 3:\n"
+                "// at least one message's protected/open modifier diverges from\n"
+                "// the project-wide default -- see Database/auth_gate.py's\n"
+                "// transport_mode().\n"
+                "inline constexpr bool kEmitTls = {};\n"
+                "inline constexpr bool kClientCertRequired = {};").format(
+                "true" if emit_tls else "false",
+                "true" if client_cert_required else "false")
+        else:
+            tls_guard_flag = "kHardeningRequired"
+            tls_cert_required_arg = ""
+            tls_extra_constants = ""
+
         write_if_different(
             os.path.join(self.httpDir, HTTP_SERVER_BRINGUP),
             _BRINGUP.format(
                 rest_includes=rest_includes,
                 soap_includes=soap_includes,
                 registrations=registrations,
-                session_includes=_SESSION_INCLUDES if rbac else "",
-                session_registration=_SESSION_REGISTRATION if rbac else "",
-                session_defs=_SESSION_DEFS if rbac else "",
-                hardening="true" if hardening else "false",
+                session_includes=_SESSION_INCLUDES if any_rbac else "",
+                session_registration=_SESSION_REGISTRATION if any_rbac else "",
+                session_defs=_SESSION_DEFS if any_rbac else "",
+                hardening="true" if hardening_required else "false",
+                tls_extra_constants=tls_extra_constants,
+                tls_guard_flag=tls_guard_flag,
+                tls_cert_required_arg=tls_cert_required_arg,
                 crypto_backend=backend.name,
                 openssl_provider=backend.openssl_provider,
             ))
 
         selection = {
-            "hardening_required": hardening,
+            "hardening_required": hardening_required,
             "crypto_backend": backend.name,
             "cmake_package": backend.cmake_package,
             "openssl_provider": backend.openssl_provider,
