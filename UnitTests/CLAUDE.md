@@ -104,6 +104,24 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   modifier and is line-for-line identical to the same message without it, and
   neither modifier flips `isOneToMany` (no `ORIGINATOR_<hash>` field) — flag
   only, the REST/SOAP/gRPC auth-gate wiring is epic task 3. Pure Python.
+- `test_message_hardening_gate.py` — message-level-hardening initiative,
+  protected-open-modifiers epic task 3: per-message REST/SOAP/gRPC gating.
+  Unit (pure Python): `auth_gate.effective_rbac()` / `transport_mode()` truth
+  tables. Structural (pure Python, via RestAdapter/SoapAdapter/
+  GrpcServiceAdapter driven with stub messages, the
+  `test_hardening_flag_follows_compliance` pattern): a project where no
+  message's `effective_rbac()` diverges from the project default (this
+  includes every project using neither modifier anywhere, and the redundant
+  `open`-under-open / `protected`-under-hardened cases) renders the exact
+  byte-identical `kHardeningRequired`-only bring-up call; a divergent project
+  renders the new `kEmitTls`/`kClientCertRequired` constants, routes each
+  message to the correct gate helper (`authz_<name>`/`rbac_check` vs
+  `authorized_<name>`/the flat metadata check), and copies the RBAC/session
+  runtime whenever ANY message needs it, not just when the whole project is
+  hardened. Does not re-test the underlying gate mechanisms themselves
+  (`harpia_rbac.h`'s `decide()`, the flat credential check) — those are
+  unchanged and already covered by `test_rbac.py` / `test_stage11_soap.py` /
+  `test_stage12_rest.py` / `test_stage13.py`; what's new here is routing.
 - `test_mtls_optional_mode_spike.py` — message-level-hardening initiative,
   protected-open-modifiers epic task 2: the mTLS-optional-mode go/no-go
   spike (see its module docstring for the full written finding — go, both

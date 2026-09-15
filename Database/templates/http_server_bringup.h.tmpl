@@ -53,7 +53,7 @@ namespace harpia {{
 namespace http_transport {{
 
 // transport_hardening_required(compliance) evaluated at generation time.
-inline constexpr bool kHardeningRequired = {hardening};
+inline constexpr bool kHardeningRequired = {hardening};{tls_extra_constants}
 // F5 CryptoBackend seam selection (recorded; see http_server_selection.json).
 inline constexpr const char* kCryptoBackend = "{crypto_backend}";
 inline constexpr const char* kOpenSSLProvider = "{openssl_provider}";
@@ -62,7 +62,7 @@ inline constexpr const char* kOpenSSLProvider = "{openssl_provider}";
 // A hardened project must be built with TLS support -- refuse to produce a
 // plaintext server for it (compile-time fail-safe, mirrors
 // harpia_grpc_mtls.h / harpia_dds_security.h throwing at run time).
-static_assert(!kHardeningRequired,
+static_assert(!{tls_guard_flag},
     "transport_hardening_required(compliance) is true for this project: build "
     "the generated HTTP server with -DCROW_ENABLE_SSL (and link OpenSSL) so it "
     "can enforce mTLS. It will not serve plaintext.");
@@ -79,8 +79,8 @@ public:
                const std::string& soap_base = "/soap",
                const MtlsFiles& mtls = {{}}) {{
         register_all(db, rest_base, soap_base);
-        if (kHardeningRequired) {{
-            app_.ssl(make_server_context(kHardeningRequired, mtls));
+        if ({tls_guard_flag}) {{
+            app_.ssl(make_server_context({tls_guard_flag}, mtls{tls_cert_required_arg}));
         }}
     }}
 #else
