@@ -71,8 +71,10 @@ consumer's guide ("I have a `.harpia` file, how do I use the output") see
     error.
 - classify each message's **transport modifiers** (`stream` / `pull` / `push` /
   `event` / `event[cached]` / `event[not-cached]` / `dds`) and **type
-  modifiers** (`critical`). These are AST flags only — a message with any of
-  them emits **byte-identical `.proto`** to the same message without them.
+  modifiers** (`critical`, `protected`, `open`). These are AST flags only — a
+  message with any of them emits **byte-identical `.proto`** to the same
+  message without them. `protected` + `open` together on one message is a
+  hard generation error (never a silent precedence rule) — see Stage 5.
 - build a processing order from cross-message references; check every composed
   field's type name resolves.
 
@@ -106,6 +108,27 @@ Per message / field, emit the sidecar flags later stages read:
 - when `transport_hardening_required(context)` the flat gate is replaced at
   generation time by the RBAC gate (Stage 12/13, below) — the credential is
   still emitted but unused.
+- **`protected` / `open` (message-level-hardening epic, protected-open-
+  modifiers)** override this project-wide choice **per message**
+  (`Database/auth_gate.effective_rbac()`): `protected` always selects the RBAC
+  gate regardless of the project default; `open` always selects the flat gate
+  regardless of it (this is a downgrade to the flat credential check, never
+  "no gate at all"). A message using neither inherits the project-wide
+  default unchanged — the byte-identical-output guarantee. Scope is the
+  REST/SOAP/gRPC RBAC/session axis only; ZMQ CURVE and DDS-Security stay
+  project-wide (a later epic). Deliberately no composition propagation: a
+  message's own modifier is the only input to its own gate — composing an
+  `open` message inside a `protected` one does not force it protected. When a
+  message's per-message gate diverges from the project default,
+  `Database/auth_gate.transport_mode()` also promotes the whole project's
+  REST/SOAP/gRPC transport to the shape that override needs (Stage 12/13):
+  a `protected` message in an otherwise-unhardened project turns TLS on
+  (client cert requested, not required — it needs *a* transport to check a
+  cert on at all); an `open` message in an otherwise-hardened project relaxes
+  the client-cert requirement project-wide, while every other message's own
+  gate still enforces its own requirement. A project where no message
+  diverges from the default renders byte-identical output to before this
+  epic.
 
 ## Stage 6 — clean `.proto`
 
@@ -227,7 +250,10 @@ schema, DAO SQL, migration and WSDL never drift.
   (`route_dynamic`), content-negotiated JSON/XML, GET-list paginated via
   `?limit=&offset=`.
 - **access gate** (`Database/auth_gate.py`) — two generation-time variants,
-  chosen by `transport_hardening_required`:
+  chosen **per message** (Stage 5's `effective_rbac()` — a `protected`/`open`
+  modifier overrides the project-wide `transport_hardening_required` default
+  for that one message; the transport itself may also be promoted, see
+  Stage 5):
   - **flat**: `X-User` / `X-Pswd` headers must match the Stage 5 credential
     (401 otherwise). This is what the stage tests exercise (pinned low-risk).
   - **hardened (RBAC)**: `admin` / `main` / `guest` role check on the verified
@@ -285,8 +311,9 @@ schema, DAO SQL, migration and WSDL never drift.
 - **gRPC service impl** (`GrpcServiceAdapter`) →
   `generated/cpp/grpc/<name>_<hash>_grpc.h`: concrete impl of the Stage 6/7
   service skeleton, RPCs backed by the DAO (`push`→create, `pullByID`→read,
-  `streamSrc`→list [paginated], `heartBeat`→echo). Same flat/RBAC access gate
-  as REST/SOAP. **Project-wide gRPC bring-up** (≥1 table message):
+  `streamSrc`→list [paginated], `heartBeat`→echo). Same per-message flat/RBAC
+  access gate as REST/SOAP (Stage 5). **Project-wide gRPC bring-up** (≥1 table
+  message):
   `grpc/grpc_server_bringup.h` (`harpia::grpc_transport::GrpcServer` — every
   service on one `ServerBuilder`, mTLS or insecure `ServerCredentials` per the
   hardening flag), `grpc/harpia_grpc_mtls.h` (fail-safe: incomplete PEM paths
@@ -371,8 +398,11 @@ enum Name { a; b = 3; c; }                 // exactly one enumerator must be 0
 - **transport modifiers** (message): `stream`, `pull`, `push`, `event`,
   `event[cached]`, `event[not-cached]`, `dds` — combinable; emit identical
   `.proto`.
-- **type modifier** (message): `critical` — delivery guarantees; combinable
-  with any transport modifier; identical `.proto`.
+- **type modifiers** (message): `critical` — delivery guarantees; `protected`
+  / `open` — force the REST/SOAP/gRPC RBAC/session gate on or off for this
+  one message regardless of the project's compliance profile (both together
+  is a hard generation error); all combinable with any transport modifier
+  and with each other; identical `.proto`.
 - **field modifiers**: `optional` / `required` (mutually exclusive), `unique`,
   `repeteable`, `pagination[N]`, `renamed_from[old]`, `phi`.
 - **types**: `int`, `string`, an enum name, another message name (composed —
