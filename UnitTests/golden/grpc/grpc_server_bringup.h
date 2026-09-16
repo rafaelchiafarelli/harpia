@@ -40,12 +40,20 @@
 #include "grpc/patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.h"
 #include "grpc/alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.h"
 #include "grpc/telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.h"
+#include "grpc/reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.h"
+#include "grpc/vault_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.h"
 
 namespace harpia {
 namespace grpc_transport {
 
 // transport_hardening_required(compliance) evaluated at generation time.
 inline constexpr bool kHardeningRequired = true;
+// message-level-hardening epic, protected-open-modifiers task 3:
+// at least one message's protected/open modifier diverges from
+// the project-wide default -- see Database/auth_gate.py's
+// transport_mode().
+inline constexpr bool kEmitTls = true;
+inline constexpr bool kClientCertRequired = false;
 // F5 CryptoBackend seam selection (recorded; see grpc_server_selection.json).
 inline constexpr const char* kCryptoBackend = "openssl_fips";
 inline constexpr const char* kOpenSSLProvider = "fips";
@@ -60,7 +68,7 @@ public:
                const MtlsFiles& mtls = {}) {
         ::grpc::ServerBuilder builder;
         builder.AddListeningPort(addr,
-                                 server_credentials(kHardeningRequired, mtls));
+                                 server_credentials(kEmitTls, mtls, kClientCertRequired));
         register_all(db, builder);
         server_ = builder.BuildAndStart();
     }
@@ -97,6 +105,8 @@ private:
         add< ::harpia::grpc_svc::patient_vitals_service>(db, builder);
         add< ::harpia::grpc_svc::alarm_event_service>(db, builder);
         add< ::harpia::grpc_svc::telemetry_service>(db, builder);
+        add< ::harpia::grpc_svc::reception_desk_service>(db, builder);
+        add< ::harpia::grpc_svc::vault_service>(db, builder);
     }
 
     std::vector<std::unique_ptr< ::grpc::Service>> services_;

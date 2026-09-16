@@ -24,6 +24,7 @@ from Util.util import loadTemplate, write_if_different, copy_if_different
 from Database.model import (analyze, type_registry, map_fields, repeated_fields,
                             RepeatedComposedField)
 from Crypto.backend import transport_hardening_required
+from Database.auth_gate import effective_rbac
 
 TEST_EXT = "_test.cpp"
 
@@ -108,7 +109,12 @@ class TestAdapter:
         # transport gate is the three-role RBAC check, not the flat
         # X-User/X-Pswd / <credentials> credential -- so the access / REST / SOAP
         # test bodies exercise the RBAC mechanism instead (see the body
-        # builders). Same predicate the transport templates key off.
+        # builders). message-level-hardening epic, protected-open-modifiers
+        # task 3/4: this project-wide default is no longer the whole answer --
+        # each body builder below calls effective_rbac(msg, self.hardened) to
+        # get the per-message choice (a `protected`/`open` modifier can
+        # override this project-wide value for its own message), same as
+        # RestAdapter/SoapAdapter/GrpcServiceAdapter.
         self.hardened = transport_hardening_required(compliance)
         self.messages = messages
         self.dest = dest
@@ -282,7 +288,7 @@ class TestAdapter:
 
     def _access_rights_body(self, msg):
         cls = msg.name
-        if self.hardened:
+        if effective_rbac(msg, self.hardened):
             # 14.3 (hardened): the flat <credentials> gate is replaced by the
             # three-role RBAC check (transport-authn task 4). The mechanism is
             # compiled into this project (harpia_rbac.h, copied next to the
@@ -432,7 +438,7 @@ class TestAdapter:
         if pk is None:
             return ("    // no primary key: REST id routing deferred (Stage 14d)"
                     "\n    return 0;")
-        if self.hardened:
+        if effective_rbac(msg, self.hardened):
             # hardened profile: the RBAC gate keys on the verified mTLS
             # client-cert CN. This plain (non-TLS) client carries no identity,
             # so every gated route is fail-closed with 401 (UNAUTHENTICATED).
@@ -555,7 +561,7 @@ class TestAdapter:
         if pk is None:
             return ("    // no primary key: SOAP id routing deferred (Stage 14d)"
                     "\n    return 0;")
-        if self.hardened:
+        if effective_rbac(msg, self.hardened):
             # hardened profile: the RBAC gate (run after the operation element is
             # parsed) keys on the mTLS client-cert CN. This plain client has no
             # identity, so a gated operation is fail-closed with a 401 SOAP
@@ -704,7 +710,7 @@ class TestAdapter:
 
     def _app_all_good(self, msg, pk, non_pk, probe):
         cls = msg.name
-        if self.hardened:
+        if effective_rbac(msg, self.hardened):
             # hardened profile: the RBAC-gated HTTP surface needs an mTLS
             # identity this in-process harness has no way to present, so the
             # cross-layer round-trip goes DAO + serializers directly, and the
@@ -804,7 +810,7 @@ class TestAdapter:
         ]
         L += self._serve(
             ['harpia::rest::register_' + cls + '(app, db, "/api/v1");'], 123)
-        if self.hardened:
+        if effective_rbac(msg, self.hardened):
             # hardened profile: the RBAC gate refuses the anonymous caller (401)
             # before the (missing-table) backend is reached -- still a clean
             # rejection, no crash. The backend-fails-cleanly guarantee is
@@ -906,7 +912,7 @@ class TestAdapter:
                 "    app.stop(); fut.get();",
                 "    return code;",
                 "}",
-            ] if self.hardened else [
+            ] if effective_rbac(msg, self.hardened) else [
                 "    " + self._rest_headers_decl(msg),
                 "    int code = 0;",
                 "    do {",
