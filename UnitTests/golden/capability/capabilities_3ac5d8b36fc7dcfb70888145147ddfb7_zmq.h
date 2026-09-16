@@ -61,6 +61,7 @@ public:
         "prince",
         "pump_tick",
         "queen",
+        "reception_desk",
         "route",
         "sensor_feed",
         "shipment",
@@ -68,6 +69,7 @@ public:
         "top_users",
         "trace_row",
         "users",
+        "vault",
         "vip_users",
         "vitals_publication",
         "waypoint"

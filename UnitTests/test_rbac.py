@@ -455,14 +455,23 @@ def test_rest_and_soap_rbac_over_mtls(generated):
         st, txt = soap_call("admin", get_body)
         assert st == 200 and "getResponse" in txt, (st, txt)
 
-        # no client cert -> refused at the TLS handshake, never reaches the gate
+        # no client cert -> refused. HarpiaTest/test.harpia now also has an
+        # `open` message (message-level-hardening epic, protected-open-
+        # modifiers task 4's reception_desk fixture) alongside `users`, so
+        # this project's transport itself no longer refuses a certless
+        # handshake outright (task 2's "requested, not required" mode) --
+        # the refusal for `users` (still a plain, fully-RBAC-gated message)
+        # now happens one layer up, at the RBAC gate (401), not the TLS
+        # handshake. See UnitTests/test_mixed_mode_fixture.py for the
+        # dedicated proof of the new mixed-mode behaviour itself.
         bare = ssl.create_default_context(cafile=g["ca"])
         bare.check_hostname = False
-        with pytest.raises((ssl.SSLError, ConnectionError, OSError)):
-            nc = http.client.HTTPSConnection("127.0.0.1", port, context=bare,
-                                             timeout=15)
-            nc.request("GET", "/v1/users")
-            nc.getresponse()
+        nc = http.client.HTTPSConnection("127.0.0.1", port, context=bare,
+                                         timeout=15)
+        nc.request("GET", "/v1/users")
+        resp = nc.getresponse()
+        assert resp.status == 401
+        nc.close()
     finally:
         try:
             proc.stdin.close()
