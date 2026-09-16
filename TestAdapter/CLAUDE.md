@@ -43,7 +43,7 @@ Invoked from `main.py` and `UnitTests/run_pipeline.py` after all other adapters.
   what the other adapters emit (all keyed off `Message.md5Hash`).
 - `_pick_rep` prefers a message with a PK + text field + no composed field so the
   cross-layer app round-trip stays flat/deterministic.
-- **Access gate — two variants, chosen by `transport_hardening_required(self.compliance)`** (same predicate the transport templates use; `self.hardened` set in `__init__`):
+- **Access gate — two variants, chosen per message by `Database.auth_gate.effective_rbac(msg, self.hardened)`** (message-level-hardening epic, protected-open-modifiers tasks 3/4 — `self.hardened` set in `__init__` from `transport_hardening_required(self.compliance)` is now only the project-wide *default*; a `protected`/`open` modifier on `msg` overrides it for that message's own test body, same as `RestAdapter`/`SoapAdapter`/`GrpcServiceAdapter`. Every body builder below (`_access_rights_body`, `_rest_body`, `_soap_body`, `_app_all_good`, `_app_crash`, `_app_non_parseable`) calls `effective_rbac(msg, self.hardened)` instead of reading `self.hardened` directly — a project using neither modifier anywhere is unaffected, since `effective_rbac` then just returns `self.hardened` unchanged):
   - **flat** (default when not hardened): SOAP `<credentials><user>=msg.name</user><pswd>=md5Hash`; REST `X-User`/`X-Pswd` headers. Wrong/absent → 401. The generated `access_rights()` unit-tests `harpia::soap::authorized_<name>` directly; `rest_api()`/`soap_api()`/the app test do full credentialed round-trips.
   - **RBAC** (hardened — transport-authn task 4): the flat helper doesn't exist, so `_access_rights_body` checks the `harpia::rbac` matrix (`permitted()` for a spread of `(Role, Operation)` + `decide("", …) == unauthenticated`) against the copied `harpia_rbac.h`; `_rest_body`/`_soap_body`/`_app_all_good`/`_app_crash`/`_app_non_parseable` do their substance via the DAO + serializers directly and assert the HTTP surface is **fail-closed** (an anon, no-client-cert caller gets 401 / a 401 SOAP Fault) — the lightweight in-process harness can't present an mTLS identity, so 403/200 over mTLS stays harpia's own `UnitTests/test_rbac.py`. `test_stage14.py` runs the repo's (hardened) profile for `generated`; `test_flat_profile_ctest_builds_and_passes` covers the flat bodies under a low-risk profile.
 - `_vendor_deps` copies from repo `third_party/` only if present; `_write_cmake`
@@ -64,7 +64,8 @@ Invoked from `main.py` and `UnitTests/run_pipeline.py` after all other adapters.
 ## Touchpoints
 - Called by: `main.py`, `UnitTests/run_pipeline.py`.
 - Depends on: `Util.util.loadTemplate` (reads templates dir next to this file),
-  `Database.model`, `Crypto.backend.transport_hardening_required` (the RBAC-vs-flat
-  gate switch), `Logger.logger`, repo-level `third_party/`.
+  `Database.model`, `Crypto.backend.transport_hardening_required` (the project-wide
+  RBAC-vs-flat default) + `Database.auth_gate.effective_rbac` (the per-message
+  override), `Logger.logger`, repo-level `third_party/`.
 - Verified by: `UnitTests/test_stage14.py` and golden snapshots in
   `UnitTests/golden/gen_tests/`.

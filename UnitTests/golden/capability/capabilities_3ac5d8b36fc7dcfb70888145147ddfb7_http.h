@@ -65,6 +65,7 @@ inline void register_capabilities(crow::SimpleApp& app, const std::string& base)
             "prince",
             "pump_tick",
             "queen",
+            "reception_desk",
             "route",
             "sensor_feed",
             "shipment",
@@ -72,6 +73,7 @@ inline void register_capabilities(crow::SimpleApp& app, const std::string& base)
             "top_users",
             "trace_row",
             "users",
+            "vault",
             "vip_users",
             "vitals_publication",
             "waypoint"
