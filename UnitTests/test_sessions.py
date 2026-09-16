@@ -578,14 +578,22 @@ def test_rest_and_soap_sessions_over_mtls(generated):
                        headers={"Authorization": "Bearer " + soap_tok})
         assert st == 200 and "setResponse" in txt, (st, txt)    # token: allowed
 
-        # no client cert at all -> refused at the TLS handshake
+        # no client cert at all -> refused. HarpiaTest/test.harpia now also
+        # has an `open` message (message-level-hardening epic, protected-
+        # open-modifiers task 4's reception_desk fixture), so this project's
+        # transport no longer refuses a certless handshake outright (task
+        # 2's "requested, not required" mode) -- session issuance itself
+        # still refuses an empty client-cert CN (401), just one layer up
+        # from the TLS handshake. See UnitTests/test_mixed_mode_fixture.py
+        # for the dedicated proof.
         bare = ssl.create_default_context(cafile=g["ca"])
         bare.check_hostname = False
-        with pytest.raises((ssl.SSLError, ConnectionError, OSError)):
-            nc = http.client.HTTPSConnection("127.0.0.1", port, context=bare,
-                                             timeout=15)
-            nc.request("POST", "/v1/session")
-            nc.getresponse()
+        nc = http.client.HTTPSConnection("127.0.0.1", port, context=bare,
+                                         timeout=15)
+        nc.request("POST", "/v1/session")
+        resp = nc.getresponse()
+        assert resp.status == 401
+        nc.close()
     finally:
         try:
             proc.stdin.close()
