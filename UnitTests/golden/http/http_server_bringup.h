@@ -54,6 +54,8 @@
 #include "rest/patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
 #include "rest/alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
 #include "rest/telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
+#include "rest/reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
+#include "rest/vault_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
 #include "soap/data_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
 #include "soap/users_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
 #include "soap/vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
@@ -66,6 +68,8 @@
 #include "soap/patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
 #include "soap/alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
 #include "soap/telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
+#include "soap/reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
+#include "soap/vault_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
 #include "http/harpia_rbac.h"
 #include "http/harpia_session.h"
 #ifdef CROW_ENABLE_SSL
@@ -77,6 +81,12 @@ namespace http_transport {
 
 // transport_hardening_required(compliance) evaluated at generation time.
 inline constexpr bool kHardeningRequired = true;
+// message-level-hardening epic, protected-open-modifiers task 3:
+// at least one message's protected/open modifier diverges from
+// the project-wide default -- see Database/auth_gate.py's
+// transport_mode().
+inline constexpr bool kEmitTls = true;
+inline constexpr bool kClientCertRequired = false;
 // F5 CryptoBackend seam selection (recorded; see http_server_selection.json).
 inline constexpr const char* kCryptoBackend = "openssl_fips";
 inline constexpr const char* kOpenSSLProvider = "fips";
@@ -85,7 +95,7 @@ inline constexpr const char* kOpenSSLProvider = "fips";
 // A hardened project must be built with TLS support -- refuse to produce a
 // plaintext server for it (compile-time fail-safe, mirrors
 // harpia_grpc_mtls.h / harpia_dds_security.h throwing at run time).
-static_assert(!kHardeningRequired,
+static_assert(!kEmitTls,
     "transport_hardening_required(compliance) is true for this project: build "
     "the generated HTTP server with -DCROW_ENABLE_SSL (and link OpenSSL) so it "
     "can enforce mTLS. It will not serve plaintext.");
@@ -102,8 +112,8 @@ public:
                const std::string& soap_base = "/soap",
                const MtlsFiles& mtls = {}) {
         register_all(db, rest_base, soap_base);
-        if (kHardeningRequired) {
-            app_.ssl(make_server_context(kHardeningRequired, mtls));
+        if (kEmitTls) {
+            app_.ssl(make_server_context(kEmitTls, mtls, kClientCertRequired));
         }
     }
 #else
@@ -144,6 +154,10 @@ private:
         ::harpia::soap::register_alarm_event_soap(app_, db, soap_base);
         ::harpia::rest::register_telemetry(app_, db, rest_base);
         ::harpia::soap::register_telemetry_soap(app_, db, soap_base);
+        ::harpia::rest::register_reception_desk(app_, db, rest_base);
+        ::harpia::soap::register_reception_desk_soap(app_, db, soap_base);
+        ::harpia::rest::register_vault(app_, db, rest_base);
+        ::harpia::soap::register_vault_soap(app_, db, soap_base);
         register_session(rest_base, soap_base);
     }
 

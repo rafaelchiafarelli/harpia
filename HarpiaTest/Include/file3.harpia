@@ -185,3 +185,25 @@ event[not-cached] message pump_tick{
     int sequence;
     int rate_mhz;
 };
+
+// exercises the open message-level hardening modifier (message-level
+// hardening initiative, protected-open-modifiers epic task 4). This
+// project (HarpiaTest test.harpia own compliance profile is class_c
+// cloud_connected, hardened) serves this message REST SOAP gRPC endpoints
+// to an anonymous caller with no client cert, while every other message
+// here keeps the RBAC session gate unchanged. See
+// UnitTests/test_mixed_mode_fixture.py.
+open message reception_desk{
+    string visitor_name;
+}reception_desk_table;
+
+// exercises the protected message-level hardening modifier (message-level
+// hardening initiative, protected-open-modifiers epic task 4). Under a
+// low risk compliance profile this project is otherwise unhardened, but
+// this message REST SOAP gRPC endpoints still refuse an anonymous caller,
+// the same way a hardened project RBAC gate does. Every other message
+// here stays on the flat credential check. See
+// UnitTests/test_mixed_mode_fixture.py.
+protected message vault{
+    string secret_code;
+}vault_table;
