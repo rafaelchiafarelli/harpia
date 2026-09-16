@@ -34,7 +34,7 @@ inline constexpr std::string_view kProjectName = "default";
 
 // One row per table-bearing message, deduped by table name, sorted.
 // note: table "user_table" is also declared PRIVATE by message "top_users" -- kept the first declaration above
-inline constexpr std::size_t kRegistrySize = 11;
+inline constexpr std::size_t kRegistrySize = 13;
 inline constexpr std::array<RegistryEntry, kRegistrySize> kRegistry = {{
     harpia::db::RegistryEntry{"alarm_event_table", harpia::db::Visibility::PRIVATE, "default"},
     harpia::db::RegistryEntry{"beacon_log_table", harpia::db::Visibility::PRIVATE, "default"},
@@ -42,11 +42,13 @@ inline constexpr std::array<RegistryEntry, kRegistrySize> kRegistry = {{
     harpia::db::RegistryEntry{"journey_table", harpia::db::Visibility::PRIVATE, "default"},
     harpia::db::RegistryEntry{"outpost_table", harpia::db::Visibility::PRIVATE, "default"},
     harpia::db::RegistryEntry{"patient_vitals_table", harpia::db::Visibility::PRIVATE, "default"},
+    harpia::db::RegistryEntry{"reception_desk_table", harpia::db::Visibility::PRIVATE, "default"},
     harpia::db::RegistryEntry{"shipment_table", harpia::db::Visibility::PRIVATE, "default"},
     harpia::db::RegistryEntry{"table_data", harpia::db::Visibility::PRIVATE, "default"},
     harpia::db::RegistryEntry{"table_vip_users", harpia::db::Visibility::PRIVATE, "default"},
     harpia::db::RegistryEntry{"telemetry_table", harpia::db::Visibility::PRIVATE, "default"},
-    harpia::db::RegistryEntry{"user_table", harpia::db::Visibility::PUBLIC, "default"}
+    harpia::db::RegistryEntry{"user_table", harpia::db::Visibility::PUBLIC, "default"},
+    harpia::db::RegistryEntry{"vault_table", harpia::db::Visibility::PRIVATE, "default"}
 }};
 
 inline constexpr const RegistryEntry* find_entry(std::string_view table) {
