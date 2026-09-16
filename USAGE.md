@@ -415,6 +415,51 @@ matrix is fixed: admin = every verb, main = every verb but delete, guest =
 read/list/stream, heartbeat open to all. Each denial is one value-free audit
 record (`rbac_denied` / `session_denied` / `zap_denied`).
 
+### 8.1 Per-message override: `protected` / `open`
+
+The compliance profile picks one project-wide default, but a single message
+can override it (message-level-hardening epic, protected-open-modifiers):
+
+```
+protected message alarm_event { ... } alarm_event_table;  // always RBAC-gated
+open message catalog { ... } catalog_table;                // always the flat gate
+```
+
+- `protected message` — this message's REST/SOAP/gRPC endpoints always use
+  the RBAC/session gate above, even in a project whose compliance profile
+  does not request hardening.
+- `open message` — this message's endpoints always use the flat
+  `X-User`/`X-Pswd`-style credential (Stage 5), even in an otherwise-hardened
+  project. This is a downgrade to that credential, not "no check at all" —
+  a caller still needs it, it just never needs a client certificate.
+- Both on the same message is a generation-time error — fix the schema, it
+  is never silently resolved one way or the other.
+- A message using neither modifier is unaffected: it inherits whatever the
+  project's compliance profile already decides, byte-identically to before
+  this feature existed.
+- **Scope**: the REST/SOAP/gRPC RBAC/session axis only. ZMQ CURVE key
+  distribution and DDS-Security participant identity stay project-wide
+  (§11, §12) — a later epic, not yet per-message.
+- **No composition propagation**: a message's own `protected`/`open` is the
+  only input to its own gate. If a `protected` message composes another
+  message that has its own independent table (and therefore its own
+  independent endpoints), that composed message is NOT automatically
+  protected too — mark it explicitly if it needs to be. Losing protection
+  this way is a schema-authoring decision harpia does not infer or block.
+- **A `protected` message in an otherwise-unhardened project, or an `open`
+  message in an otherwise-hardened one, changes that project's transport,
+  not just the one message.** Crow/gRPC serve one listening socket per
+  project, so "TLS on for this route only" isn't possible at the transport
+  layer; instead the whole project's REST/SOAP/gRPC transport switches to
+  "client certificate requested, but not required" (confirmed feasible and
+  proven live in `UnitTests/test_mtls_optional_mode_spike.py`) — every other
+  message's own gate keeps enforcing its own requirement regardless. A
+  `protected` message under an unhardened default additionally needs real
+  mTLS PEM files supplied at runtime (the same `MtlsFiles`/env-driven
+  provisioning as §8 above) even though the project itself isn't
+  "hardened" — without them the generated code refuses to start rather than
+  silently serving that message in the clear.
+
 ---
 
 ## 9. `phi` fields — encryption, redaction, audit

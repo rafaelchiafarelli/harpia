@@ -57,9 +57,17 @@ design vision, not current status):
   Residuals: ZMQ CURVE is encryption only, no credential gate of its own
   (unlike REST/SOAP/gRPC's `X-User`/`X-Pswd`); and the Windows vcpkg
   `zeromq` `curve`+`sodium` build is unverified (Linux/Docker only so far).
-- **No multi-tier RBAC.** Every credential-gated surface checks a single
-  flat `X-User`/`X-Pswd`-style secret, not the admin/main/guest roles the
-  spec describes.
+- **Per-message hardening override — ✅ shipped, REST/SOAP/gRPC only.**
+  `admin`/`main`/`guest` RBAC + bearer sessions (below) used to be one
+  project-wide choice; the message-level-hardening epic
+  (protected-open-modifiers) adds `protected`/`open` DSL modifiers so a
+  single message can force the RBAC gate on, or the flat `X-User`/`X-Pswd`-
+  style credential on, regardless of the project's own compliance profile
+  (`Database/auth_gate.effective_rbac()`) — a project using neither modifier
+  anywhere is byte-identical to before this epic. **Still project-wide
+  only:** ZMQ CURVE key distribution (no credential gate of its own to begin
+  with, see the residual above) and DDS-Security participant identity — a
+  later epic, not yet scoped.
 - **Additional language targets.** Java is a **fully shipped** second
   target (stages 8–14 equivalents: DB ×2 dialects, JSON, XML, REST, SOAP,
   ZMQ core+CURVE, generated JUnit tests, Gradle packaging; the Docker image
