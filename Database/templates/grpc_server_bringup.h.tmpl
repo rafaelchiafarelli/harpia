@@ -34,7 +34,7 @@ namespace harpia {{
 namespace grpc_transport {{
 
 // transport_hardening_required(compliance) evaluated at generation time.
-inline constexpr bool kHardeningRequired = {hardening};
+inline constexpr bool kHardeningRequired = {hardening};{tls_extra_constants}
 // F5 CryptoBackend seam selection (recorded; see grpc_server_selection.json).
 inline constexpr const char* kCryptoBackend = "{crypto_backend}";
 inline constexpr const char* kOpenSSLProvider = "{openssl_provider}";
@@ -49,7 +49,7 @@ public:
                const MtlsFiles& mtls = {{}}) {{
         ::grpc::ServerBuilder builder;
         builder.AddListeningPort(addr,
-                                 server_credentials(kHardeningRequired, mtls));
+                                 server_credentials({tls_guard_flag}, mtls{tls_cert_required_arg}));
         register_all(db, builder);
         server_ = builder.BuildAndStart();
     }}

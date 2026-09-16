@@ -11,12 +11,27 @@
 // context. This header builds that context.
 //
 //   hardening_required == true  -> the bring-up calls make_server_context() and
-//                                  hands the result to app.ssl(); a client with
-//                                  no cert is rejected at the TLS handshake. An
-//                                  incomplete MtlsFiles throws SecurityRefused
-//                                  -- never a silent plaintext server.
+//                                  hands the result to app.ssl(); an incomplete
+//                                  MtlsFiles throws SecurityRefused -- never a
+//                                  silent plaintext server.
 //   hardening_required == false -> the bring-up never touches this header; the
 //                                  app serves plain HTTP exactly as before.
+//
+// `client_cert_required` (message-level-hardening epic, protected-open-
+// modifiers task 3; default true, so every existing call site is unaffected):
+// when hardening is on but the project mixes a project-wide default with a
+// per-message override (an `open` message under a hardened default, or a
+// `protected` message forcing hardening on in an otherwise-open project --
+// see Database/auth_gate.py's `transport_mode()`), pass false to get task 2's
+// confirmed "requested, not required" mode instead of full mTLS: a client
+// with no certificate still completes the handshake (`crow::request::
+// client_cert_cn` comes back "" for that connection, the input
+// Compliance/runtime/harpia_rbac.h's `decide()` already treats as
+// unauthenticated), while a certificate that IS presented is still fully
+// verified against the CA -- this never means "unverified when presented",
+// only "not mandatory at the TLS layer". The per-message RBAC/flat choice
+// (unchanged, computed by auth_gate.py) is what actually enforces each
+// message's own requirement on top of this.
 //
 // The per-route X-User/X-Pswd (REST) and <credentials> (SOAP) checks are
 // unchanged and still run on top of whatever transport this selects.
@@ -64,14 +79,19 @@ public:
 };
 
 // A server-side asio::ssl::context configured for mTLS: this server's cert/key,
-// and -- the point -- verify_peer | verify_fail_if_no_peer_cert against
-// files.ca_certificate, so a client presenting no certificate is refused at the
-// handshake. Hand the result to crow: `app.ssl(std::move(ctx))`.
+// and -- the point -- verify_peer (optionally | verify_fail_if_no_peer_cert)
+// against files.ca_certificate. Hand the result to crow: `app.ssl(std::move(ctx))`.
 //
 // `hardening_required` false is a programming error here (the bring-up only
 // calls this when true) -- it throws, symmetric with harpia_grpc_mtls.h.
-inline asio::ssl::context make_server_context(bool hardening_required,
-                                              const MtlsFiles& files) {
+// `client_cert_required` true (default): a client presenting no certificate
+// is refused at the handshake -- today's full-mTLS behaviour, unchanged.
+// false: a client with no certificate still completes the handshake (task
+// 2's "requested, not required" mode); one that DOES present a certificate
+// is still fully verified against files.ca_certificate.
+inline asio::ssl::context make_server_context(
+        bool hardening_required, const MtlsFiles& files,
+        bool client_cert_required = true) {
     if (!hardening_required) {
         throw SecurityRefused(
             "make_server_context() called without hardening required");
@@ -89,8 +109,10 @@ inline asio::ssl::context make_server_context(bool hardening_required,
     ctx.use_certificate_chain_file(files.certificate);
     ctx.use_private_key_file(files.private_key, asio::ssl::context::pem);
     ctx.load_verify_file(files.ca_certificate);
-    ctx.set_verify_mode(asio::ssl::verify_peer
-                        | asio::ssl::verify_fail_if_no_peer_cert);
+    ctx.set_verify_mode(client_cert_required
+                        ? (asio::ssl::verify_peer
+                           | asio::ssl::verify_fail_if_no_peer_cert)
+                        : asio::ssl::verify_peer);
     return ctx;
 }
 

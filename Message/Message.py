@@ -32,6 +32,16 @@ class Message():
     # dedicated bool so they read it instead of re-scanning access_modifiers,
     # same rationale as is_critical / variable.is_phi.
     is_dds = False
+    # message-level-hardening initiative, protected-open-modifiers epic, task
+    # 1: True when the message type carries the `protected`/`open` RBAC/
+    # session-gate modifier. Message-type-level, independent of `is_critical`/
+    # `is_dds` and of any field's `is_phi`. Neither present -> inherits the
+    # project-wide hardening default, unchanged. Both present is a hard
+    # generation-time error (see Process(), CONFLICTING_HARDENING_MODIFIERS),
+    # never a silent precedence rule. Flag only for now -- no adapter reads
+    # either yet, same rationale as is_critical / is_dds.
+    is_protected = False
+    is_open = False
     # events-callbacks epic, task 1: cache mode of the `event` message-type
     # modifier. None ⇔ no `event` modifier; "cached" for bare `event` or
     # `event[cached]` (cached is the standard when unspecified); "not-cached"
@@ -49,6 +59,8 @@ class Message():
         self.access_modifiers = []
         self.is_critical = False
         self.is_dds = False
+        self.is_protected = False
+        self.is_open = False
         self.event_cache_mode = None
         self.log = logger(outFile=None, moduleName="Message")
         self.tableName = ""
@@ -106,6 +118,29 @@ class Message():
                         if access[0] == 'DDS':
                             self.is_dds = True
                             break
+                    ##RBAC/session-gate axis (message-level-hardening
+                    ##initiative, protected-open-modifiers epic, task 1):
+                    ##independent of the transport kind, criticality and DDS
+                    ##axes above, so its own scans -- `protected`/`open` can
+                    ##appear with or without any of them, in any order.
+                    for access in self.access_modifiers:
+                        if access[0] == 'PROTECTED':
+                            self.is_protected = True
+                            break
+                    for access in self.access_modifiers:
+                        if access[0] == 'OPEN':
+                            self.is_open = True
+                            break
+                    ##Both on the same message is a hard generation-time
+                    ##error -- never a silent precedence rule (same "never
+                    ##silently swallow a failure mode" convention as
+                    ##FieldMap's RESERVED_FIELD_NUMBER_REUSED).
+                    if self.is_protected and self.is_open:
+                        return Error(errCl=Classes.MODIFIERS,
+                            errTp=Types.CONFLICTING_HARDENING_MODIFIERS,
+                            FileName=self.file,
+                            FileLine=token[2],
+                            CharacterNumber=token[3])
                     ##events-callbacks epic task 1: cache mode rides in the
                     ##EVENT token lexeme (`event `, `event[cached] `,
                     ##`event[not-cached] `). Bare event == cached, the
