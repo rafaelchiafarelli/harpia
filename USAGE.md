@@ -464,6 +464,15 @@ open message catalog { ... } catalog_table;                // always the flat ga
 
 ## 9. `phi` fields — encryption, redaction, audit
 
+**Current cipher is a placeholder, not a real one.** The envelope-encryption
+machinery below (KEK/DEK separation, rotation, per-DEK crypto-shred,
+zeroization, audit-on-access) is real, but the actual `Dek::seal`/`open` step
+it wraps is an XOR placeholder (`Crypto/backend.py`'s `CryptoBackend` seam
+exists, but no backend has a real cipher bound to it yet). **Do not rely on
+this for confidentiality of real PHI today** — treat "at rest" below as
+describing the envelope and audit trail a real cipher will drop into, not
+current ciphertext strength.
+
 Tag a field `phi` and, with **no other change to your code**:
 
 - **at rest** — the DAO encrypts it on `create`/`update` and decrypts on

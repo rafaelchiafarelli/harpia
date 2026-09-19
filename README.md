@@ -54,9 +54,9 @@ design vision, not current status):
   `HarpiaTest/app_example/consumer -DUSE_TLS=ON`, `USAGE.md` §9. ZMQ has generated CURVE
   encryption (`bind`/`connect` live inside the generated sender/receiver
   classes, so this is a real generated-code change), `USAGE.md` §10.
-  Residuals: ZMQ CURVE is encryption only, no credential gate of its own
-  (unlike REST/SOAP/gRPC's `X-User`/`X-Pswd`); and the Windows vcpkg
-  `zeromq` `curve`+`sodium` build is unverified (Linux/Docker only so far).
+  Residual: ZMQ CURVE is encryption only, no credential gate of its own
+  (unlike REST/SOAP/gRPC's `X-User`/`X-Pswd`). The Windows vcpkg
+  `zeromq` `curve`+`sodium` build is verified — see the Windows bullet below.
 - **Per-message hardening override — ✅ shipped, REST/SOAP/gRPC only.**
   `admin`/`main`/`guest` RBAC + bearer sessions (below) used to be one
   project-wide choice; the message-level-hardening epic
@@ -90,7 +90,8 @@ design vision, not current status):
 - **Compliance / medical-device profile — ✅ shipped (V1).** A
   `project.harpia.yaml` compliance profile (`Compliance/context.py`) now
   drives, when `risk_class: class_c` or `topology: cloud_connected`:
-  field-level `phi` encryption at rest + audit-on-access + `[REDACTED]`
+  field-level `phi` envelope encryption at rest (cipher is currently a
+  placeholder — see `USAGE.md` §9) + audit-on-access + `[REDACTED]`
   serialization, `critical`-message delivery guarantees, mTLS + `admin`/
   `main`/`guest` RBAC + bearer session tokens on REST/SOAP/gRPC, a ZMQ
   CURVE ZAP client-key allowlist, DDS transport with DDS-Security, in-process
