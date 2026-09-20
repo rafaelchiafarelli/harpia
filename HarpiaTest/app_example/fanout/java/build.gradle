@@ -1,0 +1,48 @@
+// A standalone Gradle project that consumes the Java target's generated ZMQ
+// transport as a black box -- the Java half of transport-multipeer-coverage
+// task 6, mirroring HarpiaTest/app_example/fanout/'s C++ CMake project. It
+// does NOT need the Harpia repo's own build -- only a project generated
+// with HARPIA_GEN_LANG=java, pointed at via -PharpiaGenDir.
+//
+//   gradle build -PharpiaGenDir=<path to a harpia-generated java/ project>
+//   java -cp "$(gradle -q classpath -PharpiaGenDir=<...>)" com.harpia.fanout.Subscriber
+plugins {
+    id 'java'
+}
+
+sourceCompatibility = JavaVersion.VERSION_17
+targetCompatibility = JavaVersion.VERSION_17
+
+def harpiaGenDir = project.findProperty('harpiaGenDir')
+if (harpiaGenDir == null) {
+    throw new GradleException(
+        "Set -PharpiaGenDir=<path to a harpia-generated project> " +
+        "(the folder main.py wrote with HARPIA_GEN_LANG=java, containing java/).")
+}
+def harpiaJavaDir = file("${harpiaGenDir}/java")
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // The harpia-generated project's own assembled jar: pump_tick/courier
+    // message classes plus the zmq/ per-message factories -- same
+    // fileTree(jar) pattern app_example/android_consumer/app/build.gradle
+    // uses to consume a generated project as a black box.
+    implementation fileTree(dir: "${harpiaJavaDir}/build/libs", include: ['*.jar'])
+
+    // Kept in lockstep with GradleAdapter/templates/project.gradle.tmpl's
+    // pinned versions -- these are the same runtime deps the generated
+    // project itself declares.
+    implementation 'com.google.protobuf:protobuf-java:3.25.3'
+    implementation 'org.zeromq:jeromq:0.6.0'
+}
+
+// Prints a runnable classpath for the README's plain `java -cp` instructions
+// -- same shape as GradleAdapter's own harpiaRuntimeClasspath task.
+task classpath {
+    doLast {
+        println "FANOUT_CLASSPATH=" + sourceSets.main.runtimeClasspath.asPath
+    }
+}
