@@ -41,9 +41,7 @@ points it doesn't cover:
 | [feature-examples/](feature-examples/README.md) | **Partly shipped.** Fixture cleanup shipped 2026-08-24. The `worked-examples` epic (one small runnable example per generated feature + an index) — not started. |
 | [doxygen-generation.md](doxygen-generation/doxygen-generation.md) | Foundation F6 + Ground Rule 6 plumbing **shipped** 2026-08-23. The `doc-comment-coverage` epic (real per-template doc-comments) — **not started**, next up. |
 | [ci-pipeline/](ci-pipeline/README.md) | **Scoped, not started.** GitHub Actions running the existing `Docker/run.sh pytest UnitTests/` suite on push/PR, plus image-layer caching. 2 tasks, both written. Highest leverage-per-effort of the open initiatives — no CI today means nothing independently re-verifies any "N passed" claim. |
-| [message-level-hardening/](message-level-hardening/README.md) | **Scoped, not started.** New `protected`/`open` message-level DSL modifiers so one project can mix RBAC/session-gated and anonymous REST/SOAP/gRPC endpoints, instead of today's single project-wide all-or-nothing `transport_hardening_required()` switch. 5 tasks written; task 2 is an mTLS-optional-mode spike gating the rest of the epic. ZMQ CURVE / DDS-Security per-message hardening explicitly deferred to a later epic. |
-| [transport-multipeer-coverage/](transport-multipeer-coverage/README.md) | **Scoped, not started.** N-subscriber PUB/SUB fan-out + N-puller PUSH/PULL load-balance + cross-language (C++/Java) versions, currently proven only 1:1. All 6 tasks written; the underlying `ZmqAdapter`/`JavaZmqAdapter` runtime is already peer-count-agnostic (checked directly), so this is test/harness work, not a runtime fix. Sequenced right after doxygen. |
-| [go-target/](go-target/README.md) | **Scoped, not started.** Language #3, full compliance parity except DDS + ZMQ-CURVE/ZAP (pure-Go constraint). `lang-backend-seam` epic's tasks are written; sequenced after `transport-multipeer-coverage`. |
+| [go-target/](go-target/README.md) | **Scoped, not started.** Language #3, full compliance parity except DDS + ZMQ-CURVE/ZAP (pure-Go constraint). `lang-backend-seam` epic's tasks are written; sequenced after doxygen's `doc-comment-coverage` (its other prerequisite, `transport-multipeer-coverage`, shipped 2026-09-26). |
 | [python-target/](python-target/README.md) | **Scoped, not started.** Language #4, full compliance parity with no carve-outs (stdlib + standard C-extension bindings, not pure-Python). Sequenced after the entire `go-target` initiative ships. Supersedes the old "Python as language #3" backlog item below. |
 
 Finished plans are removed from this index once done — the shipped behavior is
@@ -52,7 +50,13 @@ initiative (the medical-device compliance profile: `phi` encryption + audit,
 `critical` delivery, mTLS/RBAC/sessions, DDS, events, serialization, SBOM, …)
 shipped in full as **V1** (2026-09-02) and its plan folder was removed; the
 shipped behavior is in `harpia.process.md`, `USAGE.md`, and the module
-`CLAUDE.md` files. Earlier removed-on-completion plans: Postgres backend
+`CLAUDE.md` files. The **message-level-hardening** initiative (`protected`/`open` per-message
+hardening modifiers) shipped 2026-09-19 — see `USAGE.md` §8.1,
+`harpia.process.md`, `Database/CLAUDE.md`. The **transport-multipeer-coverage**
+initiative (N-peer ZMQ PUB/SUB fan-out + PUSH/PULL load-balance, C++ and
+C++↔Java) shipped 2026-09-26 — see `HarpiaTest/app_example/fanout/README.md`
+and `UnitTests/test_zmq_*fanout*.py` / `test_zmq_*pushpull*.py`.
+Earlier removed-on-completion plans: Postgres backend
 (`Database/CLAUDE.md`), crash/interrupt recovery (`Util/CLAUDE.md`),
 message-versioning (`Message/CLAUDE.md`, `Capability/CLAUDE.md`),
 multi-language Java target (`GradleAdapter/CLAUDE.md` et al.).

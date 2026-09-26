@@ -37,8 +37,8 @@ whichever is clearest to implement once 1/2/4 exist.
 ## Task-level planning status
 
 **Only `lang-backend-seam` (epic 0) has task files written** — see
-`lang-backend-seam/tasks/`. It's the immediate next epic once
-`transport-multipeer-coverage` lands. Epics 1–12 are contract-level only
+`lang-backend-seam/tasks/`. It's the immediate next epic
+(`transport-multipeer-coverage` has landed). Epics 1–12 are contract-level only
 (the table in `../README.md` §7) until each is picked up — see that doc's §7
 closing note for why.
 

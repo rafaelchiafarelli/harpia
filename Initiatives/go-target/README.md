@@ -1,8 +1,8 @@
 # Go Target: Language #3, Full Compliance Parity Except DDS and ZMQ-CURVE
 
 **Status: scoped, not started.** Sequenced after `doxygen-generation`'s
-`doc-comment-coverage` epic and `Initiatives/transport-multipeer-coverage/`
-(both independent of this initiative and expected to land first). Planned
+`doc-comment-coverage` epic and the transport-multipeer-coverage initiative
+(both independent of this initiative; multipeer shipped 2026-09-26). Planned
 2026-09-02/03; not yet branched.
 
 ## 1. What this is
@@ -107,7 +107,7 @@ mainpage plumbing to cover the Go tree as one task.
 | 9 | `go-discovery-fhir` | WS-Discovery responder; HL7 FHIR façade + worked example |
 | 10 | `go-artifacts` | CycloneDX SBOM for the Go module; traceability matrix |
 | 11 | `go-tests` | Generated `*_test.go` per message (field access, JSON/XML/YAML round-trip, DB CRUDL round-trip); `go vet` + `staticcheck` gate |
-| 12 | `tri-language-interop` | *(needs 1–8 merged)* Extends `Initiatives/transport-multipeer-coverage/`'s C++↔Java fan-out/load-balance scenarios to add Go as a third peer; adds shared-DB cross-read/write, gRPC/REST cross-calls, and JSON/XML/YAML byte-parity checks across all three languages, generated from one `.harpia` + one frozen `schema_registry/` |
+| 12 | `tri-language-interop` | *(needs 1–8 merged)* Extends the shipped C++↔Java fan-out/load-balance scenarios (`UnitTests/test_zmq_xlang_*.py`, `HarpiaTest/app_example/fanout/`) to add Go as a third peer; adds shared-DB cross-read/write, gRPC/REST cross-calls, and JSON/XML/YAML byte-parity checks across all three languages, generated from one `.harpia` + one frozen `schema_registry/` |
 
 **Only epic 0's tasks are written** (`epics/lang-backend-seam/tasks/`) — it's
 the next epic in line. Epics 1–12 get their task-level breakdown authored
@@ -121,7 +121,7 @@ than guessed at now.
 
 ```
 doc-comment-coverage (doxygen, independent)
-transport-multipeer-coverage (independent, builds the interop harness epic 12 extends)
+transport-multipeer-coverage (SHIPPED 2026-09-26, built the interop harness epic 12 extends)
         │
         ▼
 lang-backend-seam (epic 0)
