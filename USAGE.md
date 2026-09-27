@@ -415,6 +415,11 @@ the generated `com.harpia.runtime.grpc.HarpiaGrpcTls` (works with
 ```java
 ChannelCredentials creds = HarpiaGrpcTls.credentials(caPem, clientCertPem, clientKeyPem);
 ManagedChannel ch = Grpc.newChannelBuilderForAddress("station", 50051, creds).build();
+
+// optional bearer session (com.harpia.runtime.grpc.HarpiaSession)
+HarpiaSession s = HarpiaSession.issue(ch, users_ServiceGrpc.getHeartBeatMethod());
+var stub = users_ServiceGrpc.newBlockingStub(ch).withInterceptors(s.interceptor());
+s.withRetry(() -> stub.push(msg));   // re-issues once if the token expired
 ```
  Clients
 obtain a token from `POST <rest_base>/session` (REST/SOAP) or `heartBeat` +
