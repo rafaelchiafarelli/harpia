@@ -36,6 +36,13 @@ _SETTINGS_GRADLE_TEMPLATE = loadTemplate(__file__, "settings.gradle.tmpl")
 # Assets/proto/protofiles/Service.proto) -- copied once, not per-message.
 _FRAMEWORK_PROTOS = ("errorCode.proto", "heartBeat.proto")
 
+# mTLS channel credentials for the generated stubs (multi-system-reference /
+# java-hardened-client task 1) -- copied verbatim, same as HarpiaZmq.java.
+_GRPC_TLS_RUNTIME = "HarpiaGrpcTls.java"
+_GRPC_TLS_RUNTIME_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "runtime", _GRPC_TLS_RUNTIME)
+_GRPC_RUNTIME_PACKAGE_DIR = ("com", "harpia", "runtime", "grpc")
+
 
 class GradleAdapter:
     def __init__(self, messages, dest, compliance=None) -> None:
@@ -62,6 +69,12 @@ class GradleAdapter:
                            _BUILD_GRADLE_TEMPLATE)
         write_if_different(os.path.join(self.javaRoot, "settings.gradle"),
                            _SETTINGS_GRADLE_TEMPLATE)
+
+        grpcRuntimeDir = os.path.join(self.javaRoot, "src", "main", "java",
+                                      *_GRPC_RUNTIME_PACKAGE_DIR)
+        os.makedirs(grpcRuntimeDir, exist_ok=True)
+        copy_if_different(_GRPC_TLS_RUNTIME_SRC,
+                          os.path.join(grpcRuntimeDir, _GRPC_TLS_RUNTIME))
 
         copied = 0
         for msg in self.messages:
