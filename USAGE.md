@@ -407,7 +407,16 @@ harpia::grpc_transport::GrpcServer grpc;
 grpc.Start("0.0.0.0:50051");
 ```
 
-Provision a dev PKI with `Assets/cmake/mtls_provision.sh <out_dir>`. Clients
+Provision a dev PKI with `Assets/cmake/mtls_provision.sh <out_dir>`.
+A **Java / Android client** of a hardened C++ server opens its channel with
+the generated `com.harpia.runtime.grpc.HarpiaGrpcTls` (works with
+`grpc-netty-shaded` and `grpc-okhttp`; PEMs as `InputStream`s, key in PKCS#8):
+
+```java
+ChannelCredentials creds = HarpiaGrpcTls.credentials(caPem, clientCertPem, clientKeyPem);
+ManagedChannel ch = Grpc.newChannelBuilderForAddress("station", 50051, creds).build();
+```
+ Clients
 obtain a token from `POST <rest_base>/session` (REST/SOAP) or `heartBeat` +
 `harpia-issue-session` metadata (gRPC), then present `Authorization: Bearer
 <token>` — the token's CN, not the cert, is the identity for that call. The RBAC
