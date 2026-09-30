@@ -47,6 +47,7 @@ from Compliance.rbac_common import (
 from Compliance.session_common import (
     SESSION_RUNTIME, SESSION_RUNTIME_SRC, SESSION_RUNTIME_DEPS)
 from Database.auth_gate import grpc_auth_fills, effective_rbac, transport_mode
+from Database.db_pool_common import DB_POOL_RUNTIME, DB_POOL_RUNTIME_SRC
 from Crypto.backend import get_backend as get_crypto_backend, \
     transport_hardening_required
 
@@ -95,6 +96,12 @@ class GrpcServiceAdapter:
             table_msg_objs.append(msg)
 
         if table_msgs:
+            # db-concurrency task 1a: every service header includes the pool
+            # runtime, which lives next to the DAOs it hands sessions to.
+            dbDir = os.path.join(self.dest, "generated", "cpp", "db")
+            os.makedirs(dbDir, exist_ok=True)
+            copy_if_different(DB_POOL_RUNTIME_SRC,
+                              os.path.join(dbDir, DB_POOL_RUNTIME))
             self._write_server_bringup(table_msgs, table_msg_objs,
                                        hardening_required)
             any_rbac = any(effective_rbac(m, hardening_required)
@@ -131,7 +138,7 @@ class GrpcServiceAdapter:
             '#include "grpc/{}_{}{}"'.format(name, h, GRPC_EXT)
             for name, h in table_msgs)
         registrations = "\n".join(
-            "        add< ::harpia::grpc_svc::{}_service>(db, builder);".format(
+            "        add< ::harpia::grpc_svc::{}_service>(builder, db, pool, lease_timeout_ms);".format(
                 name)
             for name, _ in table_msgs)
         backend = self.crypto_backend

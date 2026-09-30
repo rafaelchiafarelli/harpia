@@ -283,18 +283,43 @@ header. The transport-free parse (`harpia::soap::message_from_request`) is in
 
 ```cpp
 #include "grpc/grpc_server_bringup.h"
-harpia::grpc_transport::GrpcServer server;             // registers every generated service
-server.Start("0.0.0.0:50051");                          // mTLS ServerCredentials when hardened, else insecure
-server.Wait();
+harpia::grpc_transport::MtlsFiles mtls{"ca.pem", "server.pem", "server_key.pem"};
+
+// one client at a time: every RPC shares this session (NOT thread-safe)
+harpia::grpc_transport::GrpcServer server(db, "0.0.0.0:50051", mtls);
+
+// many concurrent clients: each RPC borrows its own session from a pool
+::soci::connection_pool pool(16);
+for (std::size_t i = 0; i < 16; ++i) pool.at(i).open(::soci::postgresql, "host=... dbname=...");
+harpia::grpc_transport::GrpcServer server(pool, "0.0.0.0:50051", mtls,
+                                          /*lease_timeout_ms=*/2000);
+server.wait();
 ```
 
-Or wire one service onto your own `grpc::ServerBuilder`:
+`mtls` is used only when the project is hardened (mTLS required and verified);
+otherwise the server is insecure. Or wire one service onto your own
+`grpc::ServerBuilder`:
 
 ```cpp
 #include "grpc/users_<hash>_grpc.h"
-harpia::grpc_impl::users_service svc(db);
+harpia::grpc_svc::users_service svc(pool);   // or svc(db)
 builder.RegisterService(&svc);
 ```
+
+**Connection pool** (`db/harpia_db_pool.h`, `harpia::db::PooledSession`). With a
+pool, each RPC borrows exactly one session and always gives it back; a borrow
+that waits longer than `lease_timeout_ms` fails the RPC with
+`RESOURCE_EXHAUSTED` "db pool exhausted" instead of hanging; a dead connection
+(server restart, `pg_terminate_backend`) is reconnected on borrow (or the RPC
+fails `UNAVAILABLE` "db reconnect failed"); an exception mid-transaction is
+rolled back before the session goes back. `streamSrc` gives the session back
+before it streams, so a slow reader never holds a slot. Sizing is yours:
+stay under PostgreSQL's `max_connections` (default 100) minus admin headroom —
+each PostgreSQL connection is a server process, heavier on Windows. Tens of
+connections serve hundreds of clients when calls are short; beyond that, put
+PgBouncer in front. On PostgreSQL, the reconnect check pings the server once
+per borrow. The borrow deadline runs on the monotonic clock, so wall-clock
+steps (NTP, VM resume, WSL2 resync) don't cut waits short.
 
 RPCs map `push`→create, `pullByID`→read, `streamSrc`→list (paginated via the
 request's `offset`/`limit`), `heartBeat`→echo. Under hardening `heartBeat` mints
