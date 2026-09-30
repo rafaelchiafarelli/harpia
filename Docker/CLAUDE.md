@@ -5,7 +5,7 @@
 ## Contents
 - `_env.sh` — sourced by all three entrypoints below. Derives `HARPIA_IMAGE` (per-Dockerfile tag) and `HARPIA_GRADLE_VOLUME` (per-clone Gradle cache) and defines `harpia_ensure_image` (build only if that exact tag is missing). See "Concurrent clones" below.
 - `run.sh` — general-purpose entry point. Ensures the image, then `docker run`s the given command (default `bash`).
-- `run_android_emulator_tests.sh` + `_android_emulator_test_entrypoint.sh` — boots a headless Android emulator (hardware-accelerated via `/dev/kvm`) inside the image and runs `HarpiaTest/app_example/android_consumer`'s three `connectedAndroidTest`s against it. Needs `/dev/kvm` on the host (nested virt enabled, if the host itself is a VM). See `HarpiaTest/app_example/android_consumer/README.md` and the Dockerfile's Android SDK comment block for what's baked in vs. wired in at `docker run` time.
+- `run_android_emulator_tests.sh` + `_android_emulator_test_entrypoint.sh` — boots a headless Android emulator (hardware-accelerated via `/dev/kvm`) inside the image and runs `HarpiaTest/app_example/android_consumer`'s `connectedAndroidTest`s against it. The entrypoint also builds and starts hardened C++ servers in the same container (`UnitTests/run_android_hardened_servers.py`, reached from the emulator as `10.0.2.2`) for `HardenedLinksAndroidTest`, and fails if that class was skipped. Needs `/dev/kvm` on the host (nested virt enabled, if the host itself is a VM). See `HarpiaTest/app_example/android_consumer/README.md` and the Dockerfile's Android SDK comment block for what's baked in vs. wired in at `docker run` time.
 
 (`run_harpia.sh` at the repo root — the generate-a-project wrapper — sources `_env.sh` too.)
 
