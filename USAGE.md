@@ -393,7 +393,7 @@ in:
 | `HARPIA_SESSION_KEY` | the HMAC key (raw, or `@<path>`); empty ⇒ sessions disabled |
 | `HARPIA_SESSION_TTL` | token lifetime in seconds (default 900) |
 | `HARPIA_SESSION_REVOCATIONS` | one revoked `jti` per line, re-read on change |
-| `HARPIA_ZMQ_ALLOWLIST` | `<z85-client-public-key> <identity>` per line — deny-all if absent |
+| `HARPIA_ZMQ_ALLOWLIST` | `<z85-client-public-key> <identity>` per line — deny-all if absent. `#` starts a comment only as the first character of a line's first token or of the identity; `#` inside a key is part of the key (it is a Z85 digit) |
 
 Bring the servers up with the generated helpers, which pick mTLS credentials
 automatically when hardened:
@@ -407,7 +407,21 @@ harpia::grpc_transport::GrpcServer grpc;
 grpc.Start("0.0.0.0:50051");
 ```
 
-Provision a dev PKI with `Assets/cmake/mtls_provision.sh <out_dir>`. Clients
+Provision a dev PKI with `Assets/cmake/mtls_provision.sh <out_dir>`.
+A **Java / Android client** of a hardened C++ server opens its channel with
+the generated `com.harpia.runtime.grpc.HarpiaGrpcTls` (works with
+`grpc-netty-shaded` and `grpc-okhttp`; PEMs as `InputStream`s, key in PKCS#8):
+
+```java
+ChannelCredentials creds = HarpiaGrpcTls.credentials(caPem, clientCertPem, clientKeyPem);
+ManagedChannel ch = Grpc.newChannelBuilderForAddress("station", 50051, creds).build();
+
+// optional bearer session (com.harpia.runtime.grpc.HarpiaSession)
+HarpiaSession s = HarpiaSession.issue(ch, users_ServiceGrpc.getHeartBeatMethod());
+var stub = users_ServiceGrpc.newBlockingStub(ch).withInterceptors(s.interceptor());
+s.withRetry(() -> stub.push(msg));   // re-issues once if the token expired
+```
+ Clients
 obtain a token from `POST <rest_base>/session` (REST/SOAP) or `heartBeat` +
 `harpia-issue-session` metadata (gRPC), then present `Authorization: Bearer
 <token>` — the token's CN, not the cert, is the identity for that call. The RBAC
