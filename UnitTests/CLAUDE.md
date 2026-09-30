@@ -58,6 +58,7 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   resolve its service-proto template, so it stays at the repo root and
   passes `pre_lex` an absolute file path instead (accepted as-is by
   `isFileInFolders`). `python3 UnitTests/run_phi_check.py <file> <dest>`.
+- `run_android_hardened_servers.py` — multi-system-reference / java-hardened-client task 4. Not driven by pytest: `Docker/_android_emulator_test_entrypoint.sh` starts it in the background in the emulator's container. `python3 UnitTests/run_android_hardened_servers.py <work_dir> <assets_dir>` builds (via `_java_grpc_server_helpers.build_server`) and starts the hardened C++ `GrpcServer` (mTLS, RBAC `handheld` → main, `HARPIA_SESSION_KEY`) and a C++ `users_publisher` (CURVE + ZAP allowlist of the `handheld` key) on `0.0.0.0` free ports, writes the client PEMs / CURVE keys / `harpia_hardened.properties` (ports) into `<assets_dir>` (passed to the Android build as `-PharpiaHardenedDir`), touches `<work_dir>/READY`, and serves until SIGTERM. Server output goes to `<work_dir>/*.log`.
 - All three run in a **fresh process** because `LexicalAnalyzer` accumulates
   tokens in class-level state — a clean interpreter per run is required.
   Tests invoke them via `subprocess`.
