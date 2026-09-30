@@ -393,7 +393,7 @@ in:
 | `HARPIA_SESSION_KEY` | the HMAC key (raw, or `@<path>`); empty ⇒ sessions disabled |
 | `HARPIA_SESSION_TTL` | token lifetime in seconds (default 900) |
 | `HARPIA_SESSION_REVOCATIONS` | one revoked `jti` per line, re-read on change |
-| `HARPIA_ZMQ_ALLOWLIST` | `<z85-client-public-key> <identity>` per line — deny-all if absent |
+| `HARPIA_ZMQ_ALLOWLIST` | `<z85-client-public-key> <identity>` per line — deny-all if absent. `#` starts a comment only as the first character of a line's first token or of the identity; `#` inside a key is part of the key (it is a Z85 digit) |
 
 Bring the servers up with the generated helpers, which pick mTLS credentials
 automatically when hardened:
