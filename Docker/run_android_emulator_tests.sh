@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Boots a headless Android emulator (hardware-accelerated via /dev/kvm) inside
-# the harpia toolchain container and runs HarpiaTest/app_example/android_consumer's three
+# the harpia toolchain container and runs HarpiaTest/app_example/android_consumer's
 # `connectedAndroidTest`s (J.25 message classes, J.26 gRPC client, J.27 ZMQ
-# client) against it. The emulator + system image are baked into the image
+# client, and HardenedLinksAndroidTest -- real mTLS/session gRPC + CURVE/ZAP ZMQ
+# calls to hardened C++ servers started in the same container) against it. The emulator + system image are baked into the image
 # (Dockerfile) at build time; this script only wires in the one thing that
 # can't be baked in -- hardware virtualization access (/dev/kvm + the kvm
 # group) -- at `docker run` time.

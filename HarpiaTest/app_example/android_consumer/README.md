@@ -36,13 +36,43 @@ not to add Android as a separate generation target with its own adapters:
   they'd even work on Android's API surface.
 
 It exercises this surface, for the `users`/`courier` messages
-([`HarpiaTest/test.harpia`](../../test.harpia)), across three
+([`HarpiaTest/test.harpia`](../../test.harpia)), across four
 instrumented test classes:
 - **message classes + JSON** (`MessageClassesAndroidTest`),
 - **gRPC client** (`GrpcClientAndroidTest`),
-- **ZMQ client** (`ZmqClientAndroidTest`).
+- **ZMQ client** (`ZmqClientAndroidTest`),
+- **hardened links to real C++ servers** (`HardenedLinksAndroidTest`,
+  multi-system-reference / java-hardened-client task 4): the first on-device
+  test that talks to a real harpia server over the network. From the
+  emulator to `10.0.2.2` (the emulator's view of its host):
+  - gRPC over `grpc-okhttp` with mTLS (`HarpiaGrpcTls`) and a bearer session
+    (`HarpiaSession`) against the generated, hardened C++ `GrpcServer`:
+    create a `users` record, read it back;
+  - a JeroMQ CURVE subscriber, allowlisted by a hardened C++ publisher's ZAP
+    handler: receive its `users` stream.
 
-## ✅ Verification status (updated 2026-08-25)
+  The servers are built and started by
+  [`UnitTests/run_android_hardened_servers.py`](../../../UnitTests/run_android_hardened_servers.py),
+  which writes the PEMs, CURVE keys and ports into a folder passed as
+  `-PharpiaHardenedDir=<dir>` (added as androidTest assets; nothing is
+  copied into this tree). Without that property the class skips. The dev
+  PKI's server cert covers `localhost`/`127.0.0.1`, so the test dials
+  `10.0.2.2` and verifies the cert against the CA for the name `localhost`
+  (`overrideAuthority`): test-only; a real deployment issues the server
+  cert for its real address.
+
+## ✅ Verification status (updated 2026-09-29)
+
+**Hardened links, on-device (2026-09-29).** `Docker/run_android_emulator_tests.sh`
+now also builds and starts the hardened C++ servers in the emulator's
+container and fails if `HardenedLinksAndroidTest` was skipped. Result:
+**6/6 passed** (`emulator-5554`, API 34, 0 failures, 0 skipped), including
+`grpcMtlsSessionCreateThenReadOnDevice` and
+`zmqCurveSubscribeFromCppPublisherOnDevice`. No ART-specific failure this
+time: `TlsChannelCredentials` with PKCS#8 PEMs works over `grpc-okhttp`,
+and JeroMQ's CURVE runs on ART and is accepted by libzmq's ZAP handler.
+
+**Earlier (2026-08-25):**
 
 **Verified for real, on-device.** `Docker/run_android_emulator_tests.sh`
 boots a headless Android emulator (hardware-accelerated via `/dev/kvm`)
