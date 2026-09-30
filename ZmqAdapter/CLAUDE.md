@@ -58,7 +58,11 @@
   needs cppzmq) runs one `ZapHandler` per `zmq::context_t` -- a REP loop on
   `inproc://zeromq.zap.01` that z85-encodes each CURVE handshake's client key,
   checks it against `AllowList::from_env()` (the `HARPIA_ZMQ_ALLOWLIST` file,
-  `<z85-key> <identity>` per line, `#` comments), and answers `200`/`400`.
+  `<z85-key> <identity>` per line; `#` starts a comment only at the start of a
+  token — a line whose first token begins with `#` (and isn't a 40-char Z85 key),
+  or an identity token beginning with `#`. `#` is a Z85 digit, so a `#` inside a
+  key is part of the key: before fixes/000005 the parser cut every line at the
+  first `#`, silently denying the ~37% of keys that contain one), and answers `200`/`400`.
   Fail-safe: no file / empty file -> deny every key. One value-free `AuditSink`
   `"zap_denied"` record per rejection (z85 key + identity, never secret
   material -- Rule 5). Idempotent: a second `ensure_running` (or a caller's own
