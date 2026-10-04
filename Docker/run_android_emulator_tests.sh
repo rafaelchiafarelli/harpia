@@ -11,7 +11,10 @@
 # Requires: /dev/kvm on the host (KVM/nested-virt enabled), and the invoking
 # user able to access it (see the --group-add below).
 #
-#   Docker/run_android_emulator_tests.sh
+#   Docker/run_android_emulator_tests.sh                # android_consumer's suite
+#   Docker/run_android_emulator_tests.sh multi_system   # the multi-system reference:
+#       the real handheld app against station + edge in this container
+#       (UnitTests/test_multi_system_example.py's emulator entry)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -48,4 +51,4 @@ docker run --rm -i \
     -e ANDROID_AVD_HOME=/tmp/.android/avd \
     -e JAVA_OPTS="-Duser.home=/tmp" \
     "$HARPIA_IMAGE" \
-    bash /harpia/Docker/_android_emulator_test_entrypoint.sh
+    bash /harpia/Docker/_android_emulator_test_entrypoint.sh "$@"
