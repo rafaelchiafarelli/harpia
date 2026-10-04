@@ -8,6 +8,7 @@ adapter emits a header for (the ``dds`` modifier; enums skipped).
 """
 import os
 
+from Compliance.audit_common import PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC
 from Compliance.dds_common import DDS_SECURITY_DIR
 from DdsAdapter.DdsAdapter import QUEUE_DEPTH, DdsAdapter
 from Logger.logger import logger
@@ -22,6 +23,8 @@ RUNTIMES = (
     ("transport.py", "harpia_runtime.dds.transport"),
     ("security.py", "harpia_runtime.dds.security"),
 )
+#: copied (with the audit sink) only when a `dds` message has a phi field
+AUDIT_MODULE = "harpia_runtime.dds.audit"
 DDS_EXT = "_dds.py"
 
 
@@ -45,6 +48,10 @@ class PyDdsAdapter:
             return None
         for src, module in RUNTIMES:
             copy_runtime_module(self.dest, os.path.join(_RUNTIME_DIR, src), module)
+        if any(DdsAdapter._phi_fields(m) for m in msgs):
+            copy_runtime_module(self.dest, PY_AUDIT_SINK_RUNTIME_SRC, PY_AUDIT_SINK_MODULE)
+            copy_runtime_module(self.dest, os.path.join(_RUNTIME_DIR, "audit.py"),
+                                AUDIT_MODULE)
         os.makedirs(self.outDir, exist_ok=True)
         write_if_different(os.path.join(self.outDir, "__init__.py"),
                            '"""Generated DDS transports, one module per `dds` message."""\n')
@@ -74,6 +81,21 @@ class PyDdsAdapter:
         else:
             qos_attrs = ""
             qos_doc = "latest-value-only -- best-effort, keep-last(1) (design-rules §4b)."
+        phi = DdsAdapter._phi_fields(msg)
+        if phi:
+            base = "AuditedPublisher"
+            phi_attrs = "\n    PHI_FIELDS = {!r}".format(tuple(phi))
+            doc = ("\n\n    ``{}`` carries phi: each ``publish()`` records one "
+                   "``phi_publish`` event\n    (field names only) on ``audit_sink``.".format(
+                       msg.name))
+        else:
+            base, phi_attrs, doc = "Publisher", "", ""
+        publisher_import = ("from harpia_runtime.dds.audit import AuditedPublisher\n"
+                            if phi else "")
+        transport_import = "" if phi else "Publisher, "
         return _TEMPLATE.format(name=msg.name, hash=msg.md5Hash, topic=msg.name,
                                 name_lit=repr(msg.name), qos_attrs=qos_attrs,
-                                qos_doc=qos_doc)
+                                qos_doc=qos_doc, publisher_base=base,
+                                publisher_import=publisher_import,
+                                transport_import=transport_import,
+                                phi_attrs=phi_attrs, publisher_doc=doc)

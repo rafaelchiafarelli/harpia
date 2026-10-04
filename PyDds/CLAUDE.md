@@ -39,11 +39,22 @@ re-derived.
   made first — Cyclone would silently reuse its config), →
   `SecurityRefused`. Never plaintext.
 
+- `runtime/audit.py` → `.audit` (task 4; copied with the audit sink only
+  when a `dds` message has a `phi` field, as C++ copies
+  `harpia_audit_sink.h`): `AuditedPublisher(Publisher[M])` — ctor
+  `(participant=None, topic_name=None, audit_sink=None)`, `PHI_FIELDS`;
+  `publish()` writes, **then** records `("phi_publish", NAME,
+  ",".join(PHI_FIELDS))` — the C++ subject (the message name, even with a
+  custom topic) and detail. Subscriber untouched.
+
 ## Generated
 - `harpia_generated/dds/<name>_<hash>_dds.py` per `dds` message:
   `<name>_publisher(Publisher[<name>])`, `<name>_subscriber(Subscriber[<name>])`;
   a `critical` message's classes set `CRITICAL = True` + `QUEUE_DEPTH =
-  DdsAdapter.QUEUE_DEPTH` (imported, not re-declared).
+  DdsAdapter.QUEUE_DEPTH` (imported, not re-declared). A phi message's
+  publisher subclasses `AuditedPublisher` with `PHI_FIELDS =
+  DdsAdapter._phi_fields(msg)`; a non-phi one stays a plain `Publisher` (no
+  audit parameter, no audit import).
 - `harpia_generated/dds/security/` (task 3): `governance.xml`,
   `permissions.xml`, `dds_security_selection.json`, written by
   `DdsAdapter.write_security_documents` (the C++ adapter's own code; the

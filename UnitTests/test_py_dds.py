@@ -296,3 +296,86 @@ def test_python_publisher_cpp_subscriber(use, peer, kind, name, make):
     assert values == sorted(values) and len(set(values)) == 3
     if kind == "alarm":
         assert values == [1, 2, 3]
+
+
+# -- task 4: phi-over-DDS publish audit ------------------------------------------------
+
+def _sink():
+    base = _mod("harpia_runtime.compliance.audit_sink").AuditSink
+
+    class Rec(base):
+        def __init__(self):
+            self.records = []
+
+        def record(self, operation, subject, detail=""):
+            self.records.append((operation, subject, detail))
+    return Rec()
+
+
+@pytest.mark.parametrize("name,make", [("alarm_event", _alarm), ("vitals_publication", _vitals)])
+def test_phi_publish_audit_like_cpp(use, name, make):
+    import re
+    header = open(os.path.join(use, "generated", "cpp", "dds",
+                               "%s_%s_dds.h" % (name, HASH))).read()
+    want = tuple(re.search(r'audit_\.record\("([^"]+)", "([^"]+)", "([^"]+)"\)',
+                           header).groups())
+    from cyclonedds.domain import DomainParticipant
+    dp = DomainParticipant()
+    sink = _sink()
+    topic = _topic(name)
+    pub = getattr(_dds(name), name + "_publisher")(dp, topic, audit_sink=sink)
+    sub = getattr(_dds(name), name + "_subscriber")(dp, topic)
+    for i in range(5):
+        assert pub.publish(make(i))
+    assert sink.records == [want] * 5
+    assert all("p-py" not in r[2] for r in sink.records)  # field names, never values
+    import inspect
+    assert "audit_sink" not in inspect.signature(type(sub).__init__).parameters
+
+
+def test_phi_audit_records_after_the_write(use):
+    from cyclonedds.domain import DomainParticipant
+    base = _mod("harpia_runtime.compliance.audit_sink").AuditSink
+
+    class Boom(base):
+        def record(self, operation, subject, detail=""):
+            raise RuntimeError("sink down")
+    dp = DomainParticipant()
+    topic = _topic("alarm_event")
+    pub = _dds("alarm_event").alarm_event_publisher(dp, topic, audit_sink=Boom())
+    sub = _dds("alarm_event").alarm_event_subscriber(dp, topic)
+    _wait_match(pub, sub)
+    with pytest.raises(RuntimeError):
+        pub.publish(_alarm(7))
+    got = sub.receive(5.0)  # the write happened before the record
+    assert got is not None and got.severity == 7
+
+
+def test_phi_audit_default_sink(use, monkeypatch):
+    sink = _sink()
+    monkeypatch.setattr(_mod("harpia_runtime.compliance.audit_sink"), "_DEFAULT_SINK", sink)
+    from cyclonedds.domain import DomainParticipant
+    pub = _dds("vitals_publication").vitals_publication_publisher(
+        DomainParticipant(), _topic("vitals_publication"))
+    pub.publish(_vitals(1))
+    assert sink.records == [("phi_publish", "vitals_publication", "patient_ref")]
+
+
+def test_no_phi_dds_message_has_no_audit(tmp_path):
+    from PyDds.PyDdsAdapter import PyDdsAdapter
+
+    class _Msg:
+        name = "plain_stream"
+        md5Hash = "deadbeef"
+        isEnum = False
+        is_critical = False
+        access_modifiers = [("DDS", "dds ")]
+        variables = []
+
+    assert PyDdsAdapter(messages=[_Msg()], dest=str(tmp_path)).Process() is None
+    py = tmp_path / "python"
+    module = (py / "harpia_generated" / "dds" / "plain_stream_deadbeef_dds.py").read_text()
+    assert "udit" not in module and "phi" not in module
+    assert "class plain_stream_publisher(Publisher[plain_stream]):" in module
+    assert not (py / "harpia_runtime" / "dds" / "audit.py").exists()
+    assert not (py / "harpia_runtime" / "compliance").exists()

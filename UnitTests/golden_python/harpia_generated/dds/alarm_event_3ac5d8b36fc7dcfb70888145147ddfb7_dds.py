@@ -14,16 +14,21 @@ documented in :mod:`harpia_runtime.dds.transport`::
 from harpia_generated.protofiles.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_pb2 import (
     alarm_event,
 )
-from harpia_runtime.dds.transport import Publisher, Subscriber
+from harpia_runtime.dds.audit import AuditedPublisher
+from harpia_runtime.dds.transport import Subscriber
 
 
-class alarm_event_publisher(Publisher[alarm_event]):
-    """Publishes ``alarm_event`` on topic ``alarm_event``."""
+class alarm_event_publisher(AuditedPublisher[alarm_event]):
+    """Publishes ``alarm_event`` on topic ``alarm_event``.
+
+    ``alarm_event`` carries phi: each ``publish()`` records one ``phi_publish`` event
+    (field names only) on ``audit_sink``."""
 
     MESSAGE = alarm_event
     NAME = 'alarm_event'
     CRITICAL = True
     QUEUE_DEPTH = 128
+    PHI_FIELDS = ('patient_id',)
 
 
 class alarm_event_subscriber(Subscriber[alarm_event]):
