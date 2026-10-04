@@ -43,6 +43,18 @@ harpia_runtime.compliance.audit_sink
 .. automodule:: harpia_runtime.compliance.audit_sink
    :members:
 
+harpia_runtime.db
+-----------------
+
+.. automodule:: harpia_runtime.db
+   :members:
+
+harpia_runtime.db.bind
+----------------------
+
+.. automodule:: harpia_runtime.db.bind
+   :members:
+
 harpia_runtime.json
 -------------------
 

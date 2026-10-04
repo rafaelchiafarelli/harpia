@@ -53,6 +53,10 @@ class PostgresBackend(DbBackend):
     def int_type(self):
         return "INTEGER"
 
+    # -- DB-API parameter style (Python target) ---------------------------------
+    def param_placeholder(self):
+        return "%s"  # psycopg (DB-API paramstyle format)
+
     # -- columns & tables -----------------------------------------------------
     def column_def(self, sql_type, *, pk=False, required=False, unique=False):
         # caller-assigned PK -- a plain primary key, NOT SERIAL/IDENTITY (the id

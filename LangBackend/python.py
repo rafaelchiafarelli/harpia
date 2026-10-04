@@ -30,6 +30,13 @@ class PythonBackend(CppBackend):
         ctx.report(PySerializationAdapter(messages=messages, dest=dest,
                                           compliance=compliance).Process())
 
+        # database: DB-API bind/extract runtime + generated CRUDL DAOs
+        # (ctx.db_backend: the same DbBackend object the C++ stages use)
+        from PyDatabase.PyDatabaseAdapter import PyDatabaseAdapter
+        ctx.report(PyDatabaseAdapter(messages=messages, dest=dest,
+                                     backend=ctx.db_backend,
+                                     compliance=compliance).Process())
+
         # (later epics add their stages here, above the docs)
 
         # Sphinx skeleton -- LAST: it documents every module already on disk

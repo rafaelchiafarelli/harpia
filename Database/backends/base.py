@@ -65,6 +65,15 @@ class DbBackend(ABC):
         """SOCI backend header for the session-open site
         (e.g. ``soci/sqlite3/soci-sqlite3.h``)."""
 
+    # -- DB-API parameter style (Python target) -------------------------------
+    @abstractmethod
+    def param_placeholder(self) -> str:
+        """The DB-API 2.0 bind placeholder of this dialect's Python driver
+        (``?`` for ``sqlite3``, ``%s`` for ``psycopg``). Only the Python
+        target's generated SQL uses it; C++ binds through SOCI's ``:name``
+        and Java through JDBC's ``?``, both unaffected (python-target /
+        py-database task 1)."""
+
     # -- DDL: types -----------------------------------------------------------
     @abstractmethod
     def sql_type(self, token: str) -> str:
