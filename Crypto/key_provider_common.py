@@ -82,3 +82,15 @@ PY_KEY_PROVIDER_RUNTIME_SRC = os.path.join(_PY_RUNTIME_DIR, "key_provider.py")
 PY_KEY_PROVIDER_RUNTIME_DEPS = (
     (PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC),
 )
+
+#: py-crypto-phi task 2 -- LocalKeyProvider (C++-compatible store + .shred).
+PY_KEY_PROVIDER_LOCAL_MODULE = "harpia_runtime.crypto.key_provider_local"
+PY_KEY_PROVIDER_LOCAL_RUNTIME_SRC = os.path.join(_PY_RUNTIME_DIR, "key_provider_local.py")
+#: py-crypto-phi task 2 -- KmsClient seam, KmsKeyProvider, MockKms.
+PY_KEY_PROVIDER_KMS_MODULE = "harpia_runtime.crypto.key_provider_kms"
+PY_KEY_PROVIDER_KMS_RUNTIME_SRC = os.path.join(_PY_RUNTIME_DIR, "key_provider_kms.py")
+#: each backend imports key_provider (whose own deps then apply)
+PY_KEY_PROVIDER_LOCAL_RUNTIME_DEPS = (
+    (PY_KEY_PROVIDER_MODULE, PY_KEY_PROVIDER_RUNTIME_SRC),
+) + PY_KEY_PROVIDER_RUNTIME_DEPS
+PY_KEY_PROVIDER_KMS_RUNTIME_DEPS = PY_KEY_PROVIDER_LOCAL_RUNTIME_DEPS
