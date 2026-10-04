@@ -26,6 +26,8 @@ class beacon_log_dao(Dao[beacon_log]):
         Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
         Column('ORIGINATOR', ('ORIGINATOR',)),
     )
+    CHILDREN = (
+    )
     CREATE_TABLE_SQL = (
         'CREATE TABLE IF NOT EXISTS "beacon_log_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "label" TEXT, "strength" INTEGER, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR" TEXT);',
     )

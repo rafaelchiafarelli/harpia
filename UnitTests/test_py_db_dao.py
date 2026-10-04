@@ -15,6 +15,11 @@ Image-gated (python protobuf + protoc), against an SQLite file:
   through their own DAO; an unset FK stays absent with no phantom child
   row. g++ + SOCI: C++-written rows read identically in Python and
   Python-written rows read identically in C++.
+- 2c: every generated DAO declares nothing deferred; ``data`` (maps +
+  repeated + embed-nested), ``telemetry`` (repeated composed), ``shipment``
+  and ``top_users`` (repeated FK) round-trip their child tables, update
+  replaces them, remove deletes them; and the cross-language check above
+  compares the **whole** message for every embed/FK/child-table message.
 """
 import importlib
 import os
@@ -259,6 +264,9 @@ def test_unset_fk_stays_absent(name, gen, msgs, tmp_path):
         if col.fk:
             rt._owner(m, col.path, True).ClearField(col.path[-1])
             child_table = rt.dao_class(col.fk).TABLE
+    for child in dao_cls.CHILDREN:
+        if child.fk:  # a repeated FK legitimately creates child rows
+            rt._owner(m, child.path, True).ClearField(child.path[-1])
     assert dao_cls(conn).create(m)
     assert conn.execute('SELECT COUNT(*) FROM "{}"'.format(child_table)).fetchone()[0] == 0
     got = cls()
@@ -268,10 +276,15 @@ def test_unset_fk_stays_absent(name, gen, msgs, tmp_path):
             assert not rt._has_child(got, col), col.name
 
 
+CHILD_TABLES = ("data", "telemetry", "shipment", "top_users")
+CROSS = ("journey", "top_users", "outpost", "data", "telemetry", "shipment")
+
+
 @pytest.mark.skipif(not HAVE_SOCI, reason="needs g++ + SOCI sqlite3 + protobuf")
-@pytest.mark.parametrize("name", EMBED_FK)
+@pytest.mark.parametrize("name", CROSS)
 def test_embed_fk_cross_language(name, gen, msgs, tmp_path):
-    names = ("journey", "top_users", "vip_users", "outpost", "crew")
+    names = ("journey", "top_users", "vip_users", "outpost", "crew", "data",
+             "telemetry", "shipment")
     cls, dao_cls = msgs[name], dao_class(name)
     m = _populated(cls, 21)
     # C++ writes, Python reads == C++ reads
@@ -292,5 +305,51 @@ def test_embed_fk_cross_language(name, gen, msgs, tmp_path):
 
 
 def _same(dao_cls, a, b):
-    """Equal as far as the Python DAO persists (child tables: task 2c)."""
-    return persisted_view(dao_cls, a) == persisted_view(dao_cls, b)
+    return a == b
+
+
+def test_nothing_deferred(gen):
+    root = os.path.join(P.py_root(gen), "harpia_generated", "db")
+    for f in sorted(os.listdir(root)):
+        if f.endswith("_dao.py"):
+            text = open(os.path.join(root, f)).read()
+            assert "Deferred (not persisted by this DAO yet): none" in text, f
+
+
+def _child_rows(conn, dao_cls):
+    return {c.insert_sql.split('"')[1]: conn.execute(
+        'SELECT COUNT(*) FROM "{}"'.format(c.insert_sql.split('"')[1])).fetchone()[0]
+        for c in dao_cls.CHILDREN}
+
+
+@pytest.mark.parametrize("name", CHILD_TABLES)
+def test_child_tables_round_trip(name, gen, msgs, tmp_path):
+    cls, dao_cls = msgs[name], dao_class(name)
+    assert dao_cls.CHILDREN, name
+    conn = _fresh_db(gen, tmp_path / "db.sqlite")
+    dao = dao_cls(conn)
+    m = _populated(cls, 31)
+    assert dao.create(m)
+    got = cls()
+    assert dao.read(31, got)
+    for child in dao_cls.CHILDREN:
+        from harpia_runtime.db import dao as rt
+        a = getattr(rt._owner(got, child.path, False), child.path[-1])
+        b = getattr(rt._owner(m, child.path, False), child.path[-1])
+        if child.kind == "map":
+            assert dict(a) == dict(b), child.path
+        elif child.kind == "composed":
+            # only the element's flattened columns are stored (hidden
+            # ID_/STATUS_/... fields are not, same as C++)
+            view = [[rt.column_value(e, c) for c in child.columns] for e in a]
+            assert view == [[rt.column_value(e, c) for c in child.columns] for e in b]
+        else:
+            assert list(a) == list(b), child.path
+    before = _child_rows(conn, dao_cls)
+    assert all(n > 0 for n in before.values()), before
+    # update replaces (delete + re-insert), so counts don't grow
+    assert dao.update(m)
+    assert _child_rows(conn, dao_cls) == before
+    assert len(dao.list()) == 1
+    assert dao.remove(31)
+    assert all(n == 0 for n in _child_rows(conn, dao_cls).values())

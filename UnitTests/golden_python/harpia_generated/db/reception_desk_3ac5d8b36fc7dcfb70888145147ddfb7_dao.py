@@ -25,6 +25,8 @@ class reception_desk_dao(Dao[reception_desk]):
         Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
         Column('ORIGINATOR', ('ORIGINATOR',)),
     )
+    CHILDREN = (
+    )
     CREATE_TABLE_SQL = (
         'CREATE TABLE IF NOT EXISTS "reception_desk_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "visitor_name" TEXT, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR" TEXT);',
     )

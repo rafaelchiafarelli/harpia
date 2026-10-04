@@ -30,6 +30,32 @@ def _field(msg: Message, field_name: str) -> FieldDescriptor:
     return f
 
 
+def to_db(f: FieldDescriptor, value: Any) -> Any:
+    """Convert one value of scalar/enum field ``f`` (a single element for a
+    repeated field or a map key/value) to its DB-API parameter."""
+    if f.cpp_type in _INTS or f.cpp_type == FD.CPPTYPE_BOOL:
+        return int(value)
+    if f.cpp_type in (FD.CPPTYPE_FLOAT, FD.CPPTYPE_DOUBLE):
+        return float(value)
+    return value
+
+
+def from_db(f: FieldDescriptor, row_value: Any) -> Any:
+    """Convert a fetched column value back to a value of field ``f``
+    (``None`` → the field's default)."""
+    if row_value is None:
+        return f.default_value
+    if f.cpp_type in _INTS:
+        return int(row_value)
+    if f.cpp_type == FD.CPPTYPE_BOOL:
+        return bool(row_value)
+    if f.cpp_type in (FD.CPPTYPE_FLOAT, FD.CPPTYPE_DOUBLE):
+        return float(row_value)
+    if f.type == FD.TYPE_BYTES:
+        return bytes(row_value)
+    return str(row_value)
+
+
 def bind_value(msg: Message, field_name: str) -> Any:
     """The DB-API parameter for ``msg.<field_name>``.
 
@@ -38,28 +64,10 @@ def bind_value(msg: Message, field_name: str) -> Any:
         ``float``/``double``, ``str`` for ``string`` (``bytes`` for
         ``bytes``).
     """
-    f = _field(msg, field_name)
-    value = getattr(msg, field_name)
-    if f.cpp_type in _INTS or f.cpp_type == FD.CPPTYPE_BOOL:
-        return int(value)
-    if f.cpp_type in (FD.CPPTYPE_FLOAT, FD.CPPTYPE_DOUBLE):
-        return float(value)
-    return value
+    return to_db(_field(msg, field_name), getattr(msg, field_name))
 
 
 def extract_value(row_value: Any, msg: Message, field_name: str) -> None:
     """Set ``msg.<field_name>`` from a fetched column value (``None`` → the
     field's default)."""
-    f = _field(msg, field_name)
-    if row_value is None:
-        setattr(msg, field_name, f.default_value)
-    elif f.cpp_type in _INTS:
-        setattr(msg, field_name, int(row_value))
-    elif f.cpp_type == FD.CPPTYPE_BOOL:
-        setattr(msg, field_name, bool(row_value))
-    elif f.cpp_type in (FD.CPPTYPE_FLOAT, FD.CPPTYPE_DOUBLE):
-        setattr(msg, field_name, float(row_value))
-    elif f.type == FD.TYPE_BYTES:
-        setattr(msg, field_name, bytes(row_value))
-    else:
-        setattr(msg, field_name, str(row_value))
+    setattr(msg, field_name, from_db(_field(msg, field_name), row_value))

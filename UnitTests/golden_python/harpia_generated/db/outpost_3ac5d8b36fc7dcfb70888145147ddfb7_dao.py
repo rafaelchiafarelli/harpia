@@ -27,6 +27,8 @@ class outpost_dao(Dao[outpost]):
         Column('ORIGINATOR', ('ORIGINATOR',)),
         Column('berth_skipper', ('berth', 'skipper'), fk='harpia_generated.db.crew_3ac5d8b36fc7dcfb70888145147ddfb7_dao:crew_dao'),
     )
+    CHILDREN = (
+    )
     CREATE_TABLE_SQL = (
         'CREATE TABLE IF NOT EXISTS "outpost_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "commander" TEXT, "berth_label" TEXT, "berth_skipper" INTEGER, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR" TEXT);',
     )

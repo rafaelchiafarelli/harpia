@@ -8,7 +8,8 @@ analysis and the same ``DbBackend`` object the C++ and Java targets use.
 import os
 
 from Database.backends import get_backend
-from Database.model import analyze, create_table_sql, map_fields, repeated_fields, type_registry
+from Database.model import (RepeatedComposedField, analyze, create_table_sql, map_fields,
+                            repeated_fields, type_registry)
 from Logger.logger import logger
 from PyAdapter.runtime_copy import copy_runtime_module
 from Util.util import loadTemplate, write_if_different
@@ -86,17 +87,77 @@ class PyDatabaseAdapter:
             "list_page_sql": "SELECT {} FROM {} LIMIT {} OFFSET {}".format(
                 sel, table, ph, ph),
         }
+        maps = map_fields(msg, self.types, self.backend)
+        reps = repeated_fields(msg, self.types, self.backend)
+        children = [self._child_spec(msg, ch, "map", ph) for ch in maps]
+        children += [self._child_spec(msg, ch, "rep", ph) for ch in reps]
         create = [create_table_sql(msg, types=self.types, backend=self.backend)]
-        drop = [self.backend.drop_table(msg.tableName)]
+        create += [self._child_ddl(ch, pk.sql_type) for ch in maps + reps]
+        drop = [self.backend.drop_table(ch.child_table) for ch in maps + reps]
+        drop.append(self.backend.drop_table(msg.tableName))
         return _DAO_TEMPLATE.format(
             name=msg.name, hash=msg.md5Hash, table=msg.tableName,
             dialect=self.backend.name, placeholder=ph,
             deferred=", ".join(deferred) if deferred else "none",
             table_lit=repr(msg.tableName), pk_lit=repr(pk.name),
             columns="".join("\n        " + self._column_spec(msg, c) for c in bound),
+            children="".join(children),
+            runtime_imports=("ChildTable, Column, Dao" if children else "Column, Dao"),
             create_sql="".join("\n        {!r},".format(s) for s in create),
             drop_sql="".join("\n        {!r},".format(s) for s in drop),
             **{k: repr(v) for k, v in sql.items()})
+
+    def _child_ddl(self, ch, owner_sql):
+        if isinstance(ch, RepeatedComposedField):
+            return self.backend.rep_composed_child_table(
+                ch.child_table, owner_sql, [(c.name, c.sql_def()) for c in ch.columns])
+        if hasattr(ch, "key_sql"):
+            return self.backend.map_child_table(ch.child_table, owner_sql,
+                                                ch.key_sql, ch.val_sql)
+        return self.backend.rep_child_table(ch.child_table, owner_sql, ch.val_sql)
+
+    def _child_spec(self, msg, ch, family, ph):
+        q = '"{}"'.format
+        t = q(ch.child_table)
+        steps = ([ch.embed] if ch.embed else []) + [ch.field]
+        path = tuple(self._walk(msg, steps))
+        delete = "DELETE FROM {} WHERE {} = {}".format(t, q("owner"), ph)
+        extra = ""
+        if family == "map":
+            kind = "map"
+            insert = "INSERT INTO {} ({}, {}, {}) VALUES ({})".format(
+                t, q("owner"), q("key"), q("value"), ", ".join([ph] * 3))
+            select = "SELECT {}, {} FROM {} WHERE {} = {}".format(
+                q("key"), q("value"), t, q("owner"), ph)
+        elif isinstance(ch, RepeatedComposedField):
+            kind = "composed"
+            elem = self._element_type(msg, steps)
+            cols = ", ".join(q(c.name) for c in ch.columns)
+            insert = "INSERT INTO {} ({}, {}, {}) VALUES ({})".format(
+                t, q("owner"), q("ordinal"), cols, ", ".join([ph] * (2 + len(ch.columns))))
+            select = "SELECT {} FROM {} WHERE {} = {} ORDER BY {}".format(
+                cols, t, q("owner"), ph, q("ordinal"))
+            extra = ", columns=({},)".format(", ".join(
+                "Column({!r}, {!r})".format(c.name, tuple(self._walk(elem, [c.child_accessor])))
+                for c in ch.columns))
+        else:
+            kind = "repeated"
+            insert = "INSERT INTO {} ({}, {}, {}) VALUES ({})".format(
+                t, q("owner"), q("ordinal"), q("value"), ", ".join([ph] * 3))
+            select = "SELECT {} FROM {} WHERE {} = {} ORDER BY {}".format(
+                q("value"), t, q("owner"), ph, q("ordinal"))
+            if ch.fk_target:
+                extra = ", fk={!r}".format(self._dao_ref(ch.fk_target))
+        return ("\n        ChildTable(\n            {!r}, {!r},\n            {!r},"
+                "\n            {!r},\n            {!r}{}),").format(
+                    kind, path, insert, select, delete, extra)
+
+    def _element_type(self, msg, steps):
+        current = msg
+        for step in steps:
+            var = next(v for v in current.variables if v.name.lower() == step)
+            current = self.types[var.type[1]]["msg"] if var.type[0] == "ID" else current
+        return current
 
     def _column_spec(self, msg, col):
         path = tuple(self._exact_path(msg, col))
@@ -128,8 +189,6 @@ class PyDatabaseAdapter:
         return path
 
     def _deferred(self, msg, columns):
-        """Child tables the C++ DAO persists that this DAO doesn't yet
-        (maps / repeated: task 2c)."""
-        out = [ch.child_table for ch in map_fields(msg, self.types, self.backend)]
-        out += [ch.child_table for ch in repeated_fields(msg, self.types, self.backend)]
-        return out
+        """What the C++ DAO persists that this DAO doesn't (empty since task
+        2c; kept so a future gap is listed in the module, never silent)."""
+        return []

@@ -9,7 +9,7 @@ Deferred (not persisted by this DAO yet): {deferred}
 from harpia_generated.protofiles.{name}_{hash}_pb2 import (
     {name},
 )
-from harpia_runtime.db.dao import Column, Dao
+from harpia_runtime.db.dao import {runtime_imports}
 
 
 class {name}_dao(Dao[{name}]):
@@ -19,6 +19,8 @@ class {name}_dao(Dao[{name}]):
     TABLE = {table_lit}
     PK = {pk_lit}
     COLUMNS = ({columns}
+    )
+    CHILDREN = ({children}
     )
     CREATE_TABLE_SQL = ({create_sql}
     )
