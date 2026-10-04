@@ -1,7 +1,7 @@
 # JavaZmqAdapter — Java target: ZMQ transport over JeroMQ (plaintext + CURVE)
 
 **Pipeline role:** Java-target Stage 13 (zmq) equivalent (sessions J.18 core transport, J.19 CURVE-secured variant, `Initiatives/multi-language-targets/thread-1-java-target`). `org.zeromq:jeromq` — a pure-Java ZMTP reimplementation, no JNI, no native library, no per-platform build (genuinely simpler than the C++ target's cppzmq/libzmq story, `../../README.md` §2). CURVE support confirmed for the pinned version in J.17.
-**Entry point (from main.py):** gated behind `HARPIA_GEN_LANG=java`, called right after `JavaSoapAdapter` in the same block: `JavaZmqAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; main.py logs it).
+**Entry point (from `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`)):** called right after `JavaSoapAdapter` in the same stage list: `JavaZmqAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; `ctx.report` logs it).
 **Inputs → Outputs:** consumes message objects, filtered exactly like the C++ `ZmqAdapter` (skip enums; a message needs a PUSH/PULL or EVENT/STREAM access modifier or it's skipped entirely). Emits `<dest>/java/src/main/java/com/harpia/runtime/zmq/HarpiaZmq.java` (shared) and `<dest>/java/src/main/java/com/harpia/generated/zmq/<name>_zmq.java` (one per transport-bearing message).
 
 ## Files
@@ -25,6 +25,6 @@ C++'s `ZmqAdapter` generates 4 real classes per message (`<name>_sender/_receive
 - `Socket.send`/`Socket.recv` are used with default (blocking) flags (`0`) — no `ZMQ.DONTWAIT`, matching the C++ runtime's own blocking `send`/`recv` calls.
 
 ## Touchpoints
-- Called by: `main.py`, gated on `HARPIA_GEN_LANG=java`, right after `JavaSoapAdapter` in the same conditional block.
+- Called by: `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`), right after `JavaSoapAdapter` in the same stage list.
 - Depends on: `ZmqAdapter.ZmqAdapter` (`_origin_id`, `_is_one_to_many` — a direct Python import, the one place this Java-target package depends on a C++-target package's internals rather than only `Database.model`/`Errors`/`Util`/`Logger`), `Util.util.copy_if_different`/`write_if_different`/`loadTemplate`, `Logger.logger`, `Errors.Error`. The runtime class depends on `protobuf-java` (already present) and `org.zeromq:jeromq:0.6.0` (new this session, `GradleAdapter/templates/project.gradle.tmpl`).
 - Consumed by: J.20 (acceptance gate — no new code expected, per its own history file).
