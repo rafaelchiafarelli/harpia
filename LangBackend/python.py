@@ -25,6 +25,11 @@ class PythonBackend(CppBackend):
         ctx.report(PyAdapter(messages=messages, dest=dest,
                              compliance=compliance).Process())
 
+        # serialization runtimes (JSON / XML / YAML / to_string façade)
+        from PySerialization.PySerializationAdapter import PySerializationAdapter
+        ctx.report(PySerializationAdapter(messages=messages, dest=dest,
+                                          compliance=compliance).Process())
+
         # (later epics add their stages here, above the docs)
 
         # Sphinx skeleton -- LAST: it documents every module already on disk
