@@ -268,6 +268,21 @@ app.port(8080).run();                                  // GET list honours ?limi
 or it is `401`. **Hardened:** see §8 — requests carry a client cert or a bearer
 token and are checked against the RBAC matrix.
 
+Crow's `multithreaded()` serves requests on several threads, so a server with
+more than one client should register over a connection pool rather than one
+shared session (same rules as the gRPC pool in §7.5):
+
+```cpp
+harpia::rest::register_users(app, pool, "/api/v1", /*lease_timeout_ms=*/2000);
+harpia::soap::register_users_soap(app, pool, "/soap", 2000);
+// or, every binding at once on one app:
+harpia::http_transport::HttpServer server(pool, "/api/v1", "/soap", mtls);
+```
+
+Each request borrows one session after the access gate; no free slot within
+the timeout answers `503` "db pool exhausted" (SOAP: `503` + a Fault), a dead
+connection that can't reconnect answers `503` "db reconnect failed".
+
 ### 7.4 SOAP
 
 ```cpp

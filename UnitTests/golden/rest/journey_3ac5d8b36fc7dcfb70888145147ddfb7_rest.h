@@ -25,6 +25,7 @@
 #endif
 
 #include "crow.h"
+#include "db/harpia_db_pool.h"
 #include "db/journey_3ac5d8b36fc7dcfb70888145147ddfb7_crudl.h"
 #include "json/journey_3ac5d8b36fc7dcfb70888145147ddfb7_json.h"
 #include "xml/journey_3ac5d8b36fc7dcfb70888145147ddfb7_xml.h"
@@ -76,6 +77,15 @@
 // SOAP endpoint on one app and, when transport_hardening_required(compliance)
 // was true at generation time, configures it for mTLS (client cert required
 // AND verified, harpia_http_mtls.h) with plaintext refused.
+//
+// Database (multi-system-reference / db-concurrency task 2): register with a
+// soci::session& (every request shares it -- NOT thread-safe once Crow serves
+// requests on several threads; kept for single-client use and existing
+// callers) or with a ::soci::connection_pool&, where each request borrows its
+// own session through harpia::db::PooledSession (db/harpia_db_pool.h) AFTER
+// the access gate. A borrow that waits past lease_timeout_ms answers 503
+// "db pool exhausted"; a dead connection that can't be reconnected answers
+// 503 "db reconnect failed".
 namespace harpia {
 namespace rest {
 
@@ -136,31 +146,46 @@ inline void serialize_journey(const crow::request& req,
     }
 }
 
-inline void register_journey(crow::SimpleApp& app, ::soci::session& db,
-                            const std::string& base) {
+// 503 for a request that could not get a database session from the pool.
+inline void db_unavailable_journey(const ::harpia::db::PooledSession& lease,
+                                  crow::response& res) {
+    res.code = 503;
+    res.set_header("Content-Type", "text/plain");
+    res.body = lease.outcome() == ::harpia::db::PooledSession::Outcome::exhausted
+                   ? "db pool exhausted" : "db reconnect failed";
+    res.end();
+}
+
+// Exactly one of `db` / `pool` is non-null. The caller keeps whichever it
+// passed (and the routes' app) alive for as long as the routes are served.
+inline void register_journey_with(crow::SimpleApp& app, ::soci::session* db,
+                                 ::soci::connection_pool* pool,
+                                 int lease_timeout_ms, const std::string& base) {
     const std::string col = base + "/journey";
     const std::string item = col + "/<int>";
-    // capture a session pointer (soci::session is non-copyable); the caller must
-    // keep the session alive for the lifetime of the registered routes.
-    ::soci::session* dbp = &db;
 
     app.route_dynamic(col).methods(crow::HTTPMethod::GET)(
-        [dbp](const crow::request& req, crow::response& res) {
+        [db, pool, lease_timeout_ms](const crow::request& req, crow::response& res) {
             if (!authz_journey(req, res, ::harpia::rbac::Operation::list)) { res.end(); return; }
-            ::harpia::db::journey_dao dao(*dbp);
             std::vector<::journey> rows;
-            // ?limit=&offset= (or the table's declared pagination[size]
-            // default) paginate the list; omitting both keeps the
-            // unpaginated behavior.
-            const char* lim_s = req.url_params.get("limit");
-            long long limit = lim_s ? std::atoll(lim_s) : 0LL;
             bool listed;
-            if (limit > 0) {
-                const char* off_s = req.url_params.get("offset");
-                long long offset = off_s ? std::atoll(off_s) : 0;
-                listed = dao.list(&rows, offset, limit);
-            } else {
-                listed = dao.list(&rows);
+            {
+                // the session goes back before the rows are serialized
+                ::harpia::db::PooledSession lease(db, pool, lease_timeout_ms);
+                if (!lease.ok()) { db_unavailable_journey(lease, res); return; }
+                ::harpia::db::journey_dao dao(lease.session());
+                // ?limit=&offset= (or the table's declared pagination[size]
+                // default) paginate the list; omitting both keeps the
+                // unpaginated behavior.
+                const char* lim_s = req.url_params.get("limit");
+                long long limit = lim_s ? std::atoll(lim_s) : 0LL;
+                if (limit > 0) {
+                    const char* off_s = req.url_params.get("offset");
+                    long long offset = off_s ? std::atoll(off_s) : 0;
+                    listed = dao.list(&rows, offset, limit);
+                } else {
+                    listed = dao.list(&rows);
+                }
             }
             if (!listed) { res.code = 500; res.end(); return; }
             if (wants_xml_journey(req)) {
@@ -185,9 +210,11 @@ inline void register_journey(crow::SimpleApp& app, ::soci::session& db,
         });
 
     app.route_dynamic(item).methods(crow::HTTPMethod::GET)(
-        [dbp](const crow::request& req, crow::response& res, int64_t id) {
+        [db, pool, lease_timeout_ms](const crow::request& req, crow::response& res, int64_t id) {
             if (!authz_journey(req, res, ::harpia::rbac::Operation::read)) { res.end(); return; }
-            ::harpia::db::journey_dao dao(*dbp);
+            ::harpia::db::PooledSession lease(db, pool, lease_timeout_ms);
+            if (!lease.ok()) { db_unavailable_journey(lease, res); return; }
+            ::harpia::db::journey_dao dao(lease.session());
             ::journey msg;
             if (!dao.read(id, &msg)) { res.code = 404; res.end(); return; }
             serialize_journey(req, msg, res);
@@ -195,9 +222,11 @@ inline void register_journey(crow::SimpleApp& app, ::soci::session& db,
         });
 
     app.route_dynamic(col).methods(crow::HTTPMethod::POST)(
-        [dbp](const crow::request& req, crow::response& res) {
+        [db, pool, lease_timeout_ms](const crow::request& req, crow::response& res) {
             if (!authz_journey(req, res, ::harpia::rbac::Operation::create)) { res.end(); return; }
-            ::harpia::db::journey_dao dao(*dbp);
+            ::harpia::db::PooledSession lease(db, pool, lease_timeout_ms);
+            if (!lease.ok()) { db_unavailable_journey(lease, res); return; }
+            ::harpia::db::journey_dao dao(lease.session());
             ::journey msg;
             if (!parse_journey(req, &msg)) { res.code = 400; res.end(); return; }
             if (!dao.create(msg)) { res.code = 500; res.end(); return; }
@@ -205,9 +234,11 @@ inline void register_journey(crow::SimpleApp& app, ::soci::session& db,
         });
 
     app.route_dynamic(item).methods(crow::HTTPMethod::PUT)(
-        [dbp](const crow::request& req, crow::response& res, int64_t) {
+        [db, pool, lease_timeout_ms](const crow::request& req, crow::response& res, int64_t) {
             if (!authz_journey(req, res, ::harpia::rbac::Operation::update)) { res.end(); return; }
-            ::harpia::db::journey_dao dao(*dbp);
+            ::harpia::db::PooledSession lease(db, pool, lease_timeout_ms);
+            if (!lease.ok()) { db_unavailable_journey(lease, res); return; }
+            ::harpia::db::journey_dao dao(lease.session());
             ::journey msg;
             if (!parse_journey(req, &msg)) { res.code = 400; res.end(); return; }
             if (!dao.update(msg)) { res.code = 500; res.end(); return; }
@@ -215,12 +246,25 @@ inline void register_journey(crow::SimpleApp& app, ::soci::session& db,
         });
 
     app.route_dynamic(item).methods(crow::HTTPMethod::DELETE)(
-        [dbp](const crow::request& req, crow::response& res, int64_t id) {
+        [db, pool, lease_timeout_ms](const crow::request& req, crow::response& res, int64_t id) {
             if (!authz_journey(req, res, ::harpia::rbac::Operation::remove)) { res.end(); return; }
-            ::harpia::db::journey_dao dao(*dbp);
+            ::harpia::db::PooledSession lease(db, pool, lease_timeout_ms);
+            if (!lease.ok()) { db_unavailable_journey(lease, res); return; }
+            ::harpia::db::journey_dao dao(lease.session());
             if (!dao.remove(id)) { res.code = 500; res.end(); return; }
             res.code = 204; res.end();
         });
+}
+
+inline void register_journey(crow::SimpleApp& app, ::soci::session& db,
+                            const std::string& base) {
+    register_journey_with(app, &db, nullptr, ::harpia::db::kDefaultLeaseTimeoutMs, base);
+}
+
+inline void register_journey(crow::SimpleApp& app, ::soci::connection_pool& pool,
+                            const std::string& base,
+                            int lease_timeout_ms = ::harpia::db::kDefaultLeaseTimeoutMs) {
+    register_journey_with(app, nullptr, &pool, lease_timeout_ms, base);
 }
 
 }  // namespace rest
