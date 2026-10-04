@@ -13,7 +13,7 @@ target's ``HarpiaJson``.
 
 The bar against C++ is cross-parse equality: each side parses the other's
 output back to an equal message. Bytes are also identical for every fixture
-message (checked 2026-10-04, after matching C++'s ``\u003c``/``\u003e``
+message (checked 2026-10-04, after matching C++'s ``\\u003c``/``\\u003e``
 escaping of ``<``/``>``); float text could still differ for values whose
 shortest representation the two libraries print differently.
 """
