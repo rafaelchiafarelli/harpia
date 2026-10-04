@@ -1,7 +1,7 @@
 # JavaXmlAdapter — Java target: reflection-based XML runtime (one shared class, no per-message generation)
 
 **Pipeline role:** Java-target Stage 10 equivalent (sessions J.10 write path / J.11 read path, `Initiatives/multi-language-targets/thread-1-java-target`). Ships a single hand-written, reflection-based XML runtime class, directly comparable in shape to the C++ target's `XmlAdapter/runtime/harpia_xml.h` — read that file first, this is a deliberate line-for-line port of its walking logic onto protobuf-java's reflection API.
-**Entry point (from main.py):** gated behind `HARPIA_GEN_LANG=java`, called right after `JavaDatabase`'s two adapters in the same block: `JavaXmlAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; main.py logs it).
+**Entry point (from `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`)):** called right after `JavaDatabase`'s two adapters in the same stage list: `JavaXmlAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; `ctx.report` logs it).
 **Inputs → Outputs:** consumes message objects only to decide whether there's anything to generate for (same as `JavaJsonAdapter`) — the runtime class itself is message-agnostic. Emits exactly one file: `<dest>/java/src/main/java/com/harpia/runtime/xml/HarpiaXml.java`.
 
 ## Files
@@ -30,5 +30,5 @@ C++'s `XmlAdapter` still emits a thin per-message wrapper header (`<name>_xml.h`
 - `fromXml` (J.11) returns `false` on a parse failure rather than throwing, matching the C++ runtime's `bool` return and the repo-wide convention (`is_valid_json`-style) of a boolean outcome for "did this parse," not an exception.
 
 ## Touchpoints
-- Called by: `main.py`, gated on `HARPIA_GEN_LANG=java`, right after `JavaDatabase`'s two adapters in the same conditional block.
+- Called by: `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`), right after `JavaDatabase`'s two adapters in the same stage list.
 - Depends on: `Util.util.copy_if_different`, `Logger.logger`, `Errors.Error`. The runtime class itself depends only on `protobuf-java` (already a `build.gradle` dependency since J.2) and JDK-builtin `javax.xml`/`org.w3c.dom` — no new Gradle dependency for this session at all.
