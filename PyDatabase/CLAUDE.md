@@ -57,7 +57,22 @@ docstring lists anything the C++ DAO persists that this DAO does not
 (`Deferred: ...`) — `none` for every fixture message since task 2c, asserted
 by `test_nothing_deferred`.
 
+## PostgreSQL (task 3)
+`HARPIA_DB_BACKEND=postgresql` makes the generated DAOs run unchanged on a
+`psycopg` connection: `%s` placeholders and PostgreSQL DDL come entirely
+from `DbBackend`. `psycopg` is the generated project's optional
+`postgres` extra. Opt-in test: `Docker/run_pg_tests.sh
+UnitTests/test_python_db_postgres.py`.
+
 ## Key facts / gotchas
+- **`list()` orders by the primary key** (decision at task 3). The C++ DAO's
+  `list` has no `ORDER BY`, so its pages are unstable on PostgreSQL (rows
+  come back in physical order, which an `UPDATE` changes); SQLite happens to
+  return rowid = key order. Flagged to Rafael as a C++ finding.
+- `limit=None` binds the largest 64-bit value, not `-1` (PostgreSQL rejects a
+  negative `LIMIT`).
+- `users` and `top_users` share the table name `user_table` (the fixture's
+  visibility collision): never create every DAO's table in one database.
 - **Placeholders are dialect-baked at generation time** through
   `DbBackend.param_placeholder()` (decision at task 1, option (a)): `?` for
   `sqlite3`, `%s` for `psycopg`. Additive on the shared backend; C++ (SOCI

@@ -83,9 +83,11 @@ class PyDatabaseAdapter:
                 table, ", ".join("{} = {}".format(q(n), ph) for n in non_pk),
                 q(pk.name), ph),
             "delete_sql": "DELETE FROM {} WHERE {} = {}".format(table, q(pk.name), ph),
-            "list_sql": "SELECT {} FROM {}".format(sel, table),
-            "list_page_sql": "SELECT {} FROM {} LIMIT {} OFFSET {}".format(
-                sel, table, ph, ph),
+            # ORDER BY the key: stable pages on every dialect (the C++ DAO has
+            # no ORDER BY; SQLite happens to return rowid = key order)
+            "list_sql": "SELECT {} FROM {} ORDER BY {}".format(sel, table, q(pk.name)),
+            "list_page_sql": "SELECT {} FROM {} ORDER BY {} LIMIT {} OFFSET {}".format(
+                sel, table, q(pk.name), ph, ph),
         }
         maps = map_fields(msg, self.types, self.backend)
         reps = repeated_fields(msg, self.types, self.backend)

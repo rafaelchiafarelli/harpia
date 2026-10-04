@@ -117,6 +117,9 @@ class ChildTable:
 
 M = TypeVar("M", bound=Message)
 
+#: the LIMIT bound for an open-ended page (valid on SQLite and PostgreSQL)
+_NO_LIMIT = (1 << 63) - 1
+
 
 def _owner(msg: Message, path: tuple[str, ...], mutable: bool) -> Message:
     for step in path[:-1]:
@@ -367,7 +370,8 @@ class Dao(Generic[M]):
         """Every row, or one page of rows when ``offset``/``limit`` are given.
 
         Pagination passes ``LIMIT``/``OFFSET`` straight to the database, like
-        the C++ DAO (on SQLite a negative limit means "no limit").
+        the C++ DAO; ``limit=None`` means "no limit" on every dialect
+        (PostgreSQL rejects the negative limit SQLite would accept).
         """
         out: builtins.list[M] = []
         with self._tx() as cur:
@@ -375,7 +379,7 @@ class Dao(Generic[M]):
                 cur.execute(self.LIST_SQL)
             else:
                 cur.execute(self.LIST_PAGE_SQL,
-                            [-1 if limit is None else limit, offset or 0])
+                            [_NO_LIMIT if limit is None else limit, offset or 0])
             for row in cur.fetchall():
                 msg = self._new()
                 self._load_row(cur, row, msg)
