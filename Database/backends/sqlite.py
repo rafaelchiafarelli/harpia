@@ -53,6 +53,10 @@ class SqliteBackend(DbBackend):
     def int_type(self):
         return "INTEGER"
 
+    # -- DB-API parameter style (Python target) ---------------------------------
+    def param_placeholder(self):
+        return "?"  # sqlite3 (DB-API paramstyle qmark)
+
     # -- columns & tables -----------------------------------------------------
     def column_def(self, sql_type, *, pk=False, required=False, unique=False):
         # Caller-assigned PK -- a plain rowid alias, NOT AUTOINCREMENT. The id
