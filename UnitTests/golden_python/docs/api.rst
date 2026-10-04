@@ -319,6 +319,36 @@ harpia_runtime.compliance.audit_sink
 .. automodule:: harpia_runtime.compliance.audit_sink
    :members:
 
+harpia_runtime.crypto
+---------------------
+
+.. automodule:: harpia_runtime.crypto
+   :members:
+
+harpia_runtime.crypto.encrypted_column
+--------------------------------------
+
+.. automodule:: harpia_runtime.crypto.encrypted_column
+   :members:
+
+harpia_runtime.crypto.key_provider
+----------------------------------
+
+.. automodule:: harpia_runtime.crypto.key_provider
+   :members:
+
+harpia_runtime.crypto.key_provider_kms
+--------------------------------------
+
+.. automodule:: harpia_runtime.crypto.key_provider_kms
+   :members:
+
+harpia_runtime.crypto.key_provider_local
+----------------------------------------
+
+.. automodule:: harpia_runtime.crypto.key_provider_local
+   :members:
+
 harpia_runtime.db
 -----------------
 
@@ -347,6 +377,12 @@ harpia_runtime.db.migrate
 -------------------------
 
 .. automodule:: harpia_runtime.db.migrate
+   :members:
+
+harpia_runtime.db.phi
+---------------------
+
+.. automodule:: harpia_runtime.db.phi
    :members:
 
 harpia_runtime.json
