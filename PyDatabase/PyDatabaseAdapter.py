@@ -20,6 +20,8 @@ from Util.util import loadTemplate, write_if_different
 _DAO_TEMPLATE = loadTemplate(__file__, "dao.py.tmpl")
 _REGISTRY_TEMPLATE = loadTemplate(__file__, "registry.py.tmpl")
 _MIGRATE_TEMPLATE = loadTemplate(__file__, "migrate.py.tmpl")
+_DBIO_TEMPLATE = loadTemplate(__file__, "dbio.py.tmpl")
+DBIO_EXT = "_dbio.py"
 MIGRATE_EXT = "_migrate.py"
 REGISTRY_FILE = "registry.py"
 DAO_EXT = "_dao.py"
@@ -31,6 +33,7 @@ RUNTIMES = (
     ("bind.py", "harpia_runtime.db.bind"),
     ("dao.py", "harpia_runtime.db.dao"),
     ("migrate.py", "harpia_runtime.db.migrate"),
+    ("dbio.py", "harpia_runtime.db.dbio"),
 )
 
 
@@ -54,6 +57,10 @@ class PyDatabaseAdapter:
         os.makedirs(migrateDir, exist_ok=True)
         write_if_different(os.path.join(migrateDir, "__init__.py"),
                            '"""Generated schema migrations, one module per table."""\n')
+        dbioDir = os.path.join(self.dest, "python", "harpia_generated", "dbio")
+        os.makedirs(dbioDir, exist_ok=True)
+        write_if_different(os.path.join(dbioDir, "__init__.py"),
+                           '"""Generated bulk JSON/XML import/export, one module per table."""\n')
         written = 0
         for msg in self.messages:
             if getattr(msg, "isEnum", False) or not msg.tableName:
@@ -66,6 +73,10 @@ class PyDatabaseAdapter:
             write_if_different(os.path.join(
                 migrateDir, "{}_{}{}".format(msg.name, msg.md5Hash, MIGRATE_EXT)),
                 self._render_migration(msg))
+            write_if_different(os.path.join(
+                dbioDir, "{}_{}{}".format(msg.name, msg.md5Hash, DBIO_EXT)),
+                _DBIO_TEMPLATE.format(name=msg.name, hash=msg.md5Hash, table=msg.tableName,
+                                      wrapper_lit=repr(msg.name + "_list")))
             written += 1
         write_if_different(os.path.join(self.outDir, REGISTRY_FILE), self._render_registry())
         self.log.print("copied {} DB runtime module(s); generated {} DAO(s) into {}".format(

@@ -90,6 +90,22 @@ child table, with the backend's `int_type` as the owner type, as C++.
 `child_current=None` (reap off) is still accepted by the engine but no
 longer generated.
 
+## Bulk import/export (task 6, `templates/dbio.py.tmpl`)
+`harpia_generated/dbio/<name>_<hash>_dbio.py` per table-bearing message (the
+port of `DbIoAdapter`'s `dbio/<name>_<hash>_dbio.h`): `export_json(dao) ->
+str`, `import_json(dao, text) -> int`, `export_xml(dao) -> str`,
+`import_xml(dao, text) -> int` and `XML_WRAPPER` (`"<name>_list"`), thin
+typed wrappers over `runtime/dbio.py` (`harpia_runtime.db.dbio`). Formats are
+the C++ ones: NDJSON (one `to_json` per row + `\n`, blank lines skipped on
+import) and `<name>_list` around one `to_xml` per row (every child element of
+the root is a row, read with `from_xml_element`). For the same rows the XML
+is byte-identical to C++ and every NDJSON line parses to the same message.
+**Decision (task 6):** unlike C++ (`false`, keeping the rows already
+created), the whole input is parsed first — malformed input raises
+`ValueError` and writes nothing — and the rows are created in one
+transaction (a duplicate key raises and rolls them all back). Imports return
+the number of rows created.
+
 ## PostgreSQL (task 3)
 `HARPIA_DB_BACKEND=postgresql` makes the generated DAOs run unchanged on a
 `psycopg` connection: `%s` placeholders and PostgreSQL DDL come entirely
@@ -124,4 +140,7 @@ UnitTests/test_python_db_postgres.py`.
 ## Touchpoints
 - Depends on: `Database/model.py`, `Database/backends` (`param_placeholder`),
   `PyAdapter.runtime_copy`.
-- Tested by: `UnitTests/test_py_db_bind.py`.
+- Tested by: `UnitTests/test_py_db_bind.py`, `test_py_db_dao.py`,
+  `test_py_db_registry.py`, `test_py_db_migrate.py`,
+  `test_py_db_migrate_children.py`, `test_py_db_dbio.py`,
+  `test_python_db_postgres.py` (opt-in).
