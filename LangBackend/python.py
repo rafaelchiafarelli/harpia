@@ -47,6 +47,11 @@ class PythonBackend(CppBackend):
         ctx.report(PyZmqAdapter(messages=messages, dest=dest,
                                 compliance=compliance).Process())
 
+        # HTTP: REST CRUD routes + the threaded server bring-up
+        from PyHttp.PyHttpAdapter import PyHttpAdapter
+        ctx.report(PyHttpAdapter(messages=messages, dest=dest,
+                                 compliance=compliance).Process())
+
         # (later epics add their stages here, above the docs)
 
         # Sphinx skeleton -- LAST: it documents every module already on disk
