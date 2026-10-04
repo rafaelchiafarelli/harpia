@@ -9,7 +9,13 @@
   unparsable payload is consumed and gives ``None``;
 - C++ publisher → Python subscriber and Python publisher → C++ subscriber on
   the same topic (the generated C++ headers, built with CycloneDDS-CXX) --
-  proof that the Python ``Frame`` type matches ``ddscxx``'s.
+  proof that the Python ``Frame`` type matches ``ddscxx``'s;
+- task 2, QoS: each generated class's profile follows ``critical`` exactly
+  as the C++ header's (reliable / keep-all / 128 vs best-effort /
+  keep-last(1), reader = writer); under a stalled reader the ``critical``
+  burst survives complete and in order while the other collapses to at most
+  the newest (``test_dds_demo.py``'s check); a reliable C++ writer delivers
+  every sample to a Python reader and the reverse.
 
 Every test uses its own topic name so concurrent runs on one host don't
 cross-talk on domain 0.
@@ -99,6 +105,64 @@ def test_module_set_and_frame_type(use):
     assert idl.idl_transformed_typename == "harpia_dds::Frame"
     assert frame.__idl_annotations__ == {"extensibility": "appendable"}
     assert frame.__idl_field_annotations__ == {"message_type": {"key": True}}
+
+
+def test_qos_follows_critical_like_cpp(use):
+    from cyclonedds.qos import Policy
+    hdr_dir = os.path.join(use, "generated", "cpp", "dds")
+    for name in ("alarm_event", "vitals_publication"):
+        header = open(os.path.join(hdr_dir, "%s_%s_dds.h" % (name, HASH))).read()
+        critical = "KeepAll" in header
+        for role in ("publisher", "subscriber"):
+            cls = getattr(_dds(name), "%s_%s" % (name, role))
+            assert cls.CRITICAL is critical
+            assert cls.reader_qos() == cls.writer_qos()
+            qos = cls.writer_qos()
+            if critical:
+                assert qos[Policy.Reliability] == Policy.Reliability.Reliable(
+                    max_blocking_time=10 * 10 ** 9)
+                assert qos[Policy.History] == Policy.History.KeepAll
+                assert qos[Policy.ResourceLimits] == Policy.ResourceLimits(
+                    max_samples=128, max_instances=-1, max_samples_per_instance=-1)
+                assert "ResourceLimits(\n               128," in header
+            else:
+                assert qos[Policy.Reliability] == Policy.Reliability.BestEffort
+                assert qos[Policy.History] == Policy.History.KeepLast(1)
+                assert "BestEffort()" in header and "KeepLast(1)" in header
+    assert _dds("alarm_event").alarm_event_publisher.CRITICAL  # the fixture's critical one
+
+
+def _wait_match(*endpoints, timeout=10.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if all((e.matched_subscribers() if hasattr(e, "matched_subscribers")
+                else e.matched_publishers()) > 0 for e in endpoints):
+            return
+        time.sleep(0.02)
+    pytest.fail("endpoints never matched")
+
+
+def test_stalled_reader_semantics(use):
+    from cyclonedds.domain import DomainParticipant
+    dp = DomainParticipant()
+    ta, tv = _topic("alarm_event"), _topic("vitals_publication")
+    crit_pub = _dds("alarm_event").alarm_event_publisher(dp, ta)
+    crit_sub = _dds("alarm_event").alarm_event_subscriber(dp, ta)
+    best_pub = _dds("vitals_publication").vitals_publication_publisher(dp, tv)
+    best_sub = _dds("vitals_publication").vitals_publication_subscriber(dp, tv)
+    _wait_match(crit_pub, crit_sub, best_pub, best_sub)
+    for i in range(20):  # nobody drains while we send
+        crit_pub.publish(_alarm(i))
+        best_pub.publish(_vitals(i))
+    time.sleep(1.0)
+    crit = []
+    while (m := crit_sub.receive()) is not None:
+        crit.append(m.severity)
+    best = []
+    while (m := best_sub.receive()) is not None:
+        best.append(m.pulse_rate)
+    assert crit == list(range(20))
+    assert len(best) <= 1 and all(v == 19 for v in best)
 
 
 def _send_until(pub, sub, make, n, timeout=10.0):
@@ -196,6 +260,8 @@ def test_cpp_publisher_python_subscriber(use, peer, kind, name, field):
     assert "PUB_DONE" in out, out
     values = [getattr(m, field) for m in got]
     assert values and values == sorted(values) and set(values) <= set(range(1, 11))
+    if kind == "alarm":  # critical: reliable + keep-all on both sides
+        assert values == list(range(1, 11))
     assert all(getattr(m, "patient_id" if kind == "alarm" else "patient_ref") == "p-cpp"
                for m in got)
 
@@ -209,12 +275,18 @@ def test_python_publisher_cpp_subscriber(use, peer, kind, name, make):
     proc = subprocess.Popen([peer, "sub", kind, topic, "3"], stdout=subprocess.PIPE, text=True)
     try:
         assert proc.stdout.readline().strip() == "READY"
-        deadline = time.monotonic() + 25
-        i = 0
-        while proc.poll() is None and time.monotonic() < deadline:
-            i += 1
-            pub.publish(make(i))
-            time.sleep(0.05)
+        if kind == "alarm":  # critical: once matched, every sample arrives
+            _wait_match(pub, timeout=20)
+            time.sleep(0.3)
+            for i in range(1, 4):
+                pub.publish(make(i))
+        else:
+            deadline = time.monotonic() + 25
+            i = 0
+            while proc.poll() is None and time.monotonic() < deadline:
+                i += 1
+                pub.publish(make(i))
+                time.sleep(0.05)
     finally:
         out = proc.communicate(timeout=30)[0]
     lines = [line.split() for line in out.splitlines() if line.startswith("GOT ")]
@@ -222,3 +294,5 @@ def test_python_publisher_cpp_subscriber(use, peer, kind, name, make):
     assert all(parts[2] == "p-py" for parts in lines)
     values = [int(parts[1]) for parts in lines]
     assert values == sorted(values) and len(set(values)) == 3
+    if kind == "alarm":
+        assert values == [1, 2, 3]

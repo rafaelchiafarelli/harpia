@@ -8,7 +8,7 @@ adapter emits a header for (the ``dds`` modifier; enums skipped).
 """
 import os
 
-from DdsAdapter.DdsAdapter import DdsAdapter
+from DdsAdapter.DdsAdapter import QUEUE_DEPTH, DdsAdapter
 from Logger.logger import logger
 from PyAdapter.runtime_copy import copy_runtime_module
 from Util.util import loadTemplate, write_if_different
@@ -53,5 +53,13 @@ class PyDdsAdapter:
         return None
 
     def _render(self, msg):
+        if getattr(msg, "is_critical", False):
+            qos_attrs = "\n    CRITICAL = True\n    QUEUE_DEPTH = {}".format(QUEUE_DEPTH)
+            qos_doc = ("``critical`` -- reliable, keep-all, at most {} samples "
+                       "(design-rules §4a).".format(QUEUE_DEPTH))
+        else:
+            qos_attrs = ""
+            qos_doc = "latest-value-only -- best-effort, keep-last(1) (design-rules §4b)."
         return _TEMPLATE.format(name=msg.name, hash=msg.md5Hash, topic=msg.name,
-                                name_lit=repr(msg.name))
+                                name_lit=repr(msg.name), qos_attrs=qos_attrs,
+                                qos_doc=qos_doc)
