@@ -67,22 +67,26 @@ class PyGrpcAdapter:
         if self._rbac(msg):
             return _SERVICE.format(
                 name=msg.name, hash=msg.md5Hash,
-                gate_doc="RBAC (``protected``, or hardened and not ``open``) -- the "
-                         "verified client-certificate CN mapped to a role by "
+                gate_doc="RBAC (``protected``, or hardened and not ``open``) -- a "
+                         "valid ``authorization: Bearer`` session token's CN, else the "
+                         "verified client-certificate CN, mapped to a role by "
                          "``HARPIA_RBAC_MAP`` (:mod:`harpia_runtime.rbac`); "
-                         "``UNAUTHENTICATED`` without an identity, "
-                         "``PERMISSION_DENIED`` when its role may not perform the "
-                         "RPC. Needs a server that requires client certificates "
-                         "(see :mod:`harpia_runtime.rbac_gates`).",
+                         "``UNAUTHENTICATED`` without an identity or with an invalid "
+                         "token, ``PERMISSION_DENIED`` when its role may not perform "
+                         "the RPC. A certificate identity needs a server that requires "
+                         "client certificates (see :mod:`harpia_runtime.rbac_gates`).",
                 gate_import="",
-                rbac_import="\nfrom harpia_runtime.rbac_gates import grpc_rbac_gate",
-                gate_expr="grpc_rbac_gate({!r})".format(msg.name))
+                rbac_import="\nfrom harpia_runtime.rbac_gates import grpc_rbac_gate, "
+                            "issue_on_heartbeat",
+                gate_expr="grpc_rbac_gate({!r})".format(msg.name),
+                servicer_extra="\n    #: heartBeat + harpia-issue-session metadata mints a "
+                               "session token\n    HEARTBEAT_HOOK = issue_on_heartbeat")
         return _SERVICE.format(
             name=msg.name, hash=msg.md5Hash,
             gate_doc="the flat generated credential -- ``x-user: {}`` and "
                      "``x-pswd: <hash>`` call metadata, else "
                      "``UNAUTHENTICATED``.".format(msg.name),
-            gate_import=", flat_gate", rbac_import="",
+            gate_import=", flat_gate", rbac_import="", servicer_extra="",
             gate_expr="flat_gate({!r}, {!r})".format(msg.name, msg.md5Hash))
 
     def _transport(self):

@@ -14,7 +14,9 @@ call it unchanged). RPCs, as in C++:
   ``limit`` when ``limit > 0``); the rows are read and the connection is
   given back **before** they are streamed; ``INTERNAL "list failed"`` on a
   database error;
-- ``heartBeat`` → echo; never gated.
+- ``heartBeat`` → echo; never gated. When the class sets
+  ``HEARTBEAT_HOOK`` (RBAC-gated messages: session-token issuance, see
+  :func:`harpia_runtime.rbac_gates.issue_on_heartbeat`) it runs first.
 
 Each data RPC runs the access gate first, then borrows one pooled
 connection: exhausted → ``RESOURCE_EXHAUSTED "db pool exhausted"``,
@@ -63,6 +65,8 @@ class CrudServicer:
     #: ``errorCode``
     ERROR_CODE: ClassVar[type[Message]]
     GATE: ClassVar[Gate]
+    #: run by ``heartBeat`` before echoing (``None``: nothing)
+    HEARTBEAT_HOOK: ClassVar[Callable[[grpc.ServicerContext], None] | None] = None
 
     def __init__(self, pool: ConnectionPool) -> None:
         self.pool = pool
@@ -131,4 +135,7 @@ class CrudServicer:
 
     def heartBeat(self, request: Message, context: grpc.ServicerContext) -> Message:  # noqa: N802
         """Echo (never gated)."""
+        hook = type(self).HEARTBEAT_HOOK
+        if hook is not None:
+            hook(context)
         return request

@@ -21,6 +21,7 @@ bindings.
   for an RBAC one (the documented Python limitation: no client cert is ever
   seen in gRPC mixed mode).
 """
+import contextlib
 import http.client
 import importlib
 import os
@@ -413,10 +414,13 @@ def _free_port():
     return port
 
 
-@pytest.mark.skipif(shutil.which("g++") is None or shutil.which("pkg-config") is None
-                    or not os.path.exists(os.path.join(THIRD, "asio", "asio", "ssl.hpp")),
-                    reason="needs g++ + pkg-config + vendored crow/asio")
-def test_same_answers_as_cpp_http_server(rbac, pki, role_map_file, gen, tmp_path):
+HAVE_CPP_HTTP = (shutil.which("g++") is not None and shutil.which("pkg-config") is not None
+                 and os.path.exists(os.path.join(THIRD, "asio", "asio", "ssl.hpp")))
+
+
+def build_cpp_http(gen, tmp_path):
+    """Link the generated C++ ``HttpServer`` (mTLS, ``/v1`` + ``/soap``,
+    users rows 1 and 2, reception_desk) of ``gen``; returns the binary."""
     import glob
     cpp_root = os.path.join(gen, "generated", "cpp")
     (tmp_path / "s.cpp").write_text(_CPP_HTTP % {"h": HASH})
@@ -433,16 +437,29 @@ def test_same_answers_as_cpp_http_server(rbac, pki, role_map_file, gen, tmp_path
          "-lsoci_core", "-lsoci_sqlite3", *flags, "-lssl", "-lcrypto", "-lpthread", "-ldl"],
         capture_output=True, text=True, timeout=900)
     assert c.returncode == 0, c.stderr[-4000:]
+    return exe
+
+
+@contextlib.contextmanager
+def running_cpp_http(exe, pki, env):
+    """Serve ``exe`` on a free port with ``env`` added; yields the port."""
     port = _free_port()
     proc = subprocess.Popen([exe, str(port), pki["ca"], pki["cert"], pki["key"]],
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
-                            env={**os.environ, "HARPIA_RBAC_MAP": role_map_file})
+                            env={**os.environ, **env})
     try:
         assert proc.stdout.readline().strip() == "READY"
-        cpp = drive(port, pki)
+        yield port
     finally:
         proc.stdin.close()
         proc.wait(timeout=30)
+
+
+@pytest.mark.skipif(not HAVE_CPP_HTTP, reason="needs g++ + pkg-config + vendored crow/asio")
+def test_same_answers_as_cpp_http_server(rbac, pki, role_map_file, gen, tmp_path):
+    exe = build_cpp_http(gen, tmp_path)
+    with running_cpp_http(exe, pki, {"HARPIA_RBAC_MAP": role_map_file}) as port:
+        cpp = drive(port, pki)
     srv = _py_http(pki, tmp_path)
     try:
         py = drive(srv.port, pki)
