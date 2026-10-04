@@ -1,0 +1,78 @@
+// python-target / py-dds -- C++ DDS peer for test_py_dds.py (@HASH@ is
+// substituted by the test).
+//
+//   dds_peer pub <alarm|vitals> <topic> <n>   wait for a match, publish 1..n
+//   dds_peer sub <alarm|vitals> <topic> <n>   print READY, then GOT lines
+//                                             until n received or 20 s
+#include <chrono>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+#include <thread>
+
+#include "dds/dds.hpp"
+#include "dds/alarm_event_@HASH@_dds.h"
+#include "dds/vitals_publication_@HASH@_dds.h"
+
+using namespace harpia::dds_transport;
+using clk = std::chrono::steady_clock;
+
+template <typename Pub, typename Make>
+static int publish(Pub& pub, int n, Make make) {
+  const auto deadline = clk::now() + std::chrono::seconds(20);
+  while (pub.matched_subscribers() == 0 && clk::now() < deadline)
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  if (pub.matched_subscribers() == 0) { std::printf("NOMATCH\n"); return 1; }
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
+  for (int i = 1; i <= n; ++i) {
+    pub.publish(make(i));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  std::printf("PUB_DONE\n");
+  return 0;
+}
+
+template <typename Sub, typename Msg, typename Show>
+static int subscribe(Sub& sub, int n, Show show) {
+  std::printf("READY\n");
+  std::fflush(stdout);
+  int got = 0;
+  const auto deadline = clk::now() + std::chrono::seconds(20);
+  while (got < n && clk::now() < deadline) {
+    Msg m;
+    if (sub.receive(&m)) { show(m); ++got; std::fflush(stdout); }
+    else std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  std::printf("SUB_DONE %d\n", got);
+  return 0;
+}
+
+int main(int argc, char** argv) {
+  if (argc != 5) return 2;
+  const std::string mode = argv[1], type = argv[2], topic = argv[3];
+  const int n = std::atoi(argv[4]);
+  ::dds::domain::DomainParticipant dp(0);
+  if (type == "alarm") {
+    if (mode == "pub") {
+      alarm_event_publisher p(dp, topic);
+      return publish(p, n, [](int i) {
+        ::alarm_event a; a.set_patient_id("p-cpp"); a.set_alarm_type("apnea");
+        a.set_severity(i); return a; });
+    }
+    alarm_event_subscriber s(dp, topic);
+    return subscribe<alarm_event_subscriber, ::alarm_event>(s, n, [](const ::alarm_event& a) {
+      std::printf("GOT %d %s %s\n", a.severity(), a.patient_id().c_str(),
+                  a.alarm_type().c_str()); });
+  }
+  if (mode == "pub") {
+    vitals_publication_publisher p(dp, topic);
+    return publish(p, n, [](int i) {
+      ::vitals_publication v; v.set_patient_ref("p-cpp"); v.set_spo2(97.5f);
+      v.set_pulse_rate(i); return v; });
+  }
+  vitals_publication_subscriber s(dp, topic);
+  return subscribe<vitals_publication_subscriber, ::vitals_publication>(
+      s, n, [](const ::vitals_publication& v) {
+        std::printf("GOT %d %s %.1f\n", v.pulse_rate(), v.patient_ref().c_str(), v.spo2()); });
+}
