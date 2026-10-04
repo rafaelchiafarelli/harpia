@@ -1,0 +1,32 @@
+# LangBackend — the generation-target registry
+
+**Pipeline role / purpose:** Picks which language target(s) `main.py`
+generates. Same shape as `Database/backends` (the DB-dialect registry):
+`get_lang_backend(name)` resolves an explicit name or alias, empty/unset
+means the default (`cpp`), and an unknown name raises `ValueError`.
+
+**Entry point:** `get_lang_backend(os.environ.get("HARPIA_GEN_LANG"))`
+returns a stateless singleton `LangBackend`; `backend.run(ctx)` runs every
+generation stage of that target. `ctx` is a frozen `GenerationContext`
+(`messages`, `dest`, `compliance`, `db_backend`, `crypto_backend`,
+`root_hash`, `log`) built once by the front end. `ctx.report(err)` logs a
+stage's non-fatal `Error`.
+
+## Backends
+- `cpp.py` — `CppBackend`, the default. `main.py`'s former unconditional
+  stage list, moved verbatim: demo templates + CMake, Doxygen, protoc, JSON,
+  gRPC, ZMQ, events, capability handshakes, DDS, XML/YAML/serialize, SQL,
+  CRUDL, registry, migrations, dbio, REST/SOAP/WSDL/SDC, generated tests,
+  SBOM.
+
+## Key facts / gotchas
+- `db_backend` and `crypto_backend` are resolved **once** in `main.py`
+  and carried on the context. A backend never re-resolves them, so every
+  target in one run shares the identical object (`JavaDatabase/CLAUDE.md`).
+- Adding a language means one new module plus one entry in `_REGISTRY`
+  (`__init__.py`). No existing backend class changes.
+
+## Touchpoints
+- Depends on: every C++ generation adapter (imported by `cpp.py`).
+- Called by: `main.py`.
+- Tested by: `UnitTests/test_lang_backend.py`.
