@@ -18,11 +18,18 @@ stage's non-fatal `Error`.
   gRPC, ZMQ, events, capability handshakes, DDS, XML/YAML/serialize, SQL,
   CRUDL, registry, migrations, dbio, REST/SOAP/WSDL/SDC, generated tests,
   SBOM.
+- `java.py` — `JavaBackend(CppBackend)`: `run_java()` (the former inline
+  `if genLang == "java":` block, verbatim: Gradle, JSON, JDBC runtime +
+  DAOs, XML, REST, SOAP, ZMQ, JUnit) then the unchanged C++ pipeline. Java
+  is additive on top of C++, as it always was.
 
 ## Key facts / gotchas
 - `db_backend` and `crypto_backend` are resolved **once** in `main.py`
   and carried on the context. A backend never re-resolves them, so every
   target in one run shares the identical object (`JavaDatabase/CLAUDE.md`).
+- `GradleAdapter` must run after the front end's `copyBasicProtos` (it
+  copies `errorCode`/`heartBeat.proto`). The front end stays in `main.py`
+  and always runs before any backend, so this holds by construction.
 - Adding a language means one new module plus one entry in `_REGISTRY`
   (`__init__.py`). No existing backend class changes.
 
