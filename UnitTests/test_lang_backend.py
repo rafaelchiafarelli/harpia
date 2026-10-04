@@ -95,3 +95,10 @@ def test_main_rejects_unknown_language_before_writing(tmp_path):
     assert r.returncode != 0
     assert "unknown harpia generation language 'cobol'" in r.stdout + r.stderr
     assert not out.exists()
+
+
+def test_python_is_additive_on_cpp():
+    from LangBackend import PythonBackend
+    b = get_lang_backend("python")
+    assert isinstance(b, PythonBackend) and isinstance(b, CppBackend)
+    assert get_lang_backend("py") is b
