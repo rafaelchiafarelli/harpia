@@ -169,6 +169,19 @@ py-crypto-phi task 4; until then only tests copy them.
   (task 2): `KmsClient` ABC (`active_version`/`wrap`/`unwrap`/`rotate` over
   bytes + int version), `KmsKeyProvider(kms, audit_sink=None)` (routes,
   per-DEK shred is a local set), `MockKms` (+ `forget_version`).
+- `runtime/python/encrypted_column.py` → `harpia_runtime.crypto.encrypted_column`
+  (task 3): `ENC_MARKER`, `encrypt_field(kp, str) -> str`, `decrypt_field`,
+  `decrypt_field_ll` (strtoll, int64-saturating, also past `int()`'s digit
+  limit), `decrypt_field_int` (32-bit wrap like the C++ cast),
+  `decrypt_field_float` (strtod prefix; no hex floats), and
+  `default_key_provider()` (one lazily-built process-wide
+  `InMemoryKeyProvider`). Frame byte-identical to C++ (big-endian
+  `>QI` header, lowercase hex), proven both ways over one shared
+  `LocalKeyProvider` store. Text is UTF-8. **Decision (task 3):** a value
+  that opens to invalid UTF-8 decrypts to `""` (Rule 5: unrecoverable,
+  never raise, no mojibake); C++ would return the raw bytes. Hex in the
+  frame is validated strictly (no whitespace, which `bytes.fromhex` would
+  otherwise accept).
 
 ## Key facts / gotchas
 - **Selection order in `get_backend()`:** explicit `name` (e.g.
