@@ -108,11 +108,23 @@ third added by the sensitive-data roadmap, not Foundation):
   `AuditSink` `"rbac_denied"` record per non-allow (cn/role/op/decision
   metadata only, Rule 5). `#include`s its sibling `harpia_audit_sink.h`.
   Tested by `UnitTests/test_rbac.py`.
+- `runtime/python/rbac.py` — **python-target / py-transports-http task 6:**
+  the Python port of `harpia_rbac.h`, copied as `harpia_runtime.rbac` (with
+  the Python audit sink) by `PyHttp`/`PyGrpc` when any message is
+  RBAC-gated. `Role`/`Operation`/`Decision` enums (values = the C++ names),
+  `parse_role`, `permitted`, `RoleMap.from_file/from_env/role_for/empty`
+  (same file format: `#` comments, whitespace-split, CRLF ok, last line
+  wins, unknown role → none, missing file → empty), `role_map()` (loaded
+  once under a lock; read-only after), `decide(cn, op, subject, sink=None)`
+  with the byte-identical `rbac_denied` detail. Decisions + audit text
+  equal C++ for one map file (`test_py_rbac.py`).
 - `rbac_common.py` — task-4 path constants (`RBAC_RUNTIME`/`RBAC_RUNTIME_SRC`
   + `RBAC_RUNTIME_DEPS` = the co-copied `harpia_audit_sink.h`), same shape as
   `audit_common.py` / `delivery_common.py`. Consumed by
   `Database.RestAdapter` (copies into `generated/cpp/http/`) and
-  `Database.GrpcServiceAdapter` (into `generated/cpp/grpc/`).
+  `Database.GrpcServiceAdapter` (into `generated/cpp/grpc/`). Also
+  `PY_RBAC_MODULE` / `PY_RBAC_RUNTIME_SRC` / `PY_RBAC_RUNTIME_DEPS` (the
+  Python port + its audit-sink dependency).
 - `runtime/harpia_session.h` — **transport-authn epic, task 5 (token-sessions).**
   Hand-written C++, copied verbatim into `generated/cpp/{http,grpc}/` next to
   `harpia_rbac.h` (by the same two adapters, under the same

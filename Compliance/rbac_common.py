@@ -25,7 +25,9 @@ the same output directory -- RBAC_RUNTIME_DEPS carries it.
 """
 import os
 
-from Compliance.audit_common import AUDIT_SINK_RUNTIME, AUDIT_SINK_RUNTIME_SRC
+from Compliance.audit_common import (
+    AUDIT_SINK_RUNTIME, AUDIT_SINK_RUNTIME_SRC, PY_AUDIT_SINK_MODULE,
+    PY_AUDIT_SINK_RUNTIME_SRC)
 
 RBAC_RUNTIME = "harpia_rbac.h"
 RBAC_RUNTIME_SRC = os.path.join(
@@ -34,3 +36,11 @@ RBAC_RUNTIME_SRC = os.path.join(
 #: harpia_rbac.h #includes "harpia_audit_sink.h" at the same relative path, so
 #: both must land in the same directory when copied into output.
 RBAC_RUNTIME_DEPS = ((AUDIT_SINK_RUNTIME, AUDIT_SINK_RUNTIME_SRC),)
+
+# python-target / py-transports-http task 6: the Python port of the header
+# above, copied into a generated Python project at PY_RBAC_MODULE (with its
+# audit-sink dependency) by PyHttp/PyGrpc when any message gets the RBAC gate.
+PY_RBAC_MODULE = "harpia_runtime.rbac"
+PY_RBAC_RUNTIME_SRC = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "runtime", "python", "rbac.py")
+PY_RBAC_RUNTIME_DEPS = ((PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC),)

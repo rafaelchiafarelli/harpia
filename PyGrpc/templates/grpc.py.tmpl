@@ -18,7 +18,7 @@ from harpia_generated.protofiles import (
     {name}_{hash}_service_pb2_grpc as service_grpc,
 )
 from harpia_generated.protofiles.errorCode_pb2 import errorCode
-from harpia_runtime.grpc_service import CrudServicer, {gate_import}
+from harpia_runtime.grpc_service import CrudServicer{gate_import}{rbac_import}
 
 
 class {name}_Service(CrudServicer):

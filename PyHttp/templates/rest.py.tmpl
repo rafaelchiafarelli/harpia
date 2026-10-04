@@ -14,7 +14,7 @@ from harpia_generated.protofiles.{name}_{hash}_pb2 import (
 )
 from harpia_runtime.db.pool import ConnectionPool
 from harpia_runtime.http.rest import {gate_import}register_crud
-from harpia_runtime.http.router import Router
+from harpia_runtime.http.router import Router{rbac_import}
 
 #: default page size of ``GET <base>/{name}`` (0: unpaginated unless ?limit=)
 DEFAULT_LIMIT = {default_limit}

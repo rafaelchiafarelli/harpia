@@ -56,12 +56,28 @@ bring-up). A stage of `LangBackend/python.py`'s `run_python`, after
   for `protected`); HTTP mixed mode (`CERT_OPTIONAL`) verifies a presented
   cert like C++.
 
+- `runtime/rbac_gates.py` → `harpia_runtime.rbac_gates` (task 6; copied
+  with `harpia_runtime.rbac` + its audit sink by `copy_rbac_runtimes`, from
+  PyHttp **and** PyGrpc, only when some message is RBAC-gated — the C++
+  "copy `harpia_rbac.h` only if any_rbac" rule): `rest_rbac_gate(subject)`
+  (401 / 403, empty body), `soap_rbac_gate(subject)` (an *op gate*: `get`
+  read / `set` create / `update` / `delete` remove, unknown ops ungated;
+  401 / 403 `Client.Authentication` Fault `unauthenticated` / `forbidden`),
+  `grpc_rbac_gate(subject)` (`UNAUTHENTICATED "unauthenticated"` /
+  `PERMISSION_DENIED "forbidden"`), `http_peer_cn`. Identity = the verified
+  client-cert CN. The RBAC mechanism itself (`Role`, `Operation`,
+  `permitted`, `RoleMap`, `role_map()`, `decide`) is
+  `Compliance/runtime/python/rbac.py`.
+
 ## Generated (under `harpia_generated/`)
 - `rest/<name>_<hash>_rest.py` per table-bearing message (= the C++
   `rest/*_rest.h` set): `DEFAULT_LIMIT` (`pagination_default`), `GATE`,
-  `register(router, pool, base="")`.
+  `register(router, pool, base="")`. `GATE` is `rest_rbac_gate(name)` when
+  `Database.auth_gate.effective_rbac(msg, hardening)` (the C++ choice,
+  imported, not re-implemented), else `flat_gate(name, hash)`.
 - `soap/<name>_<hash>_soap.py` per table-bearing message: `WSDL` (the
-  existing `wsdl/<name>_<hash>.wsdl`, not regenerated), `EARLY_GATE`,
+  existing `wsdl/<name>_<hash>.wsdl`, not regenerated), `EARLY_GATE` (flat)
+  or `OP_GATE` (RBAC, after the operation parse — the C++ order),
   `register(router, pool, base="/soap")`.
 - `http/http_server_bringup.py`: `HttpServer(pool, host="127.0.0.1",
   port=0, rest_base="", soap_base="/soap")` registering every REST and SOAP
@@ -81,8 +97,11 @@ bring-up). A stage of `LangBackend/python.py`'s `run_python`, after
 - **As C++:** PUT / DELETE answer 204 even when no row matched (the C++
   DAO's update/remove return true either way); PUT ignores the path id
   (the body's key is used); reconnect failure is 503 like exhaustion.
-- Task 2 emits the flat gate for every message; the hardened gates
-  (mTLS identity, RBAC, sessions) replace it per message in tasks 5–7.
+- Gates per message since task 6 (flat vs RBAC, the C++ `effective_rbac`
+  choice); bearer sessions on top of RBAC are task 7. **Parity (task 6):**
+  for one RBAC map file + one PKI, the generated C++ and Python
+  `HttpServer`s answer the same 5-identity × 12-request sequence with the
+  same statuses and byte-identical SOAP envelopes (`test_py_rbac.py`).
 - A client that keeps uploading a body > 1 MiB sees a broken pipe: the
   413 is sent before the body is read (by design: no draining).
 - One C++ HTTP client (`UnitTests/harpia_test_client.h`) drives this
@@ -91,4 +110,5 @@ bring-up). A stage of `LangBackend/python.py`'s `run_python`, after
 ## Touchpoints
 - Depends on: `Database.model.pagination_default`, the generated DAOs,
   `harpia_runtime.db.pool`, the JSON/XML runtimes.
-- Tested by: `UnitTests/test_py_rest.py`, `test_py_soap.py`.
+- Tested by: `UnitTests/test_py_rest.py`, `test_py_soap.py`,
+  `test_py_mtls.py`, `test_py_rbac.py`.
