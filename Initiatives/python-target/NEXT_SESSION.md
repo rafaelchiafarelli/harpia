@@ -5,37 +5,28 @@ initiative ships (like the other initiatives' handoff notes).
 
 ## Where things stand
 
+Updated 2026-10-04 (same session, later): epics 0-4 done.
+
 | # | Epic | State |
 |---|---|---|
-| 0 | `lang-backend-seam` | **done** (`epics/lang-backend-seam-done/`) |
-| 1 | `py-foundation` | **done** (`epics/py-foundation-done/`) |
-| 2 | `py-serialization` | **done** (`epics/py-serialization-done/`) |
-| 4 | `py-database` | **in progress**: tasks 1, 2a, 2b, 2c, 3, 4, 5a done (`-done` files); **next: 5b, then 6** |
-| 3, 5-13 | the rest | not started; order in `epics/README.md` (do `py-crypto-phi` (3) after `py-database`: its task 4 needs the DAOs) |
+| 0 | `lang-backend-seam` | **done** |
+| 1 | `py-foundation` | **done** |
+| 2 | `py-serialization` | **done** |
+| 4 | `py-database` | **done** (`epics/py-database-done/`) |
+| 3 | `py-crypto-phi` | **done** (`epics/py-crypto-phi-done/`) |
+| 5-13 | the rest | not started; order in `epics/README.md` |
 
 ## Start here
 
 1. Branch chain in this clone: `dev → features → python-target → epics →
-   py-database → tasks → <task>`. `tasks` holds every finished py-database
-   task; nothing of py-database is merged into `py-database`/`epics` yet
-   (that happens when the epic is done).
-2. `git checkout tasks && git checkout -b 5b-migration-child-tables`, then
-   implement `epics/py-database/tasks/5b-migration-child-tables.md`.
-   Groundwork already in place for it:
-   - `Database/backends` already has the child plans (`rep_child_plan`,
-     `map_child_plan`, `composed_child_plan`) and the engine
-     (`PyDatabase/runtime/migrate.py`) already runs child renames, the reap
-     and child plans; 5a just emits them inert
-     (`child_renames=()`, `child_current=None`, `child_plans=()` in
-     `PyDatabaseAdapter._render_migration`). 5b fills those three from
-     `Database/MigrationAdapter._render`'s child logic (renamable set,
-     `child_table_names`, `int_type` as the owner type, like C++).
-   - Test pattern: `UnitTests/test_py_db_migrate.py` (hand-built older
-     SQLite states + a C++ migrate binary, compare end states) and
-     `test_python_db_postgres.py::test_migrate_on_postgres`.
-3. Then task 6 (`dbio-json-xml`), then close the epic: merge `tasks →
-   py-database`, `git mv epics/py-database epics/py-database-done`, merge
-   `py-database → epics`.
+   <epic> → tasks → <task>`. Every finished epic is merged into `epics`.
+   For a new epic: `git checkout epics && git checkout -b <epic> &&
+   git branch -f tasks <epic>`, then branch each task off `tasks`.
+2. Next: pick from 5/6/7/9 (no hard order). Python crypto runtimes are in
+   `Crypto/runtime/python/` (constants in `Crypto/key_provider_common.py`);
+   phi DAOs subclass `harpia_runtime.db.phi.PhiDao`.
+3. Runtime unit tests load copied runtimes via `UnitTests/_py_runtime_load.py`
+   (isolated `sys.modules`).
 
 ## Run rules Rafael set for this initiative (2026-10-04)
 
