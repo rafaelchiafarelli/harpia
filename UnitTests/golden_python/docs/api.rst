@@ -349,6 +349,66 @@ harpia_generated.serialize.phi_registry
 .. automodule:: harpia_generated.serialize.phi_registry
    :members:
 
+harpia_generated.zmq
+--------------------
+
+.. automodule:: harpia_generated.zmq
+   :members:
+
+harpia_generated.zmq.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.zmq.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+   :members:
+
+harpia_generated.zmq.bed_state_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.zmq.bed_state_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+   :members:
+
+harpia_generated.zmq.courier_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+-----------------------------------------------------------------
+
+.. automodule:: harpia_generated.zmq.courier_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+   :members:
+
+harpia_generated.zmq.data_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+--------------------------------------------------------------
+
+.. automodule:: harpia_generated.zmq.data_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+   :members:
+
+harpia_generated.zmq.pump_tick_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.zmq.pump_tick_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+   :members:
+
+harpia_generated.zmq.sensor_feed_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.zmq.sensor_feed_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+   :members:
+
+harpia_generated.zmq.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.zmq.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+   :members:
+
+harpia_generated.zmq.users_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+---------------------------------------------------------------
+
+.. automodule:: harpia_generated.zmq.users_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+   :members:
+
+harpia_generated.zmq.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.zmq.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+   :members:
+
 harpia_runtime
 --------------
 
@@ -433,6 +493,12 @@ harpia_runtime.db.phi
 .. automodule:: harpia_runtime.db.phi
    :members:
 
+harpia_runtime.delivery
+-----------------------
+
+.. automodule:: harpia_runtime.delivery
+   :members:
+
 harpia_runtime.events
 ---------------------
 
@@ -479,5 +545,29 @@ harpia_runtime.yaml
 -------------------
 
 .. automodule:: harpia_runtime.yaml
+   :members:
+
+harpia_runtime.zap
+------------------
+
+.. automodule:: harpia_runtime.zap
+   :members:
+
+harpia_runtime.zmq
+------------------
+
+.. automodule:: harpia_runtime.zmq
+   :members:
+
+harpia_runtime.zmq_delivery
+---------------------------
+
+.. automodule:: harpia_runtime.zmq_delivery
+   :members:
+
+harpia_runtime.zmq_stream
+-------------------------
+
+.. automodule:: harpia_runtime.zmq_stream
    :members:
 
