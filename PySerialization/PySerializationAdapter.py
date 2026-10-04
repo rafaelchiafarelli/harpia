@@ -16,6 +16,8 @@ _RUNTIME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runtime
 #: (source file under runtime/, destination module)
 RUNTIMES = (
     ("json.py", "harpia_runtime.json"),
+    ("reflect.py", "harpia_runtime.reflect"),
+    ("xml.py", "harpia_runtime.xml"),
 )
 
 

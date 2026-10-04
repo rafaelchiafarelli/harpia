@@ -20,10 +20,24 @@ through `PyAdapter.runtime_copy.copy_runtime_module`. Always returns `None`.
   like C++ (`ParseFromString` clears), returns `False` and leaves the message
   untouched on failure.
 
+- `runtime/reflect.py` → `harpia_runtime.reflect` (task 2): helpers the XML,
+  YAML and façade runtimes share — `scalar_text` (C++ `std::to_string`
+  printing: `%f` floats, `true`/`false`, enum names incl. C++'s
+  `UNKNOWN_ENUM_VALUE_<Enum>_<n>`), `to_ll`/`to_ull`/`to_d` (C `strto*`
+  longest-prefix semantics), `parse_scalar` (int32/uint32 wrap like a
+  `static_cast`), `has_presence`, `is_map`, `is_repeated`.
+- `runtime/xml.py` → `harpia_runtime.xml` (task 2): `to_xml`, `from_xml`,
+  `from_xml_element`, `escape`, `xsd`. A line-for-line port of
+  `harpia_xml.h`, **byte-identical** (root = type name; presence-gated
+  message/`optional` fields; proto3 scalars always emitted; maps as
+  `<f><key>..</key><value>..</value></f>`). Reading uses
+  `xml.etree.ElementTree` and merges, like the C++ reader. Python includes
+  `xsd()`; the Java target skipped it.
+
 ## Key facts / gotchas
 - **JSON is byte-identical to C++** for every fixture message (156 types,
   stress strings included; checked 2026-10-04). Plain `json.dumps` differed
-  in one way: C++ escapes `<`/`>` as `<`/`>` inside strings.
+  in one way: C++ escapes `<`/`>` as `\u003c`/`\u003e` inside strings.
   `to_json` replaces those two characters, which is safe because they can't
   occur outside a JSON string. Float text could still differ for values the
   two libraries print differently; the stated bar is cross-parse equality.

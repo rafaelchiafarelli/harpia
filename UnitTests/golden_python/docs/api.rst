@@ -25,3 +25,15 @@ harpia_runtime.json
 .. automodule:: harpia_runtime.json
    :members:
 
+harpia_runtime.reflect
+----------------------
+
+.. automodule:: harpia_runtime.reflect
+   :members:
+
+harpia_runtime.xml
+------------------
+
+.. automodule:: harpia_runtime.xml
+   :members:
+
