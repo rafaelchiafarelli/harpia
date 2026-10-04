@@ -321,6 +321,29 @@ PgBouncer in front. On PostgreSQL, the reconnect check pings the server once
 per borrow. The borrow deadline runs on the monotonic clock, so wall-clock
 steps (NTP, VM resume, WSL2 resync) don't cut waits short.
 
+**SQLite under a pool.** Open it with the helper, on a file:
+
+```cpp
+#include <soci/sqlite3/soci-sqlite3.h>
+::soci::connection_pool pool(4);
+harpia::db::open_sqlite_pool(pool, 4, ::soci::sqlite3, "/var/lib/app/app.db",
+                             /*busy_timeout_ms=*/5000);
+harpia::grpc_transport::GrpcServer server(pool, "0.0.0.0:50051", mtls);
+```
+
+It sets `PRAGMA journal_mode=WAL` (readers don't block the writer) and
+`PRAGMA busy_timeout` on every connection, so concurrent writers wait instead
+of failing with "database is locked". SQLite still runs one writer at a time;
+for many concurrent writers use PostgreSQL. A pool of `:memory:` connections is
+refused with `std::invalid_argument` (each would be its own empty database);
+use a file, or the single-session constructor for an in-memory database.
+
+**Shared state is thread-safe.** Besides its pooled session, a handler touches
+the key provider (phi DAOs), the audit sink, the RBAC map and the session
+revocation list. All harpia-shipped ones are safe to share across handler
+threads. A `KeyProvider`, `KmsClient` or `AuditSink` you write yourself is
+called from many threads too, so it must be thread-safe.
+
 RPCs map `push`→create, `pullByID`→read, `streamSrc`→list (paginated via the
 request's `offset`/`limit`), `heartBeat`→echo. Under hardening `heartBeat` mints
 a `harpia-session-token` when the call carries `harpia-issue-session` metadata,

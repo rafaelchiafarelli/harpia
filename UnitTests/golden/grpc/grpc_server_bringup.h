@@ -69,7 +69,10 @@ inline constexpr const char* kOpenSSLProvider = "fips";
 // kept for single-client use and existing callers. The ::soci::connection_pool
 // overloads give each RPC its own borrowed session (db/harpia_db_pool.h);
 // `lease_timeout_ms` is how long an RPC waits for a free slot before failing
-// RESOURCE_EXHAUSTED. The caller constructs, sizes and opens the pool.
+// RESOURCE_EXHAUSTED. The caller constructs, sizes and opens the pool (for
+// SQLite: harpia::db::open_sqlite_pool, which sets WAL + a busy timeout). A
+// pool of SQLite :memory: connections is refused with std::invalid_argument
+// (db-concurrency task 1b) -- each would be its own empty database.
 class GrpcServer {
 public:
     GrpcServer(::soci::session& db, const std::string& addr,
@@ -100,6 +103,7 @@ public:
 private:
     void start(const std::string* addr, const MtlsFiles& mtls, ::soci::session* db,
                ::soci::connection_pool* pool, int lease_timeout_ms) {
+        if (pool) ::harpia::db::refuse_sqlite_memory_pool(*pool, lease_timeout_ms);
         ::grpc::ServerBuilder builder;
         if (addr) {
             builder.AddListeningPort(*addr,

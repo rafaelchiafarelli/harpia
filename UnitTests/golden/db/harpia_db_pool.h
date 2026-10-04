@@ -47,6 +47,19 @@
 // PostgreSQL connection is a server process (heavier on Windows). Tens of
 // connections serve hundreds of clients when calls are short; beyond that put
 // PgBouncer in front. See USAGE.md.
+//
+// SQLite under a pool (db-concurrency task 1b):
+//   * `:memory:` is refused. Every pooled `:memory:` connection is its own,
+//     separate, empty database, so a pooled server would silently scatter rows
+//     across N invisible databases. Generated servers' pool constructors call
+//     refuse_sqlite_memory_pool(), which throws std::invalid_argument; the
+//     single-session constructors still accept `:memory:`.
+//   * open_sqlite_pool() opens a FILE database on every slot with
+//     `PRAGMA journal_mode=WAL` (readers never block the writer) and
+//     `PRAGMA busy_timeout` (a writer that finds the database locked waits
+//     instead of failing with "database is locked"). SQLite still runs one
+//     writer at a time -- that serialization is why PostgreSQL, not SQLite,
+//     is the target for many concurrent clients.
 #ifndef HARPIA_DB_POOL_H
 #define HARPIA_DB_POOL_H
 
@@ -55,6 +68,8 @@
 #include <chrono>
 #include <cstddef>
 #include <exception>
+#include <stdexcept>
+#include <string>
 #include <thread>
 
 #include <soci/soci.h>
@@ -161,6 +176,81 @@ private:
     int exceptions_at_borrow_ = 0;
     Outcome outcome_ = Outcome::ok;
 };
+
+// Default busy timeout for open_sqlite_pool(): how long a writer waits for
+// SQLite's write lock before giving up.
+inline constexpr int kDefaultSqliteBusyTimeoutMs = 5000;
+
+// True when `path` names an in-memory SQLite database (`:memory:`, the empty
+// string = a private temporary database, or a `file:` URI asking for memory).
+inline bool is_sqlite_memory_path(const std::string& path) {
+    return path.empty() || path == ":memory:" ||
+           path.rfind("file::memory:", 0) == 0 ||
+           path.find("mode=memory") != std::string::npos;
+}
+
+// True when `s` is a SQLite connection to a private in-memory (or temporary)
+// database: SQLite reports an empty file name for the "main" schema then.
+inline bool is_sqlite_memory(::soci::session& s) {
+    if (s.get_backend_name() != "sqlite3") return false;
+    std::string file;
+    ::soci::indicator ind = ::soci::i_ok;
+    s << "SELECT file FROM pragma_database_list WHERE name = 'main'",
+        ::soci::into(file, ind);
+    return ind != ::soci::i_ok || file.empty();
+}
+
+// Throws std::invalid_argument when `pool` holds SQLite `:memory:`
+// connections (see the header comment). Inspects one borrowed slot; if every
+// slot is busy for `lease_timeout_ms` it cannot look and does not throw.
+inline void refuse_sqlite_memory_pool(::soci::connection_pool& pool,
+                                      int lease_timeout_ms = kDefaultLeaseTimeoutMs) {
+    bool memory = false;
+    {
+        PooledSession probe(nullptr, &pool, lease_timeout_ms);
+        if (!probe.ok()) return;
+        memory = is_sqlite_memory(probe.session());
+    }
+    if (memory) {
+        throw std::invalid_argument(
+            "harpia: a SQLite :memory: database cannot back a connection pool -- "
+            "every pooled connection would be its own empty database. Use a "
+            "database file path (harpia::db::open_sqlite_pool), or the "
+            "single-session constructor for an in-memory database.");
+    }
+}
+
+// Opens all `size` slots of `pool` on the SQLite FILE `path` through the
+// `sqlite` backend factory (pass ::soci::sqlite3 from
+// <soci/sqlite3/soci-sqlite3.h>), each with WAL journaling and a busy
+// timeout. `size` must be the size the pool was constructed with. Throws
+// std::invalid_argument for an in-memory path, std::runtime_error if WAL
+// cannot be enabled (e.g. a filesystem without shared-memory support), and
+// lets SOCI's own errors (can't open the file) propagate.
+inline void open_sqlite_pool(::soci::connection_pool& pool, std::size_t size,
+                             const ::soci::backend_factory& sqlite,
+                             const std::string& path,
+                             int busy_timeout_ms = kDefaultSqliteBusyTimeoutMs) {
+    if (is_sqlite_memory_path(path)) {
+        throw std::invalid_argument(
+            "harpia: open_sqlite_pool needs a database file path, not an "
+            "in-memory database (\"" + path + "\")");
+    }
+    for (std::size_t i = 0; i < size; ++i) {
+        ::soci::session& s = pool.at(i);
+        s.open(sqlite, path);
+        std::string mode;
+        s << "PRAGMA journal_mode=WAL", ::soci::into(mode);
+        if (mode != "wal") {
+            throw std::runtime_error(
+                "harpia: could not enable WAL journaling on \"" + path +
+                "\" (journal_mode is \"" + mode + "\")");
+        }
+        int applied = 0;
+        s << "PRAGMA busy_timeout=" + std::to_string(busy_timeout_ms),
+            ::soci::into(applied);
+    }
+}
 
 }  // namespace db
 }  // namespace harpia
