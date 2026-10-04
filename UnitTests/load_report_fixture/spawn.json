@@ -1,0 +1,5 @@
+{"clients": [
+  {"identity": "edge-a", "kind": "edge", "role": "main", "exit_code": 0, "crashed": false, "report": "edge-a.jsonl", "log": "edge-a.log"},
+  {"identity": "guest-a", "kind": "edge", "role": "guest", "exit_code": 0, "crashed": false, "report": "guest-a.jsonl", "log": "guest-a.log"},
+  {"identity": "hh-a", "kind": "handheld", "role": "main", "exit_code": 137, "crashed": true, "report": "hh-a.jsonl", "log": "hh-a.log"}
+]}
