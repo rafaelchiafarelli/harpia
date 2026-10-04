@@ -44,6 +44,7 @@ RUNTIMES = (
     ("dao.py", "harpia_runtime.db.dao"),
     ("migrate.py", "harpia_runtime.db.migrate"),
     ("dbio.py", "harpia_runtime.db.dbio"),
+    ("pool.py", "harpia_runtime.db.pool"),
 )
 #: copied only when some message has a phi column (with the crypto runtimes)
 PHI_RUNTIME = ("phi.py", "harpia_runtime.db.phi")
