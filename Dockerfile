@@ -70,6 +70,29 @@
 #                                              access (/dev/kvm + the kvm group) is
 #                                              wired in separately at `docker run`
 #                                              time, not the SDK packages.
+#   - Python target toolchain (python-target / py-foundation task 1), one
+#     layer at the end of this file so it doesn't invalidate the layers above:
+#       apt (matches protoc 3.21.12 gencode): python3-protobuf 3.21.12
+#         (reports itself as 4.21.12 -- upstream numbers the Python
+#         runtime 4.x for the protoc 3.21 release),
+#         python3-grpcio 1.51.1, python3-zmq 24.0.1 (libzmq with CURVE),
+#         python3-psycopg 3.1.17, mypy 1.9.0 (+ CLI), python3-sphinx 7.2.6,
+#         mypy-protobuf 3.2.0 (protoc-gen-mypy / protoc-gen-mypy_grpc -- noble
+#         does carry it, so apt rather than pip), python3-pip + python3-dev
+#         (to build cyclonedds below).
+#       gRPC Python stubs: grpc_python_plugin from protobuf-compiler-grpc
+#         1.51.1 (already installed above) driven by the system protoc --
+#         NOT apt's python3-grpc-tools, which is 1.14.1 (2018) and bundles
+#         its own protoc 3.6; the plugin matches grpcio 1.51.1 exactly.
+#       pinned pip (not in noble's apt), --break-system-packages since this
+#       image is single-purpose:
+#         ruff==0.6.9               lint gate for the generated tree
+#         types-protobuf==4.21.0.7  stubs for google.protobuf 3.21 (= 4.21
+#                                   upstream line); mypy --strict needs them
+#         cyclonedds==0.10.5        built against the Cyclone DDS 0.10.5
+#                                   installed to /usr/local above
+#                                   (CYCLONEDDS_HOME), so Python and C++
+#                                   share one DDS stack
 #
 # The repository is mounted at /harpia at run time (see Docker/run.sh), so edits
 # on the host are picked up without rebuilding the image.
@@ -175,6 +198,25 @@ RUN cmake -S /tmp/dds-src/cyclonedds-cxx -B /tmp/dds-src/build-cxx \
 # /usr/local is already a default CMake search prefix; set it explicitly so
 # find_package(CycloneDDS-CXX) resolves even when a caller overrides the path.
 ENV CMAKE_PREFIX_PATH="/usr/local"
+
+# Python target toolchain (see the header comment). Last, so it builds on the
+# Cyclone install above and doesn't invalidate any earlier layer.
+ENV CYCLONEDDS_HOME=/usr/local
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3-protobuf \
+        python3-grpcio \
+        python3-zmq \
+        python3-psycopg \
+        mypy \
+        python3-sphinx \
+        mypy-protobuf \
+        python3-pip \
+        python3-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --break-system-packages \
+        ruff==0.6.9 \
+        types-protobuf==4.21.0.7 \
+        cyclonedds==0.10.5
 
 WORKDIR /harpia
 
