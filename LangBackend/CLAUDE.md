@@ -24,7 +24,7 @@ stage's non-fatal `Error`.
   is additive on top of C++, as it always was.
 - `python.py` — `PythonBackend(CppBackend)`: `run_python()` (the Python
   target's stages: `PyAdapter`, `PySerializationAdapter`,
-  `PyDatabaseAdapter`, `PyEventsAdapter`, `PyZmqAdapter`, `PyHttpAdapter`, ..., `PyDocsAdapter` last) then
+  `PyDatabaseAdapter`, `PyEventsAdapter`, `PyZmqAdapter`, `PyHttpAdapter`, `PyGrpcAdapter`, ..., `PyDocsAdapter` last) then
   the C++ pipeline — the same additive rule as `java`. Alias `py`.
 
 ## Key facts / gotchas
