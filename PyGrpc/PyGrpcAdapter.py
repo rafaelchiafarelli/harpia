@@ -9,8 +9,9 @@ message (the C++ ``grpc/*_grpc.h`` set) plus
 import os
 
 from Crypto.backend import transport_hardening_required
-from Database.auth_gate import transport_mode
+from Database.auth_gate import effective_rbac, transport_mode
 from Logger.logger import logger
+from PyHttp.PyHttpAdapter import copy_rbac_runtimes
 from PyAdapter.runtime_copy import copy_runtime_module
 from Util.util import loadTemplate, write_if_different
 
@@ -43,6 +44,8 @@ class PyGrpcAdapter:
             return None
         copy_runtime_module(self.dest, _RUNTIME, GRPC_MODULE)
         copy_runtime_module(self.dest, _TLS_RUNTIME, TLS_MODULE)
+        if any(self._rbac(m) for m in tables):
+            copy_rbac_runtimes(self.dest)
         os.makedirs(self.outDir, exist_ok=True)
         write_if_different(os.path.join(self.outDir, "__init__.py"),
                            '"""Generated gRPC servicers, one module per table."""\n')
@@ -55,13 +58,31 @@ class PyGrpcAdapter:
         self.log.print("generated {} gRPC servicer(s) into {}".format(len(tables), self.outDir))
         return None
 
+    def _rbac(self, msg):
+        """The per-message gate choice, shared with C++
+        (``Database.auth_gate.effective_rbac``)."""
+        return effective_rbac(msg, transport_hardening_required(self.compliance))
+
     def _render(self, msg):
+        if self._rbac(msg):
+            return _SERVICE.format(
+                name=msg.name, hash=msg.md5Hash,
+                gate_doc="RBAC (``protected``, or hardened and not ``open``) -- the "
+                         "verified client-certificate CN mapped to a role by "
+                         "``HARPIA_RBAC_MAP`` (:mod:`harpia_runtime.rbac`); "
+                         "``UNAUTHENTICATED`` without an identity, "
+                         "``PERMISSION_DENIED`` when its role may not perform the "
+                         "RPC. Needs a server that requires client certificates "
+                         "(see :mod:`harpia_runtime.rbac_gates`).",
+                gate_import="",
+                rbac_import="\nfrom harpia_runtime.rbac_gates import grpc_rbac_gate",
+                gate_expr="grpc_rbac_gate({!r})".format(msg.name))
         return _SERVICE.format(
             name=msg.name, hash=msg.md5Hash,
             gate_doc="the flat generated credential -- ``x-user: {}`` and "
                      "``x-pswd: <hash>`` call metadata, else "
                      "``UNAUTHENTICATED``.".format(msg.name),
-            gate_import="flat_gate",
+            gate_import=", flat_gate", rbac_import="",
             gate_expr="flat_gate({!r}, {!r})".format(msg.name, msg.md5Hash))
 
     def _transport(self):

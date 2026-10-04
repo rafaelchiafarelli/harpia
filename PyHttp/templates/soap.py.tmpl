@@ -16,7 +16,7 @@ from harpia_generated.protofiles.{name}_{hash}_pb2 import (
 )
 from harpia_runtime.db.pool import ConnectionPool
 from harpia_runtime.http.router import Router
-from harpia_runtime.http.soap_endpoint import {gate_import}register_soap
+from harpia_runtime.http.soap_endpoint import {gate_import}register_soap{rbac_import}
 
 #: the WSDL describing this endpoint (relative to the generation output dir)
 WSDL = {wsdl_lit}

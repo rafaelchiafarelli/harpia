@@ -63,10 +63,30 @@ def py_root(gen):
     return os.path.join(gen, "python")
 
 
+_ACTIVE_ROOT = [None]
+
+
+def activate(root):
+    """Make ``import harpia_generated`` / ``harpia_runtime`` resolve to the
+    generated project at ``root``. Test modules generate their own projects
+    (hardened or low-risk profiles generate different gates), so switching
+    drops the previously imported project's modules from ``sys.modules``.
+    Objects already built from the old modules keep working."""
+    if _ACTIVE_ROOT[0] == root:
+        return
+    for name in list(sys.modules):
+        if name.split(".")[0] in ("harpia_generated", "harpia_runtime"):
+            del sys.modules[name]
+    sys.path[:] = [p for p in sys.path if p != _ACTIVE_ROOT[0]]
+    sys.path.insert(0, root)
+    importlib.invalidate_caches()
+    _ACTIVE_ROOT[0] = root
+
+
 def fixture_messages(root):
-    """Import every generated _pb2 module; return {full_name: message class}."""
-    if root not in sys.path:
-        sys.path.insert(0, root)
+    """Activate the project at ``root`` (:func:`activate`), import every
+    generated _pb2 module; return {full_name: message class}."""
+    activate(root)
     out = {}
     for f in sorted(glob.glob(os.path.join(root, "harpia_generated", "protofiles",
                                            "*_pb2.py"))):

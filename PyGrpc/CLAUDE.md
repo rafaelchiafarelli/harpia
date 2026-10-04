@@ -24,6 +24,8 @@ checks `x-user` / `x-pswd` metadata (`UNAUTHENTICATED "unauthorized"`);
   `grpc/*_grpc.h` set): `class <name>_Service(CrudServicer)` +
   `add_to_server(servicer, server)` (wraps protoc's
   `add_<name>_ServiceServicer_to_server`).
+  `GATE` is `harpia_runtime.rbac_gates.grpc_rbac_gate(name)` when
+  `Database.auth_gate.effective_rbac` says RBAC (task 6), else `flat_gate`.
 - `grpc_server_bringup.py`: `GrpcServer(pool, address="127.0.0.1:0",
   max_workers=10, mtls=None)` — every servicer on one `grpc.server(ThreadPoolExecutor)`,
   `port`, `start()`, `stop(grace=None)`; `SERVICES`; same
@@ -43,7 +45,16 @@ checks `x-user` / `x-pswd` metadata (`UNAUTHENTICATED "unauthorized"`);
 - Same `.proto`, metadata keys and status codes as C++: a C++ client built
   from the generated stubs calls the Python server unchanged.
 
+- **RBAC over gRPC needs client certificates *required*** (task 6): in
+  mixed mode (`CLIENT_CERT_REQUIRED = False`, which the HarpiaTest fixture's
+  `open` message forces) grpcio never requests a client cert, so every
+  RBAC-gated RPC of the generated `GrpcServer` answers `UNAUTHENTICATED`
+  (fail-closed; the `open` message still works). C++ can request-and-verify
+  there; Python can't (logged decision 33/34). The (role, op) matrix is
+  tested on a required-cert server.
+
 ## Touchpoints
 - Depends on: protoc's `_pb2` / `_pb2_grpc` (`PyAdapter`), the DAOs,
   `harpia_runtime.db.pool`.
-- Tested by: `UnitTests/test_py_grpc.py`.
+- Tested by: `UnitTests/test_py_grpc.py`, `test_py_mtls.py`,
+  `test_py_rbac.py`.

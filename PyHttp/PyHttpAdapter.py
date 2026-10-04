@@ -9,7 +9,8 @@ import os
 
 from Database.model import pagination_default
 from Crypto.backend import transport_hardening_required
-from Database.auth_gate import transport_mode
+from Compliance.rbac_common import PY_RBAC_MODULE, PY_RBAC_RUNTIME_DEPS, PY_RBAC_RUNTIME_SRC
+from Database.auth_gate import effective_rbac, transport_mode
 from Logger.logger import logger
 from PyAdapter.runtime_copy import copy_runtime_module
 from Util.util import loadTemplate, write_if_different
@@ -27,6 +28,9 @@ RUNTIMES = (
     ("soap.py", "harpia_runtime.soap"),
     ("soap_endpoint.py", "harpia_runtime.http.soap_endpoint"),
 )
+#: copied (with harpia_runtime.rbac) only when some message is RBAC-gated
+RBAC_GATES_MODULE = "harpia_runtime.rbac_gates"
+RBAC_GATES_SRC = os.path.join(_RUNTIME_DIR, "rbac_gates.py")
 REST_EXT = "_rest.py"
 SOAP_EXT = "_soap.py"
 
@@ -35,10 +39,37 @@ _FLAT_SOAP_GATE = '''
 EARLY_GATE = flat_soap_gate({name_lit}, {hash_lit})
 '''
 
+_RBAC_SOAP_GATE = '''
+#: RBAC on the verified client-certificate CN, checked after the operation
+#: is parsed (harpia_runtime.rbac_gates)
+OP_GATE = soap_rbac_gate({name_lit})
+'''
+
+_RBAC_GATE = '''
+#: RBAC on the verified client-certificate CN (harpia_runtime.rbac_gates)
+GATE = rest_rbac_gate({name_lit})
+'''
+
 _FLAT_GATE = '''
 #: the flat generated credential (X-User / X-Pswd)
 GATE = flat_gate({name_lit}, {hash_lit})
 '''
+
+
+_RBAC_IMPORT = "\nfrom harpia_runtime.rbac_gates import {}"
+_RBAC_DOC = ("RBAC (``protected``, or hardened and not ``open``) -- the verified "
+             "client-certificate CN mapped to a role by ``HARPIA_RBAC_MAP`` "
+             "(:mod:`harpia_runtime.rbac`); {deny}.")
+
+
+def copy_rbac_runtimes(dest):
+    """Copy ``harpia_runtime.rbac`` (+ its audit sink) and
+    ``harpia_runtime.rbac_gates`` (C++ copies ``harpia_rbac.h`` only when a
+    message gets the RBAC gate, likewise)."""
+    copy_runtime_module(dest, PY_RBAC_RUNTIME_SRC, PY_RBAC_MODULE)
+    for module, src in PY_RBAC_RUNTIME_DEPS:
+        copy_runtime_module(dest, src, module)
+    copy_runtime_module(dest, RBAC_GATES_SRC, RBAC_GATES_MODULE)
 
 
 class PyHttpAdapter:
@@ -59,6 +90,8 @@ class PyHttpAdapter:
             return None
         for src, module in RUNTIMES:
             copy_runtime_module(self.dest, os.path.join(_RUNTIME_DIR, src), module)
+        if any(self._rbac(m) for m in tables):
+            copy_rbac_runtimes(self.dest)
         restDir = os.path.join(self.pyRoot, "rest")
         soapDir = os.path.join(self.pyRoot, "soap")
         httpDir = os.path.join(self.pyRoot, "http")
@@ -79,23 +112,47 @@ class PyHttpAdapter:
         self.log.print("generated {} REST binding(s) into {}".format(len(tables), restDir))
         return None
 
+    def _rbac(self, msg):
+        """The per-message gate choice, shared with C++
+        (``Database.auth_gate.effective_rbac``)."""
+        return effective_rbac(msg, transport_hardening_required(self.compliance))
+
     def _render_rest(self, msg):
+        if self._rbac(msg):
+            return _REST.format(
+                name=msg.name, hash=msg.md5Hash, table=msg.tableName,
+                name_lit=repr(msg.name), default_limit=pagination_default(msg) or 0,
+                gate_doc=_RBAC_DOC.format(deny="401 without an identity, 403 when "
+                                               "its role may not perform the operation"),
+                gate_import="", rbac_import=_RBAC_IMPORT.format("rest_rbac_gate"),
+                gate_def=_RBAC_GATE.format(name_lit=repr(msg.name)))
         return _REST.format(
             name=msg.name, hash=msg.md5Hash, table=msg.tableName, name_lit=repr(msg.name),
             default_limit=pagination_default(msg) or 0,
             gate_doc="the flat generated credential -- ``X-User: {}`` and "
                      "``X-Pswd: <hash>``, else 401.".format(msg.name),
-            gate_import="flat_gate, ",
+            gate_import="flat_gate, ", rbac_import="",
             gate_def=_FLAT_GATE.format(name_lit=repr(msg.name), hash_lit=repr(msg.md5Hash)))
 
     def _render_soap(self, msg):
+        if self._rbac(msg):
+            return _SOAP.format(
+                name=msg.name, hash=msg.md5Hash, table=msg.tableName,
+                name_lit=repr(msg.name),
+                wsdl_lit=repr("wsdl/{}_{}.wsdl".format(msg.name, msg.md5Hash)),
+                gate_doc=_RBAC_DOC.format(deny="checked once the operation is parsed; "
+                                               "a 401 / 403 ``Client.Authentication`` "
+                                               "Fault"),
+                gate_import="", rbac_import=_RBAC_IMPORT.format("soap_rbac_gate"),
+                gate_def=_RBAC_SOAP_GATE.format(name_lit=repr(msg.name)),
+                gate_args="op_gate=OP_GATE")
         return _SOAP.format(
             name=msg.name, hash=msg.md5Hash, table=msg.tableName, name_lit=repr(msg.name),
             wsdl_lit=repr("wsdl/{}_{}.wsdl".format(msg.name, msg.md5Hash)),
             gate_doc="the flat generated credential -- ``<credentials><user>{}</user>"
                      "<pswd>hash</pswd></credentials>`` in the SOAP Header, else a "
                      "401 Fault.".format(msg.name),
-            gate_import="flat_soap_gate, ",
+            gate_import="flat_soap_gate, ", rbac_import="",
             gate_def=_FLAT_SOAP_GATE.format(name_lit=repr(msg.name),
                                             hash_lit=repr(msg.md5Hash)),
             gate_args="early_gate=EARLY_GATE")

@@ -835,6 +835,18 @@ harpia_runtime.json
 .. automodule:: harpia_runtime.json
    :members:
 
+harpia_runtime.rbac
+-------------------
+
+.. automodule:: harpia_runtime.rbac
+   :members:
+
+harpia_runtime.rbac_gates
+-------------------------
+
+.. automodule:: harpia_runtime.rbac_gates
+   :members:
+
 harpia_runtime.redaction
 ------------------------
 
