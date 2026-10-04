@@ -230,7 +230,7 @@ N distinct clients to station:
 ```sh
 build/edge/edge --load --identity edge-load --rate 20 --duration 60 --mix 8:1:1 \
     --report edge-load.jsonl --id-base 300000 --station station.lan:50051 --certs $HOME/harpia/pki
-handheld/cli/build/install/cli/bin/cli --load --identity handheld-load --rate 20 --duration 60 \
+HarpiaTest/app_example/multi_system/handheld/cli/build/install/cli/bin/cli --load --identity handheld-load --rate 20 --duration 60 \
     --mix 8:1:1 --report hh-load.jsonl --id-base 700000 --station station.lan:50051 \
     --certs $HOME/harpia/pki [--sub tcp://edge.lan:5556 --zmq-keys $HOME/harpia/zmq]
 adb shell am start -n com.harpia.multisystem.handheld.app/.MainActivity \
@@ -251,12 +251,82 @@ each received sample as `{"t",...,"op":"sub_recv","seq_gap":N}`, where
 `seq_gap` counts the samples it missed from that device, so drops are visible.
 Load identities need rows in the clients file (e.g. `edge-load main`).
 
+## Running at scale
+
+`load/spawn.py` starts many load clients against one station, and
+`load/report.py` turns their reports into one summary. Both scripts are
+Python 3 stdlib only, so the load machine doesn't need harpia's Docker image.
+
+```sh
+# identities: one "<id> main" row per load client in a clients file, then
+# provision as in step 2 (mtls_provision.sh / zmq_zap_provision.sh --clients-file)
+python3 HarpiaTest/app_example/multi_system/load/spawn.py --station station.lan:50051 --edge-pub tcp://edge.lan:5556 \
+    --zmq-keys $HOME/harpia/zmq --pki $HOME/harpia/pki --identities load_ids.txt \
+    --edges 200 --handhelds 300 --guests 2 --ramp 60 --duration 600 --rate 5 \
+    --edge-bin build/edge/edge --handheld-bin HarpiaTest/app_example/multi_system/handheld/cli/build/install/cli/bin/cli \
+    --out run1
+python3 HarpiaTest/app_example/multi_system/load/report.py run1          # run1/summary.md + summary.json
+```
+
+A client is one process with its own identity. A client that exits non-zero
+on its own is recorded in `spawn.json` as crashed and is not restarted. With
+several load machines, run `spawn.py` on each with a disjoint
+`--identity-offset`; the primary-key ranges follow the same index.
+`--emulators K` adds the app on K `adb` devices. `spawn.py --help` lists the
+host limits it checks (open files, ephemeral ports, RAM per JVM).
+
+`Docker/run_multi_system_load.sh` is the harness's own smoke gate, 50 + 50
+clients for 60 s against PostgreSQL in one container. It proves the harness
+works. It is not a benchmark.
+
+### station tunables
+
+- **`--pool N` vs PostgreSQL `max_connections`.** Station opens all N
+  connections at start. Keep N under `max_connections` minus whatever else
+  connects. An RPC that waits more than `--lease-timeout-ms` (default 2000)
+  for a connection fails `RESOURCE_EXHAUSTED`. Those errors in the report mean
+  the pool is the bottleneck: raise `--pool` if the database has headroom.
+- **gRPC threads.** station uses the gRPC sync server with no thread cap, so
+  its thread pool grows with concurrent RPCs. Past the pool size, the extra threads
+  only wait for a lease. To cap them, set a `grpc::ResourceQuota` with
+  `SetMaxThreads` in `station.cpp`.
+- **Session TTL vs re-issue storms.** Tokens live `HARPIA_SESSION_TTL` seconds
+  (default 900). Clients that started together expire together and all
+  re-issue at once. A client re-issues inside the op that got
+  `UNAUTHENTICATED`, so in the report this is a latency spike every TTL, not an
+  error. Ramping the start (`--ramp`) spreads it out, and so does a longer
+  TTL.
+- **Handshake cost at ramp.** Each client does one mTLS handshake (RSA) and,
+  if it subscribes, one CURVE handshake on edge. Hundreds at once show up as
+  slow `session` ops and slow first samples. A `--ramp` of a few seconds per
+  hundred clients keeps handshakes from dominating the first bucket.
+
+### What to watch in the report
+
+- `session` p99 and the first timeline buckets show the handshake and ramp
+  cost.
+- `create` p95/p99 against `--lease-timeout-ms`: when they climb toward it,
+  `RESOURCE_EXHAUSTED` follows.
+- The **errors** table: `RESOURCE_EXHAUSTED` means the pool,
+  `UNAVAILABLE` / `DEADLINE_EXCEEDED` mean station or the network is
+  saturated, `UNAUTHENTICATED` means a re-issue failed too,
+  `PERMISSION_DENIED` should come only from guests.
+- **Subscribers** `seq gap total`: samples a handheld missed. ZMQ PUB drops
+  at the high-water mark when a subscriber falls behind, so gaps growing with
+  N mean edge or the subscribers can't keep up.
+- The timeline's `ops` per bucket should be flat after the ramp. A falling
+  line at constant `clients` is saturation.
+
 ## Proven where
 
 - `UnitTests/test_multi_system_example.py`, part of the full Docker suite. It
   runs station (SQLite; PostgreSQL via `Docker/run_pg_tests.sh`), edge and
   two handheld CLIs at once, asserts every flow, and runs the negatives:
   guest is denied create, and a non-allowlisted CURVE key receives nothing.
+- `Docker/run_multi_system_load.sh` (opt-in) runs the load harness: 50 edge
+  + 50 handheld load clients and 2 guests for 60 s against station on
+  PostgreSQL. It passes with zero crashes, DB rows equal to the successful
+  creates, and no errors except the guests' denials.
 - `Docker/run_android_emulator_tests.sh multi_system` runs the real Android
   app in place of one CLI, reaching station and edge as `10.0.2.2`.
 - On real Windows + Linux + an Android device: the Windows verification
