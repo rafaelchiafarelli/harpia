@@ -54,3 +54,7 @@ select = ["E", "F", "W", "I", "B", "UP"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["harpia_runtime", "harpia_generated"]
+
+# Generated modules embed whole SQL statements / descriptors on one line.
+[tool.ruff.lint.per-file-ignores]
+"harpia_generated/**/*.py" = ["E501"]
