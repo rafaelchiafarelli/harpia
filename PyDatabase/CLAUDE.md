@@ -57,6 +57,16 @@ docstring lists anything the C++ DAO persists that this DAO does not
 (`Deferred: ...`) — `none` for every fixture message since task 2c, asserted
 by `test_nothing_deferred`.
 
+## Registry (task 4, `templates/registry.py.tmpl`)
+`harpia_generated/db/registry.py`: the port of `DbRegistryAdapter`'s
+project-wide header, stdlib only — `Visibility`, `AccessDecision`,
+`RegistryEntry`, `PROJECT_NAME` (from `ComplianceContext.project`), `REGISTRY`
+(the very entries and `# note:` conflict lines `DbRegistryAdapter._entries()`
+computes for C++), `find_entry`, `db_access_check(requesting_project,
+table)` and its one-argument form (requesting project = `PROJECT_NAME`).
+Another project loads it by path to check access; nothing enforces it in
+the DAOs (C++ doesn't either).
+
 ## PostgreSQL (task 3)
 `HARPIA_DB_BACKEND=postgresql` makes the generated DAOs run unchanged on a
 `psycopg` connection: `%s` placeholders and PostgreSQL DDL come entirely
