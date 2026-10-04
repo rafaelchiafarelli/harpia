@@ -10,6 +10,7 @@ from ``ZmqAdapter.ZmqAdapter``, not re-derived.
 import os
 
 from Compliance.audit_common import PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC
+from Compliance.delivery_common import PY_DELIVERY_MODULE, PY_DELIVERY_RUNTIME_SRC
 from Crypto.backend import transport_hardening_required
 from Logger.logger import logger
 from PyAdapter.runtime_copy import copy_runtime_module
@@ -20,6 +21,7 @@ _TEMPLATE = loadTemplate(__file__, "zmq.py.tmpl")
 _RUNTIME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runtime")
 ZMQ_MODULE = "harpia_runtime.zmq"
 ZAP_MODULE = "harpia_runtime.zap"
+ZMQ_DELIVERY_MODULE = "harpia_runtime.zmq_delivery"
 ZMQ_EXT = "_zmq.py"
 
 _SENDER = '''
@@ -34,6 +36,29 @@ def new_{role}(ctx: zmq.Context[Any], endpoint: str,
     """
     return Sender(ctx, endpoint, {default_expr} if origin is None else origin,
                   {pub}curve=curve{zap})
+'''
+
+# a `critical` type's sender/publisher: queued (py-zmq task 3)
+_SENDER_CRITICAL = '''
+
+def new_{role}(ctx: zmq.Context[Any], endpoint: str,
+{pad}origin: str | None = None,
+{pad}curve: {curve_type} | None = None,
+{pad}queue_capacity: int = 128,
+{pad}audit_sink: AuditSink | None = None) -> QueuedSender[{name}]:
+    """A {sock} socket that queues ``{name}`` messages ({connect}s ``endpoint``).
+
+    ``{name}`` is ``critical``: ``{verb_base}()`` stamps a CRC + sequence
+    envelope into a bounded queue of ``queue_capacity`` (an overflow rotates
+    the oldest out with a ``queue_rotated`` record to ``audit_sink``) and
+    ``flush()`` puts the payloads on the wire, oldest first.
+
+    ``origin`` overrides the stamped id (default: {default_doc}).
+    ``curve`` enables CURVE encryption (omit for plaintext).{zap_doc}
+    """
+    return QueuedSender(ctx, endpoint, {default_expr} if origin is None else origin,
+                        {pub}curve=curve{zap}, queue_capacity=queue_capacity,
+                        audit_sink=audit_sink, subject={name_lit})
 '''
 
 _RECEIVER = '''
@@ -78,6 +103,12 @@ class PyZmqAdapter:
         if self.hardened:
             copy_runtime_module(self.dest, os.path.join(_RUNTIME_DIR, "zap.py"), ZAP_MODULE)
             copy_runtime_module(self.dest, PY_AUDIT_SINK_RUNTIME_SRC, PY_AUDIT_SINK_MODULE)
+        if any(getattr(m, "is_critical", False) for m, *_ in transports):
+            for module, src in ((PY_DELIVERY_MODULE, PY_DELIVERY_RUNTIME_SRC),
+                                (ZMQ_DELIVERY_MODULE,
+                                 os.path.join(_RUNTIME_DIR, "zmq_delivery.py")),
+                                (PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC)):
+                copy_runtime_module(self.dest, src, module)
         os.makedirs(self.outDir, exist_ok=True)
         write_if_different(os.path.join(self.outDir, "__init__.py"),
                            '"""Generated ZMQ transports, one module per '
@@ -109,9 +140,14 @@ class PyZmqAdapter:
                         zap=", zap=True" if hardened else "",
                         zap_doc=zap_doc if hardened else "")
 
+        critical = bool(getattr(msg, "is_critical", False))
+
         def sender(role, sock, verb, connect, pub):
             pad = " " * len("def new_{}(".format(role))
-            return _SENDER.format(role=role, name=name, sock=sock, verb=verb,
+            tmpl = _SENDER_CRITICAL if critical else _SENDER
+            return tmpl.format(role=role, name=name, sock=sock, verb=verb,
+                                  verb_base="publish" if pub else "send",
+                                  name_lit=repr(name),
                                   connect=connect, pad=pad, default_doc=default_doc,
                                   default_expr=default_expr,
                                   pub="pub=True, " if pub else "", **bind_side(pub))
@@ -131,12 +167,19 @@ class PyZmqAdapter:
             factories += receiver("subscriber", "SUB", "connect", True)
             roles += ["``new_publisher`` (PUB)", "``new_subscriber`` (SUB)"]
         curve_types = (["CurveClientKeys", "CurveServerKeys"])
-        imports = curve_types + ["Receiver", "Sender"] + (
+        imports = curve_types + ["Receiver"] + ([] if critical else ["Sender"]) + (
             [] if one_to_many else ["runtime_origin_id"])
         origin_doc = ("One-to-* type: every sender stamps ``ORIGIN_ID`` by default."
                       if one_to_many else
                       "Many-to-* type: each sender stamps its own runtime id by default.")
+        extra_imports = ""
+        if critical:
+            extra_imports = ("from harpia_runtime.compliance.audit_sink import AuditSink\n")
+            post_imports = ("from harpia_runtime.zmq_delivery import QueuedSender\n")
+        else:
+            post_imports = ""
         return _TEMPLATE.format(name=name, hash=msg.md5Hash, roles=", ".join(roles),
+                                extra_imports=extra_imports, post_imports=post_imports,
                                 origin_doc=origin_doc, runtime_imports="".join("    {},\n".format(i) for i in imports).rstrip("\n"),
                                 origin_id_lit=repr(_origin_id(msg.md5Hash, name)),
                                 factories=factories.rstrip("\n"))

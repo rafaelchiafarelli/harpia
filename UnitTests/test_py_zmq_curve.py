@@ -49,10 +49,18 @@ def gen(tmp_path_factory):
 
 @pytest.fixture()
 def ctx():
+    """term(), never destroy(): destroy() closes the ZAP handler's socket from
+    this thread while the handler thread uses it (libzmq aborts). term() makes
+    the handler's recv raise ContextTerminated so it closes its own socket;
+    every test closes the sockets it opened."""
+    import threading
     import zmq
     c = zmq.Context()
     yield c
-    c.destroy(linger=0)
+    t = threading.Thread(target=c.term, daemon=True)
+    t.start()
+    t.join(10)
+    assert not t.is_alive(), "context term hung: a socket was left open"
 
 
 def _z():

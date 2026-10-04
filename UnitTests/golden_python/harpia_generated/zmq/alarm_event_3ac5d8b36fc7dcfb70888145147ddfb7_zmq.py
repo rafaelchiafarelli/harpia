@@ -14,12 +14,13 @@ import zmq
 from harpia_generated.protofiles.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_pb2 import (
     alarm_event,
 )
+from harpia_runtime.compliance.audit_sink import AuditSink
 from harpia_runtime.zmq import (
     CurveClientKeys,
     CurveServerKeys,
     Receiver,
-    Sender,
 )
+from harpia_runtime.zmq_delivery import QueuedSender
 
 #: compile-time sender id of this message type (the C++ ``origin_id()``)
 ORIGIN_ID = '984906837023206611'
@@ -27,16 +28,24 @@ ORIGIN_ID = '984906837023206611'
 
 def new_publisher(ctx: zmq.Context[Any], endpoint: str,
                   origin: str | None = None,
-                  curve: CurveServerKeys | None = None) -> Sender[alarm_event]:
-    """A PUB socket that publishes ``alarm_event`` messages (binds ``endpoint``).
+                  curve: CurveServerKeys | None = None,
+                  queue_capacity: int = 128,
+                  audit_sink: AuditSink | None = None) -> QueuedSender[alarm_event]:
+    """A PUB socket that queues ``alarm_event`` messages (binds ``endpoint``).
+
+    ``alarm_event`` is ``critical``: ``publish()`` stamps a CRC + sequence
+    envelope into a bounded queue of ``queue_capacity`` (an overflow rotates
+    the oldest out with a ``queue_rotated`` record to ``audit_sink``) and
+    ``flush()`` puts the payloads on the wire, oldest first.
 
     ``origin`` overrides the stamped id (default: ``ORIGIN_ID``, this one-to-* type's compile-time id).
     ``curve`` enables CURVE encryption (omit for plaintext).
     Hardened profile: CURVE also enforces the ``HARPIA_ZMQ_ALLOWLIST``
     client-key allowlist (:mod:`harpia_runtime.zap`).
     """
-    return Sender(ctx, endpoint, ORIGIN_ID if origin is None else origin,
-                  pub=True, curve=curve, zap=True)
+    return QueuedSender(ctx, endpoint, ORIGIN_ID if origin is None else origin,
+                        pub=True, curve=curve, zap=True, queue_capacity=queue_capacity,
+                        audit_sink=audit_sink, subject='alarm_event')
 
 
 def new_subscriber(ctx: zmq.Context[Any], endpoint: str,

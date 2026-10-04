@@ -493,6 +493,12 @@ harpia_runtime.db.phi
 .. automodule:: harpia_runtime.db.phi
    :members:
 
+harpia_runtime.delivery
+-----------------------
+
+.. automodule:: harpia_runtime.delivery
+   :members:
+
 harpia_runtime.events
 ---------------------
 
@@ -551,5 +557,11 @@ harpia_runtime.zmq
 ------------------
 
 .. automodule:: harpia_runtime.zmq
+   :members:
+
+harpia_runtime.zmq_delivery
+---------------------------
+
+.. automodule:: harpia_runtime.zmq_delivery
    :members:
 
