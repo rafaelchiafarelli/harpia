@@ -4,9 +4,17 @@ Same contract as Database.backends.get_backend: default when unset, alias
 resolution, case/whitespace-insensitive, a hard error on an unknown name,
 and one singleton per backend. Pure Python.
 """
+import os
+import subprocess
+import sys
+
 import pytest
 
-from LangBackend import (CppBackend, DEFAULT_LANG, GenerationContext,
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from LangBackend import (CppBackend, DEFAULT_LANG, GenerationContext,  # noqa: E402
                          LangBackend, get_lang_backend, register)
 
 
@@ -74,3 +82,16 @@ def test_java_is_additive_on_cpp():
     assert isinstance(b, JavaBackend) and b.name == "java"
     assert isinstance(b, CppBackend)
     assert get_lang_backend("JAVA") is b
+
+
+def test_main_rejects_unknown_language_before_writing(tmp_path):
+    # Decision (lang-backend-seam task 3): an unknown HARPIA_GEN_LANG used to
+    # fall through to the C++-only path silently; it is now a hard error,
+    # raised before main.py creates the output dir.
+    out = tmp_path / "out"
+    env = dict(os.environ, HARPIA_GEN_LANG="cobol", HARPIA_OUTPUT_DIR=str(out))
+    r = subprocess.run([sys.executable, "main.py"], cwd=REPO_ROOT, env=env,
+                       capture_output=True, text=True, timeout=120)
+    assert r.returncode != 0
+    assert "unknown harpia generation language 'cobol'" in r.stdout + r.stderr
+    assert not out.exists()

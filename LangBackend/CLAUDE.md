@@ -24,6 +24,14 @@ stage's non-fatal `Error`.
   is additive on top of C++, as it always was.
 
 ## Key facts / gotchas
+- **An unknown `HARPIA_GEN_LANG` is a hard error** (decided at
+  lang-backend-seam task 3, 2026-10-04). Before the seam, any unrecognized
+  value silently fell through to the C++-only path. `main.py` now resolves
+  the backend before it creates the output dir, so a typo exits non-zero
+  and writes nothing. Unset or empty still means `cpp`.
+- Verified at the switch: `cpp` and `java` output trees are byte-identical
+  to the pre-seam `main.py` (1343 / 1482 files), apart from the SBOM's git
+  metadata fields.
 - `db_backend` and `crypto_backend` are resolved **once** in `main.py`
   and carried on the context. A backend never re-resolves them, so every
   target in one run shares the identical object (`JavaDatabase/CLAUDE.md`).
