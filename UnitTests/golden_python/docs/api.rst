@@ -103,6 +103,96 @@ harpia_generated.db.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_dao
 .. automodule:: harpia_generated.db.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_dao
    :members:
 
+harpia_generated.dbio
+---------------------
+
+.. automodule:: harpia_generated.dbio
+   :members:
+
+harpia_generated.dbio.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+-----------------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+----------------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.crew_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+----------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.crew_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.data_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+----------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.data_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.journey_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.journey_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.outpost_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.outpost_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+--------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+--------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+--------------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.users_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+-----------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.users_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.vault_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+-----------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.vault_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
+harpia_generated.dbio.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.dbio.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
+   :members:
+
 harpia_generated.migrate
 ------------------------
 
@@ -245,6 +335,12 @@ harpia_runtime.db.dao
 ---------------------
 
 .. automodule:: harpia_runtime.db.dao
+   :members:
+
+harpia_runtime.db.dbio
+----------------------
+
+.. automodule:: harpia_runtime.db.dbio
    :members:
 
 harpia_runtime.db.migrate
