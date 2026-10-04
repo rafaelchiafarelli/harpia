@@ -26,6 +26,22 @@ from harpia_generated.rest import (
     vault_3ac5d8b36fc7dcfb70888145147ddfb7_rest,
     vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_rest,
 )
+from harpia_generated.soap import (
+    alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    crew_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    data_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    journey_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    outpost_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    shipment_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    top_users_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    users_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    vault_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+    vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_soap,
+)
 from harpia_runtime.db.pool import ConnectionPool
 from harpia_runtime.http.router import Router, Server
 
@@ -44,19 +60,33 @@ class HttpServer:
             raise ValueError("rest_base and soap_base must differ")
         self.router = Router()
         data_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        data_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         users_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        users_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         top_users_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        top_users_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         shipment_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        shipment_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         journey_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        journey_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         crew_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        crew_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         outpost_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        outpost_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         vault_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
+        vault_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         self._server = Server(self.router, host, port)
 
     @property
