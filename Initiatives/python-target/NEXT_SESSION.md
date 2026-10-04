@@ -9,12 +9,10 @@ Updated 2026-10-04 (same session, later): epics 0-4 done.
 
 | # | Epic | State |
 |---|---|---|
-| 0 | `lang-backend-seam` | **done** |
-| 1 | `py-foundation` | **done** |
-| 2 | `py-serialization` | **done** |
-| 4 | `py-database` | **done** (`epics/py-database-done/`) |
-| 3 | `py-crypto-phi` | **done** (`epics/py-crypto-phi-done/`) |
-| 5-13 | the rest | not started; order in `epics/README.md` |
+| 0-4 | seam, foundation, serialization, database, crypto-phi | **done** |
+| 6 | `py-zmq` | **done** (`PyZmq/`) |
+| 7 | `py-events` | **done** (`PyEvents/`) |
+| 5, 8-13 | the rest | not started; order in `epics/README.md` |
 
 ## Start here
 
@@ -22,7 +20,7 @@ Updated 2026-10-04 (same session, later): epics 0-4 done.
    <epic> → tasks → <task>`. Every finished epic is merged into `epics`.
    For a new epic: `git checkout epics && git checkout -b <epic> &&
    git branch -f tasks <epic>`, then branch each task off `tasks`.
-2. Next: pick from 5/6/7/9 (no hard order). Python crypto runtimes are in
+2. Next: 5 (`py-transports-http`) or 9 (`py-dds`); then 8, 10, 12, 11, 13. Python crypto runtimes are in
    `Crypto/runtime/python/` (constants in `Crypto/key_provider_common.py`);
    phi DAOs subclass `harpia_runtime.db.phi.PhiDao`.
 3. Runtime unit tests load copied runtimes via `UnitTests/_py_runtime_load.py`
