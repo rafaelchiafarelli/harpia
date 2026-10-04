@@ -10,8 +10,12 @@ import android.widget.TextView;
 
 import com.harpia.multisystem.handheld.Handheld;
 
+import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Properties;
@@ -20,6 +24,12 @@ import java.util.Properties;
  * One screen: starts {@link Handheld} (the same core the JVM CLI runs) with the
  * certificates and keys bundled as assets, and shows its counters. All logic
  * lives in core/.
+ *
+ * <p>Load mode (load-harness task 1), so an emulator can join a spawned run:
+ * start with intent extras {@code --ez load true --ef load.rate 5
+ * --ei load.duration 60 --es load.mix 8:1:1}. The report goes to the app's
+ * files dir as {@code load.jsonl} (spawn.py pulls it with {@code run-as}), and
+ * the core stops itself after load.duration seconds.
  */
 public final class MainActivity extends Activity {
     static final String TAG = "harpia-handheld";
@@ -73,6 +83,29 @@ public final class MainActivity extends Activity {
             c.zmqServerPublic = text(a, "zmq_server_public.key");
             c.zmqPublic = text(a, "zmq_handheld_public.key");
             c.zmqSecret = text(a, "zmq_handheld_secret.key");
+            if (getIntent().getBooleanExtra("load", false)) {
+                c.load = true;
+                c.rate = getIntent().getFloatExtra("load.rate", 5f);
+                String[] mix = getIntent().getStringExtra("load.mix") == null
+                    ? new String[] {"8", "1", "1"} : getIntent().getStringExtra("load.mix").split(":");
+                c.mix = new int[] {Integer.parseInt(mix[0]), Integer.parseInt(mix[1]), Integer.parseInt(mix[2])};
+                File f = new File(getFilesDir(), "load.jsonl");
+                BufferedWriter w = new BufferedWriter(new OutputStreamWriter(
+                    new FileOutputStream(f, true), java.nio.charset.StandardCharsets.UTF_8));
+                c.report = line -> {
+                    synchronized (w) {
+                        try {
+                            w.write(line);
+                            w.newLine();
+                            w.flush();
+                        } catch (IOException e) {
+                            Log.e(TAG, "report write failed", e);
+                        }
+                    }
+                };
+                int duration = getIntent().getIntExtra("load.duration", 60);
+                ui.postDelayed(() -> new Thread(handheld::stop).start(), duration * 1000L);
+            }
             handheld = new Handheld(c);
             handheld.start();
             refresh();
