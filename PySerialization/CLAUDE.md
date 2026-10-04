@@ -34,7 +34,22 @@ through `PyAdapter.runtime_copy.copy_runtime_module`. Always returns `None`.
   `xml.etree.ElementTree` and merges, like the C++ reader. Python includes
   `xsd()`; the Java target skipped it.
 
+- `runtime/yaml.py` → `harpia_runtime.yaml` (task 3): `to_yaml`, `from_yaml`,
+  `quote`. A port of `harpia_yaml.h`, **byte-identical**; the reader parses
+  exactly the emitted subset (indentation-driven recursive descent) and
+  merges. Not PyYAML: the generated project has no `pyyaml` dependency.
+
 ## Key facts / gotchas
+- **YAML known differences from the C++ reader** (found 2026-10-04; the C++
+  runtime was not changed — flagged to Rafael):
+  - `from_yaml("{}")` (to_yaml's empty document) returns `True` in Python,
+    as the task and the C++ header comment specify; the C++ code returns
+    `false` (no line matched a field).
+  - A map with a negative integer key (`-5: ...`) round-trips in neither
+    runtime: the key line starts with `-` and reads as a sequence item. The
+    parity fixture therefore uses non-negative map keys.
+  - Otherwise `from_yaml`'s bool matches C++, including `False` for a
+    document whose only content is empty lists (`f: []`, nothing matched).
 - **JSON is byte-identical to C++** for every fixture message (156 types,
   stress strings included; checked 2026-10-04). Plain `json.dumps` differed
   in one way: C++ escapes `<`/`>` as `\u003c`/`\u003e` inside strings.

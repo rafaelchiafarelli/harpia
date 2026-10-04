@@ -18,6 +18,7 @@ RUNTIMES = (
     ("json.py", "harpia_runtime.json"),
     ("reflect.py", "harpia_runtime.reflect"),
     ("xml.py", "harpia_runtime.xml"),
+    ("yaml.py", "harpia_runtime.yaml"),
 )
 
 
