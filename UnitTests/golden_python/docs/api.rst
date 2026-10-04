@@ -541,6 +541,12 @@ harpia_runtime.yaml
 .. automodule:: harpia_runtime.yaml
    :members:
 
+harpia_runtime.zap
+------------------
+
+.. automodule:: harpia_runtime.zap
+   :members:
+
 harpia_runtime.zmq
 ------------------
 

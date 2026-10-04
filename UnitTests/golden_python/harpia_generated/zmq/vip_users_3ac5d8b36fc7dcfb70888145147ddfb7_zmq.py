@@ -14,21 +14,35 @@ import zmq
 from harpia_generated.protofiles.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_pb2 import (
     vip_users,
 )
-from harpia_runtime.zmq import Receiver, Sender
+from harpia_runtime.zmq import (
+    CurveClientKeys,
+    CurveServerKeys,
+    Receiver,
+    Sender,
+)
 
 #: compile-time sender id of this message type (the C++ ``origin_id()``)
 ORIGIN_ID = '972848092681347003'
 
 
 def new_publisher(ctx: zmq.Context[Any], endpoint: str,
-                  origin: str | None = None) -> Sender[vip_users]:
-    """A PUB socket that publishs ``vip_users`` messages (binds ``endpoint``).
+                  origin: str | None = None,
+                  curve: CurveServerKeys | None = None) -> Sender[vip_users]:
+    """A PUB socket that publishes ``vip_users`` messages (binds ``endpoint``).
 
     ``origin`` overrides the stamped id (default: ``ORIGIN_ID``, this one-to-* type's compile-time id).
+    ``curve`` enables CURVE encryption (omit for plaintext).
+    Hardened profile: CURVE also enforces the ``HARPIA_ZMQ_ALLOWLIST``
+    client-key allowlist (:mod:`harpia_runtime.zap`).
     """
-    return Sender(ctx, endpoint, ORIGIN_ID if origin is None else origin, pub=True)
+    return Sender(ctx, endpoint, ORIGIN_ID if origin is None else origin,
+                  pub=True, curve=curve, zap=True)
 
 
-def new_subscriber(ctx: zmq.Context[Any], endpoint: str) -> Receiver[vip_users]:
-    """A SUB socket receiving ``vip_users`` messages (connects ``endpoint``)."""
-    return Receiver(ctx, endpoint, vip_users, sub=True)
+def new_subscriber(ctx: zmq.Context[Any], endpoint: str,
+                   curve: CurveClientKeys | None = None) -> Receiver[vip_users]:
+    """A SUB socket receiving ``vip_users`` messages (connects ``endpoint``).
+
+    ``curve`` enables CURVE encryption (omit for plaintext).
+    """
+    return Receiver(ctx, endpoint, vip_users, sub=True, curve=curve)

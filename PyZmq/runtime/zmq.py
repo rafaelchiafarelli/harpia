@@ -18,11 +18,21 @@ Wire format, identical to C++: **one frame holding the message's
   everything). Parses one frame into a fresh message.
 
 Calls block, as in C++ (no ``NOBLOCK``). Like a C++ socket, one instance
-is not thread-safe.
+is not thread-safe. Every socket has ``linger=0``, so closing one never
+blocks on frames a failed CURVE handshake left undelivered.
+
+**CURVE** (encryption): pass :class:`CurveServerKeys` to the bind side (PULL
+receiver / PUB publisher) and :class:`CurveClientKeys` to the connect side
+(PUSH sender / SUB subscriber); omitted or empty keys mean plaintext,
+unchanged. Keys are 40-character Z85 strings
+(:func:`generate_curve_keypair`). A bind side created with ``zap=True``
+(generated for hardened profiles) first starts the
+:mod:`harpia_runtime.zap` allowlist handler for its context.
 """
 import itertools
 import os
 import secrets
+from dataclasses import dataclass
 from typing import Any, Generic, TypeVar
 
 import zmq
@@ -39,6 +49,54 @@ def runtime_origin_id() -> str:
     return f"{os.getpid()}-{next(_COUNTER)}-{secrets.randbits(64):x}"
 
 
+@dataclass(frozen=True)
+class CurveServerKeys:
+    """Bind side: the socket's own secret key (empty → plaintext)."""
+
+    secret_key: str = ""
+
+
+@dataclass(frozen=True)
+class CurveClientKeys:
+    """Connect side: the server's public key plus this socket's keypair
+    (empty ``server_public_key`` → plaintext)."""
+
+    server_public_key: str = ""
+    public_key: str = ""
+    secret_key: str = ""
+
+
+def generate_curve_keypair() -> tuple[str, str]:
+    """A fresh CURVE keypair as Z85 strings ``(public, secret)``."""
+    public, secret = zmq.curve_keypair()
+    return public.decode("ascii"), secret.decode("ascii")
+
+
+def _socket(ctx: zmq.Context[Any], kind: int) -> zmq.Socket[bytes]:
+    sock: zmq.Socket[bytes] = ctx.socket(kind)
+    sock.setsockopt(zmq.LINGER, 0)
+    return sock
+
+
+def _apply_server(ctx: zmq.Context[Any], sock: zmq.Socket[bytes],
+                  curve: CurveServerKeys | None, zap: bool) -> None:
+    if curve is None or not curve.secret_key:
+        return
+    if zap:
+        from harpia_runtime.zap import ensure_running
+        ensure_running(ctx)
+    sock.setsockopt(zmq.CURVE_SERVER, 1)
+    sock.setsockopt(zmq.CURVE_SECRETKEY, curve.secret_key.encode("ascii"))
+
+
+def _apply_client(sock: zmq.Socket[bytes], curve: CurveClientKeys | None) -> None:
+    if curve is None or not curve.server_public_key:
+        return
+    sock.setsockopt(zmq.CURVE_SERVERKEY, curve.server_public_key.encode("ascii"))
+    sock.setsockopt(zmq.CURVE_PUBLICKEY, curve.public_key.encode("ascii"))
+    sock.setsockopt(zmq.CURVE_SECRETKEY, curve.secret_key.encode("ascii"))
+
+
 def _origin_field(descriptor: Any) -> str | None:
     for field in descriptor.fields:
         if field.name.startswith("ORIGINATOR"):
@@ -51,12 +109,20 @@ class Sender(Generic[M]):
     that stamps the origin id and sends one serialized frame per message."""
 
     def __init__(self, ctx: zmq.Context[Any], endpoint: str, origin: str,
-                 *, pub: bool = False) -> None:
+                 *, pub: bool = False,
+                 curve: CurveServerKeys | CurveClientKeys | None = None,
+                 zap: bool = False) -> None:
         self._origin = origin
-        self._socket: zmq.Socket[bytes] = ctx.socket(zmq.PUB if pub else zmq.PUSH)
+        self._socket = _socket(ctx, zmq.PUB if pub else zmq.PUSH)
         if pub:
+            if isinstance(curve, CurveClientKeys):
+                raise TypeError("a PUB publisher binds: pass CurveServerKeys")
+            _apply_server(ctx, self._socket, curve, zap)
             self._socket.bind(endpoint)
         else:
+            if isinstance(curve, CurveServerKeys):
+                raise TypeError("a PUSH sender connects: pass CurveClientKeys")
+            _apply_client(self._socket, curve)
             self._socket.connect(endpoint)
 
     @property
@@ -95,13 +161,21 @@ class Receiver(Generic[M]):
     subscribes to everything) socket yielding one message per frame."""
 
     def __init__(self, ctx: zmq.Context[Any], endpoint: str, message_type: type[M],
-                 *, sub: bool = False) -> None:
+                 *, sub: bool = False,
+                 curve: CurveServerKeys | CurveClientKeys | None = None,
+                 zap: bool = False) -> None:
         self._type = message_type
-        self._socket: zmq.Socket[bytes] = ctx.socket(zmq.SUB if sub else zmq.PULL)
+        self._socket = _socket(ctx, zmq.SUB if sub else zmq.PULL)
         if sub:
+            if isinstance(curve, CurveServerKeys):
+                raise TypeError("a SUB subscriber connects: pass CurveClientKeys")
+            _apply_client(self._socket, curve)
             self._socket.connect(endpoint)
             self._socket.setsockopt(zmq.SUBSCRIBE, b"")
         else:
+            if isinstance(curve, CurveClientKeys):
+                raise TypeError("a PULL receiver binds: pass CurveServerKeys")
+            _apply_server(ctx, self._socket, curve, zap)
             self._socket.bind(endpoint)
 
     @property

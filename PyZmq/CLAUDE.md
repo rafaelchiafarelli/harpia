@@ -24,6 +24,31 @@
   (`ZmqAdapter._is_one_to_many`), else a fresh `runtime_origin_id()` per
   sender; `origin=` overrides.
 
+## CURVE + ZAP (task 2)
+- `harpia_runtime.zmq`: `CurveServerKeys(secret_key)` (bind side: PULL
+  receiver / PUB publisher) and `CurveClientKeys(server_public_key,
+  public_key, secret_key)` (connect side), Z85 strings; empty → plaintext;
+  the wrong type for a side raises `TypeError`. `generate_curve_keypair()`.
+  Every socket is created with `linger=0`. Generated factories take a
+  trailing `curve=` typed for their side.
+- `runtime/zap.py` → `harpia_runtime.zap` (copied, with the audit sink, only
+  under `transport_hardening_required(compliance)`, like C++'s `zap/`):
+  `AllowList` (`HARPIA_ZMQ_ALLOWLIST`, C++ format and comment rule),
+  `ZapHandler` (hand-written REP loop on `inproc://zeromq.zap.01`, one daemon
+  thread, `RCVTIMEO` 250 ms, inert if the endpoint is taken),
+  `ensure_running(ctx, audit_sink=None)` (one per context, `WeakKeyDictionary`
+  — never keyed by `id()`, whose reuse could leave a new context without a
+  handler, i.e. fail-open). Denials record `("zap_denied",
+  "inproc://zeromq.zap.01", "key=<z85> [identity=<id>] mechanism=<m>")`.
+  Hardened generated bind-side factories pass `zap=True`, which starts the
+  handler before `CURVE_SERVER` is set.
+- **Decision (task 2):** not `zmq.auth.ThreadAuthenticator` — it reads
+  certificate directories and has no audit hook.
+- No real CURVE public key can START with `#` (first Z85 digit is
+  ⌊word/85⁴⌋ ≤ 82; `#` is digit 84): the live test uses a key *containing*
+  `#` (what fixes/000005 broke), the parser test a synthetic `#`-leading
+  token.
+
 ## Key facts / gotchas
 - **Wire = C++ wire:** one serialized-protobuf frame, no envelope. Proven
   by a generated C++ `courier_sender` → Python `new_receiver` test.
@@ -35,4 +60,4 @@
 ## Touchpoints
 - Depends on: `ZmqAdapter.ZmqAdapter` (`_modifiers`, `_origin_id`,
   `_is_one_to_many`), `PyAdapter.runtime_copy`.
-- Tested by: `UnitTests/test_py_zmq.py`.
+- Tested by: `UnitTests/test_py_zmq.py`, `test_py_zmq_curve.py`.
