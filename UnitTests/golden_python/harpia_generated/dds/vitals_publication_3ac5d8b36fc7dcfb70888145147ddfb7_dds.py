@@ -14,14 +14,19 @@ documented in :mod:`harpia_runtime.dds.transport`::
 from harpia_generated.protofiles.vitals_publication_3ac5d8b36fc7dcfb70888145147ddfb7_pb2 import (
     vitals_publication,
 )
-from harpia_runtime.dds.transport import Publisher, Subscriber
+from harpia_runtime.dds.audit import AuditedPublisher
+from harpia_runtime.dds.transport import Subscriber
 
 
-class vitals_publication_publisher(Publisher[vitals_publication]):
-    """Publishes ``vitals_publication`` on topic ``vitals_publication``."""
+class vitals_publication_publisher(AuditedPublisher[vitals_publication]):
+    """Publishes ``vitals_publication`` on topic ``vitals_publication``.
+
+    ``vitals_publication`` carries phi: each ``publish()`` records one ``phi_publish`` event
+    (field names only) on ``audit_sink``."""
 
     MESSAGE = vitals_publication
     NAME = 'vitals_publication'
+    PHI_FIELDS = ('patient_ref',)
 
 
 class vitals_publication_subscriber(Subscriber[vitals_publication]):

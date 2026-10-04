@@ -811,6 +811,12 @@ harpia_runtime.dds
 .. automodule:: harpia_runtime.dds
    :members:
 
+harpia_runtime.dds.audit
+------------------------
+
+.. automodule:: harpia_runtime.dds.audit
+   :members:
+
 harpia_runtime.dds.frame
 ------------------------
 

@@ -14,14 +14,14 @@ documented in :mod:`harpia_runtime.dds.transport`::
 from harpia_generated.protofiles.{name}_{hash}_pb2 import (
     {name},
 )
-from harpia_runtime.dds.transport import Publisher, Subscriber
+{publisher_import}from harpia_runtime.dds.transport import {transport_import}Subscriber
 
 
-class {name}_publisher(Publisher[{name}]):
-    """Publishes ``{name}`` on topic ``{topic}``."""
+class {name}_publisher({publisher_base}[{name}]):
+    """Publishes ``{name}`` on topic ``{topic}``.{publisher_doc}"""
 
     MESSAGE = {name}
-    NAME = {name_lit}{qos_attrs}
+    NAME = {name_lit}{qos_attrs}{phi_attrs}
 
 
 class {name}_subscriber(Subscriber[{name}]):

@@ -25,6 +25,9 @@ at generation time from ``critical`` (the generated class sets
 writer of the same message matches a Python reader and vice versa.
 ``Durability`` stays ``Volatile`` (C++'s open question; not decided here).
 
+A ``dds`` message with ``phi`` fields publishes through
+:class:`harpia_runtime.dds.audit.AuditedPublisher` instead (py-dds task 4).
+
 Each instance owns its ``DomainParticipant`` (domain 0) unless one is passed
 in; share one participant between endpoints of a process when you have
 many. ``matched_subscribers()`` / ``matched_publishers()`` report the
