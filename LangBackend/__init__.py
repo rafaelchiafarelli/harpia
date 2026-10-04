@@ -11,13 +11,14 @@ module + one entry in ``_REGISTRY``) without touching the existing backends.
 from LangBackend.base import GenerationContext, LangBackend
 from LangBackend.cpp import CppBackend
 from LangBackend.java import JavaBackend
+from LangBackend.python import PythonBackend
 
 DEFAULT_LANG = "cpp"
 
 # name -> singleton (backends are stateless).
-_REGISTRY = {b.name: b for b in (CppBackend(), JavaBackend())}
+_REGISTRY = {b.name: b for b in (CppBackend(), JavaBackend(), PythonBackend())}
 # convenience aliases for HARPIA_GEN_LANG
-_ALIASES = {"c++": "cpp", "cxx": "cpp"}
+_ALIASES = {"c++": "cpp", "cxx": "cpp", "py": "python"}
 
 
 def get_lang_backend(name=None):
@@ -40,5 +41,5 @@ def register(backend):
     _REGISTRY[backend.name] = backend
 
 
-__all__ = ["LangBackend", "GenerationContext", "CppBackend", "JavaBackend",
+__all__ = ["LangBackend", "GenerationContext", "CppBackend", "JavaBackend", "PythonBackend",
            "get_lang_backend", "register", "DEFAULT_LANG"]

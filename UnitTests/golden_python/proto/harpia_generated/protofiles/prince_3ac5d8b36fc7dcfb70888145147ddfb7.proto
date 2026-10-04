@@ -1,0 +1,17 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+
+message prince {
+int32 ID_3ac5d8b36fc7dcfb70888145147ddfb7 = 1;
+int32 vari = 2;
+int32 var = 3;
+optional int32 val = 4;
+map<string, string> a = 5;
+map<string, int32> b = 6;
+map<int32, string> c = 7;
+repeated int32 scores = 8;
+string STATUS_3ac5d8b36fc7dcfb70888145147ddfb7 = 9;
+string ERROR_3ac5d8b36fc7dcfb70888145147ddfb7 = 10;
+string ORIGINATOR = 11;
+}

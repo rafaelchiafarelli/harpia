@@ -1,0 +1,14 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+
+message lab_result {
+int32 ID_3ac5d8b36fc7dcfb70888145147ddfb7 = 1;
+string subject_ref = 2;
+string analyte_code = 3;
+int32 value_scaled = 4;
+float reference_high = 5;
+string STATUS_3ac5d8b36fc7dcfb70888145147ddfb7 = 6;
+string ERROR_3ac5d8b36fc7dcfb70888145147ddfb7 = 7;
+string ORIGINATOR = 8;
+}
