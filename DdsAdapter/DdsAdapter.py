@@ -215,11 +215,16 @@ class DdsAdapter:
         """
         copy_if_different(DDS_SECURITY_RUNTIME_SRC,
                           os.path.join(self.outDir, DDS_SECURITY_RUNTIME))
+        self.write_security_documents(self.securityDir, dds_topics)
 
-        os.makedirs(self.securityDir, exist_ok=True)
+    def write_security_documents(self, security_dir, dds_topics):
+        """The three language-neutral DDS-Security documents into
+        `security_dir` (also used by python-target's PyDdsAdapter, so both
+        targets carry the same bytes)."""
+        os.makedirs(security_dir, exist_ok=True)
         copy_if_different(DDS_GOVERNANCE_SRC,
-                          os.path.join(self.securityDir, DDS_GOVERNANCE))
-        write_if_different(os.path.join(self.securityDir, DDS_PERMISSIONS),
+                          os.path.join(security_dir, DDS_GOVERNANCE))
+        write_if_different(os.path.join(security_dir, DDS_PERMISSIONS),
                            self._render_permissions(dds_topics))
 
         backend = self.crypto_backend
@@ -231,7 +236,7 @@ class DdsAdapter:
             "fips": backend.fips,
         }
         write_if_different(
-            os.path.join(self.securityDir, DDS_SECURITY_SELECTION),
+            os.path.join(security_dir, DDS_SECURITY_SELECTION),
             json.dumps(selection, indent=2, sort_keys=True) + "\n")
 
     @staticmethod
