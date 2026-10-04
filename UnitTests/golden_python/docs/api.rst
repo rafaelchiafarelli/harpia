@@ -241,6 +241,18 @@ harpia_generated.events.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_events
 .. automodule:: harpia_generated.events.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_events
    :members:
 
+harpia_generated.http
+---------------------
+
+.. automodule:: harpia_generated.http
+   :members:
+
+harpia_generated.http.http_server_bringup
+-----------------------------------------
+
+.. automodule:: harpia_generated.http.http_server_bringup
+   :members:
+
 harpia_generated.migrate
 ------------------------
 
@@ -335,6 +347,96 @@ harpia_generated.protofiles
 ---------------------------
 
 .. automodule:: harpia_generated.protofiles
+   :members:
+
+harpia_generated.rest
+---------------------
+
+.. automodule:: harpia_generated.rest
+   :members:
+
+harpia_generated.rest.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+-----------------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+----------------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.crew_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+----------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.crew_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.data_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+----------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.data_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.journey_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.journey_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.outpost_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.outpost_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+--------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+--------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+--------------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.users_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+-----------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.users_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.vault_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+-----------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.vault_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+   :members:
+
+harpia_generated.rest.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_rest
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.rest.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_rest
    :members:
 
 harpia_generated.serialize
@@ -509,6 +611,24 @@ harpia_runtime.events
 ---------------------
 
 .. automodule:: harpia_runtime.events
+   :members:
+
+harpia_runtime.http
+-------------------
+
+.. automodule:: harpia_runtime.http
+   :members:
+
+harpia_runtime.http.rest
+------------------------
+
+.. automodule:: harpia_runtime.http.rest
+   :members:
+
+harpia_runtime.http.router
+--------------------------
+
+.. automodule:: harpia_runtime.http.router
    :members:
 
 harpia_runtime.json
