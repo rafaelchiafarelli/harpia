@@ -37,3 +37,9 @@ harpia_runtime.xml
 .. automodule:: harpia_runtime.xml
    :members:
 
+harpia_runtime.yaml
+-------------------
+
+.. automodule:: harpia_runtime.yaml
+   :members:
+
