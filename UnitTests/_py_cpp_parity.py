@@ -256,3 +256,96 @@ def run(gen, requests):
         out.append((status == "OK", payload))
     assert len(out) == len(requests), r.stdout[-500:]
     return out
+
+
+_DAO_PROBE_MAIN = r'''
+#include <cstdio>
+#include <iostream>
+#include <string>
+#include <soci/soci.h>
+#include <soci/sqlite3/soci-sqlite3.h>
+%(includes)s
+
+static std::string unhex(const std::string& h) {
+    std::string out;
+    for (size_t i = 0; i + 1 < h.size(); i += 2)
+        out += static_cast<char>(std::stoi(h.substr(i, 2), nullptr, 16));
+    return out;
+}
+
+template <class Dao, class Msg>
+int run(const std::string& mode, ::soci::session& db, const std::string& arg) {
+    Dao dao(db);
+    if (mode == "write") {
+        Msg m;
+        if (!m.ParseFromString(unhex(arg))) return 3;
+        return dao.create(m) ? 0 : 4;
+    }
+    Msg m;
+    if (!dao.read(std::stoll(arg), &m)) return 5;
+    std::string b = m.SerializeAsString();
+    for (unsigned char c : b) std::printf("%%02x", c);
+    std::printf("\n");
+    return 0;
+}
+
+int main(int argc, char** argv) {
+    if (argc != 5) return 2;
+    const std::string mode = argv[1], type = argv[2];
+    ::soci::session db(::soci::sqlite3, argv[3]);
+%(create_all)s
+%(dispatch)s
+    return 6;
+}
+'''
+
+
+@functools.lru_cache(maxsize=None)
+def dao_probe(gen, names):
+    """Build a C++ program over the generated SOCI DAOs of ``names`` (a tuple
+    of message names): ``probe write <type> <db> <hex>`` creates the message,
+    ``probe read <type> <db> <pk>`` prints the stored message as hex."""
+    import hashlib
+    cpp_root = os.path.join(gen, "generated", "cpp")
+    h = os.path.basename(glob.glob(os.path.join(cpp_root, "db", "*_crudl.h"))[0])
+    h = h.rsplit("_", 2)[-2]
+    work = os.path.join(gen, "_dao_probe_" + hashlib.md5(",".join(names).encode()).hexdigest()[:8])
+    os.makedirs(work, exist_ok=True)
+    src = os.path.join(work, "dao_probe.cc")
+    with open(src, "w") as f:
+        f.write(_DAO_PROBE_MAIN % {
+            "includes": "\n".join('#include "db/{}_{}_crudl.h"'.format(n, h) for n in names),
+            "create_all": "\n".join(
+                "    {{ harpia::db::{}_dao d(db); d.create_table(); }}".format(n) for n in names),
+            "dispatch": "\n".join(
+                '    if (type == "{0}") return run<harpia::db::{0}_dao, ::{0}>(mode, db, argv[4]);'
+                .format(n) for n in names)})
+    sources = sorted(s for s in glob.glob(os.path.join(cpp_root, "protofiles", "*.pb.cc"))
+                     if not s.endswith(".grpc.pb.cc")) + [src]
+    cflags = ["-std=c++17", "-O0", "-I", cpp_root] + _pkgconfig("--cflags")
+
+    def _compile(s):
+        obj = os.path.join(work, os.path.basename(s) + ".o")
+        r = subprocess.run(["g++", *cflags, "-c", s, "-o", obj],
+                           capture_output=True, text=True, timeout=600)
+        assert r.returncode == 0, "{}:\n{}".format(s, r.stderr)
+        return obj
+
+    with concurrent.futures.ThreadPoolExecutor(os.cpu_count() or 4) as ex:
+        objs = list(ex.map(_compile, sources))
+    exe = os.path.join(work, "dao_probe")
+    r = subprocess.run(["g++", *objs, "-o", exe, "-lsoci_core", "-lsoci_sqlite3",
+                        *_pkgconfig("--libs"), "-lcrypto", "-pthread", "-ldl"],
+                       capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stderr
+    return exe
+
+
+def cpp_dao(gen, names, mode, typ, db, arg):
+    """Run the DAO probe; returns stdout bytes (read) or b'' (write)."""
+    exe = dao_probe(gen, tuple(names))
+    r = subprocess.run([exe, mode, typ, str(db), arg], capture_output=True, text=True,
+                       timeout=60)
+    assert r.returncode == 0, "dao_probe {} {} -> {}\n{}".format(mode, typ, r.returncode,
+                                                                 r.stderr)
+    return bytes.fromhex(r.stdout.strip()) if mode == "read" else b""
