@@ -1,6 +1,7 @@
 """python-target / py-transports-http task 4: generated gRPC servicers
 (``harpia_generated/grpc/*_grpc.py`` over ``harpia_runtime.grpc_service``)
-on ``harpia_generated.grpc.grpc_server_bringup.GrpcServer``.
+on an insecure ``grpc.server`` (``PlainGrpc``; the bring-up needs mTLS
+here because the fixture has ``protected`` messages).
 
 Low-risk profile (flat ``x-user`` / ``x-pswd`` metadata). Image-gated:
 - the servicer set equals the C++ ``grpc/*_grpc.h`` set;
@@ -53,9 +54,25 @@ def _server(tmp_path, size=4, timeout=5.0):
                                                        borrow_timeout_s=timeout)
     with pool.borrow() as conn:
         _mod("harpia_generated.db.users_{h}_dao").users_dao(conn).create_table()
-    srv = _mod("harpia_generated.grpc.grpc_server_bringup").GrpcServer(pool)
-    srv.start()
-    return srv, pool
+    return PlainGrpc(pool), pool
+
+
+class PlainGrpc:
+    """The ``users`` servicer on an insecure ``grpc.server``. Not the generated
+    ``GrpcServer``: the fixture's ``protected`` messages make its bring-up
+    require mTLS even under a low-risk profile (its own test covers that)."""
+
+    def __init__(self, pool):
+        from concurrent.futures import ThreadPoolExecutor
+        import grpc
+        mod = _mod("harpia_generated.grpc.users_{h}_grpc")
+        self.server = grpc.server(ThreadPoolExecutor(max_workers=8))
+        mod.add_to_server(mod.users_Service(pool), self.server)
+        self.port = self.server.add_insecure_port("127.0.0.1:0")
+        self.server.start()
+
+    def stop(self):
+        self.server.stop(None).wait()
 
 
 def _stub(port):

@@ -8,6 +8,8 @@ message (the C++ ``grpc/*_grpc.h`` set) plus
 """
 import os
 
+from Crypto.backend import transport_hardening_required
+from Database.auth_gate import transport_mode
 from Logger.logger import logger
 from PyAdapter.runtime_copy import copy_runtime_module
 from Util.util import loadTemplate, write_if_different
@@ -17,6 +19,9 @@ _BRINGUP = loadTemplate(__file__, "grpc_server_bringup.py.tmpl")
 _RUNTIME = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runtime",
                         "grpc_service.py")
 GRPC_MODULE = "harpia_runtime.grpc_service"
+TLS_MODULE = "harpia_runtime.tls"
+_TLS_RUNTIME = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "PyHttp", "runtime", "tls.py")
 GRPC_EXT = "_grpc.py"
 
 
@@ -37,6 +42,7 @@ class PyGrpcAdapter:
         if not tables:
             return None
         copy_runtime_module(self.dest, _RUNTIME, GRPC_MODULE)
+        copy_runtime_module(self.dest, _TLS_RUNTIME, TLS_MODULE)
         os.makedirs(self.outDir, exist_ok=True)
         write_if_different(os.path.join(self.outDir, "__init__.py"),
                            '"""Generated gRPC servicers, one module per table."""\n')
@@ -58,6 +64,19 @@ class PyGrpcAdapter:
             gate_import="flat_gate",
             gate_expr="flat_gate({!r}, {!r})".format(msg.name, msg.md5Hash))
 
+    def _transport(self):
+        """``(hardening, mode_consts, tls_args)`` for a bring-up: C++'s rule --
+        EMIT_TLS / CLIENT_CERT_REQUIRED only when a protected/open message
+        makes ``transport_mode`` diverge from the project default."""
+        hardening = transport_hardening_required(self.compliance)
+        emit_tls, cert_required = transport_mode(self.messages, hardening)
+        if (emit_tls, cert_required) == (hardening, hardening):
+            return hardening, "", "HARDENING_REQUIRED, mtls"
+        consts = ("#: protected/open messages diverge from the project default\n"
+                  "#: (Database.auth_gate.transport_mode)\n"
+                  "EMIT_TLS = {}\nCLIENT_CERT_REQUIRED = {}\n".format(emit_tls, cert_required))
+        return hardening, consts, "EMIT_TLS, mtls, CLIENT_CERT_REQUIRED"
+
     def _render_bringup(self, tables):
         mods = sorted("{}_{}_grpc".format(m.name, m.md5Hash) for m in tables)
         imports = "from harpia_generated.grpc import (\n{})".format(
@@ -65,5 +84,7 @@ class PyGrpcAdapter:
         registrations = "\n".join(
             "        {0}_{1}_grpc.add_to_server({0}_{1}_grpc.{0}_Service(pool), "
             "self.server)".format(m.name, m.md5Hash) for m in tables)
-        return _BRINGUP.format(imports=imports, registrations=registrations,
+        hardening, mode_consts, tls_args = self._transport()
+        return _BRINGUP.format(hardening=hardening, mode_consts=mode_consts, tls_args=tls_args,
+                               imports=imports, registrations=registrations,
                                names=repr(tuple(m.name for m in tables)))

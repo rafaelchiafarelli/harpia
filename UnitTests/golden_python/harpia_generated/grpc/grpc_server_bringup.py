@@ -30,9 +30,17 @@ from harpia_generated.grpc import (
     vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_grpc,
 )
 from harpia_runtime.db.pool import ConnectionPool
+from harpia_runtime.tls import MtlsFiles, grpc_server_credentials
 
 #: every message with a gRPC service
 SERVICES = ('data', 'users', 'vip_users', 'top_users', 'shipment', 'journey', 'crew', 'outpost', 'beacon_log', 'patient_vitals', 'alarm_event', 'telemetry', 'reception_desk', 'vault')
+#: transport_hardening_required(compliance), evaluated at generation time:
+#: when true the server only speaks mTLS (incomplete files → SecurityRefused)
+HARDENING_REQUIRED = True
+#: protected/open messages diverge from the project default
+#: (Database.auth_gate.transport_mode)
+EMIT_TLS = True
+CLIENT_CERT_REQUIRED = False
 
 
 class GrpcServer:
@@ -40,7 +48,7 @@ class GrpcServer:
     borrows its own connection from ``pool``."""
 
     def __init__(self, pool: ConnectionPool, address: str = "127.0.0.1:0",
-                 max_workers: int = 10) -> None:
+                 max_workers: int = 10, mtls: MtlsFiles | None = None) -> None:
         self.server = grpc.server(ThreadPoolExecutor(max_workers=max_workers))
         data_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.add_to_server(data_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.data_Service(pool), self.server)
         users_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.add_to_server(users_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.users_Service(pool), self.server)
@@ -56,7 +64,11 @@ class GrpcServer:
         telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.add_to_server(telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.telemetry_Service(pool), self.server)
         reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.add_to_server(reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.reception_desk_Service(pool), self.server)
         vault_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.add_to_server(vault_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.vault_Service(pool), self.server)
-        self._port = self.server.add_insecure_port(address)
+        creds = grpc_server_credentials(EMIT_TLS, mtls, CLIENT_CERT_REQUIRED)
+        if creds is None:
+            self._port = self.server.add_insecure_port(address)
+        else:
+            self._port = self.server.add_secure_port(address, creds)
 
     @property
     def port(self) -> int:

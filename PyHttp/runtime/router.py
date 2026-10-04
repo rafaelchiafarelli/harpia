@@ -12,11 +12,15 @@ on one :class:`Router`; :func:`make_server` serves it on a
 - Bodies over :data:`MAX_BODY` → 413 before the handler runs.
 - A handler that raises gets a 500; the exception never reaches the
   server loop.
+- With a TLS context the server speaks HTTPS; ``req.peer["cert"]`` holds
+  the verified client certificate (``getpeercert()``), if any.
 - Content negotiation helpers: :func:`body_is_xml` (``Content-Type``
   contains ``xml``) and :func:`wants_xml` (``Accept`` contains ``xml``),
   as in C++.
 """
 import re
+import socket
+import ssl
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -141,7 +145,10 @@ def _handler_class(router: Router) -> type[BaseHTTPRequestHandler]:
             self._reply(router.dispatch(req))
 
         def _peer(self) -> dict[str, Any]:
-            return {"address": self.client_address}
+            peer: dict[str, Any] = {"address": self.client_address}
+            if isinstance(self.connection, ssl.SSLSocket):
+                peer["cert"] = self.connection.getpeercert()
+            return peer
 
         def _reply(self, res: Response) -> None:
             self.send_response(res.status)
@@ -161,11 +168,41 @@ def _handler_class(router: Router) -> type[BaseHTTPRequestHandler]:
     return _Handler
 
 
-class Server:
-    """A :class:`Router` served on a background thread."""
+class _TlsHTTPServer(ThreadingHTTPServer):
+    """Wraps each accepted connection in TLS on its worker thread (the
+    handshake never blocks the accept loop); a failed handshake just drops
+    that connection."""
 
-    def __init__(self, router: Router, host: str = "127.0.0.1", port: int = 0) -> None:
-        self._httpd = ThreadingHTTPServer((host, port), _handler_class(router))
+    tls: ssl.SSLContext | None = None
+
+    def finish_request(self, request: Any, client_address: Any) -> None:
+        if self.tls is not None:
+            try:
+                request = self.tls.wrap_socket(request, server_side=True)
+            except (ssl.SSLError, OSError):
+                try:
+                    request.close()
+                except OSError:
+                    pass
+                return
+        super().finish_request(request, client_address)
+
+    def shutdown_request(self, request: Any) -> None:
+        try:
+            request.shutdown(socket.SHUT_WR)
+        except OSError:
+            pass
+        request.close()
+
+
+class Server:
+    """A :class:`Router` served on a background thread; HTTPS when given a
+    TLS context (``harpia_runtime.tls.http_server_context``)."""
+
+    def __init__(self, router: Router, host: str = "127.0.0.1", port: int = 0,
+                 tls: ssl.SSLContext | None = None) -> None:
+        self._httpd = _TlsHTTPServer((host, port), _handler_class(router))
+        self._httpd.tls = tls
         self._httpd.daemon_threads = True
         self._thread: threading.Thread | None = None
 
@@ -193,6 +230,7 @@ class Server:
             self._thread.join()
 
 
-def make_server(router: Router, host: str = "127.0.0.1", port: int = 0) -> Server:
+def make_server(router: Router, host: str = "127.0.0.1", port: int = 0,
+                tls: ssl.SSLContext | None = None) -> Server:
     """A :class:`Server` for ``router`` (not started)."""
-    return Server(router, host, port)
+    return Server(router, host, port, tls)

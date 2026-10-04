@@ -1,6 +1,7 @@
 """python-target / py-transports-http task 2: generated REST CRUD
 (``harpia_generated/rest/*_rest.py`` over ``harpia_runtime.http.rest`` /
-``.router``) served by ``harpia_generated.http.http_server_bringup.HttpServer``.
+``.router``) registered on a plaintext ``harpia_runtime.http.router.Server`` (the
+bring-up needs mTLS here: the fixture has ``protected`` messages).
 
 Generated under a low-risk profile (``class_a`` / ``standalone``), so every
 route uses the flat ``X-User`` / ``X-Pswd`` gate. Image-gated:
@@ -79,10 +80,24 @@ def server(gen, tmp_path):
         for name in ("users", "data"):
             getattr(_mod("harpia_generated.db.%s_{h}_dao" % name), name + "_dao")(
                 conn).create_table()
-    srv = _mod("harpia_generated.http.http_server_bringup").HttpServer(pool, rest_base="/api/v1")
-    srv.start()
+    srv = plain_http(pool, rest_base="/api/v1")
     yield srv, pool
     srv.stop()
+
+
+def plain_http(pool, rest_base="", soap_base="/soap", names=("users", "data")):
+    """``names``' REST + SOAP routes on a plaintext server. Not the generated
+    ``HttpServer``: the fixture's ``protected`` messages make its bring-up
+    require mTLS (``EMIT_TLS``) even under a low-risk profile -- as the C++
+    tests, register the bindings directly (the bring-up has its own mTLS test)."""
+    router_mod = _mod("harpia_runtime.http.router")
+    router = router_mod.Router()
+    for name in names:
+        _mod("harpia_generated.rest.%s_{h}_rest" % name).register(router, pool, rest_base)
+        _mod("harpia_generated.soap.%s_{h}_soap" % name).register(router, pool, soap_base)
+    srv = router_mod.Server(router)
+    srv.start()
+    return srv
 
 
 def call(srv, method, path, body=None, headers=None):
@@ -210,8 +225,7 @@ def test_router_errors(server):
 def test_pool_exhausted_is_503(gen, tmp_path):
     pool_mod = _mod("harpia_runtime.db.pool")
     pool = pool_mod.sqlite_pool(str(tmp_path / "x.db"), size=1, borrow_timeout_s=0.2)
-    srv = _mod("harpia_generated.http.http_server_bringup").HttpServer(pool)
-    srv.start()
+    srv = plain_http(pool)
     try:
         with pool.borrow():
             status, body, _ = call(srv, "GET", "/users", headers=CRED)

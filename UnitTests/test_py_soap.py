@@ -1,6 +1,7 @@
 """python-target / py-transports-http task 3: the SOAP endpoint
 (``harpia_runtime.soap`` seam + ``harpia_runtime.http.soap_endpoint`` +
-generated ``harpia_generated/soap/*_soap.py``), registered by ``HttpServer``.
+generated ``harpia_generated/soap/*_soap.py``), on a plaintext router
+(see ``test_py_rest.plain_http``).
 
 Generated under a low-risk profile (flat ``<credentials>`` gate):
 - the module set equals the C++ ``soap/*_soap.h`` set, each pointing at its
@@ -36,7 +37,7 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 from UnitTests import _py_cpp_parity as P  # noqa: E402
-from UnitTests.test_py_rest import generate_low_risk  # noqa: E402
+from UnitTests.test_py_rest import generate_low_risk, plain_http  # noqa: E402
 
 pytestmark = pytest.mark.skipif(not P.HAVE_PY, reason=P.SKIP_PY)
 
@@ -67,9 +68,7 @@ def _py_server(tmp_path, size=4, timeout=5.0):
                                                        borrow_timeout_s=timeout)
     with pool.borrow() as conn:
         _mod("harpia_generated.db.users_{h}_dao").users_dao(conn).create_table()
-    srv = _mod("harpia_generated.http.http_server_bringup").HttpServer(pool)
-    srv.start()
-    return srv, pool
+    return plain_http(pool, names=("users",)), pool
 
 
 def post(port, body, path="/soap/users"):

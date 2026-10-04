@@ -8,6 +8,8 @@ message plus ``harpia_generated/http/http_server_bringup.py``.
 import os
 
 from Database.model import pagination_default
+from Crypto.backend import transport_hardening_required
+from Database.auth_gate import transport_mode
 from Logger.logger import logger
 from PyAdapter.runtime_copy import copy_runtime_module
 from Util.util import loadTemplate, write_if_different
@@ -21,6 +23,7 @@ _RUNTIME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runtime
 RUNTIMES = (
     ("router.py", "harpia_runtime.http.router"),
     ("rest.py", "harpia_runtime.http.rest"),
+    ("tls.py", "harpia_runtime.tls"),
     ("soap.py", "harpia_runtime.soap"),
     ("soap_endpoint.py", "harpia_runtime.http.soap_endpoint"),
 )
@@ -97,6 +100,19 @@ class PyHttpAdapter:
                                             hash_lit=repr(msg.md5Hash)),
             gate_args="early_gate=EARLY_GATE")
 
+    def _transport(self):
+        """``(hardening, mode_consts, tls_args)`` for a bring-up: C++'s rule --
+        EMIT_TLS / CLIENT_CERT_REQUIRED only when a protected/open message
+        makes ``transport_mode`` diverge from the project default."""
+        hardening = transport_hardening_required(self.compliance)
+        emit_tls, cert_required = transport_mode(self.messages, hardening)
+        if (emit_tls, cert_required) == (hardening, hardening):
+            return hardening, "", "HARDENING_REQUIRED, mtls"
+        consts = ("#: protected/open messages diverge from the project default\n"
+                  "#: (Database.auth_gate.transport_mode)\n"
+                  "EMIT_TLS = {}\nCLIENT_CERT_REQUIRED = {}\n".format(emit_tls, cert_required))
+        return hardening, consts, "EMIT_TLS, mtls, CLIENT_CERT_REQUIRED"
+
     def _render_bringup(self, tables):
         imports = "".join("from harpia_generated.{0} import (\n{1})\n".format(kind, "".join(
             "    {},\n".format(mod) for mod in sorted(
@@ -106,5 +122,7 @@ class PyHttpAdapter:
             "        {0}_{1}_rest.register(self.router, pool, rest_base)\n"
             "        {0}_{1}_soap.register(self.router, pool, soap_base)\n".format(
                 m.name, m.md5Hash) for m in tables).rstrip("\n")
-        return _BRINGUP.format(imports=imports.rstrip("\n"), registrations=registrations,
+        hardening, mode_consts, tls_args = self._transport()
+        return _BRINGUP.format(hardening=hardening, mode_consts=mode_consts, tls_args=tls_args,
+                               imports=imports.rstrip("\n"), registrations=registrations,
                                rest_names=repr(tuple(m.name for m in tables)))

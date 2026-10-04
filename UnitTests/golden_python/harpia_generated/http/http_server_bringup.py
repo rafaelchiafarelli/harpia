@@ -44,9 +44,17 @@ from harpia_generated.soap import (
 )
 from harpia_runtime.db.pool import ConnectionPool
 from harpia_runtime.http.router import Router, Server
+from harpia_runtime.tls import MtlsFiles, http_server_context
 
 #: every message with REST routes
 REST_MESSAGES = ('data', 'users', 'vip_users', 'top_users', 'shipment', 'journey', 'crew', 'outpost', 'beacon_log', 'patient_vitals', 'alarm_event', 'telemetry', 'reception_desk', 'vault')
+#: transport_hardening_required(compliance), evaluated at generation time:
+#: when true the server only speaks mTLS (incomplete files → SecurityRefused)
+HARDENING_REQUIRED = True
+#: protected/open messages diverge from the project default
+#: (Database.auth_gate.transport_mode)
+EMIT_TLS = True
+CLIENT_CERT_REQUIRED = False
 
 
 class HttpServer:
@@ -55,7 +63,8 @@ class HttpServer:
     connection from ``pool``."""
 
     def __init__(self, pool: ConnectionPool, host: str = "127.0.0.1", port: int = 0,
-                 rest_base: str = "", soap_base: str = "/soap") -> None:
+                 rest_base: str = "", soap_base: str = "/soap",
+                 mtls: MtlsFiles | None = None) -> None:
         if rest_base == soap_base:
             raise ValueError("rest_base and soap_base must differ")
         self.router = Router()
@@ -87,7 +96,8 @@ class HttpServer:
         reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         vault_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
         vault_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
-        self._server = Server(self.router, host, port)
+        tls = http_server_context(EMIT_TLS, mtls, CLIENT_CERT_REQUIRED)
+        self._server = Server(self.router, host, port, tls)
 
     @property
     def port(self) -> int:

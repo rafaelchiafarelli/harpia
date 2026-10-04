@@ -25,8 +25,11 @@ checks `x-user` / `x-pswd` metadata (`UNAUTHENTICATED "unauthorized"`);
   `add_to_server(servicer, server)` (wraps protoc's
   `add_<name>_ServiceServicer_to_server`).
 - `grpc_server_bringup.py`: `GrpcServer(pool, address="127.0.0.1:0",
-  max_workers=10)` — every servicer on one `grpc.server(ThreadPoolExecutor)`,
-  `port`, `start()`, `stop(grace=None)`; `SERVICES`.
+  max_workers=10, mtls=None)` — every servicer on one `grpc.server(ThreadPoolExecutor)`,
+  `port`, `start()`, `stop(grace=None)`; `SERVICES`; same
+  `HARDENING_REQUIRED` / `EMIT_TLS` / `CLIENT_CERT_REQUIRED` baking as the
+  HTTP bring-up (`harpia_runtime.tls.grpc_server_credentials`, secure port
+  when TLS, `SecurityRefused` on incomplete files).
 
 ## Key facts / gotchas
 - The servicer subclasses the typed runtime class, not protoc's untyped

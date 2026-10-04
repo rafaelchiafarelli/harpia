@@ -40,6 +40,22 @@ bring-up). A stage of `LangBackend/python.py`'s `run_python`, after
   503 Fault / 200 for everything else incl. "not found" and "unknown
   operation"); `flat_soap_gate(user, pswd)`; `xml_reply`.
 
+- `runtime/tls.py` → `harpia_runtime.tls` (task 5; also copied by
+  `PyGrpcAdapter`): `MtlsFiles(ca_certificate, certificate, private_key)`
+  + `complete()`, `SecurityRefused`, `http_server_context` /
+  `grpc_server_credentials` (`None` = plaintext when hardening isn't
+  required; `client_cert_required=False` = mixed mode), client-side
+  `http_client_context` / `grpc_channel_credentials`, `cn_from_peercert`,
+  `grpc_peer_cn`. Incomplete or unreadable files → `SecurityRefused`,
+  never plaintext. `router.Server(tls=...)` wraps each connection on its
+  worker thread (a failed handshake drops just that connection) and puts
+  `getpeercert()` in `req.peer["cert"]`.
+  **Python limitation (logged):** `grpc.ssl_server_credentials` has only
+  require-and-verify or don't-request, so gRPC mixed mode never sees a
+  client certificate — every gRPC caller is anonymous there (fail-closed
+  for `protected`); HTTP mixed mode (`CERT_OPTIONAL`) verifies a presented
+  cert like C++.
+
 ## Generated (under `harpia_generated/`)
 - `rest/<name>_<hash>_rest.py` per table-bearing message (= the C++
   `rest/*_rest.h` set): `DEFAULT_LIMIT` (`pagination_default`), `GATE`,
@@ -49,7 +65,11 @@ bring-up). A stage of `LangBackend/python.py`'s `run_python`, after
   `register(router, pool, base="/soap")`.
 - `http/http_server_bringup.py`: `HttpServer(pool, host="127.0.0.1",
   port=0, rest_base="", soap_base="/soap")` registering every REST and SOAP
-  module on one `Router` (`REST_MESSAGES`), `port` / `start` / `stop`.
+  module on one `Router` (`REST_MESSAGES`), `port` / `start` / `stop`,
+  `mtls=MtlsFiles`. Bakes `HARDENING_REQUIRED`, and `EMIT_TLS` /
+  `CLIENT_CERT_REQUIRED` only when `auth_gate.transport_mode` diverges (the
+  C++ rule; the HarpiaTest fixture diverges, so even its low-risk build
+  needs PKI — flat-gate tests register bindings on a plain `Server`).
 
 ## Key facts / gotchas
 - **SOAP parity is byte-for-byte:** one ordered request sequence against
