@@ -10,3 +10,12 @@ import os
 AUDIT_SINK_RUNTIME = "harpia_audit_sink.h"
 AUDIT_SINK_RUNTIME_SRC = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "runtime", AUDIT_SINK_RUNTIME)
+
+# Python target (python-target / py-foundation task 4): the port of the
+# header above. Copied into a generated project at PY_AUDIT_SINK_MODULE by
+# PyAdapter.runtime_copy.copy_runtime_module whenever a Python runtime
+# records audit events.
+PY_AUDIT_SINK_MODULE = "harpia_runtime.compliance.audit_sink"
+PY_AUDIT_SINK_RUNTIME_SRC = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "runtime", "python",
+    "audit_sink.py")

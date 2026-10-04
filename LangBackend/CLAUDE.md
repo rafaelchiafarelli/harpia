@@ -22,6 +22,9 @@ stage's non-fatal `Error`.
   `if genLang == "java":` block, verbatim: Gradle, JSON, JDBC runtime +
   DAOs, XML, REST, SOAP, ZMQ, JUnit) then the unchanged C++ pipeline. Java
   is additive on top of C++, as it always was.
+- `python.py` — `PythonBackend(CppBackend)`: `run_python()` (the Python
+  target's stages, starting with `PyAdapter`) then the C++ pipeline — the
+  same additive rule as `java`. Alias `py`.
 
 ## Key facts / gotchas
 - **An unknown `HARPIA_GEN_LANG` is a hard error** (decided at
