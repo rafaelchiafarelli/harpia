@@ -51,3 +51,6 @@ extend-exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py", "docs/_build"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["harpia_runtime", "harpia_generated"]
