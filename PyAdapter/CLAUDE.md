@@ -23,6 +23,29 @@ modules at generation time (like C++, not at build time like Java).
   `<x>_pb2_grpc.py` only for protos that declare a `service` (the plugin
   emits one per input; the rest are dropped).
 
+## `PyDocsAdapter.py` — Sphinx skeleton (py-foundation task 3)
+- Writes `<dest>/python/docs/{conf.py,index.rst,api.rst}`: autodoc +
+  napoleon (Google-style docstrings), one `automodule` per harpia-written
+  module under `harpia_runtime` / `harpia_generated` (`discover_modules`,
+  protoc output skipped). Runs **last** among the Python stages
+  (`PythonBackend.run_python`), so every later epic's modules are documented
+  with no extra wiring — they only need docstrings (Ground Rule 6).
+- The landing page **links** to `USAGE_EXCERPT.md` (the C++ pipeline's
+  Doxygen excerpt of USAGE.md §5/§7/§16) instead of embedding it: Sphinx
+  needs `myst-parser` for Markdown, which the image doesn't carry.
+
+## Quality gate (every Python epic keeps it green)
+From `<dest>/python/`: `mypy` (config `[tool.mypy]`, `strict = true`,
+`files = harpia_runtime, harpia_generated`), `ruff check .` (`E,F,W,I,B,UP`,
+py310, protoc output excluded) and `sphinx-build -W docs <out>`.
+- `harpia_generated.protofiles.*` has `ignore_errors = true`: it is all protoc
+  output. `_pb2.py` is typed through its `.pyi` (mypy prefers the stub);
+  `_pb2_grpc.py` is untyped grpc_python_plugin code. Decision recorded at
+  task 3: ignore errors there rather than exclude, so importing modules still
+  resolve the types.
+- `grpc` / `grpc.*` get `ignore_missing_imports` (grpcio ships no types).
+  Later epics add the same for any untyped dependency they import.
+
 ## Key facts / gotchas
 - **Import path decision (task 2, option (b)):** protos are re-rooted under
   `harpia_generated/protofiles/`, so modules import as
@@ -43,5 +66,6 @@ modules at generation time (like C++, not at build time like Java).
 ## Touchpoints
 - Depends on: the front end's `<dest>/proto/protofiles/` (FileCreator +
   `copyBasicProtos`), `Util.util`.
-- Tested by: `UnitTests/test_golden_python.py` (`UnitTests/golden_python/`,
+- Tested by: `UnitTests/test_python_quality_gate.py` (the gate + negative
+  controls), `UnitTests/test_golden_python.py` (`UnitTests/golden_python/`,
   protoc output not snapshotted), `UnitTests/test_python_codegen.py`.

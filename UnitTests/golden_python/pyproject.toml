@@ -24,3 +24,30 @@ include = ["harpia_runtime*", "harpia_generated*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.pyi", "py.typed"]
+
+# Quality gate (py-foundation task 3): `mypy` and `ruff check` from this
+# directory, `sphinx-build -W docs <out>` for the docs. Every harpia template
+# and runtime keeps all three green.
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["harpia_runtime", "harpia_generated"]
+
+# protoc output. _pb2.py is typed through its .pyi stub (mypy prefers the
+# stub); _pb2_grpc.py is untyped code from grpc_python_plugin. Not harpia's
+# code, so errors inside it are not reported.
+[[tool.mypy.overrides]]
+module = "harpia_generated.protofiles.*"
+ignore_errors = true
+
+# grpcio ships no type information.
+[[tool.mypy.overrides]]
+module = ["grpc", "grpc.*"]
+ignore_missing_imports = true
+
+[tool.ruff]
+target-version = "py310"
+extend-exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py", "docs/_build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]

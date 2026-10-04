@@ -30,8 +30,19 @@ from PyAdapter.PyAdapter import rewrite_proto_imports  # noqa: E402
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
 
+def _importable(*mods):
+    import importlib
+    try:
+        for m in mods:
+            importlib.import_module(m)
+        return True
+    except ImportError:
+        return False
+
+
 HAVE_PY_PROTOC = (shutil.which("protoc") is not None
-                  and shutil.which("grpc_python_plugin") is not None)
+                  and shutil.which("grpc_python_plugin") is not None
+                  and _importable("google.protobuf", "grpc"))
 HAVE_CPP = (HAVE_PY_PROTOC and shutil.which("g++") is not None
             and shutil.which("pkg-config") is not None)
 
@@ -81,7 +92,7 @@ def test_stale_pb2_is_pruned(tmp_path):
     assert not os.path.exists(stale)
 
 
-@pytest.mark.skipif(not HAVE_PY_PROTOC, reason="needs protoc + grpc_python_plugin")
+@pytest.mark.skipif(not HAVE_PY_PROTOC, reason="needs protoc + grpc_python_plugin + python protobuf/grpcio")
 def test_every_module_imports_under_harpia_generated(gen):
     pyroot = os.path.join(gen, "python")
     pkg = os.path.join(pyroot, "harpia_generated", "protofiles")
