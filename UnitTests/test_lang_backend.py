@@ -66,3 +66,11 @@ def test_context_report_logs_only_errors():
     ctx.report(None)
     ctx.report("boom")
     assert lines == ["boom"]
+
+
+def test_java_is_additive_on_cpp():
+    from LangBackend import JavaBackend
+    b = get_lang_backend("java")
+    assert isinstance(b, JavaBackend) and b.name == "java"
+    assert isinstance(b, CppBackend)
+    assert get_lang_backend("JAVA") is b
