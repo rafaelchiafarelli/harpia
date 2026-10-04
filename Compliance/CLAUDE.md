@@ -108,11 +108,23 @@ third added by the sensitive-data roadmap, not Foundation):
   `AuditSink` `"rbac_denied"` record per non-allow (cn/role/op/decision
   metadata only, Rule 5). `#include`s its sibling `harpia_audit_sink.h`.
   Tested by `UnitTests/test_rbac.py`.
+- `runtime/python/rbac.py` — **python-target / py-transports-http task 6:**
+  the Python port of `harpia_rbac.h`, copied as `harpia_runtime.rbac` (with
+  the Python audit sink) by `PyHttp`/`PyGrpc` when any message is
+  RBAC-gated. `Role`/`Operation`/`Decision` enums (values = the C++ names),
+  `parse_role`, `permitted`, `RoleMap.from_file/from_env/role_for/empty`
+  (same file format: `#` comments, whitespace-split, CRLF ok, last line
+  wins, unknown role → none, missing file → empty), `role_map()` (loaded
+  once under a lock; read-only after), `decide(cn, op, subject, sink=None)`
+  with the byte-identical `rbac_denied` detail. Decisions + audit text
+  equal C++ for one map file (`test_py_rbac.py`).
 - `rbac_common.py` — task-4 path constants (`RBAC_RUNTIME`/`RBAC_RUNTIME_SRC`
   + `RBAC_RUNTIME_DEPS` = the co-copied `harpia_audit_sink.h`), same shape as
   `audit_common.py` / `delivery_common.py`. Consumed by
   `Database.RestAdapter` (copies into `generated/cpp/http/`) and
-  `Database.GrpcServiceAdapter` (into `generated/cpp/grpc/`).
+  `Database.GrpcServiceAdapter` (into `generated/cpp/grpc/`). Also
+  `PY_RBAC_MODULE` / `PY_RBAC_RUNTIME_SRC` / `PY_RBAC_RUNTIME_DEPS` (the
+  Python port + its audit-sink dependency).
 - `runtime/harpia_session.h` — **transport-authn epic, task 5 (token-sessions).**
   Hand-written C++, copied verbatim into `generated/cpp/{http,grpc}/` next to
   `harpia_rbac.h` (by the same two adapters, under the same
@@ -141,13 +153,26 @@ third added by the sensitive-data roadmap, not Foundation):
   next to the mTLS choice; a future real-crypto-backend binding is where this
   would route through the provider's own HMAC. `#include`s its sibling
   `harpia_audit_sink.h`. Tested by `UnitTests/test_sessions.py`.
+- `runtime/python/session.py` — **python-target / py-transports-http task
+  7:** the Python port of `harpia_session.h`, copied as
+  `harpia_runtime.session` next to `harpia_runtime.rbac`. Same token bytes
+  (`v1.<b64url>.<hmac hex>`, context `harpiasess.v1.`), same `decode`
+  getline/atoll semantics, same `session_denied` detail; `verify(token,
+  now, sink)` returns `(Verdict, Claims | None)` (no out-param),
+  `from_authorization` → `Bearer`. HMAC via stdlib `hmac`/`hashlib`
+  (`compare_digest`), jti from `secrets`. Key/TTL resolved once under a
+  lock (`os.environb`, `@path` strips trailing CR/LF); `RevocationList`
+  re-reads on a content-hash change, lock-guarded. A corpus of 25 tokens
+  gives identical verdicts/claims/audit text in both languages
+  (`test_py_sessions.py`).
 - `session_common.py` — task-5 path constants
   (`SESSION_RUNTIME`/`SESSION_RUNTIME_SRC` + `SESSION_RUNTIME_DEPS` = the
   co-copied `harpia_audit_sink.h`), same shape as `rbac_common.py`. Consumed
   by `Database.RestAdapter` (into `generated/cpp/http/`) and
   `Database.GrpcServiceAdapter` (into `generated/cpp/grpc/`), only when
   `transport_hardening_required(compliance)` — right after each lands
-  `harpia_rbac.h`.
+  `harpia_rbac.h`. Also `PY_SESSION_MODULE` / `PY_SESSION_RUNTIME_SRC` /
+  `PY_SESSION_RUNTIME_DEPS` (the Python port).
 - `zap_common.py` — transport-authn "zmq-zap-allowlist" path constants
   (`ZAP_RUNTIME`/`ZAP_RUNTIME_SRC`/`ZAP_RUNTIME_DEPS`/`ZAP_OUT_SUBDIR`). The
   runtime it points at, `ZmqAdapter/runtime/harpia_zap.h`, is the hand-written
