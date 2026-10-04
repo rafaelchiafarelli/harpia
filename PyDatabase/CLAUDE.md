@@ -144,6 +144,23 @@ created), the whole input is parsed first — malformed input raises
 transaction (a duplicate key raises and rolls them all back). Imports return
 the number of rows created.
 
+## Connection pool (py-transports-http task 1, `runtime/pool.py`)
+`harpia_runtime.db.pool`: `ConnectionPool(factory, size, borrow_timeout_s=5.0,
+is_alive=...)` with `borrow()` (context manager, one connection per request),
+`in_use()`, `close()`; `PoolExhausted` (no slot within the timeout —
+`threading.Condition` + `time.monotonic()` deadline, never wall clock),
+`PoolReconnectFailed` (a dead idle connection — failed `SELECT 1` ping — is
+replaced on borrow; if the factory fails, the slot is released and this is
+raised). Exceptional exit rolls back; if the rollback fails the connection
+is discarded. `sqlite_pool(path, size=4, borrow_timeout_s=5.0,
+busy_timeout_ms=5000)` refuses `""`/`:memory:`/URI memory forms
+(`ValueError`), opens `check_same_thread=False`, WAL (verified, raises if
+not applied — as C++ `open_sqlite_pool`) and `busy_timeout`.
+`postgres_pool(dsn, ...)`: plain `psycopg` connections (no `psycopg_pool`).
+Gotcha: SQLite's busy handler is unfair — under heavy write contention on a
+slow-fsync filesystem (WSL2/Docker) one writer can starve past 5 s; the
+stress test uses 20 s. The 5000 ms default matches C++.
+
 ## PostgreSQL (task 3)
 `HARPIA_DB_BACKEND=postgresql` makes the generated DAOs run unchanged on a
 `psycopg` connection: `%s` placeholders and PostgreSQL DDL come entirely

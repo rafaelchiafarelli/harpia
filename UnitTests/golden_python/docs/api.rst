@@ -493,6 +493,12 @@ harpia_runtime.db.phi
 .. automodule:: harpia_runtime.db.phi
    :members:
 
+harpia_runtime.db.pool
+----------------------
+
+.. automodule:: harpia_runtime.db.pool
+   :members:
+
 harpia_runtime.delivery
 -----------------------
 
