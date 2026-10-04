@@ -1,0 +1,7 @@
+# Identities of the reference system and their RBAC roles (the
+# --clients-file format of Assets/cmake/mtls_provision.sh and
+# zmq_zap_provision.sh). station is the server and has no client identity.
+edge main
+handheld main
+# exists only to prove a denial: guest may read, never create
+guest guest

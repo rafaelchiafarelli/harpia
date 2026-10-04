@@ -470,7 +470,12 @@ harpia::grpc_transport::GrpcServer grpc;
 grpc.Start("0.0.0.0:50051");
 ```
 
-Provision a dev PKI with `Assets/cmake/mtls_provision.sh <out_dir>`.
+Provision a dev PKI with `Assets/cmake/mtls_provision.sh <out_dir> [server_CN] [identity ...]`.
+For a server on another machine add `--san <ip-or-hostname>` (repeatable; e.g.
+the LAN address, or `10.0.2.2` for the Android emulator). For many clients pass
+`--clients-file <file>` (one `<identity> <role>` per line, role `admin|main|guest`):
+one client cert per identity plus a ready `rbac_map.txt` for `HARPIA_RBAC_MAP`.
+Re-runs reuse the CA and keep existing identities (only new ones are issued).
 A **Java / Android client** of a hardened C++ server opens its channel with
 the generated `com.harpia.runtime.grpc.HarpiaGrpcTls` (works with
 `grpc-netty-shaded` and `grpc-okhttp`; PEMs as `InputStream`s, key in PKCS#8):
@@ -628,8 +633,10 @@ Keys are Z85 text (`zmq_curve_keypair()`'s native form). CURVE is a no-op over
 `inproc://`; `tcp://` and `ipc://` go through the real handshake. When the
 profile is hardened, bind-side `CURVE_SERVER` sockets additionally enforce the
 `HARPIA_ZMQ_ALLOWLIST` (§8) — an unknown client key is rejected at the handshake
-even with valid crypto; `Assets/cmake/zmq_zap_provision.sh` mints a starter
-allowlist.
+even with valid crypto; `Assets/cmake/zmq_zap_provision.sh <out_dir> [identity ...]`
+mints a starter allowlist (`--clients-file <file>`: the same identity file
+`mtls_provision.sh` takes, one CURVE keypair per identity; re-runs keep existing
+keys).
 
 **`ZMQ_LINGER`:** a socket with an undelivered message from a failed handshake
 blocks forever on destruction (`LINGER == -1`). If a sender might face a peer

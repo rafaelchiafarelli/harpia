@@ -11,6 +11,12 @@
 # container's loopback as 10.0.2.2.
 set -euo pipefail
 
+# Suite: "android_consumer" (default) or "multi_system" -- the reference
+# system's real handheld app against station + edge (UnitTests/
+# test_multi_system_example.py's emulator entry, which builds and starts
+# everything it needs itself once the emulator is up).
+SUITE=${1:-android_consumer}
+
 AVD_NAME=harpia_test_avd
 SYSTEM_IMAGE="system-images;android-34;default;x86_64"
 GEN_DIR=/tmp/gen
@@ -18,11 +24,14 @@ SERVERS_WORK=/tmp/hardened_work
 SERVERS_ASSETS=/tmp/hardened_assets
 SERVERS_LOG=/tmp/hardened_servers.log
 
-echo "== Building + starting hardened C++ servers (background) =="
-rm -rf "$SERVERS_WORK" "$SERVERS_ASSETS"
-python3 UnitTests/run_android_hardened_servers.py "$SERVERS_WORK" "$SERVERS_ASSETS" \
-    >"$SERVERS_LOG" 2>&1 &
-SERVERS_PID=$!
+SERVERS_PID=""
+if [ "$SUITE" = "android_consumer" ]; then
+    echo "== Building + starting hardened C++ servers (background) =="
+    rm -rf "$SERVERS_WORK" "$SERVERS_ASSETS"
+    python3 UnitTests/run_android_hardened_servers.py "$SERVERS_WORK" "$SERVERS_ASSETS" \
+        >"$SERVERS_LOG" 2>&1 &
+    SERVERS_PID=$!
+fi
 
 echo "== Creating AVD $AVD_NAME =="
 # -d picks a device profile so avdmanager doesn't prompt interactively for
@@ -40,8 +49,10 @@ EMULATOR_PID=$!
 
 cleanup() {
     kill "$EMULATOR_PID" 2>/dev/null || true
-    kill -TERM "$SERVERS_PID" 2>/dev/null || true
-    wait "$SERVERS_PID" 2>/dev/null || true
+    if [ -n "$SERVERS_PID" ]; then
+        kill -TERM "$SERVERS_PID" 2>/dev/null || true
+        wait "$SERVERS_PID" 2>/dev/null || true
+    fi
 }
 trap cleanup EXIT
 
@@ -83,6 +94,15 @@ until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1"
 done
 adb shell input keyevent 82 || true
 echo "== Emulator booted after ${elapsed}s =="
+
+if [ "$SUITE" = "multi_system" ]; then
+    echo "== Multi-system reference: handheld app vs station + edge =="
+    HARPIA_MS_EMULATOR=1 python3 -m pytest UnitTests/test_multi_system_example.py \
+        -k test_android_app_on_emulator -rs -p no:cacheprovider | tee /tmp/ms_emulator.log
+    # the entry must have RUN, not skipped
+    grep -q "1 passed" /tmp/ms_emulator.log
+    exit 0
+fi
 
 echo "== Generating Java-target project =="
 rm -rf "$GEN_DIR"
