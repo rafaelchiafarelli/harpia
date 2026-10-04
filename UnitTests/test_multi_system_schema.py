@@ -15,39 +15,16 @@ for three programs: `station` (C++, DB owner), `edge` (C++, no DB), `handheld`
     no client identity.
 """
 import os
-import subprocess
 import sys
 
 import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
-MS = os.path.join(REPO_ROOT, "HarpiaTest", "app_example", "multi_system")
-SCHEMA_DIR = os.path.join(MS, "harpia")
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
-
-def generate(out, lang=None, db_backend=None):
-    """main.py on the reference schema + its own compliance profile."""
-    env = dict(os.environ, HARPIA_OUTPUT_DIR=str(out),
-               HARPIA_INPUT_FILE=os.path.join(SCHEMA_DIR, "multi_system.harpia"),
-               HARPIA_INCLUDE_FOLDER=os.path.join(SCHEMA_DIR, "Include"),
-               HARPIA_COMPLIANCE_CONFIG=os.path.join(SCHEMA_DIR, "project.harpia.yaml"))
-    for k, v in (("HARPIA_GEN_LANG", lang), ("HARPIA_DB_BACKEND", db_backend)):
-        if v:
-            env[k] = v
-        else:
-            env.pop(k, None)
-    r = subprocess.run([sys.executable, "main.py"], cwd=REPO_ROOT, env=env,
-                       capture_output=True, text=True, timeout=600)
-    assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
-    return str(out)
-
-
-def schema_hash(gen):
-    for name in os.listdir(os.path.join(gen, "proto", "protofiles")):
-        if name.startswith("reading_") and not name.endswith("_service.proto"):
-            return name[len("reading_"):-len(".proto")]
-    raise AssertionError("no reading_<hash>.proto generated")
+from UnitTests._multi_system_helpers import SCHEMA_DIR, generate, schema_hash  # noqa: E402
 
 
 def _read(path):
