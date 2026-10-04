@@ -65,6 +65,19 @@
   with extra `queue_capacity=128`, `audit_sink=None` (queue subject = the
   message name, as C++). Receivers unchanged (no arrival checking, as C++).
 
+## `stream` lifecycle (task 4)
+`runtime/zmq_stream.py` → `harpia_runtime.zmq_stream` (copied only when a
+`stream` message exists): `StreamStatus`, `StreamConfig` (C++ fields and
+defaults), `stream_config_valid` (the C++ checks — note C++ does not check
+`reclaim_after_ms`, mirrored), `ReadResult[M]`, `Stream[M]` (`setup` /
+`read(timeout_ms=None)` / `stop` / `state` / `config` / context manager).
+Each `stream` message gets `class <name>_stream(Stream[<name>])` in its
+`_zmq.py`. Reclamation (no inbound frame for `reclaim_after_ms`) is checked
+before the watchdog (no usable message for `stop_deadline_ms`); both are
+synchronous inside `read()`/`stop()`, use `time.monotonic()` and latch
+`INVALID`; an undecodable frame reads `INVALID` without latching but counts
+as activity.
+
 ## Key facts / gotchas
 - **Wire = C++ wire:** one serialized-protobuf frame, no envelope. Proven
   by a generated C++ `courier_sender` → Python `new_receiver` test.
@@ -80,4 +93,4 @@
 - Depends on: `ZmqAdapter.ZmqAdapter` (`_modifiers`, `_origin_id`,
   `_is_one_to_many`), `PyAdapter.runtime_copy`.
 - Tested by: `UnitTests/test_py_zmq.py`, `test_py_zmq_curve.py`,
-  `test_py_delivery.py`.
+  `test_py_delivery.py`, `test_py_zmq_stream.py`.
