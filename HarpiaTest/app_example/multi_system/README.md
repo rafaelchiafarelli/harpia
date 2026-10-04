@@ -221,6 +221,36 @@ range: edge `--id-base`, handheld `--id-base` / `id.base`. Two writers with
 overlapping ranges get `create failed` on the colliding ids. The load harness
 gives each spawned client its own range.
 
+## Load mode
+
+edge and handheld (CLI or app) also run as one load client each. A load client
+is one identity, with its own cert, CURVE key and session, so N processes are
+N distinct clients to station:
+
+```sh
+build/edge/edge --load --identity edge-load --rate 20 --duration 60 --mix 8:1:1 \
+    --report edge-load.jsonl --id-base 300000 --station station.lan:50051 --certs $HOME/harpia/pki
+handheld/cli/build/install/cli/bin/cli --load --identity handheld-load --rate 20 --duration 60 \
+    --mix 8:1:1 --report hh-load.jsonl --id-base 700000 --station station.lan:50051 \
+    --certs $HOME/harpia/pki [--sub tcp://edge.lan:5556 --zmq-keys $HOME/harpia/zmq]
+adb shell am start -n com.harpia.multisystem.handheld.app/.MainActivity \
+    --ez load true --ef load.rate 5 --ei load.duration 60 --es load.mix 8:1:1
+```
+
+`--mix` is the `create:list:read` weights. The generated gRPC surface is
+push / streamSrc / pullByID, so there is no update operation, and the third
+weight reads back one of the client's own records. Each operation appends one
+JSON line to `--report` (the app writes `files/load.jsonl`):
+
+```
+{"t":1759600000.123,"client_kind":"edge","identity":"edge-load","op":"create","ok":true,"grpc_code":"OK","latency_us":812}
+```
+
+`op` is `session`, `create`, `list` or `read`. A subscribed handheld also logs
+each received sample as `{"t",...,"op":"sub_recv","seq_gap":N}`, where
+`seq_gap` counts the samples it missed from that device, so drops are visible.
+Load identities need rows in the clients file (e.g. `edge-load main`).
+
 ## Proven where
 
 - `UnitTests/test_multi_system_example.py`, part of the full Docker suite. It
