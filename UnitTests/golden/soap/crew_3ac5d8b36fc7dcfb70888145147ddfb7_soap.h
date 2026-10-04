@@ -23,6 +23,7 @@
 #endif
 
 #include "crow.h"
+#include "db/harpia_db_pool.h"
 #include "db/crew_3ac5d8b36fc7dcfb70888145147ddfb7_crudl.h"
 #include "xml/crew_3ac5d8b36fc7dcfb70888145147ddfb7_xml.h"   // brings tinyxml2 + the XML runtime
 #include "soap/harpia_soap.h"       // harpia::soap:: envelope-parse seam
@@ -64,6 +65,14 @@
 // REST binding on one app and, when transport_hardening_required(compliance)
 // was true at generation time, configures it for mTLS (client cert required
 // AND verified, harpia_http_mtls.h) with plaintext refused.
+//
+// Database (multi-system-reference / db-concurrency task 2): register with a
+// soci::session& (every request shares it -- NOT thread-safe once Crow serves
+// requests on several threads) or with a ::soci::connection_pool&, where each
+// request borrows its own session through harpia::db::PooledSession
+// (db/harpia_db_pool.h) once the envelope is parsed and the access gate has
+// passed. No session available -> HTTP 503 with a Fault "db pool exhausted" /
+// "db reconnect failed".
 namespace harpia {
 namespace soap {
 
@@ -78,19 +87,18 @@ inline std::string envelope_crew(const std::string& body) {
            "<soap:Body>" + body + "</soap:Body></soap:Envelope>";
 }
 
-inline void register_crew_soap(crow::SimpleApp& app, ::soci::session& db,
-                                 const std::string& base) {
-    // capture a session pointer (soci::session is non-copyable); the caller must
-    // keep the session alive for the lifetime of the registered route.
-    ::soci::session* dbp = &db;
+// Exactly one of `db` / `pool` is non-null. The caller keeps whichever it
+// passed (and the route's app) alive for as long as the route is served.
+inline void register_crew_soap_with(crow::SimpleApp& app, ::soci::session* db,
+                                      ::soci::connection_pool* pool,
+                                      int lease_timeout_ms, const std::string& base) {
     app.route_dynamic(base + "/crew").methods(crow::HTTPMethod::POST)(
-             [dbp](const crow::request& req, crow::response& res) {
+             [db, pool, lease_timeout_ms](const crow::request& req, crow::response& res) {
         // all SOAP replies carry an XML body; set the content type once
         auto reply = [&res](const std::string& xml) {
             res.set_header("Content-Type", "text/xml");
             res.body = xml;
         };
-        ::harpia::db::crew_dao dao(*dbp);
         ::tinyxml2::XMLDocument doc;
         if (!::harpia::soap::parse_envelope(req.body, &doc)) {
             res.code = 400; res.end(); return;
@@ -144,6 +152,17 @@ inline void register_crew_soap(crow::SimpleApp& app, ::soci::session& db,
                 res.end(); return;
             }
         }
+        ::harpia::db::PooledSession lease(db, pool, lease_timeout_ms);
+        if (!lease.ok()) {
+            res.code = 503;
+            reply(envelope_crew(
+                std::string("<soap:Fault><faultstring>") +
+                (lease.outcome() == ::harpia::db::PooledSession::Outcome::exhausted
+                     ? "db pool exhausted" : "db reconnect failed") +
+                "</faultstring></soap:Fault>"));
+            res.end(); return;
+        }
+        ::harpia::db::crew_dao dao(lease.session());
         if (name == "get") {
             const auto* idEl = op->FirstChildElement("id");
             const long long id =
@@ -190,6 +209,17 @@ inline void register_crew_soap(crow::SimpleApp& app, ::soci::session& db,
         }
         res.end();
     });
+}
+
+inline void register_crew_soap(crow::SimpleApp& app, ::soci::session& db,
+                                 const std::string& base) {
+    register_crew_soap_with(app, &db, nullptr, ::harpia::db::kDefaultLeaseTimeoutMs, base);
+}
+
+inline void register_crew_soap(crow::SimpleApp& app, ::soci::connection_pool& pool,
+                                 const std::string& base,
+                                 int lease_timeout_ms = ::harpia::db::kDefaultLeaseTimeoutMs) {
+    register_crew_soap_with(app, nullptr, &pool, lease_timeout_ms, base);
 }
 
 }  // namespace soap
