@@ -6,6 +6,9 @@ DDL is the one the C++ target declares for this message.
 
 Deferred (not persisted by this DAO yet): none
 """
+from harpia_generated.events.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_events import (
+    alarm_event_channel,
+)
 from harpia_generated.protofiles.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_pb2 import (
     alarm_event,
 )
@@ -47,3 +50,14 @@ class alarm_event_dao(PhiDao[alarm_event]):
     DELETE_SQL = 'DELETE FROM "alarm_event_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
     LIST_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "patient_id", "alarm_type", "severity", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "alarm_event_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7"'
     LIST_PAGE_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "patient_id", "alarm_type", "severity", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "alarm_event_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7" LIMIT ? OFFSET ?'
+
+    def _on_change(self, msg: alarm_event) -> None:
+        """OnChange: publish the written row to ``alarm_event_channel()``
+        once the transaction commits (never from read / list /
+        remove)."""
+
+        def fire() -> None:
+            alarm_event_channel().publish(msg)
+            self.audit_sink.record("phi_event_onchange", 'alarm_event_table', 'patient_id')
+
+        self._after_commit(fire)
