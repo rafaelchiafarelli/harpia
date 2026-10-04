@@ -9,18 +9,24 @@ Deferred (not persisted by this DAO yet): none
 from harpia_generated.protofiles.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_pb2 import (
     alarm_event,
 )
-from harpia_runtime.db.dao import Column, Dao
+from harpia_runtime.db.dao import Column
+from harpia_runtime.db.phi import PhiDao
 
 
-class alarm_event_dao(Dao[alarm_event]):
-    """CRUDL over table ``alarm_event_table`` for :class:`alarm_event` messages."""
+class alarm_event_dao(PhiDao[alarm_event]):
+    """CRUDL over table ``alarm_event_table`` for :class:`alarm_event` messages.
+
+    Encrypts its ``phi`` columns and audits every operation
+    (:class:`~harpia_runtime.db.phi.PhiDao`).
+    """
 
     MESSAGE = alarm_event
     TABLE = 'alarm_event_table'
     PK = 'ID_3ac5d8b36fc7dcfb70888145147ddfb7'
+    PHI_FIELDS = ('patient_id',)
     COLUMNS = (
         Column('ID_3ac5d8b36fc7dcfb70888145147ddfb7', ('ID_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('patient_id', ('patient_id',)),
+        Column('patient_id', ('patient_id',), phi=True),
         Column('alarm_type', ('alarm_type',)),
         Column('severity', ('severity',)),
         Column('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7', ('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7',)),

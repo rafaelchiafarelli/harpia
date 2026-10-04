@@ -7,7 +7,16 @@ analysis and the same ``DbBackend`` object the C++ and Java targets use.
 """
 import os
 
+from Compliance.audit_common import PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC
 from Compliance.context import DEFAULT_PROJECT
+from Crypto.key_provider_common import (PY_ENCRYPTED_COLUMN_MODULE,
+                                        PY_ENCRYPTED_COLUMN_RUNTIME_SRC,
+                                        PY_KEY_PROVIDER_KMS_MODULE,
+                                        PY_KEY_PROVIDER_KMS_RUNTIME_SRC,
+                                        PY_KEY_PROVIDER_LOCAL_MODULE,
+                                        PY_KEY_PROVIDER_LOCAL_RUNTIME_SRC,
+                                        PY_KEY_PROVIDER_MODULE,
+                                        PY_KEY_PROVIDER_RUNTIME_SRC)
 from Database.DbRegistryAdapter import DbRegistryAdapter
 from Database.backends import get_backend
 from Database.model import (RepeatedComposedField, RepeatedField, analyze,
@@ -35,6 +44,8 @@ RUNTIMES = (
     ("migrate.py", "harpia_runtime.db.migrate"),
     ("dbio.py", "harpia_runtime.db.dbio"),
 )
+#: copied only when some message has a phi column (with the crypto runtimes)
+PHI_RUNTIME = ("phi.py", "harpia_runtime.db.phi")
 
 
 class PyDatabaseAdapter:
@@ -62,6 +73,18 @@ class PyDatabaseAdapter:
         write_if_different(os.path.join(dbioDir, "__init__.py"),
                            '"""Generated bulk JSON/XML import/export, one module per table."""\n')
         written = 0
+        if any(self._phi_columns(m) for m in self.messages
+               if not getattr(m, "isEnum", False) and m.tableName):
+            # like C++ CrudlAdapter: the column helper, the KeyProvider
+            # interface + both persistent backends, and the audit sink
+            for module, src in (
+                    (PHI_RUNTIME[1], os.path.join(_RUNTIME_DIR, PHI_RUNTIME[0])),
+                    (PY_ENCRYPTED_COLUMN_MODULE, PY_ENCRYPTED_COLUMN_RUNTIME_SRC),
+                    (PY_KEY_PROVIDER_MODULE, PY_KEY_PROVIDER_RUNTIME_SRC),
+                    (PY_KEY_PROVIDER_LOCAL_MODULE, PY_KEY_PROVIDER_LOCAL_RUNTIME_SRC),
+                    (PY_KEY_PROVIDER_KMS_MODULE, PY_KEY_PROVIDER_KMS_RUNTIME_SRC),
+                    (PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC)):
+                copy_runtime_module(self.dest, src, module)
         for msg in self.messages:
             if getattr(msg, "isEnum", False) or not msg.tableName:
                 continue
@@ -84,6 +107,13 @@ class PyDatabaseAdapter:
         return None
 
     # -- DAO rendering ----------------------------------------------------------
+    def _phi_columns(self, msg):
+        """The columns C++ encrypts (CrudlAdapter: bindable scalar/enum or
+        flattened-embed columns tagged ``phi``, never FK/child tables)."""
+        columns, _ = analyze(msg, self.types, self.backend)
+        return [c for c in columns if (c.bindable or c.embed) and not c.fk_table
+                and getattr(c, "is_phi", False)]
+
     def _render(self, msg):
         columns, _notes = analyze(msg, self.types, self.backend)
         # C++ CrudlAdapter order: scalar/enum/embedded columns, then FKs
@@ -95,6 +125,7 @@ class PyDatabaseAdapter:
             self.log.print("{}: no ID_ primary key, no Python DAO".format(msg.name))
             return None
         deferred = self._deferred(msg, columns)
+        phi = [c for c in scalar if getattr(c, "is_phi", False)]
         ph = self.backend.param_placeholder()
         q = '"{}"'.format
         names = [c.name for c in bound]
@@ -131,7 +162,13 @@ class PyDatabaseAdapter:
             table_lit=repr(msg.tableName), pk_lit=repr(pk.name),
             columns="".join("\n        " + self._column_spec(msg, c) for c in bound),
             children="".join(children),
-            runtime_imports=("ChildTable, Column, Dao" if children else "Column, Dao"),
+            runtime_imports=self._runtime_imports(children, phi),
+            phi_import=("\nfrom harpia_runtime.db.phi import PhiDao" if phi else ""),
+            base="PhiDao" if phi else "Dao",
+            phi_doc=("\n\n    Encrypts its ``phi`` columns and audits every operation\n"
+                     "    (:class:`~harpia_runtime.db.phi.PhiDao`).\n    " if phi else ""),
+            phi_fields=("\n    PHI_FIELDS = {!r}".format(tuple(c.name for c in phi))
+                        if phi else ""),
             create_sql="".join("\n        {!r},".format(s) for s in create),
             drop_sql="".join("\n        {!r},".format(s) for s in drop),
             **{k: repr(v) for k, v in sql.items()})
@@ -254,11 +291,18 @@ class PyDatabaseAdapter:
             current = self.types[var.type[1]]["msg"] if var.type[0] == "ID" else current
         return current
 
+    @staticmethod
+    def _runtime_imports(children, phi):
+        names = (["ChildTable"] if children else []) + ["Column"] + ([] if phi else ["Dao"])
+        return ", ".join(names)
+
     def _column_spec(self, msg, col):
         path = tuple(self._exact_path(msg, col))
         fk = ""
         if col.fk_table:
             fk = ", fk={!r}".format(self._dao_ref(col.fk_target))
+        if getattr(col, "is_phi", False) and not col.fk_table:
+            fk += ", phi=True"
         return "Column({!r}, {!r}{}),".format(col.name, path, fk)
 
     def _dao_ref(self, message_name):
