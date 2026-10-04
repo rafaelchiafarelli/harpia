@@ -9,19 +9,25 @@ Deferred (not persisted by this DAO yet): none
 from harpia_generated.protofiles.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_pb2 import (
     patient_vitals,
 )
-from harpia_runtime.db.dao import Column, Dao
+from harpia_runtime.db.dao import Column
+from harpia_runtime.db.phi import PhiDao
 
 
-class patient_vitals_dao(Dao[patient_vitals]):
-    """CRUDL over table ``patient_vitals_table`` for :class:`patient_vitals` messages."""
+class patient_vitals_dao(PhiDao[patient_vitals]):
+    """CRUDL over table ``patient_vitals_table`` for :class:`patient_vitals` messages.
+
+    Encrypts its ``phi`` columns and audits every operation
+    (:class:`~harpia_runtime.db.phi.PhiDao`).
+    """
 
     MESSAGE = patient_vitals
     TABLE = 'patient_vitals_table'
     PK = 'ID_3ac5d8b36fc7dcfb70888145147ddfb7'
+    PHI_FIELDS = ('patient_id', 'heart_rate')
     COLUMNS = (
         Column('ID_3ac5d8b36fc7dcfb70888145147ddfb7', ('ID_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('patient_id', ('patient_id',)),
-        Column('heart_rate', ('heart_rate',)),
+        Column('patient_id', ('patient_id',), phi=True),
+        Column('heart_rate', ('heart_rate',), phi=True),
         Column('device_note', ('device_note',)),
         Column('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7', ('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7',)),
         Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),

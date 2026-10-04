@@ -9,15 +9,15 @@ Deferred (not persisted by this DAO yet): {deferred}
 from harpia_generated.protofiles.{name}_{hash}_pb2 import (
     {name},
 )
-from harpia_runtime.db.dao import {runtime_imports}
+from harpia_runtime.db.dao import {runtime_imports}{phi_import}
 
 
-class {name}_dao(Dao[{name}]):
-    """CRUDL over table ``{table}`` for :class:`{name}` messages."""
+class {name}_dao({base}[{name}]):
+    """CRUDL over table ``{table}`` for :class:`{name}` messages.{phi_doc}"""
 
     MESSAGE = {name}
     TABLE = {table_lit}
-    PK = {pk_lit}
+    PK = {pk_lit}{phi_fields}
     COLUMNS = ({columns}
     )
     CHILDREN = ({children}
