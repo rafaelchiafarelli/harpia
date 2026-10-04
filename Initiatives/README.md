@@ -42,8 +42,8 @@ points it doesn't cover:
 | [feature-examples/](feature-examples/README.md) | **Partly shipped.** Fixture cleanup shipped 2026-08-24. The `worked-examples` epic (one small runnable example per generated feature + an index) — not started. |
 | [doxygen-generation.md](doxygen-generation/doxygen-generation.md) | Foundation F6 + Ground Rule 6 plumbing **shipped** 2026-08-23. The `doc-comment-coverage` epic (real per-template doc-comments) — **not started**, after `multi-system-reference`. |
 | [ci-pipeline/](ci-pipeline/README.md) | **Scoped, not started.** GitHub Actions running the existing `Docker/run.sh pytest UnitTests/` suite on push/PR, plus image-layer caching. 2 tasks, both written. Highest leverage-per-effort of the open initiatives — no CI today means nothing independently re-verifies any "N passed" claim. |
-| [go-target/](go-target/README.md) | **Scoped, not started.** Language #3, full compliance parity except DDS + ZMQ-CURVE/ZAP (pure-Go constraint). `lang-backend-seam` epic's tasks are written; sequenced after doxygen's `doc-comment-coverage` (its other prerequisite, `transport-multipeer-coverage`, shipped 2026-09-26). |
-| [python-target/](python-target/README.md) | **Scoped, not started.** Language #4, full compliance parity with no carve-outs (stdlib + standard C-extension bindings, not pure-Python). Sequenced after the entire `go-target` initiative ships. Supersedes the old "Python as language #3" backlog item below. |
+| [python-target/](python-target/README.md) | **Planned, not started — all 14 epics / 54 tasks written (2026-10-03).** Language #3 (resequenced ahead of Go at another project's request): full C++ compliance parity with no carve-outs (DDS + CURVE/ZAP included), stdlib + standard C-extension bindings, generation-time codegen under `<dest>/python/`. Epic 0 is the `LangBackend` seam (moved here from go-target). No FHIR façade (C++ has none). Ends with a C++/Java/Python interop epic. Implement after `multi-system-reference`'s chain clears this clone, or in a separate clone. |
+| [go-target/](go-target/README.md) | **Scoped, not started.** Language #4 (resequenced behind python-target 2026-10-03), full compliance parity except DDS + ZMQ-CURVE/ZAP (pure-Go constraint). Depends on python-target's `lang-backend-seam` epic; its interop epic adds Go as the 4th peer to python-target's harness. No task files yet. |
 
 Finished plans are removed from this index once done — the shipped behavior is
 documented in the code's own `CLAUDE.md` files. The **medical_devices**
@@ -64,8 +64,6 @@ multi-language Java target (`GradleAdapter/CLAUDE.md` et al.).
 
 ## Backlog
 
-- ~~**Python as language #3**~~ — superseded 2026-09-03 by
-  [python-target/](python-target/README.md) (now language #4, planned in
-  full). The cross-language `LangBackend`-style seam this item used to say
-  Python "would likely be the trigger to design" is instead being designed
-  now, ahead of Go, in `go-target/`'s `lang-backend-seam` epic.
+- ~~**Python as language #3**~~ — now [python-target/](python-target/README.md),
+  language #3 again since 2026-10-03 (it was briefly #4 behind Go). The
+  cross-language `LangBackend` seam lives in its epic 0.

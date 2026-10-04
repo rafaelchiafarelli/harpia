@@ -1,13 +1,15 @@
-# Go Target: Language #3, Full Compliance Parity Except DDS and ZMQ-CURVE
+# Go Target: Language #4, Full Compliance Parity Except DDS and ZMQ-CURVE
 
-**Status: scoped, not started.** Sequenced after `doxygen-generation`'s
-`doc-comment-coverage` epic and the transport-multipeer-coverage initiative
-(both independent of this initiative; multipeer shipped 2026-09-26). Planned
-2026-09-02/03; not yet branched.
+**Status: scoped, not started. Resequenced 2026-10-03 behind
+`python-target`** (Python became language #3 at another project's request).
+Go depends on python-target's epic 0 (`lang-backend-seam`, moved there from
+this initiative on 2026-10-03) and its interop epic extends python-target's
+three-language harness. Still also after `doxygen-generation`'s
+`doc-comment-coverage`. Planned 2026-09-02/03; not yet branched.
 
 ## 1. What this is
 
-A third harpia generation target, after C++ (native) and Java (fully shipped,
+A fourth harpia generation target, after C++ (native), Java (fully shipped,
 V1, `Initiatives/multi-language-targets/` — removed on completion, behavior
 now lives in the `Java*`/`GradleAdapter` module `CLAUDE.md` files and
 `README.md`'s "Additional language targets"). Chosen ahead of the standing
@@ -57,20 +59,15 @@ Everything else has a solid pure-Go story: `database/sql` + `modernc.org/sqlite`
 single-runtime reflection strategy Java already validated); `net/http` for
 REST; `google.golang.org/grpc`.
 
-## 4. The language-backend seam (epic 0)
+## 4. The language-backend seam (owned by python-target since 2026-10-03)
 
 Java's own docs (`GradleAdapter/CLAUDE.md`) explicitly deferred designing a
-real language-plugin abstraction "until a second language exists" — `main.py`
-just does `if os.environ.get("HARPIA_GEN_LANG", "cpp") == "java":` inline. Go
-is that second language. **Decision: design the seam now, retrofit Java onto
-it — wiring only.** A `LangBackend` registry (mirrors `Database/backends`'s
-dialect registry shape) that `main.py` dispatches through for `cpp`/`java`/
-`go` uniformly. Retrofitting Java means moving its *existing* pipeline behind
-the registry with **zero output/behavior change** (golden_java unchanged) —
-it is explicitly NOT bringing Java up to Go's compliance-parity scope; that
-would be its own separate initiative if ever wanted. See `epics/README.md`'s
-`lang-backend-seam` epic for the task breakdown (already written — this is
-the next epic to pick up).
+real language-plugin abstraction "until a second language exists". The
+`LangBackend` registry (`main.py` dispatches through it for every target;
+Java retrofitted with **zero output change**) was planned here as epic 0,
+then **moved to `Initiatives/python-target/epics/lang-backend-seam/`** when
+Python was resequenced first. Go registers into it in `go-foundation`; it
+does not rebuild it.
 
 ## 5. Codegen timing: generation-time, unlike Java
 
@@ -95,7 +92,7 @@ mainpage plumbing to cover the Go tree as one task.
 
 | # | Epic | Contract |
 |---|---|---|
-| 0 | `lang-backend-seam` | `LangBackend` registry; `main.py` dispatch; Java retrofit, wiring only. **Task-planned, see below.** |
+| 0 | ~~`lang-backend-seam`~~ | **Moved to `python-target` (epic 0) 2026-10-03.** Prerequisite of `go-foundation`. |
 | 1 | `go-foundation` | `HARPIA_GEN_LANG=go`; `go.mod`/package layout; `.proto`→`.pb.go`+gRPC stubs at generation time; `golden_go/` baseline; Doxyfile covers the Go tree |
 | 2 | `go-serialization` | JSON/XML/YAML single `protoreflect`-based runtimes; unified `ToString`; phi `[REDACTED]`. Bar: XML/YAML byte-identical to the C++ target's output (JSON is portable for free via protobuf canonical JSON) |
 | 3 | `go-crypto-phi` | `KeyProvider` + local provider + crypto-shred + zeroization + audit sink (ports `Crypto/runtime/*.h`); phi encrypt-on-write/decrypt-on-read wired into DB + serializers |
@@ -107,29 +104,25 @@ mainpage plumbing to cover the Go tree as one task.
 | 9 | `go-discovery-fhir` | WS-Discovery responder; HL7 FHIR façade + worked example |
 | 10 | `go-artifacts` | CycloneDX SBOM for the Go module; traceability matrix |
 | 11 | `go-tests` | Generated `*_test.go` per message (field access, JSON/XML/YAML round-trip, DB CRUDL round-trip); `go vet` + `staticcheck` gate |
-| 12 | `tri-language-interop` | *(needs 1–8 merged)* Extends the shipped C++↔Java fan-out/load-balance scenarios (`UnitTests/test_zmq_xlang_*.py`, `HarpiaTest/app_example/fanout/`) to add Go as a third peer; adds shared-DB cross-read/write, gRPC/REST cross-calls, and JSON/XML/YAML byte-parity checks across all three languages, generated from one `.harpia` + one frozen `schema_registry/` |
+| 12 | `quad-language-interop` | *(needs 1–8 merged + python-target's `tri-language-interop`)* Adds Go as the 4th peer to python-target's C++/Java/Python harness: ZMQ fan-out/load-balance (plaintext only, §3), shared-DB cross-read/write, gRPC/REST cross-calls, JSON/XML/YAML byte-parity — one `.harpia`, one frozen `schema_registry/` |
 
-**Only epic 0's tasks are written** (`epics/lang-backend-seam/tasks/`) — it's
-the next epic in line. Epics 1–12 get their task-level breakdown authored
-when each is actually picked up, per the "don't let documentation sprawl"
-guidance in the `harpia-workflow` skill: task contracts for e.g. `go-dds`-
-adjacent decisions in `go-database` will be sharper once epic 0's registry
-shape and epic 1's module layout actually exist to build against, rather
-than guessed at now.
+**No epic here has task files** (epic 0's moved to python-target with the
+epic). Epics 1–12 get their task-level breakdown when picked up, per the
+"don't let documentation sprawl" guidance in the `harpia-workflow` skill —
+python-target's task files (written 2026-10-03, same epic shapes) are the
+template to adapt, minus DDS and CURVE/ZAP.
 
 ## 8. Sequencing
 
 ```
+python-target (all, incl. its epic 0 lang-backend-seam + tri-language-interop)
 doc-comment-coverage (doxygen, independent)
-transport-multipeer-coverage (SHIPPED 2026-09-26, built the interop harness epic 12 extends)
         │
-        ▼
-lang-backend-seam (epic 0)
         ▼
 go-foundation … go-tests (epics 1–11, roughly the table order above;
                           4/5/6/7 have no hard ordering between them)
         ▼
-tri-language-interop (epic 12)
+quad-language-interop (epic 12)
 ```
 
 ## 9. Non-goals

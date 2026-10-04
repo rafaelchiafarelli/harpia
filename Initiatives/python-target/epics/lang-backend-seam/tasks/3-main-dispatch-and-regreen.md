@@ -23,6 +23,7 @@
     (mtime stability on an unchanged rerun) survives the dispatch change,
     since that test is sensitive to exactly this kind of refactor
     accidentally touching output files.
-- **Out of scope:** registering `go` (that's `go-foundation`, epic 1).
+- **Out of scope:** registering `python` (that's `py-foundation` task 2) or
+  `go` (`go-target`'s `go-foundation`).
 - **Tests:** the full suite, as above — this task's entire job IS the
   regreen, there's no narrower test to write.

@@ -1,102 +1,142 @@
-# Python Target: Language #4, Full Compliance Parity, No Carve-Outs
+# Python Target: Language #3, Full Compliance Parity, No Carve-Outs
 
-**Status: scoped, not started. Furthest out of the three planned language
-work items** — sequenced after the entire `go-target` initiative ships
-(§5), including its `tri-language-interop` epic. No epic here has task-level
-files yet; see §6.
+**Status: planned, not started — every epic has task files (2026-10-03).**
+Resequenced ahead of `go-target` on 2026-10-03: another project asked for a
+Python harpia target, so Python becomes language #3 and Go moves to #4.
+Implementation is sequenced after `multi-system-reference` finishes in the
+clone it lives in (that initiative is mid-flight; see §5).
 
 ## 1. What this is
 
-A fourth harpia generation target, after C++ (native), Java (shipped V1),
-and Go (`Initiatives/go-target/`, planned). Supersedes the standing backlog
-recommendation that Python be language #3 (`Initiatives/README.md`'s
-Backlog section) — Go went first instead; this is that deferred work,
-resequenced rather than dropped.
+A new harpia generation target alongside C++ (native) and Java (shipped V1).
+It supersedes the old backlog item "Python as language #3"
+(`Initiatives/README.md`'s Backlog section). That item was first displaced by
+Go, and is now restored to #3.
 
 **Scope target: full compliance parity with the C++ target, with no
-carve-outs** — unlike Go, Python needs no DDS or ZMQ-CURVE exclusion (§2).
-Reuses the `LangBackend` registry `go-target`'s `lang-backend-seam` epic
-builds — Python registers into it as a third/fourth entry, it does not
-rebuild the seam.
+carve-outs.** Unlike Go, Python needs no DDS or ZMQ-CURVE exclusion (§2).
+That means:
+
+- phi encryption, audit and redaction;
+- `critical` delivery;
+- mTLS, RBAC and bearer sessions;
+- in-process events and the `stream` lifecycle;
+- migration plus `data_transform`;
+- public/private DB segregation;
+- capability handshake;
+- DDS and DDS-Security;
+- WS-Discovery;
+- SBOM and traceability.
+
+Python goes **beyond** the Java target in places (full DB column coverage, a
+server-side transport stack, RBAC and sessions on the server). Java's scope
+is not raised to match. That would be its own initiative.
 
 ## 2. Why Python needs fewer exclusions than Go
 
 Go's two exclusions (DDS, ZMQ-CURVE/ZAP) exist because Go's *pure-Go*
-ecosystem lacks mature bindings for those two C libraries. Python doesn't
-have — or need — a "pure-Python" constraint: its standard bindings wrap the
-exact same C libraries the C++ target already vendors/links:
+ecosystem lacks mature bindings for those two C libraries. Python has no
+"pure-Python" constraint. Its standard bindings wrap the exact C libraries
+the C++ target already uses:
 
-- **DDS:** `cyclonedds` ships official Python bindings over the same
-  vendored Cyclone DDS + DDS-Security plugins C++ uses
-  (`third_party/cyclonedds{,-cxx}/`). Included, not deferred.
-- **ZMQ CURVE + ZAP:** `pyzmq` wraps libzmq directly (already in the
-  `harpia-build` image for the C++ target) — full CURVE and a real ZAP
-  handler story, same as C++'s own `harpia_zap.h`. Included, not deferred.
+- **DDS:** `cyclonedds` (Python) builds against the same vendored Cyclone
+  DDS 0.10.5 + DDS-Security plugins that C++ uses
+  (`third_party/cyclonedds/`). Included, not deferred.
+- **ZMQ CURVE + ZAP:** `pyzmq` wraps libzmq directly; libzmq is already in
+  the `harpia-build` image. It gets full CURVE plus a real ZAP handler, the
+  same as C++'s `harpia_zap.h`. Included, not deferred.
 
-**Dependency posture:** stdlib-first (`sqlite3`, `http.server`), standard
-C-extension bindings where there's no stdlib option (`pyzmq`, `psycopg`,
-`cyclonedds`, `grpcio`, `protobuf`). No "pure-Python" rule — it wouldn't buy
-anything a normal Python deployment cares about, unlike Go's static-binary
-value proposition.
+**Dependency posture (decided 2026-10-03):** stdlib first (`sqlite3`,
+`http.server`, `ssl`, `hmac`, `xml.etree`, `zlib`). Where no stdlib option
+exists, use the standard C-extension bindings (`protobuf`, `grpcio`, `pyzmq`,
+`psycopg`, `cyclonedds`).
 
-One Python-specific care, not a decision: the generator itself is Python
-3.10+, so generated code must land as an isolated package under `<dest>/python/`
-with no module-name collision against harpia's own source tree.
+In the Docker image, packages come **from apt first**: the Ubuntu
+`python3-*` packages match the image's `protoc` 3.21.12. **Pinned pip** is
+used only for what apt doesn't carry (`ruff`, `cyclonedds==0.10.5`,
+`mypy-protobuf`). See `py-foundation` task 1.
 
 ## 3. Codegen and docs
 
-Generation-time, like C++ and Go: `protoc --python_out` + `grpc_tools.protoc`
-(add `grpcio-tools` to the Docker image; `protoc` itself is already present).
-Docs: Sphinx + docstrings emitted per epic, Ground Rule 6 discipline, same
-as Go's Doxyfile extension — no separate Python-doxygen epic (see
-`Initiatives/doxygen-generation/doxygen-generation.md` and
-`Initiatives/go-target/README.md` §6 for why this is a standing per-language
-rule, not something to re-litigate here). Quality gate: `mypy --strict` +
-`ruff`, the Python analog of Go's `go vet` + `staticcheck`.
+**Codegen happens at generation time, like C++** (not build time like Java):
+
+- `protoc --python_out` + `--pyi_out`/`mypy-protobuf` for messages;
+- `grpc_tools.protoc --grpc_python_out` for services.
+
+The output is committed under `<dest>/python/`.
+
+**Docs:** Sphinx + docstrings, emitted per epic under Ground Rule 6.
+There is no separate Python-docs epic. See
+`Initiatives/doxygen-generation/doxygen-generation.md` for why this is a
+standing per-language rule.
+
+**Quality gate:** `mypy --strict` + `ruff` over the generated tree. This is
+the Python analog of Go's `go vet` + `staticcheck`. It is set up once in
+`py-foundation` and every epic keeps it green (epics/README.md DoD).
 
 ## 4. Epics
 
 | # | Epic | Contract |
 |---|---|---|
-| 1 | `py-foundation` | `HARPIA_GEN_LANG=python`; `pyproject.toml`/package layout; `_pb2.py`/`_pb2_grpc.py` at generation time; `golden_python/` baseline; Sphinx skeleton |
-| 2 | `py-serialization` | JSON/XML/YAML single descriptor-reflection runtimes + unified `to_string`; phi `[REDACTED]`. Bar: XML/YAML byte-identical to the C++ target's output |
-| 3 | `py-crypto-phi` | `KeyProvider` + local provider + crypto-shred + zeroization + audit sink; phi encrypt/decrypt wired into DB + serializers |
-| 4 | `py-database` | DB-API 2.0 reflect bind/extract + CRUDL DAOs (reuses `Database/model.py` IR); `sqlite3` + `psycopg` dialects; public/private segregation; migration + `data_transform` |
-| 5 | `py-transports-http` | REST (`http.server` + hand-rolled router) + SOAP (hand-rolled) + gRPC impls; mTLS + admin/main/guest RBAC + bearer sessions |
-| 6 | `py-zmq` | PUSH/PULL + PUB/SUB via `pyzmq`; `critical` queue/CRC/flush; `stream` lifecycle; **CURVE + ZAP allowlist included** (§2 — no exclusion) |
-| 7 | `py-events` | In-process `event` channels (threading + callbacks); subscribe/unsubscribe, detached dispatch, exception isolation, cache modes |
-| 8 | `py-versioning` | Wire-number freeze consumption (`Message/FieldMap`); capability handshake per transport |
-| 9 | `py-dds` | `dds` transport via `cyclonedds` Python bindings; QoS mapping; DDS-Security; phi-over-DDS audit. **No Go equivalent — this is the one epic Go's own initiative doesn't have (`Initiatives/go-target/README.md` §3).** |
-| 10 | `py-discovery-fhir` | WS-Discovery responder; HL7 FHIR façade + worked example |
-| 11 | `py-artifacts` | CycloneDX SBOM for the Python package; traceability matrix |
-| 12 | `py-tests` | Generated `test_<name>.py` per message; `mypy --strict` + `ruff` gate |
-| 13 | `quad-language-interop` | *(needs `go-target`'s `tri-language-interop` merged)* Extends the interop harness to add Python as a 4th peer: C++ + Java + Go + Python in one container |
+| 0 | `lang-backend-seam` | `LangBackend` registry; `main.py` dispatch; Java retrofit, wiring only. Moved here from `go-target` 2026-10-03. |
+| 1 | `py-foundation` | Python toolchain in the image; `HARPIA_GEN_LANG=python` backend; `pyproject.toml`/package layout; `_pb2.py`/`_pb2_grpc.py` at generation time; `golden_python/` baseline; Sphinx + `mypy --strict` + `ruff` gate; the `AuditSink` runtime every later epic records into |
+| 2 | `py-serialization` | JSON/XML/YAML descriptor-reflection runtimes + unified `to_string`; phi `[REDACTED]` + audited opt-out. Bar: XML/YAML byte-identical to C++, JSON cross-parse-equal |
+| 3 | `py-crypto-phi` | `KeyProvider` (in-memory, local, KMS seam) + crypto-shred + best-effort zeroization + audit; `enc:v1:` encrypted-column framing byte-compatible with C++; phi encrypt/decrypt + audit wired into the DAOs |
+| 4 | `py-database` | DB-API bind/extract + CRUDL DAOs over `Database/model.py`'s IR (**full** column coverage: embed, FK, map, repeated, repeated-FK, repeated-composed, pagination); `sqlite3` + `psycopg`; public/private registry; migration + `data_transform`; DB↔JSON/XML io |
+| 5 | `py-transports-http` | Connection pool; REST (`http.server` + hand-rolled router), SOAP (hand-rolled), gRPC servicers + bring-ups; mTLS (fail-safe) + admin/main/guest RBAC + bearer sessions, per-message `protected`/`open` |
+| 6 | `py-zmq` | PUSH/PULL + PUB/SUB via `pyzmq`; CURVE + ZAP allowlist; `critical` queue/CRC/flush; `stream` lifecycle |
+| 7 | `py-events` | In-process `event` channels (threads + callbacks): subscribe/unsubscribe, detached dispatch, exception isolation, cache modes, phi OnChange audit; DAO OnChange wiring |
+| 8 | `py-versioning` | Capability handshake (gRPC/HTTP/ZMQ) + shared dispatcher; proof that wire-number freezing (`Message/FieldMap`) holds for Python peers |
+| 9 | `py-dds` | `dds` transport via `cyclonedds` Python (same `harpia_dds::Frame` topic type); QoS mapping; DDS-Security (fail-safe); phi-over-DDS audit |
+| 10 | `py-discovery` | WS-Discovery responder advertising the Python SOAP endpoint. **No FHIR façade** (§6) |
+| 11 | `py-artifacts` | Python components in the CycloneDX SBOM; Python mechanisms/evidence in the traceability matrix |
+| 12 | `py-tests` | Generated `test_<name>_<hash>.py` per table message + app-level suite (parity with `TestAdapter`'s bodies) |
+| 13 | `tri-language-interop` | C++ + Java + Python in one container: ZMQ fan-out/load-balance, shared DB, gRPC/REST cross-calls (flat + hardened), serialization byte-parity, DDS C++↔Python |
+
+Task files: `epics/<epic>/tasks/`. Order and cross-epic gates:
+`epics/README.md`.
 
 ## 5. Sequencing
 
-Starts only after **all** of `go-target` (epics 0–12) ships — not just epic
-0's registry. Rationale: `py-foundation` registers into the `LangBackend`
-seam Go's epic 0 builds, and `quad-language-interop` extends the harness
-Go's epic 12 builds; starting Python epics 1–12 earlier would just mean
-redoing work once those land, since Python's own foundation/interop epics
-are structurally the same shape as Go's.
+- Epic 0 (`lang-backend-seam`) is first: it is a pure refactor and the
+  registry Python plugs into.
+- Epics 1–12 follow `epics/README.md`'s graph.
+- Epic 13 needs 1–9 merged.
+- `go-target` now depends on this initiative's epic 0 (the seam). Its
+  interop epic becomes "add Go as the 4th peer" to the harness built in
+  epic 13 here.
 
-## 6. Task-level planning status
+**Clone / branch note:** the working clone currently carries the
+`multi-system-reference` chain (`features → multi-system-reference → epics →
+…`). Per the `harpia-workflow` skill, a clone holds one initiative chain at a
+time. So python-target is implemented either in a separate clone or after
+multi-system-reference's chain has merged up. That is Rafael's call when
+work starts.
 
-**No epic here has task files yet, including `py-foundation`.** This is a
-deliberate difference from `go-target` (which has `lang-backend-seam`'s
-tasks written, since that epic is next-in-line). Python's own epic 1 is far
-enough out — behind the entire Go initiative — that pre-authoring its task
-contracts now would likely go stale: the exact `LangBackend` registry
-interface, the reflection-runtime pattern, and the interop harness shape are
-all things Go's own build-out will concretize. Re-plan `py-foundation`'s
-tasks when `go-target` is close to shipping, not before.
+## 6. Decisions recorded (Rafael, 2026-10-03)
+
+- **Python ahead of Go.** Driven by an external project's request.
+- **Seam ownership:** `lang-backend-seam` moved from `go-target` into this
+  initiative as epic 0.
+- **Interop:** a three-language C++/Java/Python harness (epic 13), not a
+  four-language one blocked on Go.
+- **No FHIR façade.** The C++ target has none: FHIR exists only as the
+  hand-mapped worked example in `UnitTests/fhir_worked_example/`. A façade
+  would be a new feature for every target and belongs in its own
+  initiative. The discovery epic is WS-Discovery only.
+- **Toolchain:** apt first, pinned pip for the rest (§2).
+
+Open decisions that a task must bring to Rafael before implementing are
+written in that task file under **Decision needed**. They are never settled
+silently.
 
 ## 7. Non-goals
 
-- A "pure-Python" dependency rule (§2 — not meaningful here).
-- Performance/throughput benchmarking (matches the other two initiatives'
-  own non-goals).
-- Bringing C++ or Java up to whatever Python ends up doing differently
-  (each target's own scope stands on its own, per `go-target/README.md` §4's
-  same principle for Java).
+- A "pure-Python" dependency rule (§2).
+- Performance/throughput benchmarking.
+- A FHIR façade (§6).
+- Bringing C++ or Java up to whatever Python does differently. Each target's
+  scope stands on its own.
+- asyncio variants of the generated APIs. The generated surface is
+  synchronous plus threads, mirroring the C++/Java shape. An async layer
+  would be its own initiative.

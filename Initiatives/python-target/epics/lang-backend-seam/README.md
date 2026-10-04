@@ -4,11 +4,16 @@
 
 Java's own docs (`GradleAdapter/CLAUDE.md`) name the exact gap this closes:
 *"No `HARPIA_GEN_LANG`-style backend registry exists yet ... README §3
-explicitly defers designing that seam until a second language exists."* Go is
-that second language. This epic builds the registry and moves Java's
+explicitly defers designing that seam until a second language exists."* Python
+(the next new target) is that trigger. This epic builds the registry and moves Java's
 existing, unchanged pipeline behind it — **wiring only**, confirmed
 explicitly with Rafael 2026-09-03: this is not an opportunity to bring Java
 up to any new feature scope.
+
+**Moved here from `go-target` on 2026-10-03** (Rafael's call, when Python was
+resequenced ahead of Go). Ownership follows whichever language ships first;
+the contract is unchanged, and `go-target` now depends on this epic instead
+of owning it.
 
 ## Task order
 
@@ -25,7 +30,8 @@ Sequential — each depends on the previous:
 ## Definition of done
 
 - `main.py` no longer contains an inline `if genLang == "java":` block (nor
-  gains an inline `if genLang == "go":` one later — that's the entire point).
+  gains an inline `if genLang == "python":` / `"go":` one later — that's the
+  entire point).
 - `golden_java/` (`UnitTests/test_golden_java.py`) is **byte-identical**
   before and after — the retrofit changes *how* the Java pipeline is
   invoked, never *what* it produces.
@@ -33,9 +39,9 @@ Sequential — each depends on the previous:
 - Full suite green in Docker (`Docker/run.sh pytest UnitTests/`) — every
   Java-target test (`test_java_*.py`) and every C++ test passes exactly as
   before.
-- The registry has an obvious extension point for `go` to register into in
-  `go-foundation` (epic 1) without touching `cpp`'s or `java`'s backend
-  classes.
+- The registry has an obvious extension point for `python` to register into
+  in `py-foundation` (and later `go` in `go-foundation`) without touching
+  `cpp`'s or `java`'s backend classes.
 
 ## Watch for
 
