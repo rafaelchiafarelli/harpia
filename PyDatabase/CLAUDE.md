@@ -90,6 +90,28 @@ child table, with the backend's `int_type` as the owner type, as C++.
 `child_current=None` (reap off) is still accepted by the engine but no
 longer generated.
 
+## phi encryption + audit (py-crypto-phi task 4, `runtime/phi.py`)
+A message with a `phi` column gets a DAO subclassing
+`harpia_runtime.db.phi.PhiDao` (else `Dao`, byte-unchanged) with
+`PHI_FIELDS` and `Column(..., phi=True)`: constructor
+`(conn, key_provider=None, audit_sink=None)` (defaults
+`default_key_provider()` / `default_audit_sink()`); phi columns stored as
+`encrypt_field` text (numbers stringified C++-style: `%f` floats, ints),
+read back with `decrypt_field[_ll|_int|_float]` by field type (uint wrap,
+bool); one `record("phi_<op>", table, "<phi cols>")` per `create`/`read`/
+`update`/`remove` (`phi_delete`)/`list` — at C++'s points: not-found
+`read` audits nothing, `update`/`remove` audit even when no row matched,
+an FK child DAO audits its own ops with its own default provider (as C++).
+`Dao` gained the no-op hooks `_bind`/`_load`/`_audit` that `PhiDao`
+overrides. The adapter copies `phi.py` + the `harpia_runtime.crypto`
+runtimes (column helper, interface, local + KMS backends) + the audit sink
+only when some table-bearing message has a phi column (C++ CrudlAdapter's
+set). Scope = C++'s: top-level / flattened-embed scalar columns only.
+**C++ finding (task 4):** the shared DDL keeps a numeric phi column's
+numeric type, so on PostgreSQL the `enc:v1:` text is rejected
+(`patient_vitals.heart_rate` → `double precision`) — C++ and Python alike;
+the PG round-trip test marks that case strict-xfail.
+
 ## Bulk import/export (task 6, `templates/dbio.py.tmpl`)
 `harpia_generated/dbio/<name>_<hash>_dbio.py` per table-bearing message (the
 port of `DbIoAdapter`'s `dbio/<name>_<hash>_dbio.h`): `export_json(dao) ->
@@ -142,5 +164,5 @@ UnitTests/test_python_db_postgres.py`.
   `PyAdapter.runtime_copy`.
 - Tested by: `UnitTests/test_py_db_bind.py`, `test_py_db_dao.py`,
   `test_py_db_registry.py`, `test_py_db_migrate.py`,
-  `test_py_db_migrate_children.py`, `test_py_db_dbio.py`,
+  `test_py_db_migrate_children.py`, `test_py_db_dbio.py`, `test_py_db_phi.py`,
   `test_python_db_postgres.py` (opt-in).

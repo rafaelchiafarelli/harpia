@@ -79,11 +79,14 @@ class Column:
         fk: For a composed field whose target owns a table, the child's
             generated DAO as ``"module:Class"``. The column then holds the
             child's primary key; ``path`` ends at the composed field.
+        phi: The field is tagged ``phi``: a ``PhiDao``
+            (``harpia_runtime.db.phi``) stores it encrypted.
     """
 
     name: str
     path: tuple[str, ...]
     fk: str | None = None
+    phi: bool = False
 
 
 @dataclass(frozen=True)
@@ -187,6 +190,20 @@ class Dao(Generic[M]):
     def __init__(self, conn: Connection) -> None:
         self.conn = conn
 
+    # -- hooks (identity / no-op here; ``harpia_runtime.db.phi.PhiDao``
+    # -- encrypts, decrypts and audits ``phi`` columns through them) ---------
+    def _bind(self, msg: M, col: Column) -> Any:
+        """The DB-API parameter for ``col``."""
+        return column_value(msg, col)
+
+    def _load(self, msg: M, col: Column, value: Any) -> None:
+        """Store the fetched ``value`` of a non-FK column into ``msg``."""
+        set_column(msg, col, value)
+
+    def _audit(self, op: str) -> None:
+        """Called once per CRUDL operation (``create`` / ``read`` /
+        ``update`` / ``remove`` / ``list``), at the point C++ audits it."""
+
     # -- plumbing -------------------------------------------------------------
     @contextmanager
     def _tx(self) -> Iterator[Any]:
@@ -208,7 +225,7 @@ class Dao(Generic[M]):
     def _load_row(self, cur: Any, row: Sequence[Any], msg: M) -> None:
         for col, value in zip(self.COLUMNS, row, strict=False):
             if col.fk is None:
-                set_column(msg, col, value)
+                self._load(msg, col, value)
             elif value:
                 # a non-zero key: load the child through its own DAO; a zero
                 # key means the child was absent (no phantom child)
@@ -282,11 +299,12 @@ class Dao(Generic[M]):
         for col in self.COLUMNS:
             if col.fk is not None and _has_child(msg, col):
                 dao_class(col.fk)(self.conn)._create(cur, _child(msg, col))
-        cur.execute(self.INSERT_SQL, [column_value(msg, c) for c in self.COLUMNS])
+        cur.execute(self.INSERT_SQL, [self._bind(msg, c) for c in self.COLUMNS])
         if self.CHILDREN:
             owner = self._pk_value(msg)
             for child in self.CHILDREN:
                 self._write_child(cur, child, owner, msg, update=False)
+        self._audit("create")
 
     def _read_into(self, cur: Any, pk: Any, out: M) -> bool:
         cur.execute(self.SELECT_SQL, [pk])
@@ -294,13 +312,14 @@ class Dao(Generic[M]):
         if row is None:
             return False
         self._load_row(cur, row, out)
+        self._audit("read")
         return True
 
     def _update(self, cur: Any, msg: M) -> bool:
         for col in self.COLUMNS:
             if col.fk is not None and _has_child(msg, col):
                 dao_class(col.fk)(self.conn)._update(cur, _child(msg, col))
-        params = [column_value(msg, c) for c in self.COLUMNS if c.name != self.PK]
+        params = [self._bind(msg, c) for c in self.COLUMNS if c.name != self.PK]
         params.append(self._pk_value(msg))
         cur.execute(self.UPDATE_SQL, params)
         found = bool(cur.rowcount > 0)
@@ -308,6 +327,7 @@ class Dao(Generic[M]):
             owner = self._pk_value(msg)
             for child in self.CHILDREN:
                 self._write_child(cur, child, owner, msg, update=True)
+        self._audit("update")  # whether or not a row matched, as C++
         return found
 
     # -- DDL ------------------------------------------------------------------
@@ -363,6 +383,7 @@ class Dao(Generic[M]):
             found = bool(cur.rowcount > 0)
             for child in self.CHILDREN:
                 cur.execute(child.delete_sql, [pk])
+            self._audit("remove")  # whether or not a row matched, as C++
             return found
 
     def list(self, offset: int | None = None,
@@ -384,4 +405,5 @@ class Dao(Generic[M]):
                 msg = self._new()
                 self._load_row(cur, row, msg)
                 out.append(msg)
+            self._audit("list")
         return out
