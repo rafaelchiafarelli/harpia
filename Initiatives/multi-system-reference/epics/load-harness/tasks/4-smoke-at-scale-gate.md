@@ -1,6 +1,6 @@
 ## Smoke-at-scale gate + server tuning notes
 
-- **Depends on:** tasks 1–3; `db-concurrency` task 1.
+- **Depends on:** tasks 1–3; `db-concurrency` task 1a.
 - **Contract:** an opt-in script `Docker/run_multi_system_load.sh` (like
   `run_pg_tests.sh`: throwaway PostgreSQL, then `station`, then `spawn.py` with
   50 `edge` + 50 `handheld` JVM clients for 60s, then `report.py`). It passes

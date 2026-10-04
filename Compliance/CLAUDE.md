@@ -203,6 +203,19 @@ third added by the sensitive-data roadmap, not Foundation):
   ("never let sensitive-value content leak into logs... enforce this by
   the logging function's signature not accepting the value at all").
   `operation`/`subject`/`detail` are identifying metadata only.
+- **Thread safety (audited in multi-system-reference / db-concurrency task 1b,
+  `UnitTests/test_db_concurrency_audit.py`):** a generated server runs handlers
+  on many threads, and every one of them may touch this module's runtimes.
+  `NoOpAuditSink` is stateless and `default_audit_sink()` is a thread-safe
+  static init: safe. A deployment's own `AuditSink` is called concurrently and
+  **must be thread-safe** (lock inside `record()`). `harpia_rbac.h`'s
+  `role_map()` is a `const` function-local static, read-only after the
+  thread-safe first load: safe. `harpia_session.h`'s key/TTL are `const`
+  statics, `RevocationList` is mutex-guarded, and each `issue()` uses its own
+  local `random_device`: safe. Verified under ThreadSanitizer with a hardened,
+  pooled gRPC server driving the session + RBAC (allow and deny) + phi paths
+  concurrently. `harpia_delivery.h` remains caller-synchronized (not a server
+  handler path).
 - `default_audit_sink()` is a function-local `static` (Meyers singleton) so
   a generated constructor can default its `AuditSink&` parameter without
   allocating and without static-init-order-fiasco risk across translation

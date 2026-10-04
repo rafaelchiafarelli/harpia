@@ -1,6 +1,6 @@
 ## `station`: the Windows DB server (C++)
 
-- **Depends on:** tasks 1, 2; epic `db-concurrency` task 1.
+- **Depends on:** tasks 1, 2; epic `db-concurrency` tasks 1a + 1b.
 - **Contract:** `HarpiaTest/app_example/multi_system/station/`: a C++ program
   (CMake `-DHARPIA_GEN=<path>`, same shape as `app_example/consumer`, plus a
   `vcpkg.json` for Windows) that:
