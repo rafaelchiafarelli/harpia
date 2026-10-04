@@ -1,0 +1,9 @@
+# Compliance profile for the multi-system reference (see USAGE.md section 4).
+# topology cloud_connected turns transport hardening on for every link:
+# gRPC requires mTLS (+ RBAC + bearer sessions), the ZMQ PUB requires CURVE and
+# the ZAP client-key allowlist.
+risk_class: class_b
+topology: cloud_connected
+phi_handling: none
+jurisdiction: []
+project: multi_system
