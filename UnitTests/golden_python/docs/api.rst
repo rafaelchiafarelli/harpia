@@ -19,3 +19,9 @@ harpia_runtime
 .. automodule:: harpia_runtime
    :members:
 
+harpia_runtime.json
+-------------------
+
+.. automodule:: harpia_runtime.json
+   :members:
+
