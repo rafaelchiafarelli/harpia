@@ -565,3 +565,9 @@ harpia_runtime.zmq_delivery
 .. automodule:: harpia_runtime.zmq_delivery
    :members:
 
+harpia_runtime.zmq_stream
+-------------------------
+
+.. automodule:: harpia_runtime.zmq_stream
+   :members:
+

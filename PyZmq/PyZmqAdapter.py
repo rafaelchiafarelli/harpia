@@ -22,6 +22,25 @@ _RUNTIME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runtime
 ZMQ_MODULE = "harpia_runtime.zmq"
 ZAP_MODULE = "harpia_runtime.zap"
 ZMQ_DELIVERY_MODULE = "harpia_runtime.zmq_delivery"
+ZMQ_STREAM_MODULE = "harpia_runtime.zmq_stream"
+
+# a `stream` type's lifecycle consumer (py-zmq task 4)
+_STREAM = '''
+
+class {name}_stream(Stream[{name}]):
+    """The ``stream`` lifecycle consumer of ``{name}`` (a timed, stoppable SUB
+    read with watchdog + dead-connection reclamation; see
+    :mod:`harpia_runtime.zmq_stream`)::
+
+        from harpia_runtime.zmq_stream import StreamConfig, StreamStatus
+        s = {name}_stream(ctx)
+        if s.setup(StreamConfig("tcp://host:port")) is StreamStatus.OK:
+            result = s.read()  # result.status / result.msg
+        s.stop()
+    """
+
+    MESSAGE = {name}
+'''
 ZMQ_EXT = "_zmq.py"
 
 _SENDER = '''
@@ -103,6 +122,9 @@ class PyZmqAdapter:
         if self.hardened:
             copy_runtime_module(self.dest, os.path.join(_RUNTIME_DIR, "zap.py"), ZAP_MODULE)
             copy_runtime_module(self.dest, PY_AUDIT_SINK_RUNTIME_SRC, PY_AUDIT_SINK_MODULE)
+        if any("STREAM" in mods for _, mods, *_ in transports):
+            copy_runtime_module(self.dest, os.path.join(_RUNTIME_DIR, "zmq_stream.py"),
+                                ZMQ_STREAM_MODULE)
         if any(getattr(m, "is_critical", False) for m, *_ in transports):
             for module, src in ((PY_DELIVERY_MODULE, PY_DELIVERY_RUNTIME_SRC),
                                 (ZMQ_DELIVERY_MODULE,
@@ -166,6 +188,9 @@ class PyZmqAdapter:
             factories += sender("publisher", "PUB", "publishes", "bind", True)
             factories += receiver("subscriber", "SUB", "connect", True)
             roles += ["``new_publisher`` (PUB)", "``new_subscriber`` (SUB)"]
+            if "STREAM" in mods:
+                factories += _STREAM.format(name=name)
+                roles.append("``{}_stream`` (stream lifecycle)".format(name))
         curve_types = (["CurveClientKeys", "CurveServerKeys"])
         imports = curve_types + ["Receiver"] + ([] if critical else ["Sender"]) + (
             [] if one_to_many else ["runtime_origin_id"])
@@ -178,6 +203,8 @@ class PyZmqAdapter:
             post_imports = ("from harpia_runtime.zmq_delivery import QueuedSender\n")
         else:
             post_imports = ""
+        if "STREAM" in mods:
+            post_imports += "from harpia_runtime.zmq_stream import Stream\n"
         return _TEMPLATE.format(name=name, hash=msg.md5Hash, roles=", ".join(roles),
                                 extra_imports=extra_imports, post_imports=post_imports,
                                 origin_doc=origin_doc, runtime_imports="".join("    {},\n".format(i) for i in imports).rstrip("\n"),
