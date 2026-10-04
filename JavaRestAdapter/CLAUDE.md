@@ -1,7 +1,7 @@
 # JavaRestAdapter — Java target: REST CRUD over JDK-builtin HttpServer
 
 **Pipeline role:** Java-target Stage 12 equivalent (sessions J.12 routing/credential-gate scaffolding, J.13 CRUDL handlers, J.14 acceptance gate — landed together, `Initiatives/multi-language-targets/thread-1-java-target`). Routes on `com.sun.net.httpserver.HttpServer` (JDK-builtin, zero dependency — the recommendation `../../README.md` §2 makes, same "least new dependency surface" reasoning as the XML runtime picking `javax.xml`), backed by `JavaDatabase`'s CRUDL DAOs, content-negotiated via `JavaJsonAdapter`/`JavaXmlAdapter`.
-**Entry point (from main.py):** gated behind `HARPIA_GEN_LANG=java`, called right after `JavaXmlAdapter` in the same block: `JavaRestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; main.py logs it).
+**Entry point (from `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`)):** called right after `JavaXmlAdapter` in the same stage list: `JavaRestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; `ctx.report` logs it).
 **Inputs → Outputs:** consumes message objects (same table-bearing filter as `Database/RestAdapter.py`: skip enums and messages with no `tableName`). Emits `<dest>/java/src/main/java/com/harpia/runtime/rest/HttpRestHelpers.java` (shared) and `<dest>/java/src/main/java/com/harpia/generated/rest/<name>_rest.java` (one per table-bearing message).
 
 ## Files
@@ -18,5 +18,5 @@
 - `register()`'s `Connection conn` must stay open for the registered routes' lifetime — same "caller keeps the session alive" contract `Database/RestAdapter.py`'s `register_<name>()` documents for its `soci::session&`.
 
 ## Touchpoints
-- Called by: `main.py`, gated on `HARPIA_GEN_LANG=java`, right after `JavaXmlAdapter` in the same conditional block.
+- Called by: `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`), right after `JavaXmlAdapter` in the same stage list.
 - Depends on: `JavaDatabase` (the generated `<name>_dao` classes), `JavaJsonAdapter`/`JavaXmlAdapter` (`HarpiaJson`/`HarpiaXml`, both already generic), `Util.util.copy_if_different`/`write_if_different`/`loadTemplate`, `Logger.logger`, `Errors.Error`.

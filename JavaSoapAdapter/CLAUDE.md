@@ -1,7 +1,7 @@
 # JavaSoapAdapter — Java target: hand-rolled SOAP envelope access over JDK-builtin HttpServer
 
 **Pipeline role:** Java-target Stage 11 equivalent (sessions J.15 envelope parsing, J.16 acceptance gate — landed together, `Initiatives/multi-language-targets/thread-1-java-target`). A direct port of `Database/SoapAdapter.py`'s hand-rolled envelope get/set/update/delete parsing — **not a real SOAP/WS-* stack** even on the C++ side (`Database/CLAUDE.md`), and Java's own removal of JAX-WS from the JDK (since 11) is irrelevant here for exactly that reason: this was never going to use a real SOAP toolkit regardless of language.
-**Entry point (from main.py):** gated behind `HARPIA_GEN_LANG=java`, called right after `JavaRestAdapter` in the same block: `JavaSoapAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; main.py logs it).
+**Entry point (from `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`)):** called right after `JavaRestAdapter` in the same stage list: `JavaSoapAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; `ctx.report` logs it).
 **Inputs → Outputs:** consumes message objects (same table-bearing filter as REST/`Database/SoapAdapter.py`). Emits `<dest>/java/src/main/java/com/harpia/runtime/soap/SoapHelpers.java` (shared) and `<dest>/java/src/main/java/com/harpia/generated/soap/<name>_soap.java` (one per table-bearing message).
 
 ## Files
@@ -20,5 +20,5 @@
 - WSDL generation is deferred here exactly as it is on the C++ side (`Database/SoapAdapter.py`'s own docstring: "WSDL generation is deferred") — not a Java-specific gap.
 
 ## Touchpoints
-- Called by: `main.py`, gated on `HARPIA_GEN_LANG=java`, right after `JavaRestAdapter` in the same conditional block.
+- Called by: `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`), right after `JavaRestAdapter` in the same stage list.
 - Depends on: `JavaDatabase` (`<name>_dao`), `JavaXmlAdapter` (`HarpiaXml`), `JavaRestAdapter` (`HttpRestHelpers`), `Util.util.copy_if_different`/`write_if_different`/`loadTemplate`, `Logger.logger`, `Errors.Error`.
