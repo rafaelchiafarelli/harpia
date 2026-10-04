@@ -25,7 +25,9 @@ checks `x-user` / `x-pswd` metadata (`UNAUTHENTICATED "unauthorized"`);
   `add_to_server(servicer, server)` (wraps protoc's
   `add_<name>_ServiceServicer_to_server`).
   `GATE` is `harpia_runtime.rbac_gates.grpc_rbac_gate(name)` when
-  `Database.auth_gate.effective_rbac` says RBAC (task 6), else `flat_gate`.
+  `Database.auth_gate.effective_rbac` says RBAC (task 6), else `flat_gate`;
+  RBAC servicers also set `HEARTBEAT_HOOK = issue_on_heartbeat` (task 7:
+  `harpia-issue-session` metadata → `harpia-session-token` trailer).
 - `grpc_server_bringup.py`: `GrpcServer(pool, address="127.0.0.1:0",
   max_workers=10, mtls=None)` — every servicer on one `grpc.server(ThreadPoolExecutor)`,
   `port`, `start()`, `stop(grace=None)`; `SERVICES`; same
@@ -51,10 +53,12 @@ checks `x-user` / `x-pswd` metadata (`UNAUTHENTICATED "unauthorized"`);
   RBAC-gated RPC of the generated `GrpcServer` answers `UNAUTHENTICATED`
   (fail-closed; the `open` message still works). C++ can request-and-verify
   there; Python can't (logged decision 33/34). The (role, op) matrix is
-  tested on a required-cert server.
+  tested on a required-cert server. **Workaround (task 7):** a bearer token
+  from `POST /session` over HTTPS (where the cert is verified) is accepted
+  over gRPC in any mode; `heartBeat` can't issue in mixed mode.
 
 ## Touchpoints
 - Depends on: protoc's `_pb2` / `_pb2_grpc` (`PyAdapter`), the DAOs,
   `harpia_runtime.db.pool`.
 - Tested by: `UnitTests/test_py_grpc.py`, `test_py_mtls.py`,
-  `test_py_rbac.py`.
+  `test_py_rbac.py`, `test_py_sessions.py`.

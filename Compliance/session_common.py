@@ -32,7 +32,9 @@ copy is idempotent.)
 """
 import os
 
-from Compliance.audit_common import AUDIT_SINK_RUNTIME, AUDIT_SINK_RUNTIME_SRC
+from Compliance.audit_common import (
+    AUDIT_SINK_RUNTIME, AUDIT_SINK_RUNTIME_SRC, PY_AUDIT_SINK_MODULE,
+    PY_AUDIT_SINK_RUNTIME_SRC)
 
 SESSION_RUNTIME = "harpia_session.h"
 SESSION_RUNTIME_SRC = os.path.join(
@@ -40,3 +42,11 @@ SESSION_RUNTIME_SRC = os.path.join(
 
 #: harpia_session.h #includes "harpia_audit_sink.h" at the same relative path.
 SESSION_RUNTIME_DEPS = ((AUDIT_SINK_RUNTIME, AUDIT_SINK_RUNTIME_SRC),)
+
+# python-target / py-transports-http task 7: the Python port of the header
+# above, copied into a generated Python project at PY_SESSION_MODULE (with its
+# audit-sink dependency) wherever harpia_runtime.rbac is copied.
+PY_SESSION_MODULE = "harpia_runtime.session"
+PY_SESSION_RUNTIME_SRC = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "runtime", "python", "session.py")
+PY_SESSION_RUNTIME_DEPS = ((PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC),)

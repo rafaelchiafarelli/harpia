@@ -10,6 +10,8 @@ import os
 from Database.model import pagination_default
 from Crypto.backend import transport_hardening_required
 from Compliance.rbac_common import PY_RBAC_MODULE, PY_RBAC_RUNTIME_DEPS, PY_RBAC_RUNTIME_SRC
+from Compliance.session_common import (
+    PY_SESSION_MODULE, PY_SESSION_RUNTIME_DEPS, PY_SESSION_RUNTIME_SRC)
 from Database.auth_gate import effective_rbac, transport_mode
 from Logger.logger import logger
 from PyAdapter.runtime_copy import copy_runtime_module
@@ -31,6 +33,8 @@ RUNTIMES = (
 #: copied (with harpia_runtime.rbac) only when some message is RBAC-gated
 RBAC_GATES_MODULE = "harpia_runtime.rbac_gates"
 RBAC_GATES_SRC = os.path.join(_RUNTIME_DIR, "rbac_gates.py")
+SESSION_CLIENT_MODULE = "harpia_runtime.session_client"
+SESSION_CLIENT_SRC = os.path.join(_RUNTIME_DIR, "session_client.py")
 REST_EXT = "_rest.py"
 SOAP_EXT = "_soap.py"
 
@@ -57,19 +61,23 @@ GATE = flat_gate({name_lit}, {hash_lit})
 
 
 _RBAC_IMPORT = "\nfrom harpia_runtime.rbac_gates import {}"
-_RBAC_DOC = ("RBAC (``protected``, or hardened and not ``open``) -- the verified "
-             "client-certificate CN mapped to a role by ``HARPIA_RBAC_MAP`` "
-             "(:mod:`harpia_runtime.rbac`); {deny}.")
+_RBAC_DOC = ("RBAC (``protected``, or hardened and not ``open``) -- a valid "
+             "``Authorization: Bearer`` session token's CN, else the verified "
+             "client-certificate CN, mapped to a role by ``HARPIA_RBAC_MAP`` "
+             "(:mod:`harpia_runtime.rbac`); a presented but invalid token is a 401; "
+             "{deny}.")
 
 
 def copy_rbac_runtimes(dest):
-    """Copy ``harpia_runtime.rbac`` (+ its audit sink) and
-    ``harpia_runtime.rbac_gates`` (C++ copies ``harpia_rbac.h`` only when a
-    message gets the RBAC gate, likewise)."""
-    copy_runtime_module(dest, PY_RBAC_RUNTIME_SRC, PY_RBAC_MODULE)
-    for module, src in PY_RBAC_RUNTIME_DEPS:
+    """Copy ``harpia_runtime.rbac`` + ``.session`` (+ their audit sink),
+    ``.rbac_gates`` and ``.session_client`` (C++ copies ``harpia_rbac.h`` /
+    ``harpia_session.h`` only when a message gets the RBAC gate, likewise)."""
+    for module, src in ((PY_RBAC_MODULE, PY_RBAC_RUNTIME_SRC),
+                        (PY_SESSION_MODULE, PY_SESSION_RUNTIME_SRC),
+                        *PY_RBAC_RUNTIME_DEPS, *PY_SESSION_RUNTIME_DEPS,
+                        (RBAC_GATES_MODULE, RBAC_GATES_SRC),
+                        (SESSION_CLIENT_MODULE, SESSION_CLIENT_SRC)):
         copy_runtime_module(dest, src, module)
-    copy_runtime_module(dest, RBAC_GATES_SRC, RBAC_GATES_MODULE)
 
 
 class PyHttpAdapter:
@@ -179,7 +187,14 @@ class PyHttpAdapter:
             "        {0}_{1}_rest.register(self.router, pool, rest_base)\n"
             "        {0}_{1}_soap.register(self.router, pool, soap_base)\n".format(
                 m.name, m.md5Hash) for m in tables).rstrip("\n")
+        if any(self._rbac(m) for m in tables):
+            registrations += ("\n        # bearer-session issuance (RBAC-gated messages exist)\n"
+                              "        register_session_routes(self.router, rest_base, soap_base)")
+            session_import = "\nfrom harpia_runtime.rbac_gates import register_session_routes"
+        else:
+            session_import = ""
         hardening, mode_consts, tls_args = self._transport()
         return _BRINGUP.format(hardening=hardening, mode_consts=mode_consts, tls_args=tls_args,
+                               session_import=session_import,
                                imports=imports.rstrip("\n"), registrations=registrations,
                                rest_names=repr(tuple(m.name for m in tables)))

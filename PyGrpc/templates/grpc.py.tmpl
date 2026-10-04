@@ -27,7 +27,7 @@ class {name}_Service(CrudServicer):
     DAO = {name}_dao
     WRAPPER = service_pb2.{name}_Message
     ERROR_CODE = errorCode
-    GATE = {gate_expr}
+    GATE = {gate_expr}{servicer_extra}
 
 
 def add_to_server(servicer: {name}_Service, server: Any) -> None:

@@ -871,6 +871,18 @@ harpia_runtime.serialize
 .. automodule:: harpia_runtime.serialize
    :members:
 
+harpia_runtime.session
+----------------------
+
+.. automodule:: harpia_runtime.session
+   :members:
+
+harpia_runtime.session_client
+-----------------------------
+
+.. automodule:: harpia_runtime.session_client
+   :members:
+
 harpia_runtime.soap
 -------------------
 

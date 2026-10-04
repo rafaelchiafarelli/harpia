@@ -64,8 +64,21 @@ bring-up). A stage of `LangBackend/python.py`'s `run_python`, after
   read / `set` create / `update` / `delete` remove, unknown ops ungated;
   401 / 403 `Client.Authentication` Fault `unauthenticated` / `forbidden`),
   `grpc_rbac_gate(subject)` (`UNAUTHENTICATED "unauthenticated"` /
-  `PERMISSION_DENIED "forbidden"`), `http_peer_cn`. Identity = the verified
-  client-cert CN. The RBAC mechanism itself (`Role`, `Operation`,
+  `PERMISSION_DENIED "forbidden"`), `http_peer_cn`. Identity = a valid
+  bearer token's CN (task 7: `Authorization: Bearer` / `authorization`
+  metadata), else the verified client-cert CN; a presented-but-invalid
+  token → 401 / Fault `invalid session token` / `UNAUTHENTICATED "invalid
+  session token"`, never a fall-through. Issuance (task 7):
+  `register_session_routes(router, rest_base, soap_base)` (C++
+  `register_session`: `POST <rest>/session` → `{"token":…,"token_type":
+  "Bearer"}`, `POST <soap>/session` → `<sessionToken>`; 401 no cert / 403
+  unmapped / 503 no key) and `issue_on_heartbeat(context)` (the generated
+  RBAC servicers' `HEARTBEAT_HOOK`).
+- `runtime/session_client.py` → `harpia_runtime.session_client` (task 7,
+  copied with the RBAC runtimes): `http_session_token(base_url, ctx)`,
+  `grpc_session_token(stub.heartBeat, hb)`, `bearer_header`,
+  `bearer_metadata`, `SessionUnavailable`. The token runtime itself is
+  `Compliance/runtime/python/session.py` (`harpia_runtime.session`). The RBAC mechanism itself (`Role`, `Operation`,
   `permitted`, `RoleMap`, `role_map()`, `decide`) is
   `Compliance/runtime/python/rbac.py`.
 
@@ -86,6 +99,7 @@ bring-up). A stage of `LangBackend/python.py`'s `run_python`, after
   `CLIENT_CERT_REQUIRED` only when `auth_gate.transport_mode` diverges (the
   C++ rule; the HarpiaTest fixture diverges, so even its low-risk build
   needs PKI — flat-gate tests register bindings on a plain `Server`).
+  With any RBAC-gated message it also calls `register_session_routes`.
 
 ## Key facts / gotchas
 - **SOAP parity is byte-for-byte:** one ordered request sequence against
@@ -98,7 +112,8 @@ bring-up). A stage of `LangBackend/python.py`'s `run_python`, after
   DAO's update/remove return true either way); PUT ignores the path id
   (the body's key is used); reconnect failure is 503 like exhaustion.
 - Gates per message since task 6 (flat vs RBAC, the C++ `effective_rbac`
-  choice); bearer sessions on top of RBAC are task 7. **Parity (task 6):**
+  choice); bearer sessions on top of RBAC since task 7 (tokens issued by the
+  C++ server work on the Python one and vice versa, `test_py_sessions.py`). **Parity (task 6):**
   for one RBAC map file + one PKI, the generated C++ and Python
   `HttpServer`s answer the same 5-identity × 12-request sequence with the
   same statuses and byte-identical SOAP envelopes (`test_py_rbac.py`).
@@ -111,4 +126,4 @@ bring-up). A stage of `LangBackend/python.py`'s `run_python`, after
 - Depends on: `Database.model.pagination_default`, the generated DAOs,
   `harpia_runtime.db.pool`, the JSON/XML runtimes.
 - Tested by: `UnitTests/test_py_rest.py`, `test_py_soap.py`,
-  `test_py_mtls.py`, `test_py_rbac.py`.
+  `test_py_mtls.py`, `test_py_rbac.py`, `test_py_sessions.py`.
