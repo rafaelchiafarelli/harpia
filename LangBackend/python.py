@@ -24,3 +24,10 @@ class PythonBackend(CppBackend):
         from PyAdapter.PyAdapter import PyAdapter
         ctx.report(PyAdapter(messages=messages, dest=dest,
                              compliance=compliance).Process())
+
+        # (later epics add their stages here, above the docs)
+
+        # Sphinx skeleton -- LAST: it documents every module already on disk
+        from PyAdapter.PyDocsAdapter import PyDocsAdapter
+        ctx.report(PyDocsAdapter(messages=messages, dest=dest,
+                                 compliance=compliance).Process())
