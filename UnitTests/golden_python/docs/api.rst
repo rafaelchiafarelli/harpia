@@ -817,6 +817,12 @@ harpia_runtime.dds.frame
 .. automodule:: harpia_runtime.dds.frame
    :members:
 
+harpia_runtime.dds.security
+---------------------------
+
+.. automodule:: harpia_runtime.dds.security
+   :members:
+
 harpia_runtime.dds.transport
 ----------------------------
 

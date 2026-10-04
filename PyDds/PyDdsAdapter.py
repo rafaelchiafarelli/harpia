@@ -8,6 +8,7 @@ adapter emits a header for (the ``dds`` modifier; enums skipped).
 """
 import os
 
+from Compliance.dds_common import DDS_SECURITY_DIR
 from DdsAdapter.DdsAdapter import QUEUE_DEPTH, DdsAdapter
 from Logger.logger import logger
 from PyAdapter.runtime_copy import copy_runtime_module
@@ -19,13 +20,15 @@ _RUNTIME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runtime
 RUNTIMES = (
     ("frame.py", "harpia_runtime.dds.frame"),
     ("transport.py", "harpia_runtime.dds.transport"),
+    ("security.py", "harpia_runtime.dds.security"),
 )
 DDS_EXT = "_dds.py"
 
 
 class PyDdsAdapter:
-    def __init__(self, messages, dest, compliance=None) -> None:
+    def __init__(self, messages, dest, compliance=None, crypto_backend=None) -> None:
         self.compliance = compliance
+        self.crypto_backend = crypto_backend
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "python", "harpia_generated", "dds")
@@ -49,8 +52,19 @@ class PyDdsAdapter:
             write_if_different(
                 os.path.join(self.outDir, "{}_{}{}".format(msg.name, msg.md5Hash, DDS_EXT)),
                 self._render(msg))
+        self._write_security(msgs)
         self.log.print("generated {} DDS transport(s) into {}".format(len(msgs), self.outDir))
         return None
+
+    def _write_security(self, msgs):
+        """py-dds task 3: the language-neutral DDS-Security documents
+        (governance / permissions / selection) in
+        ``harpia_generated/dds/security/``, written by ``DdsAdapter``'s own
+        code (the python stages run before the C++ ones), so both targets
+        carry the same bytes and the Python project is self-contained."""
+        DdsAdapter(self.messages, self.dest, self.compliance,
+                   crypto_backend=self.crypto_backend).write_security_documents(
+            os.path.join(self.outDir, DDS_SECURITY_DIR), [m.name for m in msgs])
 
     def _render(self, msg):
         if getattr(msg, "is_critical", False):
