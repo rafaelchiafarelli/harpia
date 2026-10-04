@@ -15,11 +15,18 @@ Conventions, matching the C++ DAO (``Database/CrudlAdapter.py``):
 - ``read`` sets the stored fields on the message it is given (it does not
   clear the rest first).
 
+- A composed field whose target owns a table is an FK column holding the
+  child's primary key: on create/update a present child is written through
+  its own DAO first; on read a non-zero key loads it, a zero key leaves it
+  absent. ``remove`` does not cascade to FK children (same as C++).
+
 Different from C++ on purpose: real database errors propagate as
 exceptions; a ``bool`` only answers "did a row exist / was one affected".
-Every call is one transaction: committed on success, rolled back on error.
+Every call is one transaction, children included: committed on success,
+rolled back on error.
 """
 import builtins
+import importlib
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -60,11 +67,17 @@ class Column:
     Attributes:
         name: The SQL column name.
         path: Attribute names from the table's message down to the scalar
-            or enum field (one element for a top-level field).
+            or enum field (one element for a top-level field). Several
+            elements for a flattened sub-field of a table-less composed
+            field (``("path", "start", "city")``).
+        fk: For a composed field whose target owns a table, the child's
+            generated DAO as ``"module:Class"``. The column then holds the
+            child's primary key; ``path`` ends at the composed field.
     """
 
     name: str
     path: tuple[str, ...]
+    fk: str | None = None
 
 
 M = TypeVar("M", bound=Message)
@@ -78,8 +91,34 @@ def _owner(msg: Message, path: tuple[str, ...], mutable: bool) -> Message:
     return msg
 
 
+_DAO_CLASSES: dict[str, type["Dao[Any]"]] = {}
+
+
+def dao_class(ref: str) -> type["Dao[Any]"]:
+    """Resolve a ``"module:Class"`` DAO reference (imported lazily, so two
+    DAOs may refer to each other)."""
+    cls = _DAO_CLASSES.get(ref)
+    if cls is None:
+        module, _, name = ref.partition(":")
+        cls = cast("type[Dao[Any]]", getattr(importlib.import_module(module), name))
+        _DAO_CLASSES[ref] = cls
+    return cls
+
+
+def _child(msg: Message, col: Column) -> Message:
+    child: Message = getattr(_owner(msg, col.path, False), col.path[-1])
+    return child
+
+
+def _has_child(msg: Message, col: Column) -> bool:
+    return bool(_owner(msg, col.path, False).HasField(col.path[-1]))
+
+
 def column_value(msg: Message, col: Column) -> Any:
-    """The DB-API parameter for ``col`` read from ``msg``."""
+    """The DB-API parameter for ``col`` read from ``msg`` (an FK column binds
+    the child's primary key, ``0`` when the child is absent, like C++)."""
+    if col.fk is not None:
+        return bind_value(_child(msg, col), dao_class(col.fk).PK)
     return bind_value(_owner(msg, col.path, False), col.path[-1])
 
 
@@ -128,7 +167,39 @@ class Dao(Generic[M]):
 
     def _load_row(self, cur: Any, row: Sequence[Any], msg: M) -> None:
         for col, value in zip(self.COLUMNS, row, strict=False):
-            set_column(msg, col, value)
+            if col.fk is None:
+                set_column(msg, col, value)
+            elif value:
+                # a non-zero key: load the child through its own DAO; a zero
+                # key means the child was absent (no phantom child)
+                sub: Message = getattr(_owner(msg, col.path, True), col.path[-1])
+                sub.SetInParent()
+                dao_class(col.fk)(self.conn)._read_into(cur, value, sub)
+
+    # -- cursor-level operations (no transaction handling; a parent DAO runs
+    # -- its children's on its own cursor so one call is one transaction) ----
+    def _create(self, cur: Any, msg: M) -> None:
+        for col in self.COLUMNS:
+            if col.fk is not None and _has_child(msg, col):
+                dao_class(col.fk)(self.conn)._create(cur, _child(msg, col))
+        cur.execute(self.INSERT_SQL, [column_value(msg, c) for c in self.COLUMNS])
+
+    def _read_into(self, cur: Any, pk: Any, out: M) -> bool:
+        cur.execute(self.SELECT_SQL, [pk])
+        row = cur.fetchone()
+        if row is None:
+            return False
+        self._load_row(cur, row, out)
+        return True
+
+    def _update(self, cur: Any, msg: M) -> bool:
+        for col in self.COLUMNS:
+            if col.fk is not None and _has_child(msg, col):
+                dao_class(col.fk)(self.conn)._update(cur, _child(msg, col))
+        params = [column_value(msg, c) for c in self.COLUMNS if c.name != self.PK]
+        params.append(self._pk_value(msg))
+        cur.execute(self.UPDATE_SQL, params)
+        return bool(cur.rowcount > 0)
 
     # -- DDL ------------------------------------------------------------------
     def create_table(self) -> None:
@@ -151,8 +222,7 @@ class Dao(Generic[M]):
             ``True``. A database error (for example a duplicate key) raises.
         """
         with self._tx() as cur:
-            cur.execute(self.INSERT_SQL,
-                        [column_value(msg, c) for c in self.COLUMNS])
+            self._create(cur, msg)
         return True
 
     def read(self, pk: int, out: M) -> bool:
@@ -162,12 +232,7 @@ class Dao(Generic[M]):
             ``False`` when no such row exists (``out`` is untouched).
         """
         with self._tx() as cur:
-            cur.execute(self.SELECT_SQL, [pk])
-            row = cur.fetchone()
-            if row is None:
-                return False
-            self._load_row(cur, row, out)
-        return True
+            return self._read_into(cur, pk, out)
 
     def update(self, msg: M) -> bool:
         """Overwrite the row whose key is ``msg``'s ``ID_<hash>``.
@@ -175,11 +240,8 @@ class Dao(Generic[M]):
         Returns:
             ``False`` when no row has that key.
         """
-        params = [column_value(msg, c) for c in self.COLUMNS if c.name != self.PK]
-        params.append(self._pk_value(msg))
         with self._tx() as cur:
-            cur.execute(self.UPDATE_SQL, params)
-            return bool(cur.rowcount > 0)
+            return self._update(cur, msg)
 
     def remove(self, pk: int) -> bool:
         """Delete the row with primary key ``pk``.

@@ -58,8 +58,11 @@ class PyDatabaseAdapter:
     # -- DAO rendering ----------------------------------------------------------
     def _render(self, msg):
         columns, _notes = analyze(msg, self.types, self.backend)
-        bound = [c for c in columns if c.bindable and not c.embed and not c.fk_table]
-        pk = next((c for c in bound if c.pk), None)
+        # C++ CrudlAdapter order: scalar/enum/embedded columns, then FKs
+        scalar = [c for c in columns if (c.bindable or c.embed) and not c.fk_table]
+        fks = [c for c in columns if c.fk_table]
+        bound = scalar + fks
+        pk = next((c for c in scalar if c.pk), None)
         if pk is None:
             self.log.print("{}: no ID_ primary key, no Python DAO".format(msg.name))
             return None
@@ -90,17 +93,43 @@ class PyDatabaseAdapter:
             dialect=self.backend.name, placeholder=ph,
             deferred=", ".join(deferred) if deferred else "none",
             table_lit=repr(msg.tableName), pk_lit=repr(pk.name),
-            columns="".join("\n        Column({!r}, ({!r},)),".format(c.name, c.name)
-                            for c in bound),
+            columns="".join("\n        " + self._column_spec(msg, c) for c in bound),
             create_sql="".join("\n        {!r},".format(s) for s in create),
             drop_sql="".join("\n        {!r},".format(s) for s in drop),
             **{k: repr(v) for k, v in sql.items()})
 
+    def _column_spec(self, msg, col):
+        path = tuple(self._exact_path(msg, col))
+        fk = ""
+        if col.fk_table:
+            fk = ", fk={!r}".format(self._dao_ref(col.fk_target))
+        return "Column({!r}, {!r}{}),".format(col.name, path, fk)
+
+    def _dao_ref(self, message_name):
+        target = next(m for m in self.messages if m.name == message_name)
+        return "harpia_generated.db.{0}_{1}_dao:{0}_dao".format(
+            target.name, target.md5Hash)
+
+    def _exact_path(self, msg, col):
+        """The column's attribute path with the exact ``.proto`` field names
+        (``Column.embed`` / ``child_accessor`` hold C++'s lowercased
+        accessors)."""
+        if col.embed:
+            return self._walk(msg, list(col.embed) + [col.child_accessor])
+        return [col.name]
+
+    def _walk(self, msg, steps):
+        path, current = [], msg
+        for step in steps:
+            var = next(v for v in current.variables if v.name.lower() == step)
+            path.append(var.name)
+            if var.type[0] == "ID" and var.type[1] in self.types:
+                current = self.types[var.type[1]]["msg"]
+        return path
+
     def _deferred(self, msg, columns):
-        """Columns / child tables the C++ DAO persists that this DAO doesn't
-        yet (embedded sub-fields and FKs: task 2b; maps / repeated: 2c)."""
-        out = [c.name for c in columns
-               if (c.embed or c.fk_table) and (c.bindable or c.embed or c.fk_table)]
-        out += [ch.child_table for ch in map_fields(msg, self.types, self.backend)]
+        """Child tables the C++ DAO persists that this DAO doesn't yet
+        (maps / repeated: task 2c)."""
+        out = [ch.child_table for ch in map_fields(msg, self.types, self.backend)]
         out += [ch.child_table for ch in repeated_fields(msg, self.types, self.backend)]
         return out

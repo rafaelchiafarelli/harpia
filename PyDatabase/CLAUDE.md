@@ -26,13 +26,24 @@ a stage of `LangBackend/python.py`'s `run_python`.
   every SQL string). `Connection` / `Cursor` are DB-API `Protocol`s.
   Real DB errors raise; a `bool` only answers "row existed / affected".
   Each call is one transaction (commit on success, rollback on error).
+  Task 2b: `Column.path` reaches flattened embedded sub-fields through any
+  number of table-less levels (`("path", "start", "city")`); `Column.fk`
+  (`"module:Class"`, resolved lazily so DAOs may refer to each other) marks
+  an FK column holding the child's primary key — a present child is written
+  through its own DAO first (create/update), a non-zero key loads it on
+  read, a zero key leaves it absent, `remove` does not cascade (all as C++).
+  Child DAOs run on the parent's cursor, so a whole call is still one
+  transaction (stricter than C++, which commits per statement).
 
 ## Generated DAOs (`templates/dao.py.tmpl`)
 `harpia_generated/db/<name>_<hash>_dao.py` per table-bearing message: class
 `<name>_dao(Dao[<name>])` holding the table spec and the exact SQL. The DDL
 is `Database.model.create_table_sql` (the very string the C++ DAO runs), so
 the Python table has the **same column set C++ declares** (unlike Java's
-scoped-down table); statements use `param_placeholder()`. The module
+scoped-down table); statements use `param_placeholder()`. Column order is
+C++'s: scalar/enum/embedded columns, then FK columns. Embedded paths use the
+exact `.proto` names (resolved from the schema; `Database.model.Column.embed`
+holds C++'s lowercased accessors). The module
 docstring lists anything the C++ DAO persists that this DAO does not yet
 (`Deferred: ...`).
 

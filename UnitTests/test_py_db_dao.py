@@ -10,6 +10,11 @@ Image-gated (python protobuf + protoc), against an SQLite file:
   the columns of the C++ ``database/<name>_<hash>_table.sql`` (every table).
 - g++ + SOCI: a row written by the C++ ``users_dao`` reads back identically
   through the Python DAO on the same SQLite file.
+- 2b: ``journey`` (multi-level embed), ``top_users`` (FK) and ``outpost``
+  (an FK inside an embed) round-trip every persisted column, FK children
+  through their own DAO; an unset FK stays absent with no phantom child
+  row. g++ + SOCI: C++-written rows read identically in Python and
+  Python-written rows read identically in C++.
 """
 import importlib
 import os
@@ -154,3 +159,138 @@ def test_cpp_written_row_reads_in_python(gen, msgs, tmp_path):
     setattr(want, PK, 7)
     setattr(want, "STATUS_" + HASH, "ok")
     assert got == want
+
+
+EMBED_FK = ("journey", "top_users", "outpost")
+
+
+def _all_daos(gen):
+    out = {}
+    for f in sorted(os.listdir(os.path.join(P.py_root(gen), "harpia_generated", "db"))):
+        if f.endswith("_dao.py"):
+            name = f[:-len("_{}_dao.py".format(HASH))]
+            out[name] = dao_class(name)
+    return out
+
+
+def _fresh_db(gen, path):
+    conn = sqlite3.connect(str(path))
+    for cls in _all_daos(gen).values():
+        cls(conn).create_table()
+    return conn
+
+
+def persisted_view(dao_cls, msg):
+    """{column: value} of what ``dao_cls`` stores for ``msg`` (FK columns ->
+    the child's own view, or None when absent)."""
+    from harpia_runtime.db import dao as rt
+    view = {}
+    for col in dao_cls.COLUMNS:
+        if col.fk is None:
+            view[col.name] = rt.column_value(msg, col)
+        else:
+            child_cls = rt.dao_class(col.fk)
+            view[col.name] = (persisted_view(child_cls, rt._child(msg, col))
+                              if rt._has_child(msg, col) else None)
+    return view
+
+
+def _unique_ids(msg, counter):
+    """Give every nested message's ID_<hash> a distinct value (populate()
+    repeats the same one, which collides once children are rows)."""
+    for f in msg.DESCRIPTOR.fields:
+        if f.name == PK:
+            counter[0] += 1
+            setattr(msg, PK, counter[0])
+        elif f.cpp_type == f.CPPTYPE_MESSAGE:
+            is_map = f.message_type.GetOptions().map_entry
+            items = getattr(msg, f.name)
+            if is_map:
+                if f.message_type.fields_by_name["value"].cpp_type == f.CPPTYPE_MESSAGE:
+                    for k in items:
+                        _unique_ids(items[k], counter)
+            elif f.label == f.LABEL_REPEATED:
+                for item in items:
+                    _unique_ids(item, counter)
+            elif msg.HasField(f.name):
+                _unique_ids(items, counter)
+
+
+def _populated(cls, pk):
+    m = P.populate(cls())
+    _unique_ids(m, [1000])
+    setattr(m, PK, pk)
+    return m
+
+
+@pytest.mark.parametrize("name", EMBED_FK)
+def test_embed_fk_round_trip(name, gen, msgs, tmp_path):
+    cls, dao_cls = msgs[name], dao_class(name)
+    dao = dao_cls(_fresh_db(gen, tmp_path / "db.sqlite"))
+    m = _populated(cls, 11)
+    assert dao.create(m)
+    got = cls()
+    assert dao.read(11, got)
+    assert persisted_view(dao_cls, got) == persisted_view(dao_cls, m)
+    fks = [c for c in dao_cls.COLUMNS if c.fk]
+    assert fks or any(len(c.path) > 1 for c in dao_cls.COLUMNS), name
+    changed = _populated(cls, 11)
+    for c in dao_cls.COLUMNS:
+        if c.fk is None and c.name != PK and len(c.path) > 1:
+            from harpia_runtime.db import dao as rt
+            owner = rt._owner(changed, c.path, True)
+            f = owner.DESCRIPTOR.fields_by_name[c.path[-1]]
+            if f.cpp_type == f.CPPTYPE_STRING:
+                setattr(owner, c.path[-1], "changed")
+    assert dao.update(changed)
+    got = cls()
+    dao.read(11, got)
+    assert persisted_view(dao_cls, got) == persisted_view(dao_cls, changed)
+    assert [persisted_view(dao_cls, x) for x in dao.list()] == [persisted_view(dao_cls, got)]
+
+
+@pytest.mark.parametrize("name", ("top_users", "outpost"))
+def test_unset_fk_stays_absent(name, gen, msgs, tmp_path):
+    from harpia_runtime.db import dao as rt
+    cls, dao_cls = msgs[name], dao_class(name)
+    conn = _fresh_db(gen, tmp_path / "db.sqlite")
+    m = _populated(cls, 5)
+    for col in dao_cls.COLUMNS:
+        if col.fk:
+            rt._owner(m, col.path, True).ClearField(col.path[-1])
+            child_table = rt.dao_class(col.fk).TABLE
+    assert dao_cls(conn).create(m)
+    assert conn.execute('SELECT COUNT(*) FROM "{}"'.format(child_table)).fetchone()[0] == 0
+    got = cls()
+    assert dao_cls(conn).read(5, got)
+    for col in dao_cls.COLUMNS:
+        if col.fk:
+            assert not rt._has_child(got, col), col.name
+
+
+@pytest.mark.skipif(not HAVE_SOCI, reason="needs g++ + SOCI sqlite3 + protobuf")
+@pytest.mark.parametrize("name", EMBED_FK)
+def test_embed_fk_cross_language(name, gen, msgs, tmp_path):
+    names = ("journey", "top_users", "vip_users", "outpost", "crew")
+    cls, dao_cls = msgs[name], dao_class(name)
+    m = _populated(cls, 21)
+    # C++ writes, Python reads == C++ reads
+    db1 = tmp_path / "c.sqlite"
+    _fresh_db(gen, db1).close()
+    P.cpp_dao(gen, names, "write", name, db1, m.SerializeToString().hex())
+    py = cls()
+    assert dao_cls(sqlite3.connect(str(db1))).read(21, py)
+    cpp = cls.FromString(P.cpp_dao(gen, names, "read", name, db1, "21"))
+    assert _same(dao_cls, py, cpp)
+    # Python writes, C++ reads == Python reads
+    db2 = tmp_path / "p.sqlite"
+    conn = _fresh_db(gen, db2)
+    dao_cls(conn).create(m)
+    py2 = cls()
+    dao_cls(conn).read(21, py2)
+    assert _same(dao_cls, cls.FromString(P.cpp_dao(gen, names, "read", name, db2, "21")), py2)
+
+
+def _same(dao_cls, a, b):
+    """Equal as far as the Python DAO persists (child tables: task 2c)."""
+    return persisted_view(dao_cls, a) == persisted_view(dao_cls, b)
