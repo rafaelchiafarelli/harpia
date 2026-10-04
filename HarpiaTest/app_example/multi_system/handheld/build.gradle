@@ -1,0 +1,14 @@
+// Shared: where the generated project is, and the runtime versions it pins
+// (kept in lockstep with GradleAdapter/templates/project.gradle.tmpl).
+ext {
+    def gen = project.findProperty('harpiaGenDir')
+    if (gen == null) {
+        throw new GradleException(
+            "Set -PharpiaGenDir=<path to a project generated from multi_system.harpia " +
+            "with HARPIA_GEN_LANG=java> (containing java/build/libs/*.jar).")
+    }
+    harpiaJar = fileTree(dir: "${gen}/java/build/libs", include: ['*.jar'])
+    protobufVersion = '3.25.3'
+    grpcVersion = '1.62.2'
+    jeromqVersion = '0.6.0'
+}
