@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Boots a headless Android emulator (hardware-accelerated via /dev/kvm) inside
-# the harpia toolchain container and runs HarpiaTest/app_example/android_consumer's three
+# the harpia toolchain container and runs HarpiaTest/app_example/android_consumer's
 # `connectedAndroidTest`s (J.25 message classes, J.26 gRPC client, J.27 ZMQ
-# client) against it. The emulator + system image are baked into the image
+# client, and HardenedLinksAndroidTest -- real mTLS/session gRPC + CURVE/ZAP ZMQ
+# calls to hardened C++ servers started in the same container) against it. The emulator + system image are baked into the image
 # (Dockerfile) at build time; this script only wires in the one thing that
 # can't be baked in -- hardware virtualization access (/dev/kvm + the kvm
 # group) -- at `docker run` time.
@@ -10,7 +11,10 @@
 # Requires: /dev/kvm on the host (KVM/nested-virt enabled), and the invoking
 # user able to access it (see the --group-add below).
 #
-#   Docker/run_android_emulator_tests.sh
+#   Docker/run_android_emulator_tests.sh                # android_consumer's suite
+#   Docker/run_android_emulator_tests.sh multi_system   # the multi-system reference:
+#       the real handheld app against station + edge in this container
+#       (UnitTests/test_multi_system_example.py's emulator entry)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -47,4 +51,4 @@ docker run --rm -i \
     -e ANDROID_AVD_HOME=/tmp/.android/avd \
     -e JAVA_OPTS="-Duser.home=/tmp" \
     "$HARPIA_IMAGE" \
-    bash /harpia/Docker/_android_emulator_test_entrypoint.sh
+    bash /harpia/Docker/_android_emulator_test_entrypoint.sh "$@"

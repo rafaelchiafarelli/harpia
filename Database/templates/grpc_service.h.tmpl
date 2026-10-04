@@ -9,6 +9,7 @@
 #include <soci/soci.h>
 #include "protofiles/{name}_{hash}_service.grpc.pb.h"
 #include "db/{name}_{hash}_crudl.h"
+#include "db/harpia_db_pool.h"
 {auth_extra_includes}
 // gRPC service implementation for {name}, backed by the CRUDL DAO -- the RPCs of
 // the generated {name}_Service are wired to create/read/list over SQLite:
@@ -17,7 +18,13 @@
 //   streamSrc()    -> dao.list() streamed back    -> stream {name}_Message
 //                     (paginated via the request's offset/limit when limit>0)
 //   heartBeat(hb)  -> echo                         (no CRUDL, unauthenticated)
-// Construct with a soci::session the caller owns; register with a grpc::ServerBuilder,
+// Construct with a soci::session the caller owns (every RPC shares it: fine for
+// one client at a time, NOT thread-safe under concurrent calls), or with a
+// ::soci::connection_pool (db-concurrency task 1a): each RPC then borrows its
+// own session through harpia::db::PooledSession -- borrow deadline
+// (RESOURCE_EXHAUSTED "db pool exhausted"), one borrow per RPC, reconnect on
+// borrow (UNAVAILABLE "db reconnect failed"), rollback on an exceptional exit,
+// always given back; see db/harpia_db_pool.h. Register with a grpc::ServerBuilder,
 // or let the generated grpc/grpc_server_bringup.h do it -- its
 // harpia::grpc_transport::GrpcServer registers every service and picks mTLS vs
 // insecure transport credentials from transport_hardening_required(compliance)
@@ -53,14 +60,19 @@ namespace grpc_svc {{
 class {name}_service final
     : public ::frameworkProtos::{name}_Service::Service {{
 public:
-    explicit {name}_service(::soci::session& db) : db_(db) {{}}
+    explicit {name}_service(::soci::session& db) : db_(&db) {{}}
+    explicit {name}_service(::soci::connection_pool& pool,
+                            int lease_timeout_ms = ::harpia::db::kDefaultLeaseTimeoutMs)
+        : pool_(&pool), lease_timeout_ms_(lease_timeout_ms) {{}}
 
 {auth_helper}
     ::grpc::Status push(::grpc::ServerContext* context,
                         const ::frameworkProtos::{name}_Message* request,
                         ::frameworkProtos::errorCode* response) override {{
         {auth_guard_create}
-        ::harpia::db::{name}_dao dao(db_);
+        ::harpia::db::PooledSession lease(db_, pool_, lease_timeout_ms_);
+        if (!lease.ok()) return pool_status(lease);
+        ::harpia::db::{name}_dao dao(lease.session());
         const bool ok = dao.create(request->msg());
         response->set_code(ok ? 0 : 1);
         response->set_message(ok ? "ok" : "create failed");
@@ -71,7 +83,9 @@ public:
                             const ::frameworkProtos::{name}_ID* request,
                             ::frameworkProtos::{name}_Message* response) override {{
         {auth_guard_read}
-        ::harpia::db::{name}_dao dao(db_);
+        ::harpia::db::PooledSession lease(db_, pool_, lease_timeout_ms_);
+        if (!lease.ok()) return pool_status(lease);
+        ::harpia::db::{name}_dao dao(lease.session());
         if (!dao.read(request->id(), response->mutable_msg())) {{
             return ::grpc::Status(::grpc::StatusCode::NOT_FOUND, "not found");
         }}
@@ -83,16 +97,22 @@ public:
             const ::frameworkProtos::{name}_Stream* request,
             ::grpc::ServerWriter< ::frameworkProtos::{name}_Message>* writer) override {{
         {auth_guard_stream}
-        ::harpia::db::{name}_dao dao(db_);
         std::vector< ::{name}> rows;
-        // limit <= 0 (proto3 default / not set) means unbounded, matching
-        // pre-pagination behavior.
-        const bool paginated = request->limit() > 0;
-        const bool ok = paginated
-            ? dao.list(&rows, request->offset(), request->limit())
-            : dao.list(&rows);
-        if (!ok) {{
-            return ::grpc::Status(::grpc::StatusCode::INTERNAL, "list failed");
+        {{
+            // The session goes back before streaming, so a slow reader never
+            // pins a pool slot.
+            ::harpia::db::PooledSession lease(db_, pool_, lease_timeout_ms_);
+            if (!lease.ok()) return pool_status(lease);
+            ::harpia::db::{name}_dao dao(lease.session());
+            // limit <= 0 (proto3 default / not set) means unbounded, matching
+            // pre-pagination behavior.
+            const bool paginated = request->limit() > 0;
+            const bool ok = paginated
+                ? dao.list(&rows, request->offset(), request->limit())
+                : dao.list(&rows);
+            if (!ok) {{
+                return ::grpc::Status(::grpc::StatusCode::INTERNAL, "list failed");
+            }}
         }}
         for (const auto& r : rows) {{
             ::frameworkProtos::{name}_Message m;
@@ -110,7 +130,15 @@ public:
     }}
 
 private:
-    ::soci::session& db_;
+    static ::grpc::Status pool_status(const ::harpia::db::PooledSession& lease) {{
+        return lease.outcome() == ::harpia::db::PooledSession::Outcome::exhausted
+            ? ::grpc::Status(::grpc::StatusCode::RESOURCE_EXHAUSTED, "db pool exhausted")
+            : ::grpc::Status(::grpc::StatusCode::UNAVAILABLE, "db reconnect failed");
+    }}
+
+    ::soci::session* db_ = nullptr;
+    ::soci::connection_pool* pool_ = nullptr;
+    int lease_timeout_ms_ = ::harpia::db::kDefaultLeaseTimeoutMs;
 }};
 
 }}  // namespace grpc_svc

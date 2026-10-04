@@ -1,0 +1,28 @@
+// Reference system schema. Three programs are generated from this one file.
+// station (C++, Windows) owns the database, edge (C++, Linux) has none,
+// handheld (Java, Android) has none.
+
+// edge creates a reading on station over gRPC, station stores it,
+// handheld lists readings from station over gRPC.
+message reading {
+    string device_id;
+    int64 taken_at_ms;
+    float value;
+    string unit;
+} reading_table;
+
+// handheld creates field notes on station over gRPC,
+// edge lists them from station over gRPC.
+message field_note {
+    string author;
+    string text;
+    int64 written_at_ms;
+} field_note_table;
+
+// edge publishes one live sample per reading on a ZMQ PUB socket (CURVE),
+// handheld subscribes. Not stored anywhere.
+event[not-cached] message live_sample {
+    string device_id;
+    int64 seq;
+    float value;
+};

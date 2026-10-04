@@ -1,0 +1,19 @@
+// Plain Java, no Android API: runs on the JVM (cli/, the load harness) and on
+// Android (app/) unchanged. The gRPC transport is supplied by the host module
+// (grpc-netty-shaded on the JVM, grpc-okhttp on Android).
+plugins {
+    id 'java-library'
+}
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+dependencies {
+    api rootProject.ext.harpiaJar
+    api "com.google.protobuf:protobuf-java:${rootProject.ext.protobufVersion}"
+    api "io.grpc:grpc-api:${rootProject.ext.grpcVersion}"
+    api "io.grpc:grpc-stub:${rootProject.ext.grpcVersion}"
+    api "io.grpc:grpc-protobuf:${rootProject.ext.grpcVersion}"
+    api "org.zeromq:jeromq:${rootProject.ext.jeromqVersion}"
+    compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
+}

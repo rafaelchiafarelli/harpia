@@ -74,7 +74,9 @@ design vision, not current status):
   carries a JDK 17 + Gradle 8.5 toolchain so its JDK-gated tests run
   against a real JVM). Android consumption (message classes, gRPC client,
   ZMQ client) is verified on-device — `Docker/run_android_emulator_tests.sh`
-  boots a `/dev/kvm`-accelerated emulator, 4/4 instrumented tests pass;
+  boots a `/dev/kvm`-accelerated emulator, 6/6 instrumented tests pass, including
+  real hardened calls from the device to C++ servers (mTLS + session gRPC,
+  CURVE + ZAP ZMQ);
   this found and fixed one real ART-incompatibility bug
   (`java.lang.ProcessHandle`, a JDK9+ API absent from Android), see
   `HarpiaTest/app_example/android_consumer/README.md`. Node/Rust/Python remain spec-only,
