@@ -24,3 +24,9 @@ DELIVERY_RUNTIME_SRC = os.path.join(
 #: The delivery header pulls in the audit-sink header at the same relative
 #: path, so both must land in the same directory when copied into output.
 DELIVERY_RUNTIME_DEPS = ((AUDIT_SINK_RUNTIME, AUDIT_SINK_RUNTIME_SRC),)
+
+# python-target / py-zmq task 3: the Python port, copied into a generated
+# Python project at PY_DELIVERY_MODULE (with the Python audit sink).
+PY_DELIVERY_MODULE = "harpia_runtime.delivery"
+PY_DELIVERY_RUNTIME_SRC = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "runtime", "python", "delivery.py")
