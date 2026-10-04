@@ -155,6 +155,20 @@ py-crypto-phi task 4; until then only tests copy them.
   owns `material` and wipes it when collected, so `p.unwrap_dek(w).material`
   is already empty once the temporary `Dek` is gone — hold the `Dek`, or copy
   with `bytes(dek.material)`.
+- `runtime/python/key_provider_local.py` → `harpia_runtime.crypto.key_provider_local`
+  (task 2): `LocalKeyProvider(cfg, audit_sink=None)`, frozen
+  `LocalKeyProviderConfig(storage_path, phi_at_scale=False, acknowledged=False)`,
+  `LocalKeyProviderRefused` (raised before the store is touched),
+  `local_key_provider_acknowledged()` / `ACK_ENV`. **Same store format as
+  C++** (`<version> <lowercase hex>` per KEK, ascending, truncate-rewrite;
+  `<path>.shred` append-only `<version> <hex wrapped DEK>`), so one store is
+  shared across languages — proven both ways (wrap/unwrap/shred) against the
+  C++ `LocalKeyProvider`. Loading an existing store records no KEK
+  generation (as C++).
+- `runtime/python/key_provider_kms.py` → `harpia_runtime.crypto.key_provider_kms`
+  (task 2): `KmsClient` ABC (`active_version`/`wrap`/`unwrap`/`rotate` over
+  bytes + int version), `KmsKeyProvider(kms, audit_sink=None)` (routes,
+  per-DEK shred is a local set), `MockKms` (+ `forget_version`).
 
 ## Key facts / gotchas
 - **Selection order in `get_backend()`:** explicit `name` (e.g.
