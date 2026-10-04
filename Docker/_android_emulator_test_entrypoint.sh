@@ -3,13 +3,35 @@
 # run_android_emulator_tests.sh, not meant to be run directly on the host):
 # creates an AVD from the image's baked-in emulator + system image, boots it
 # headless with KVM acceleration, generates+builds the Java-target project,
-# and runs HarpiaTest/app_example/android_consumer's three connectedAndroidTest cases
-# against the running emulator.
+# and runs HarpiaTest/app_example/android_consumer's connectedAndroidTest suite
+# against the running emulator. HardenedLinksAndroidTest (multi-system-reference
+# / java-hardened-client task 4) also needs real hardened C++ servers: they are
+# built and started here, in the background while the emulator boots, by
+# UnitTests/run_android_hardened_servers.py -- the emulator reaches this
+# container's loopback as 10.0.2.2.
 set -euo pipefail
+
+# Suite: "android_consumer" (default) or "multi_system" -- the reference
+# system's real handheld app against station + edge (UnitTests/
+# test_multi_system_example.py's emulator entry, which builds and starts
+# everything it needs itself once the emulator is up).
+SUITE=${1:-android_consumer}
 
 AVD_NAME=harpia_test_avd
 SYSTEM_IMAGE="system-images;android-34;default;x86_64"
 GEN_DIR=/tmp/gen
+SERVERS_WORK=/tmp/hardened_work
+SERVERS_ASSETS=/tmp/hardened_assets
+SERVERS_LOG=/tmp/hardened_servers.log
+
+SERVERS_PID=""
+if [ "$SUITE" = "android_consumer" ]; then
+    echo "== Building + starting hardened C++ servers (background) =="
+    rm -rf "$SERVERS_WORK" "$SERVERS_ASSETS"
+    python3 UnitTests/run_android_hardened_servers.py "$SERVERS_WORK" "$SERVERS_ASSETS" \
+        >"$SERVERS_LOG" 2>&1 &
+    SERVERS_PID=$!
+fi
 
 echo "== Creating AVD $AVD_NAME =="
 # -d picks a device profile so avdmanager doesn't prompt interactively for
@@ -27,6 +49,10 @@ EMULATOR_PID=$!
 
 cleanup() {
     kill "$EMULATOR_PID" 2>/dev/null || true
+    if [ -n "$SERVERS_PID" ]; then
+        kill -TERM "$SERVERS_PID" 2>/dev/null || true
+        wait "$SERVERS_PID" 2>/dev/null || true
+    fi
 }
 trap cleanup EXIT
 
@@ -69,6 +95,15 @@ done
 adb shell input keyevent 82 || true
 echo "== Emulator booted after ${elapsed}s =="
 
+if [ "$SUITE" = "multi_system" ]; then
+    echo "== Multi-system reference: handheld app vs station + edge =="
+    HARPIA_MS_EMULATOR=1 python3 -m pytest UnitTests/test_multi_system_example.py \
+        -k test_android_app_on_emulator -rs -p no:cacheprovider | tee /tmp/ms_emulator.log
+    # the entry must have RUN, not skipped
+    grep -q "1 passed" /tmp/ms_emulator.log
+    exit 0
+fi
+
 echo "== Generating Java-target project =="
 rm -rf "$GEN_DIR"
 HARPIA_GEN_LANG=java HARPIA_OUTPUT_DIR="$GEN_DIR" python3 main.py
@@ -76,5 +111,32 @@ HARPIA_GEN_LANG=java HARPIA_OUTPUT_DIR="$GEN_DIR" python3 main.py
 echo "== Building generated project jar =="
 (cd "$GEN_DIR/java" && gradle --no-daemon build)
 
+echo "== Waiting for hardened servers =="
+waited=0
+until [ -f "$SERVERS_WORK/READY" ]; do
+    if ! kill -0 "$SERVERS_PID" 2>/dev/null || [ "$waited" -ge 900 ]; then
+        echo "hardened servers did not come up" >&2
+        cat "$SERVERS_LOG" >&2 || true
+        exit 1
+    fi
+    sleep 5
+    waited=$((waited + 5))
+done
+grep SERVERS_READY "$SERVERS_LOG"
+
 echo "== Running connectedAndroidTest =="
-(cd HarpiaTest/app_example/android_consumer && gradle --no-daemon connectedAndroidTest -PharpiaGenDir="$GEN_DIR")
+RESULTS=HarpiaTest/app_example/android_consumer/app/build/outputs/androidTest-results/connected
+rm -rf "$RESULTS"
+(cd HarpiaTest/app_example/android_consumer && gradle --no-daemon connectedAndroidTest \
+    -PharpiaGenDir="$GEN_DIR" -PharpiaHardenedDir="$SERVERS_ASSETS")
+
+echo "== Checking HardenedLinksAndroidTest actually ran (not skipped) =="
+python3 - "$RESULTS" <<'PY'
+import glob, sys, xml.etree.ElementTree as ET
+cases = [c for f in glob.glob(sys.argv[1] + "/**/*.xml", recursive=True)
+         for c in ET.parse(f).getroot().iter("testcase")
+         if c.get("classname", "").endswith("HardenedLinksAndroidTest")]
+ran = [c.get("name") for c in cases if c.find("skipped") is None]
+print("HardenedLinksAndroidTest ran:", ran)
+sys.exit(0 if len(ran) == 2 and len(cases) == 2 else 1)
+PY

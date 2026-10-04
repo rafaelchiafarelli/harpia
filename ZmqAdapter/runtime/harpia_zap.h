@@ -12,8 +12,11 @@
 //
 // The allowlist is deployment configuration, not schema: it is read once at
 // startup from the file named by the HARPIA_ZMQ_ALLOWLIST env var, one
-// `<z85-client-public-key> <identity>` per line (`#` comments, blank lines
-// ignored). `identity` is informational -- it correlates a key to the RBAC
+// `<z85-client-public-key> <identity>` per line (blank lines ignored). `#` is a
+// Z85 digit, so it only starts a comment at the beginning of a token: a line
+// whose first token starts with `#` is a comment (unless that token is a
+// 40-char Z85 key), and an identity token starting with `#` begins a trailing
+// comment. A `#` inside a key is part of the key (fixes/000005). `identity` is informational -- it correlates a key to the RBAC
 // principal for the audit trail; ZAP authorizes on the key. There is no
 // compiled-in key list, the same reasoning that keeps the CURVE secret keys
 // themselves out of the build.
@@ -63,16 +66,24 @@ public:
         std::ifstream in(path);
         std::string line;
         while (std::getline(in, line)) {
-            const auto hash = line.find('#');
-            if (hash != std::string::npos) line.erase(hash);
             std::istringstream ls(line);
             std::string key, identity;
-            if (ls >> key) {
-                a.keys_.insert(key);
-                if (ls >> identity) a.identity_[key] = identity;
-            }
+            if (!(ls >> key)) continue;                           // blank line
+            if (key[0] == '#' && !is_z85_key(key)) continue;      // comment line
+            a.keys_.insert(key);
+            if ((ls >> identity) && identity[0] != '#') a.identity_[key] = identity;
         }
         return a;
+    }
+
+    // A CURVE public key in Z85: exactly 40 characters of the Z85 alphabet
+    // (ZeroMQ RFC 32), which includes '#'.
+    static bool is_z85_key(const std::string& token) {
+        static const std::string alphabet =
+            "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            ".-:+=^!/*?&<>()[]{}@%$#";
+        return token.size() == 40 &&
+               token.find_first_not_of(alphabet) == std::string::npos;
     }
 
     static AllowList from_env() {

@@ -33,6 +33,17 @@ if (harpiaGenDir == null) {
 }
 def harpiaJavaDir = file("${harpiaGenDir}/java")
 
+// Optional (multi-system-reference / java-hardened-client task 4): a folder
+// written by UnitTests/run_android_hardened_servers.py -- the mTLS PEMs, CURVE
+// keys and server ports HardenedLinksAndroidTest needs to reach real hardened
+// C++ servers. Added as androidTest assets so nothing is copied into this
+// source tree. Without it, HardenedLinksAndroidTest skips (Assume) and the
+// other tests run unchanged.
+def harpiaHardenedDir = project.findProperty('harpiaHardenedDir')
+if (harpiaHardenedDir != null) {
+    android.sourceSets.androidTest.assets.srcDirs += harpiaHardenedDir
+}
+
 dependencies {
     // The harpia-generated project's own assembled jar: message classes
     // (J.2), gRPC stubs (J.3), and every Java-target adapter's generated/

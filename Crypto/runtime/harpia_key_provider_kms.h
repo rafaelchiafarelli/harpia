@@ -34,6 +34,7 @@
 
 #include <cstdint>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <string>
@@ -70,6 +71,9 @@ public:
 };
 
 // A KeyProvider backed by an external KMS/HSM (via the KmsClient seam).
+// Thread-safe for its own state (the shred set, db-concurrency task 1b); the
+// KmsClient it routes to must be thread-safe too -- generated servers call
+// it from many threads (MockKms below is).
 class KmsKeyProvider : public KeyProvider {
 public:
     explicit KmsKeyProvider(
@@ -94,7 +98,12 @@ public:
 
     std::optional<Dek> unwrap_dek(const WrappedDek& w) override {
         const std::string subject = "kek:" + std::to_string(w.kek_version);
-        if (shredded_.count(shred_key(w))) {                     // O.3
+        bool shredded;
+        {
+            std::lock_guard<std::mutex> lock(mu_);
+            shredded = shredded_.count(shred_key(w)) != 0;
+        }
+        if (shredded) {                                          // O.3
             audit_.record(kOpUnwrap, subject, "shredded");
             return std::nullopt;
         }
@@ -114,7 +123,10 @@ public:
     }
 
     void shred_dek(const WrappedDek& w) override {
-        shredded_.insert(shred_key(w));
+        {
+            std::lock_guard<std::mutex> lock(mu_);
+            shredded_.insert(shred_key(w));
+        }
         audit_.record(kOpShred, "kek:" + std::to_string(w.kek_version));
     }
 
@@ -123,12 +135,13 @@ private:
 
     KmsClient&             kms_;
     compliance::AuditSink& audit_;
+    std::mutex             mu_;      // 1b: guards shredded_
     std::set<std::string>  shredded_;
 };
 
 // Reference KmsClient for tests / local development -- an in-process
 // stand-in for a real KMS. In-memory key versions, placeholder XOR wrap
-// (NOT crypto). NOT for production.
+// (NOT crypto). NOT for production. Thread-safe (db-concurrency task 1b).
 class MockKms : public KmsClient {
 public:
     MockKms() { keys_[active_] = detail::random_bytes(kKeyLen); }
@@ -137,21 +150,27 @@ public:
         for (auto& kv : keys_) detail::secure_zero(kv.second);
     }
 
-    std::uint64_t active_version() const override { return active_; }
+    std::uint64_t active_version() const override {
+        std::lock_guard<std::mutex> lock(mu_);
+        return active_;
+    }
 
     std::string wrap(std::uint64_t version,
                      const std::string& dek_material) override {
+        std::lock_guard<std::mutex> lock(mu_);
         return Dek::xor_with(dek_material, keys_.at(version));
     }
 
     std::optional<std::string> unwrap(std::uint64_t version,
                                       const std::string& wrapped) override {
+        std::lock_guard<std::mutex> lock(mu_);
         auto it = keys_.find(version);
         if (it == keys_.end()) return std::nullopt;
         return Dek::xor_with(wrapped, it->second);
     }
 
     std::uint64_t rotate() override {
+        std::lock_guard<std::mutex> lock(mu_);
         ++active_;
         keys_[active_] = detail::random_bytes(kKeyLen);
         return active_;
@@ -159,6 +178,7 @@ public:
 
     // Stand-in for "the KMS deleted this key version".
     void forget_version(std::uint64_t version) {
+        std::lock_guard<std::mutex> lock(mu_);
         auto it = keys_.find(version);
         if (it == keys_.end()) return;
         detail::secure_zero(it->second);
@@ -168,6 +188,7 @@ public:
 private:
     static constexpr std::string::size_type kKeyLen = 32;
 
+    mutable std::mutex mu_;
     std::map<std::uint64_t, std::string> keys_;
     std::uint64_t active_ = 1;
 };

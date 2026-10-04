@@ -89,7 +89,8 @@ def test_bringup_registers_every_service(grpc_dir):
     assert services, "no per-message service headers collected"
     for name in services:
         assert '#include "grpc/{}_{}_grpc.h"'.format(name, HASH) in bringup
-        assert "add< ::harpia::grpc_svc::{}_service>(db, builder);".format(name) in bringup
+        assert ("add< ::harpia::grpc_svc::{}_service>(builder, db, pool, lease_timeout_ms);"
+                .format(name)) in bringup
 
 
 def test_selection_records_the_f5_choice(grpc_dir):

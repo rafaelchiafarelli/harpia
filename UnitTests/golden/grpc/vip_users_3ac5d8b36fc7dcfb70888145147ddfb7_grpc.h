@@ -9,6 +9,7 @@
 #include <soci/soci.h>
 #include "protofiles/vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_service.grpc.pb.h"
 #include "db/vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_crudl.h"
+#include "db/harpia_db_pool.h"
 #include <grpcpp/security/auth_context.h>
 #include "grpc/harpia_rbac.h"
 #include "grpc/harpia_session.h"
@@ -19,7 +20,13 @@
 //   streamSrc()    -> dao.list() streamed back    -> stream vip_users_Message
 //                     (paginated via the request's offset/limit when limit>0)
 //   heartBeat(hb)  -> echo                         (no CRUDL, unauthenticated)
-// Construct with a soci::session the caller owns; register with a grpc::ServerBuilder,
+// Construct with a soci::session the caller owns (every RPC shares it: fine for
+// one client at a time, NOT thread-safe under concurrent calls), or with a
+// ::soci::connection_pool (db-concurrency task 1a): each RPC then borrows its
+// own session through harpia::db::PooledSession -- borrow deadline
+// (RESOURCE_EXHAUSTED "db pool exhausted"), one borrow per RPC, reconnect on
+// borrow (UNAVAILABLE "db reconnect failed"), rollback on an exceptional exit,
+// always given back; see db/harpia_db_pool.h. Register with a grpc::ServerBuilder,
 // or let the generated grpc/grpc_server_bringup.h do it -- its
 // harpia::grpc_transport::GrpcServer registers every service and picks mTLS vs
 // insecure transport credentials from transport_hardening_required(compliance)
@@ -55,7 +62,10 @@ namespace grpc_svc {
 class vip_users_service final
     : public ::frameworkProtos::vip_users_Service::Service {
 public:
-    explicit vip_users_service(::soci::session& db) : db_(db) {}
+    explicit vip_users_service(::soci::session& db) : db_(&db) {}
+    explicit vip_users_service(::soci::connection_pool& pool,
+                            int lease_timeout_ms = ::harpia::db::kDefaultLeaseTimeoutMs)
+        : pool_(&pool), lease_timeout_ms_(lease_timeout_ms) {}
 
     // x509 subject CommonName of the verified mTLS client certificate, or "".
     static ::std::string peer_cn(::grpc::ServerContext* ctx) {
@@ -117,7 +127,9 @@ public:
             !rbac_s.ok()) {
             return rbac_s;
         }
-        ::harpia::db::vip_users_dao dao(db_);
+        ::harpia::db::PooledSession lease(db_, pool_, lease_timeout_ms_);
+        if (!lease.ok()) return pool_status(lease);
+        ::harpia::db::vip_users_dao dao(lease.session());
         const bool ok = dao.create(request->msg());
         response->set_code(ok ? 0 : 1);
         response->set_message(ok ? "ok" : "create failed");
@@ -131,7 +143,9 @@ public:
             !rbac_s.ok()) {
             return rbac_s;
         }
-        ::harpia::db::vip_users_dao dao(db_);
+        ::harpia::db::PooledSession lease(db_, pool_, lease_timeout_ms_);
+        if (!lease.ok()) return pool_status(lease);
+        ::harpia::db::vip_users_dao dao(lease.session());
         if (!dao.read(request->id(), response->mutable_msg())) {
             return ::grpc::Status(::grpc::StatusCode::NOT_FOUND, "not found");
         }
@@ -146,16 +160,22 @@ public:
             !rbac_s.ok()) {
             return rbac_s;
         }
-        ::harpia::db::vip_users_dao dao(db_);
         std::vector< ::vip_users> rows;
-        // limit <= 0 (proto3 default / not set) means unbounded, matching
-        // pre-pagination behavior.
-        const bool paginated = request->limit() > 0;
-        const bool ok = paginated
-            ? dao.list(&rows, request->offset(), request->limit())
-            : dao.list(&rows);
-        if (!ok) {
-            return ::grpc::Status(::grpc::StatusCode::INTERNAL, "list failed");
+        {
+            // The session goes back before streaming, so a slow reader never
+            // pins a pool slot.
+            ::harpia::db::PooledSession lease(db_, pool_, lease_timeout_ms_);
+            if (!lease.ok()) return pool_status(lease);
+            ::harpia::db::vip_users_dao dao(lease.session());
+            // limit <= 0 (proto3 default / not set) means unbounded, matching
+            // pre-pagination behavior.
+            const bool paginated = request->limit() > 0;
+            const bool ok = paginated
+                ? dao.list(&rows, request->offset(), request->limit())
+                : dao.list(&rows);
+            if (!ok) {
+                return ::grpc::Status(::grpc::StatusCode::INTERNAL, "list failed");
+            }
         }
         for (const auto& r : rows) {
             ::frameworkProtos::vip_users_Message m;
@@ -193,7 +213,15 @@ public:
     }
 
 private:
-    ::soci::session& db_;
+    static ::grpc::Status pool_status(const ::harpia::db::PooledSession& lease) {
+        return lease.outcome() == ::harpia::db::PooledSession::Outcome::exhausted
+            ? ::grpc::Status(::grpc::StatusCode::RESOURCE_EXHAUSTED, "db pool exhausted")
+            : ::grpc::Status(::grpc::StatusCode::UNAVAILABLE, "db reconnect failed");
+    }
+
+    ::soci::session* db_ = nullptr;
+    ::soci::connection_pool* pool_ = nullptr;
+    int lease_timeout_ms_ = ::harpia::db::kDefaultLeaseTimeoutMs;
 };
 
 }  // namespace grpc_svc

@@ -1,0 +1,6 @@
+{"t":1000.0,"client_kind":"edge","identity":"edge-a","op":"session","ok":true,"grpc_code":"OK","latency_us":5000}
+{"t":1000.5,"client_kind":"edge","identity":"edge-a","op":"create","ok":true,"grpc_code":"OK","latency_us":100}
+{"t":1001.0,"client_kind":"edge","identity":"edge-a","op":"create","ok":true,"grpc_code":"OK","latency_us":300}
+{"t":1002.0,"client_kind":"edge","identity":"edge-a","op":"list","ok":true,"grpc_code":"OK","latency_us":200}
+{"t":1012.0,"client_kind":"edge","identity":"edge-a","op":"create","ok":false,"grpc_code":"UNAVAILABLE","latency_us":10000}
+{"t":1015.0,"client_kind":"edge","identity":"edge-a","op":"read","ok":true,"grpc_code":"OK","latency_us":50}

@@ -124,6 +124,11 @@ _g = pytest.mark.skipif(
     reason="needs g++ + libzmq + cppzmq")
 
 
+# Valid 40-char Z85 keys (alphabet per ZeroMQ RFC 32) that contain '#'.
+_HASH_MID = "Q@y=YDoWB@SGMNLJ:xW<55Af#.>pC6^JAe{(tWQM"
+_HASH_LEAD = "#W58lo}%k4d]r}s/I(>l$h[lVaR%.giq]sALR}x1"
+
+
 @_g
 def test_allowlist_parsing_and_exact_match(tmp_path):
     listing = tmp_path / "allow.txt"
@@ -132,7 +137,13 @@ def test_allowlist_parsing_and_exact_match(tmp_path):
         "\n"
         "keyAAA identity-a\n"
         "keyBBB\n"                       # no identity column
-        "   keyCCC   identity-c   # trailing comment\n",
+        "   keyCCC   identity-c   # trailing comment\n"
+        "#not-a-key but a comment line\n"
+        # fixes/000005: '#' is a Z85 digit. A real 40-char key containing it
+        # (mid-key, or as its first char) is a key, not a comment.
+        "{mid} with-hash\n"
+        "{lead}\n"
+        "keyEEE # a trailing comment, not an identity\n".format(mid=_HASH_MID, lead=_HASH_LEAD),
         encoding="utf-8")
     src = tmp_path / "al.cpp"
     src.write_text(r'''
@@ -149,6 +160,10 @@ int main() {
     if (a.identity("keyAAA") != "identity-a") return 4;
     if (a.identity("keyCCC") != "identity-c") return 5;               // whitespace/comment trimmed
     if (!a.identity("keyBBB").empty()) return 6;                      // no identity column
+    if (!a.contains("%s") || a.identity("%s") != "with-hash") return 9;   // '#' mid-key
+    if (!a.contains("%s")) return 10;                                   // '#' first char
+    if (a.contains("#not-a-key")) return 11;                            // comment line
+    if (!a.contains("keyEEE") || !a.identity("keyEEE").empty()) return 12;
     // a missing file -> empty list -> deny-all
     setenv("HARPIA_ZMQ_ALLOWLIST", "%s/does-not-exist", 1);
     if (!AllowList::from_env().empty()) return 7;
@@ -157,7 +172,7 @@ int main() {
     if (!AllowList::from_env().empty()) return 8;
     return 0;
 }
-''' % (str(listing), str(tmp_path)), encoding="utf-8")
+''' % (str(listing), _HASH_MID, _HASH_MID, _HASH_LEAD, str(tmp_path)), encoding="utf-8")
     binp = tmp_path / "al"
     c = subprocess.run(
         ["g++", "-std=c++17", "-Wall", "-Wextra", "-Werror",
@@ -238,10 +253,15 @@ int main(int argc, char** argv) {
     const std::string dir  = argc > 2 ? argv[2] : ".";
     std::string spub, ssec, cpub, csec;
     if (!keypair(&spub, &ssec) || !keypair(&cpub, &csec)) return 10;
+    // allow_hash: a client key containing '#', a Z85 digit the allowlist
+    // parser used to treat as a comment start (fixes/000005)
+    for (int i = 0; mode == "allow_hash" && cpub.find('#') == std::string::npos; ++i) {
+        if (i > 2000 || !keypair(&cpub, &csec)) return 12;
+    }
     // write the allowlist BEFORE the first ensure_running() reads it
     const std::string al = dir + "/zap_allow_" + mode + ".txt";
     { std::ofstream o(al);
-      if (mode == "allow") o << cpub << " tester\n";
+      if (mode != "deny") o << cpub << " tester\n";
       else o << "rZ8dOtNormalKeyHere000000000000000000000 other\n"; }
     setenv("HARPIA_ZMQ_ALLOWLIST", al.c_str(), 1);
 
@@ -259,7 +279,7 @@ int main(int argc, char** argv) {
     if (!snd.send(out)) return 1;
     ::users in;
     const bool got = rcv.recv(&in);
-    if (mode == "allow")  return (got && in.name() == "neo") ? 0 : 2;
+    if (mode != "deny")   return (got && in.name() == "neo") ? 0 : 2;
     else                  return got ? 3 : 0;
 }
 ''')
@@ -267,20 +287,13 @@ int main(int argc, char** argv) {
         return subprocess.run([binary, mode, hardened_zmq["tmp"]],
                               capture_output=True, text=True, timeout=40)
 
-    # The "allow" path drives a full CURVE + ZAP handshake and one PUSH message;
-    # libzmq 4.3.5 intermittently drops that first datagram before the freshly
-    # authorized pipe is up (~1 in 3), independent of any settle delay --
-    # reproduces with a plain hand-written binary, not a pytest artefact. The
-    # property under test is "an allowlisted key CAN get through" (and, below,
-    # "an unknown key CANNOT"), not "no datagram is ever lost", so re-spawn the
-    # round trip a few times. The "deny" case asserts a *timeout*, which is
-    # deterministic -- it runs once.
-    for _ in range(6):
-        r = _run("allow")
-        if r.returncode == 0:
-            break
-    assert r.returncode == 0, "allow case never passed in 6 tries (rc={})".format(
-        r.returncode)
+    # No retry: this test used to re-spawn the "allow" round trip up to 6 times,
+    # blaming a ~1-in-3 libzmq first-datagram drop. The real cause was
+    # fixes/000005 -- random client keys contain '#' about 37% of the time, and
+    # the allowlist parser truncated them at it. allow_hash pins that case.
+    for mode in ("allow", "allow_hash"):
+        r = _run(mode)
+        assert r.returncode == 0, "{} case failed (rc={})".format(mode, r.returncode)
 
     r = _run("deny")
     assert r.returncode == 0, "deny case failed (rc={})".format(r.returncode)
