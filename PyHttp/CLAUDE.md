@@ -23,15 +23,41 @@ bring-up). A stage of `LangBackend/python.py`'s `run_python`, after
   connection per request (503 `db pool exhausted` / `db reconnect failed`).
   `Gate = Callable[[Request, op], Response | None]`; `flat_gate(user, pswd)`.
 
+- `runtime/soap.py` → `harpia_runtime.soap` (task 3, port of
+  `harpia_soap.h`): `local_name` / `find_child` / `child_text` /
+  `parse_envelope` / `find_operation` / `message_from_request` +
+  `envelope()` / `fault()`. **No namespace processing** (expat without a
+  namespace separator, building an `ElementTree`): names stay
+  `prefix:local` and an undeclared prefix parses, exactly as tinyxml2.
+  **Decision (task 3):** no `defusedxml`; any `<!DOCTYPE` / `<!ENTITY>` is
+  refused before parsing (SOAP forbids DTDs) and expat's doctype/entity
+  handlers refuse as a second line — so no entity expansion; size is
+  bounded by the router's `MAX_BODY`. Never raises.
+- `runtime/soap_endpoint.py` → `.http.soap_endpoint`: `register_soap(router,
+  pool, base, name, dao_class, message_type, early_gate=None,
+  op_gate=None)` — the C++ order (parse → early gate → operation → op gate
+  → pool → dispatch) and answers (400 / 401 `Client.Authentication` Fault /
+  503 Fault / 200 for everything else incl. "not found" and "unknown
+  operation"); `flat_soap_gate(user, pswd)`; `xml_reply`.
+
 ## Generated (under `harpia_generated/`)
 - `rest/<name>_<hash>_rest.py` per table-bearing message (= the C++
   `rest/*_rest.h` set): `DEFAULT_LIMIT` (`pagination_default`), `GATE`,
   `register(router, pool, base="")`.
+- `soap/<name>_<hash>_soap.py` per table-bearing message: `WSDL` (the
+  existing `wsdl/<name>_<hash>.wsdl`, not regenerated), `EARLY_GATE`,
+  `register(router, pool, base="/soap")`.
 - `http/http_server_bringup.py`: `HttpServer(pool, host="127.0.0.1",
-  port=0, rest_base="", soap_base="/soap")` registering every REST module
-  on one `Router` (`REST_MESSAGES`), `port` / `start` / `stop`.
+  port=0, rest_base="", soap_base="/soap")` registering every REST and SOAP
+  module on one `Router` (`REST_MESSAGES`), `port` / `start` / `stop`.
 
 ## Key facts / gotchas
+- **SOAP parity is byte-for-byte:** one ordered request sequence against
+  the C++ (Crow) endpoint and the Python one gives identical statuses and
+  envelopes (`test_same_envelopes_as_cpp`); only Crow's default body for a
+  bodyless error (`400 Bad Request\r\n`) differs — Python sends empty.
+- SOAP `update`/`delete` answer `<ok>true</ok>` unless the DB errors (as
+  C++); a `get` whose read raises is "not found".
 - **As C++:** PUT / DELETE answer 204 even when no row matched (the C++
   DAO's update/remove return true either way); PUT ignores the path id
   (the body's key is used); reconnect failure is 503 like exhaustion.
@@ -45,4 +71,4 @@ bring-up). A stage of `LangBackend/python.py`'s `run_python`, after
 ## Touchpoints
 - Depends on: `Database.model.pagination_default`, the generated DAOs,
   `harpia_runtime.db.pool`, the JSON/XML runtimes.
-- Tested by: `UnitTests/test_py_rest.py`.
+- Tested by: `UnitTests/test_py_rest.py`, `test_py_soap.py`.

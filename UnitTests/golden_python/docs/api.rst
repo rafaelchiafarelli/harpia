@@ -451,6 +451,96 @@ harpia_generated.serialize.phi_registry
 .. automodule:: harpia_generated.serialize.phi_registry
    :members:
 
+harpia_generated.soap
+---------------------
+
+.. automodule:: harpia_generated.soap
+   :members:
+
+harpia_generated.soap.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+-----------------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+----------------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.crew_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+----------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.crew_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.data_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+----------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.data_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.journey_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.journey_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.outpost_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.outpost_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+--------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+--------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+--------------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.users_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+-----------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.users_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.vault_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+-----------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.vault_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
+harpia_generated.soap.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.soap.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_soap
+   :members:
+
 harpia_generated.zmq
 --------------------
 
@@ -631,6 +721,12 @@ harpia_runtime.http.router
 .. automodule:: harpia_runtime.http.router
    :members:
 
+harpia_runtime.http.soap_endpoint
+---------------------------------
+
+.. automodule:: harpia_runtime.http.soap_endpoint
+   :members:
+
 harpia_runtime.json
 -------------------
 
@@ -659,6 +755,12 @@ harpia_runtime.serialize
 ------------------------
 
 .. automodule:: harpia_runtime.serialize
+   :members:
+
+harpia_runtime.soap
+-------------------
+
+.. automodule:: harpia_runtime.soap
    :members:
 
 harpia_runtime.xml
