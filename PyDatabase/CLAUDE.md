@@ -67,7 +67,7 @@ table)` and its one-argument form (requesting project = `PROJECT_NAME`).
 Another project loads it by path to check access; nothing enforces it in
 the DAOs (C++ doesn't either).
 
-## Migrations (task 5a; child tables are 5b)
+## Migrations (tasks 5a + 5b)
 `harpia_generated/migrate/<name>_<hash>_migrate.py` (`templates/migrate.py.tmpl`):
 `migrate_<name>(conn, data_transform=None)` + `VERSION` + a `MigrationSpec`
 whose every statement comes from the `DbBackend` — including the new
@@ -79,8 +79,16 @@ byte-identical). `runtime/migrate.py` (`harpia_runtime.db.migrate`) runs the
 C++ step order: version table → child renames → ensure tables → column
 renames → ADD → `data_transform` → DROP → RETYPE → child reap + evolve →
 stamp. One transaction (explicit `BEGIN` on `sqlite3`, whose DDL is otherwise
-outside its implicit transactions); errors raise. Until 5b the child steps
-are inert (`child_current=None`, no child plans, no child renames).
+outside its implicit transactions); errors raise. Task 5b fills the child
+steps from `MigrationAdapter._render`'s own sets: `child_renames` for
+direct (non-embed-nested) repeated-scalar / map / repeated-composed fields
+carrying `renamed_from` (embed-nested `renamed_from` isn't plumbed in C++
+either), `child_current = child_table_names(...)` (so the reap runs in
+every migrate module, `()` for a message with no child tables), and one
+plan per repeated-scalar (no FK link table), map and repeated-composed
+child table, with the backend's `int_type` as the owner type, as C++.
+`child_current=None` (reap off) is still accepted by the engine but no
+longer generated.
 
 ## PostgreSQL (task 3)
 `HARPIA_DB_BACKEND=postgresql` makes the generated DAOs run unchanged on a

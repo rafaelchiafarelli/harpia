@@ -154,3 +154,53 @@ def test_migrate_on_postgres(msgs, fresh_db):
     assert _dao("beacon_log")(conn).read(1, got)
     assert got.label == "north" and got.strength == 42
     assert conn.execute('SELECT "version" FROM "_harpia_schema_version"').fetchall() == [(HASH,)]
+
+
+def test_migrate_child_tables_on_postgres(msgs, fresh_db):
+    """task 5b on PostgreSQL: child-table renames keep their rows, an orphan
+    child table is reaped, the map key/value and the repeated-composed shape
+    are evolved (ALTER COLUMN .. TYPE / ADD / DROP), idempotent."""
+    conn = fresh_db
+    t = "telemetry_table"
+    for sql in [
+        'CREATE TABLE "{t}" ("{pk}" INTEGER PRIMARY KEY, "label" TEXT)',
+        "INSERT INTO \"{t}\" VALUES (1, 'dev')",
+        'CREATE TABLE "{t}__old_notes" ("owner" INTEGER, "ordinal" INTEGER, '
+        '"value" TEXT, PRIMARY KEY("owner", "ordinal"))',
+        "INSERT INTO \"{t}__old_notes\" VALUES (1, 0, 'alpha'), (1, 1, 'beta')",
+        'CREATE TABLE "{t}__old_flags" ("owner" INTEGER, "key" INTEGER, '
+        '"value" TEXT, PRIMARY KEY("owner", "key"))',
+        "INSERT INTO \"{t}__old_flags\" VALUES (1, -3, 'neg'), (1, 4, 'four')",
+        'CREATE TABLE "{t}__gauges" ("owner" INTEGER, "key" INTEGER, '
+        '"value" TEXT, PRIMARY KEY("owner", "key"))',
+        "INSERT INTO \"{t}__gauges\" VALUES (1, 7, '42')",
+        'CREATE TABLE "{t}__traces" ("owner" INTEGER, "ordinal" INTEGER, '
+        '"kind" INTEGER, "note" TEXT, PRIMARY KEY("owner", "ordinal"))',
+        "INSERT INTO \"{t}__traces\" VALUES (1, 0, 5, 'legacy')",
+        'CREATE TABLE "{t}__gone" ("owner" INTEGER)',
+    ]:
+        conn.execute(sql.format(t=t, pk=PK))
+    conn.commit()
+    mig = importlib.import_module("harpia_generated.migrate.telemetry_{}_migrate".format(HASH))
+    assert mig.migrate_telemetry(conn)
+    assert mig.migrate_telemetry(conn)
+    tables = {r[0] for r in conn.execute(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = current_schema()").fetchall()}
+    assert {t + "__" + c for c in ("gauges", "flags", "samples", "notes", "traces")} <= tables
+    assert not {n for n in tables if "__old_" in n or n.endswith("__gone")}
+
+    def types(table):
+        return dict(conn.execute(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            "WHERE table_name = %s", [table]).fetchall())
+
+    assert (types(t + "__gauges")["key"], types(t + "__gauges")["value"]) == ("text", "integer")
+    traces = types(t + "__traces")
+    assert traces["kind"] == "text" and "weight" in traces and "note" not in traces
+    got = msgs["telemetry"]()
+    assert _dao("telemetry")(conn).read(1, got)
+    assert list(got.notes) == ["alpha", "beta"]
+    assert dict(got.flags) == {-3: "neg", 4: "four"}
+    assert dict(got.gauges) == {"7": 42}
+    assert [tr.kind for tr in got.traces] == ["5"]

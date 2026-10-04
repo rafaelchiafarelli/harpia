@@ -60,7 +60,8 @@ class MigrationSpec:
     #: ``ALTER .. DROP COLUMN`` with ``<<NAME>>`` for the column
     drop_column_sql: str
     retype: Plan
-    #: every child table the schema declares; ``None`` skips the reap
+    #: every child table the schema declares (``()`` reaps them all);
+    #: ``None`` skips the reap
     child_current: tuple[str, ...] | None
     #: ``DROP TABLE`` with ``<<NAME>>`` for the table
     drop_table_sql: str
