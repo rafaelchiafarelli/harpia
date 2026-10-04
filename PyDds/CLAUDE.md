@@ -21,13 +21,19 @@ re-derived.
   topic defaults to the message name, like C++). `publish(msg) -> bool`
   writes `Frame(NAME, msg.SerializeToString())`; `receive(timeout=0.0)`
   takes ONE sample (WaitSet + ReadCondition for the wait), `None` on
-  nothing / unparsable payload (consumed, as C++). `writer_qos()` /
-  `reader_qos()` classmethods are the QoS hook (`None` = Cyclone defaults
-  in task 1).
+  nothing / unparsable payload (consumed, as C++). `matched_subscribers()` /
+  `matched_publishers()` (a matched-status `Listener`, as the C++ methods).
+  **QoS (task 2):** `writer_qos()` / `reader_qos()` (reader = writer) from
+  the class's `CRITICAL`: `critical_qos(QUEUE_DEPTH)` = `Reliable(10 s)` +
+  `KeepAll` + `ResourceLimits(max_samples=128, -1, -1)`, else `latest_qos()`
+  = `BestEffort` + `KeepLast(1)`; `Durability` left `Volatile` (C++'s open
+  question).
 
 ## Generated
 - `harpia_generated/dds/<name>_<hash>_dds.py` per `dds` message:
-  `<name>_publisher(Publisher[<name>])`, `<name>_subscriber(Subscriber[<name>])`.
+  `<name>_publisher(Publisher[<name>])`, `<name>_subscriber(Subscriber[<name>])`;
+  a `critical` message's classes set `CRITICAL = True` + `QUEUE_DEPTH =
+  DdsAdapter.QUEUE_DEPTH` (imported, not re-declared).
 
 ## Key facts / gotchas
 - **Type matching with ddscxx is proven, not assumed** (task 1's "decision
@@ -36,9 +42,11 @@ re-derived.
   (`test_py_dds.py`).
 - Cyclone python returns `sequence<octet>` as `list[int]`; `bytes(...)`
   before `ParseFromString`.
-- No `matched_*()` counts (the Python API exposes publication/subscription
-  matched status only through listeners); tests publish until the first
-  sample arrives (discovery), then the sequence.
+- Matched counts come from listeners (cyclonedds-python has no direct
+  matched-status getter); its `Listener` ctor is untyped (one scoped
+  `type: ignore[no-untyped-call]`).
+- A Python writer of an appendable type writes XCDR2 (`DataRepresentation`
+  default); ddscxx reads it -- interop is tested, both profiles.
 - Tests use a fresh topic name per test: domain 0 is shared by every
   process on the host.
 
