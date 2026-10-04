@@ -34,6 +34,15 @@ modules at generation time (like C++, not at build time like Java).
   Doxygen excerpt of USAGE.md §5/§7/§16) instead of embedding it: Sphinx
   needs `myst-parser` for Markdown, which the image doesn't carry.
 
+## `runtime_copy.py` — on-demand runtime modules (py-foundation task 4)
+`copy_runtime_module(dest, src, dotted_module)` copies one hand-written
+runtime file to `<dest>/python/<dotted/path>.py` (write-if-different) and
+creates any missing parent package `__init__.py`. The Python counterpart of
+the C++ adapters' `copy_if_different(<X>_RUNTIME_SRC, ...)`: the adapter
+whose feature needs a runtime copies it, keyed by that runtime's
+`*_common.py` constants (e.g. `Compliance.audit_common.PY_AUDIT_SINK_*`).
+Runtimes that every project needs live in `PyAdapter/runtime/` instead.
+
 ## Quality gate (every Python epic keeps it green)
 From `<dest>/python/`: `mypy` (config `[tool.mypy]`, `strict = true`,
 `files = harpia_runtime, harpia_generated`), `ruff check .` (`E,F,W,I,B,UP`,
