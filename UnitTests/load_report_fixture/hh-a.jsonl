@@ -1,0 +1,9 @@
+{"t":1000.2,"client_kind":"handheld","identity":"hh-a","op":"session","ok":true,"grpc_code":"OK","latency_us":6000}
+{"t":1001.5,"client_kind":"handheld","identity":"hh-a","op":"sub_recv","seq_gap":0}
+{"t":1002.0,"client_kind":"handheld","identity":"hh-a","op":"sub_recv","seq_gap":0}
+{"t":1002.5,"client_kind":"handheld","identity":"hh-a","op":"create","ok":true,"grpc_code":"OK","latency_us":400}
+{"t":1005.0,"client_kind":"handheld","identity":"hh-a","op":"read","ok":true,"grpc_code":"OK","latency_us":80}
+{"t":1011.0,"client_kind":"handheld","identity":"hh-a","op":"sub_recv","seq_gap":3}
+{"t":1020.0,"client_kind":"handheld","identity":"hh-a","op":"sub_recv","seq_gap":1}
+{"t":1021.0,"client_kind":"handheld","identity":"hh-a","op":"list","ok":false,"grpc_code":"DEADLINE_EXCEEDED","latency_us":10000000}
+{"t":1022.0,"client_kind":"handheld"
