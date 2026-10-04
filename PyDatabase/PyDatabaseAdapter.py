@@ -10,7 +10,8 @@ import os
 from Compliance.context import DEFAULT_PROJECT
 from Database.DbRegistryAdapter import DbRegistryAdapter
 from Database.backends import get_backend
-from Database.model import (RepeatedComposedField, analyze, create_table_sql, map_fields,
+from Database.model import (RepeatedComposedField, RepeatedField, analyze,
+                            child_table_names, create_table_sql, map_fields,
                             repeated_fields, type_registry)
 from Logger.logger import logger
 from PyAdapter.runtime_copy import copy_runtime_module
@@ -125,19 +126,42 @@ class PyDatabaseAdapter:
             **{k: repr(v) for k, v in sql.items()})
 
     def _render_migration(self, msg):
-        """Port of MigrationAdapter's main-table steps (task 5a). Child-table
-        steps (rename / reap / evolve) are task 5b: until then the reap is
-        off (``child_current=None``) and no child plan runs."""
+        """Port of ``MigrationAdapter._render``: main-table steps (task 5a)
+        and child-table rename / reap / evolve (task 5b). Same child sets as
+        C++: repeated-scalar (no FK link table), map and repeated-composed
+        fields; renames only for direct (non-embed-nested) fields, whose
+        ``renamed_from`` C++ doesn't plumb either; the owner column type is
+        the backend's ``int_type``, as in C++."""
         b, table = self.backend, msg.tableName
         columns, _ = analyze(msg, self.types, b)
         name = "<<NAME>>"
+        reps = repeated_fields(msg, self.types, b)
+        rep_scalars = [r for r in reps
+                       if isinstance(r, RepeatedField) and not r.fk_target]
+        rep_composed = [r for r in reps if isinstance(r, RepeatedComposedField)]
+        maps = map_fields(msg, self.types, b)
+        renamable = [ch for ch in rep_scalars + maps + rep_composed
+                     if ch.renamed_from and not ch.embed]
+        child_renames = tuple(
+            ("{}__{}".format(table, ch.renamed_from), ch.child_table,
+             b.rename_table("{}__{}".format(table, ch.renamed_from), ch.child_table))
+            for ch in renamable)
+        child_plans = tuple(
+            [b.rep_child_plan(r.child_table, b.int_type, r.val_sql)
+             for r in rep_scalars]
+            + [b.map_child_plan(m.child_table, b.int_type, m.key_sql, m.val_sql)
+               for m in maps]
+            + [b.composed_child_plan(r.child_table, b.int_type,
+                                     [(c.name, c.sql_type, c.sql_def())
+                                      for c in r.columns])
+               for r in rep_composed])
         return _MIGRATE_TEMPLATE.format(
             name=msg.name, hash=msg.md5Hash, table=table, dialect=b.name,
             hash_lit=repr(msg.md5Hash), table_lit=repr(table),
             pad=" " * (len("def migrate_{}(".format(msg.name))),
             version_table_sql=repr(b.version_table()),
             list_child_tables_sql=repr(b.list_tables_sql(table)),
-            child_renames="()",
+            child_renames=repr(child_renames),
             list_columns_sql=repr(b.list_columns_sql(table)),
             renames=repr(tuple((c.renamed_from, c.name,
                                 b.rename_column(table, c.renamed_from, c.name))
@@ -148,9 +172,9 @@ class PyDatabaseAdapter:
             drop_column_sql=repr(b.drop_column_sql(table, name)),
             retype=repr(b.retype_plan(table, [(c.name, c.sql_type, c.sql_def())
                                               for c in columns])),
-            child_current="None",
+            child_current=repr(tuple(child_table_names(msg, self.types, b))),
             drop_table_sql=repr(b.drop_table(name, if_exists=False)),
-            child_plans="()",
+            child_plans=repr(child_plans),
             stamp_sql=repr(b.stamp_version(table, msg.md5Hash)))
 
     def _render_registry(self):
