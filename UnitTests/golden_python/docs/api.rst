@@ -241,6 +241,102 @@ harpia_generated.events.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_events
 .. automodule:: harpia_generated.events.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_events
    :members:
 
+harpia_generated.grpc
+---------------------
+
+.. automodule:: harpia_generated.grpc
+   :members:
+
+harpia_generated.grpc.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+-----------------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+----------------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.crew_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+----------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.crew_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.data_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+----------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.data_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.grpc_server_bringup
+-----------------------------------------
+
+.. automodule:: harpia_generated.grpc.grpc_server_bringup
+   :members:
+
+harpia_generated.grpc.journey_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.journey_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.outpost_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.outpost_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+--------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+--------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+--------------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.users_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+-----------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.users_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.vault_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+-----------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.vault_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
+harpia_generated.grpc.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.grpc.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
 harpia_generated.http
 ---------------------
 
@@ -701,6 +797,12 @@ harpia_runtime.events
 ---------------------
 
 .. automodule:: harpia_runtime.events
+   :members:
+
+harpia_runtime.grpc_service
+---------------------------
+
+.. automodule:: harpia_runtime.grpc_service
    :members:
 
 harpia_runtime.http

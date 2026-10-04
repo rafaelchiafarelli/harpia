@@ -52,6 +52,11 @@ class PythonBackend(CppBackend):
         ctx.report(PyHttpAdapter(messages=messages, dest=dest,
                                  compliance=compliance).Process())
 
+        # gRPC servicers + the server bring-up
+        from PyGrpc.PyGrpcAdapter import PyGrpcAdapter
+        ctx.report(PyGrpcAdapter(messages=messages, dest=dest,
+                                 compliance=compliance).Process())
+
         # (later epics add their stages here, above the docs)
 
         # Sphinx skeleton -- LAST: it documents every module already on disk
