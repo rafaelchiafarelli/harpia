@@ -112,6 +112,22 @@ numeric type, so on PostgreSQL the `enc:v1:` text is rejected
 (`patient_vitals.heart_rate` → `double precision`) — C++ and Python alike;
 the PG round-trip test marks that case strict-xfail.
 
+## Event OnChange (py-events task 2)
+A table-bearing `event` message's DAO imports its
+`harpia_generated.events.<name>_<hash>_events.<name>_channel` and overrides
+`_on_change(msg)` to publish the written row (and, phi+event, record
+`("phi_event_onchange", table, phi cols)` right after through the DAO's
+`audit_sink`). `Dao._create` / `_update` call `_on_change` (so an FK child
+written through its parent fires too, as C++'s child `create()` does);
+nothing calls it from read / list / remove. An update of a missing row
+still publishes (C++ publishes after any update).
+**Decision (py-events task 2):** the publish is deferred with
+`Dao._after_commit` to the commit of the outermost DAO transaction in the
+current context (`contextvars`, shared by parent and child DAOs; dbio
+imports included) and dropped on rollback — C++ autocommits per statement
+and publishes inline, so its event never precedes an uncommitted write;
+this keeps that property under Python's one-transaction-per-call.
+
 ## Bulk import/export (task 6, `templates/dbio.py.tmpl`)
 `harpia_generated/dbio/<name>_<hash>_dbio.py` per table-bearing message (the
 port of `DbIoAdapter`'s `dbio/<name>_<hash>_dbio.h`): `export_json(dao) ->

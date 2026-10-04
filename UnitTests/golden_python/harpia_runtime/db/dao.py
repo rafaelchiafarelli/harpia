@@ -32,8 +32,9 @@ Every call is one transaction, children included: committed on success,
 rolled back on error.
 """
 import builtins
+import contextvars
 import importlib
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, ClassVar, Generic, Protocol, TypeVar, cast
@@ -168,6 +169,12 @@ def set_column(msg: Message, col: Column, value: Any) -> None:
     extract_value(value, _owner(msg, col.path, True), col.path[-1])
 
 
+#: actions deferred to the commit of the outermost DAO transaction running in
+#: this context (shared by a parent DAO and the child DAOs it drives)
+_AFTER_COMMIT: contextvars.ContextVar[builtins.list[Callable[[], None]] | None] = (
+    contextvars.ContextVar("harpia_after_commit", default=None))
+
+
 class Dao(Generic[M]):
     """Base class of every generated DAO (see the module docstring)."""
 
@@ -204,9 +211,25 @@ class Dao(Generic[M]):
         """Called once per CRUDL operation (``create`` / ``read`` /
         ``update`` / ``remove`` / ``list``), at the point C++ audits it."""
 
+    def _on_change(self, msg: M) -> None:
+        """Called after each row write (``create`` / ``update``, also as an
+        FK child); an ``event`` message's DAO publishes from here."""
+
+    @staticmethod
+    def _after_commit(action: Callable[[], None]) -> None:
+        """Run ``action`` once the outermost transaction commits (dropped if
+        it rolls back); immediately when no transaction is open."""
+        pending = _AFTER_COMMIT.get()
+        if pending is None:
+            action()
+        else:
+            pending.append(action)
+
     # -- plumbing -------------------------------------------------------------
     @contextmanager
     def _tx(self) -> Iterator[Any]:
+        outer = _AFTER_COMMIT.get() is None
+        token = _AFTER_COMMIT.set([]) if outer else None
         cur = self.conn.cursor()
         try:
             yield cur
@@ -215,6 +238,12 @@ class Dao(Generic[M]):
             raise
         else:
             self.conn.commit()
+            if outer:
+                for action in _AFTER_COMMIT.get() or []:
+                    action()
+        finally:
+            if token is not None:
+                _AFTER_COMMIT.reset(token)
 
     def _new(self) -> M:
         return cast(M, self.MESSAGE())
@@ -305,6 +334,7 @@ class Dao(Generic[M]):
             for child in self.CHILDREN:
                 self._write_child(cur, child, owner, msg, update=False)
         self._audit("create")
+        self._on_change(msg)
 
     def _read_into(self, cur: Any, pk: Any, out: M) -> bool:
         cur.execute(self.SELECT_SQL, [pk])
@@ -328,6 +358,7 @@ class Dao(Generic[M]):
             for child in self.CHILDREN:
                 self._write_child(cur, child, owner, msg, update=True)
         self._audit("update")  # whether or not a row matched, as C++
+        self._on_change(msg)  # likewise: C++ publishes after any update
         return found
 
     # -- DDL ------------------------------------------------------------------

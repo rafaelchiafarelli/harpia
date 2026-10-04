@@ -6,7 +6,7 @@ DDL is the one the C++ target declares for this message.
 
 Deferred (not persisted by this DAO yet): {deferred}
 """
-from harpia_generated.protofiles.{name}_{hash}_pb2 import (
+{event_import}from harpia_generated.protofiles.{name}_{hash}_pb2 import (
     {name},
 )
 from harpia_runtime.db.dao import {runtime_imports}{phi_import}
@@ -31,4 +31,4 @@ class {name}_dao({base}[{name}]):
     UPDATE_SQL = {update_sql}
     DELETE_SQL = {delete_sql}
     LIST_SQL = {list_sql}
-    LIST_PAGE_SQL = {list_page_sql}
+    LIST_PAGE_SQL = {list_page_sql}{event_hook}
