@@ -18,6 +18,8 @@ from Util.util import loadTemplate, write_if_different
 
 _DAO_TEMPLATE = loadTemplate(__file__, "dao.py.tmpl")
 _REGISTRY_TEMPLATE = loadTemplate(__file__, "registry.py.tmpl")
+_MIGRATE_TEMPLATE = loadTemplate(__file__, "migrate.py.tmpl")
+MIGRATE_EXT = "_migrate.py"
 REGISTRY_FILE = "registry.py"
 DAO_EXT = "_dao.py"
 
@@ -27,6 +29,7 @@ _RUNTIME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runtime
 RUNTIMES = (
     ("bind.py", "harpia_runtime.db.bind"),
     ("dao.py", "harpia_runtime.db.dao"),
+    ("migrate.py", "harpia_runtime.db.migrate"),
 )
 
 
@@ -46,6 +49,10 @@ class PyDatabaseAdapter:
         os.makedirs(self.outDir, exist_ok=True)
         write_if_different(os.path.join(self.outDir, "__init__.py"),
                            '"""Generated CRUDL data-access objects, one module per table."""\n')
+        migrateDir = os.path.join(self.dest, "python", "harpia_generated", "migrate")
+        os.makedirs(migrateDir, exist_ok=True)
+        write_if_different(os.path.join(migrateDir, "__init__.py"),
+                           '"""Generated schema migrations, one module per table."""\n')
         written = 0
         for msg in self.messages:
             if getattr(msg, "isEnum", False) or not msg.tableName:
@@ -55,6 +62,9 @@ class PyDatabaseAdapter:
                 continue
             write_if_different(os.path.join(
                 self.outDir, "{}_{}{}".format(msg.name, msg.md5Hash, DAO_EXT)), text)
+            write_if_different(os.path.join(
+                migrateDir, "{}_{}{}".format(msg.name, msg.md5Hash, MIGRATE_EXT)),
+                self._render_migration(msg))
             written += 1
         write_if_different(os.path.join(self.outDir, REGISTRY_FILE), self._render_registry())
         self.log.print("copied {} DB runtime module(s); generated {} DAO(s) into {}".format(
@@ -113,6 +123,35 @@ class PyDatabaseAdapter:
             create_sql="".join("\n        {!r},".format(s) for s in create),
             drop_sql="".join("\n        {!r},".format(s) for s in drop),
             **{k: repr(v) for k, v in sql.items()})
+
+    def _render_migration(self, msg):
+        """Port of MigrationAdapter's main-table steps (task 5a). Child-table
+        steps (rename / reap / evolve) are task 5b: until then the reap is
+        off (``child_current=None``) and no child plan runs."""
+        b, table = self.backend, msg.tableName
+        columns, _ = analyze(msg, self.types, b)
+        name = "<<NAME>>"
+        return _MIGRATE_TEMPLATE.format(
+            name=msg.name, hash=msg.md5Hash, table=table, dialect=b.name,
+            hash_lit=repr(msg.md5Hash), table_lit=repr(table),
+            pad=" " * (len("def migrate_{}(".format(msg.name))),
+            version_table_sql=repr(b.version_table()),
+            list_child_tables_sql=repr(b.list_tables_sql(table)),
+            child_renames="()",
+            list_columns_sql=repr(b.list_columns_sql(table)),
+            renames=repr(tuple((c.renamed_from, c.name,
+                                b.rename_column(table, c.renamed_from, c.name))
+                               for c in columns if getattr(c, "renamed_from", None))),
+            adds=repr(tuple((c.name, b.add_column(table, c.name, c.sql_type))
+                            for c in columns if not c.pk)),
+            current_columns=repr(tuple(c.name for c in columns)),
+            drop_column_sql=repr(b.drop_column_sql(table, name)),
+            retype=repr(b.retype_plan(table, [(c.name, c.sql_type, c.sql_def())
+                                              for c in columns])),
+            child_current="None",
+            drop_table_sql=repr(b.drop_table(name, if_exists=False)),
+            child_plans="()",
+            stamp_sql=repr(b.stamp_version(table, msg.md5Hash)))
 
     def _render_registry(self):
         """The Python port of DbRegistryAdapter's header: the same entries

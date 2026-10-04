@@ -103,6 +103,96 @@ harpia_generated.db.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_dao
 .. automodule:: harpia_generated.db.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_dao
    :members:
 
+harpia_generated.migrate
+------------------------
+
+.. automodule:: harpia_generated.migrate
+   :members:
+
+harpia_generated.migrate.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+-----------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+----------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.crew_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+----------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.crew_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.data_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+----------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.data_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.journey_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+-------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.journey_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.outpost_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+-------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.outpost_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+--------------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+--------------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+--------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+---------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+---------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.users_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+-----------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.users_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.vault_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+-----------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.vault_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
+harpia_generated.migrate.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+---------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.migrate.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_migrate
+   :members:
+
 harpia_generated.protofiles
 ---------------------------
 
@@ -155,6 +245,12 @@ harpia_runtime.db.dao
 ---------------------
 
 .. automodule:: harpia_runtime.db.dao
+   :members:
+
+harpia_runtime.db.migrate
+-------------------------
+
+.. automodule:: harpia_runtime.db.migrate
    :members:
 
 harpia_runtime.json
