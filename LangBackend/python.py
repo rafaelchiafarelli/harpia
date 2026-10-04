@@ -57,6 +57,11 @@ class PythonBackend(CppBackend):
         ctx.report(PyGrpcAdapter(messages=messages, dest=dest,
                                  compliance=compliance).Process())
 
+        # DDS publish/subscribe for `dds` messages (harpia_dds::Frame topic)
+        from PyDds.PyDdsAdapter import PyDdsAdapter
+        ctx.report(PyDdsAdapter(messages=messages, dest=dest, compliance=compliance,
+                                crypto_backend=ctx.crypto_backend).Process())
+
         # (later epics add their stages here, above the docs)
 
         # Sphinx skeleton -- LAST: it documents every module already on disk

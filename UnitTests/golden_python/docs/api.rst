@@ -193,6 +193,24 @@ harpia_generated.dbio.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
 .. automodule:: harpia_generated.dbio.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
    :members:
 
+harpia_generated.dds
+--------------------
+
+.. automodule:: harpia_generated.dds
+   :members:
+
+harpia_generated.dds.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_dds
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.dds.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_dds
+   :members:
+
+harpia_generated.dds.vitals_publication_3ac5d8b36fc7dcfb70888145147ddfb7_dds
+----------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.dds.vitals_publication_3ac5d8b36fc7dcfb70888145147ddfb7_dds
+   :members:
+
 harpia_generated.events
 -----------------------
 
@@ -785,6 +803,36 @@ harpia_runtime.db.pool
 ----------------------
 
 .. automodule:: harpia_runtime.db.pool
+   :members:
+
+harpia_runtime.dds
+------------------
+
+.. automodule:: harpia_runtime.dds
+   :members:
+
+harpia_runtime.dds.audit
+------------------------
+
+.. automodule:: harpia_runtime.dds.audit
+   :members:
+
+harpia_runtime.dds.frame
+------------------------
+
+.. automodule:: harpia_runtime.dds.frame
+   :members:
+
+harpia_runtime.dds.security
+---------------------------
+
+.. automodule:: harpia_runtime.dds.security
+   :members:
+
+harpia_runtime.dds.transport
+----------------------------
+
+.. automodule:: harpia_runtime.dds.transport
    :members:
 
 harpia_runtime.delivery
