@@ -37,6 +37,11 @@ class PythonBackend(CppBackend):
                                      backend=ctx.db_backend,
                                      compliance=compliance).Process())
 
+        # in-process event channels for `event` messages
+        from PyEvents.PyEventsAdapter import PyEventsAdapter
+        ctx.report(PyEventsAdapter(messages=messages, dest=dest,
+                                   compliance=compliance).Process())
+
         # (later epics add their stages here, above the docs)
 
         # Sphinx skeleton -- LAST: it documents every module already on disk

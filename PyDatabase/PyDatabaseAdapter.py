@@ -7,6 +7,7 @@ analysis and the same ``DbBackend`` object the C++ and Java targets use.
 """
 import os
 
+from Callback.callback_common import is_event_message
 from Compliance.audit_common import PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC
 from Compliance.context import DEFAULT_PROJECT
 from Crypto.key_provider_common import (PY_ENCRYPTED_COLUMN_MODULE,
@@ -169,6 +170,8 @@ class PyDatabaseAdapter:
                      "    (:class:`~harpia_runtime.db.phi.PhiDao`).\n    " if phi else ""),
             phi_fields=("\n    PHI_FIELDS = {!r}".format(tuple(c.name for c in phi))
                         if phi else ""),
+            event_import=self._event_import(msg),
+            event_hook=self._event_hook(msg, phi),
             create_sql="".join("\n        {!r},".format(s) for s in create),
             drop_sql="".join("\n        {!r},".format(s) for s in drop),
             **{k: repr(v) for k, v in sql.items()})
@@ -290,6 +293,32 @@ class PyDatabaseAdapter:
             var = next(v for v in current.variables if v.name.lower() == step)
             current = self.types[var.type[1]]["msg"] if var.type[0] == "ID" else current
         return current
+
+    @staticmethod
+    def _event_import(msg):
+        if not is_event_message(msg):
+            return ""
+        return ("from harpia_generated.events.{0}_{1}_events import (\n"
+                "    {0}_channel,\n)\n").format(msg.name, msg.md5Hash)
+
+    @staticmethod
+    def _event_hook(msg, phi):
+        """py-events task 2: an ``event`` message's DAO publishes each
+        committed create/update (C++ CrudlAdapter's ``publish(msg)``); a
+        phi+event one also records ``phi_event_onchange`` right after."""
+        if not is_event_message(msg):
+            return ""
+        audit = ""
+        if phi:
+            audit = ('\n            self.audit_sink.record("phi_event_onchange", {!r}, {!r})'
+                     .format(msg.tableName, ",".join(c.name for c in phi)))
+        return ('\n\n    def _on_change(self, msg: {name}) -> None:\n'
+                '        """OnChange: publish the written row to ``{name}_channel()``\n'
+                '        once the transaction commits (never from read / list /\n'
+                '        remove)."""\n\n'
+                '        def fire() -> None:\n'
+                '            {name}_channel().publish(msg){audit}\n\n'
+                '        self._after_commit(fire)').format(name=msg.name, audit=audit)
 
     @staticmethod
     def _runtime_imports(children, phi):

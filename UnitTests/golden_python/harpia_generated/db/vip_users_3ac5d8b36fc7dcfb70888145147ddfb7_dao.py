@@ -6,6 +6,9 @@ DDL is the one the C++ target declares for this message.
 
 Deferred (not persisted by this DAO yet): none
 """
+from harpia_generated.events.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_events import (
+    vip_users_channel,
+)
 from harpia_generated.protofiles.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_pb2 import (
     vip_users,
 )
@@ -40,3 +43,13 @@ class vip_users_dao(Dao[vip_users]):
     DELETE_SQL = 'DELETE FROM "table_vip_users" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
     LIST_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "name", "family", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "table_vip_users" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7"'
     LIST_PAGE_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "name", "family", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "table_vip_users" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7" LIMIT ? OFFSET ?'
+
+    def _on_change(self, msg: vip_users) -> None:
+        """OnChange: publish the written row to ``vip_users_channel()``
+        once the transaction commits (never from read / list /
+        remove)."""
+
+        def fire() -> None:
+            vip_users_channel().publish(msg)
+
+        self._after_commit(fire)

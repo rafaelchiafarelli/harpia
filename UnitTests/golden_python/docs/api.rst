@@ -193,6 +193,54 @@ harpia_generated.dbio.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
 .. automodule:: harpia_generated.dbio.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_dbio
    :members:
 
+harpia_generated.events
+-----------------------
+
+.. automodule:: harpia_generated.events
+   :members:
+
+harpia_generated.events.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_events
+---------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.events.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_events
+   :members:
+
+harpia_generated.events.bed_state_3ac5d8b36fc7dcfb70888145147ddfb7_events
+-------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.events.bed_state_3ac5d8b36fc7dcfb70888145147ddfb7_events
+   :members:
+
+harpia_generated.events.data_3ac5d8b36fc7dcfb70888145147ddfb7_events
+--------------------------------------------------------------------
+
+.. automodule:: harpia_generated.events.data_3ac5d8b36fc7dcfb70888145147ddfb7_events
+   :members:
+
+harpia_generated.events.pump_tick_3ac5d8b36fc7dcfb70888145147ddfb7_events
+-------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.events.pump_tick_3ac5d8b36fc7dcfb70888145147ddfb7_events
+   :members:
+
+harpia_generated.events.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_events
+-------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.events.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_events
+   :members:
+
+harpia_generated.events.users_3ac5d8b36fc7dcfb70888145147ddfb7_events
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.events.users_3ac5d8b36fc7dcfb70888145147ddfb7_events
+   :members:
+
+harpia_generated.events.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_events
+-------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.events.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_events
+   :members:
+
 harpia_generated.migrate
 ------------------------
 
@@ -383,6 +431,12 @@ harpia_runtime.db.phi
 ---------------------
 
 .. automodule:: harpia_runtime.db.phi
+   :members:
+
+harpia_runtime.events
+---------------------
+
+.. automodule:: harpia_runtime.events
    :members:
 
 harpia_runtime.json
