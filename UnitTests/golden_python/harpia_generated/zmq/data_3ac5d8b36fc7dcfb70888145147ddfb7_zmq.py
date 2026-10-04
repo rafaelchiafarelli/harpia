@@ -14,35 +14,58 @@ import zmq
 from harpia_generated.protofiles.data_3ac5d8b36fc7dcfb70888145147ddfb7_pb2 import (
     data,
 )
-from harpia_runtime.zmq import Receiver, Sender
+from harpia_runtime.zmq import (
+    CurveClientKeys,
+    CurveServerKeys,
+    Receiver,
+    Sender,
+)
 
 #: compile-time sender id of this message type (the C++ ``origin_id()``)
 ORIGIN_ID = '154003504452359022'
 
 
 def new_sender(ctx: zmq.Context[Any], endpoint: str,
-               origin: str | None = None) -> Sender[data]:
+               origin: str | None = None,
+               curve: CurveClientKeys | None = None) -> Sender[data]:
     """A PUSH socket that sends ``data`` messages (connects ``endpoint``).
 
     ``origin`` overrides the stamped id (default: ``ORIGIN_ID``, this one-to-* type's compile-time id).
+    ``curve`` enables CURVE encryption (omit for plaintext).
     """
-    return Sender(ctx, endpoint, ORIGIN_ID if origin is None else origin)
+    return Sender(ctx, endpoint, ORIGIN_ID if origin is None else origin,
+                  curve=curve)
 
 
-def new_receiver(ctx: zmq.Context[Any], endpoint: str) -> Receiver[data]:
-    """A PULL socket receiving ``data`` messages (binds ``endpoint``)."""
-    return Receiver(ctx, endpoint, data)
+def new_receiver(ctx: zmq.Context[Any], endpoint: str,
+                 curve: CurveServerKeys | None = None) -> Receiver[data]:
+    """A PULL socket receiving ``data`` messages (binds ``endpoint``).
+
+    ``curve`` enables CURVE encryption (omit for plaintext).
+    Hardened profile: CURVE also enforces the ``HARPIA_ZMQ_ALLOWLIST``
+    client-key allowlist (:mod:`harpia_runtime.zap`).
+    """
+    return Receiver(ctx, endpoint, data, curve=curve, zap=True)
 
 
 def new_publisher(ctx: zmq.Context[Any], endpoint: str,
-                  origin: str | None = None) -> Sender[data]:
-    """A PUB socket that publishs ``data`` messages (binds ``endpoint``).
+                  origin: str | None = None,
+                  curve: CurveServerKeys | None = None) -> Sender[data]:
+    """A PUB socket that publishes ``data`` messages (binds ``endpoint``).
 
     ``origin`` overrides the stamped id (default: ``ORIGIN_ID``, this one-to-* type's compile-time id).
+    ``curve`` enables CURVE encryption (omit for plaintext).
+    Hardened profile: CURVE also enforces the ``HARPIA_ZMQ_ALLOWLIST``
+    client-key allowlist (:mod:`harpia_runtime.zap`).
     """
-    return Sender(ctx, endpoint, ORIGIN_ID if origin is None else origin, pub=True)
+    return Sender(ctx, endpoint, ORIGIN_ID if origin is None else origin,
+                  pub=True, curve=curve, zap=True)
 
 
-def new_subscriber(ctx: zmq.Context[Any], endpoint: str) -> Receiver[data]:
-    """A SUB socket receiving ``data`` messages (connects ``endpoint``)."""
-    return Receiver(ctx, endpoint, data, sub=True)
+def new_subscriber(ctx: zmq.Context[Any], endpoint: str,
+                   curve: CurveClientKeys | None = None) -> Receiver[data]:
+    """A SUB socket receiving ``data`` messages (connects ``endpoint``).
+
+    ``curve`` enables CURVE encryption (omit for plaintext).
+    """
+    return Receiver(ctx, endpoint, data, sub=True, curve=curve)

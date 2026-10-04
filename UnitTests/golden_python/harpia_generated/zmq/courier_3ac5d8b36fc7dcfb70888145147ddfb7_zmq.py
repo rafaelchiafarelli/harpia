@@ -14,21 +14,36 @@ import zmq
 from harpia_generated.protofiles.courier_3ac5d8b36fc7dcfb70888145147ddfb7_pb2 import (
     courier,
 )
-from harpia_runtime.zmq import Receiver, Sender, runtime_origin_id
+from harpia_runtime.zmq import (
+    CurveClientKeys,
+    CurveServerKeys,
+    Receiver,
+    Sender,
+    runtime_origin_id,
+)
 
 #: compile-time sender id of this message type (the C++ ``origin_id()``)
 ORIGIN_ID = '854262962812747985'
 
 
 def new_sender(ctx: zmq.Context[Any], endpoint: str,
-               origin: str | None = None) -> Sender[courier]:
+               origin: str | None = None,
+               curve: CurveClientKeys | None = None) -> Sender[courier]:
     """A PUSH socket that sends ``courier`` messages (connects ``endpoint``).
 
     ``origin`` overrides the stamped id (default: a fresh ``runtime_origin_id()`` per sender, since many senders share this type).
+    ``curve`` enables CURVE encryption (omit for plaintext).
     """
-    return Sender(ctx, endpoint, runtime_origin_id() if origin is None else origin)
+    return Sender(ctx, endpoint, runtime_origin_id() if origin is None else origin,
+                  curve=curve)
 
 
-def new_receiver(ctx: zmq.Context[Any], endpoint: str) -> Receiver[courier]:
-    """A PULL socket receiving ``courier`` messages (binds ``endpoint``)."""
-    return Receiver(ctx, endpoint, courier)
+def new_receiver(ctx: zmq.Context[Any], endpoint: str,
+                 curve: CurveServerKeys | None = None) -> Receiver[courier]:
+    """A PULL socket receiving ``courier`` messages (binds ``endpoint``).
+
+    ``curve`` enables CURVE encryption (omit for plaintext).
+    Hardened profile: CURVE also enforces the ``HARPIA_ZMQ_ALLOWLIST``
+    client-key allowlist (:mod:`harpia_runtime.zap`).
+    """
+    return Receiver(ctx, endpoint, courier, curve=curve, zap=True)

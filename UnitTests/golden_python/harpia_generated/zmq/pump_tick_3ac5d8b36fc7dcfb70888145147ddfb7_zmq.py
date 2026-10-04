@@ -14,21 +14,35 @@ import zmq
 from harpia_generated.protofiles.pump_tick_3ac5d8b36fc7dcfb70888145147ddfb7_pb2 import (
     pump_tick,
 )
-from harpia_runtime.zmq import Receiver, Sender
+from harpia_runtime.zmq import (
+    CurveClientKeys,
+    CurveServerKeys,
+    Receiver,
+    Sender,
+)
 
 #: compile-time sender id of this message type (the C++ ``origin_id()``)
 ORIGIN_ID = '86739202280142613'
 
 
 def new_publisher(ctx: zmq.Context[Any], endpoint: str,
-                  origin: str | None = None) -> Sender[pump_tick]:
-    """A PUB socket that publishs ``pump_tick`` messages (binds ``endpoint``).
+                  origin: str | None = None,
+                  curve: CurveServerKeys | None = None) -> Sender[pump_tick]:
+    """A PUB socket that publishes ``pump_tick`` messages (binds ``endpoint``).
 
     ``origin`` overrides the stamped id (default: ``ORIGIN_ID``, this one-to-* type's compile-time id).
+    ``curve`` enables CURVE encryption (omit for plaintext).
+    Hardened profile: CURVE also enforces the ``HARPIA_ZMQ_ALLOWLIST``
+    client-key allowlist (:mod:`harpia_runtime.zap`).
     """
-    return Sender(ctx, endpoint, ORIGIN_ID if origin is None else origin, pub=True)
+    return Sender(ctx, endpoint, ORIGIN_ID if origin is None else origin,
+                  pub=True, curve=curve, zap=True)
 
 
-def new_subscriber(ctx: zmq.Context[Any], endpoint: str) -> Receiver[pump_tick]:
-    """A SUB socket receiving ``pump_tick`` messages (connects ``endpoint``)."""
-    return Receiver(ctx, endpoint, pump_tick, sub=True)
+def new_subscriber(ctx: zmq.Context[Any], endpoint: str,
+                   curve: CurveClientKeys | None = None) -> Receiver[pump_tick]:
+    """A SUB socket receiving ``pump_tick`` messages (connects ``endpoint``).
+
+    ``curve`` enables CURVE encryption (omit for plaintext).
+    """
+    return Receiver(ctx, endpoint, pump_tick, sub=True, curve=curve)
