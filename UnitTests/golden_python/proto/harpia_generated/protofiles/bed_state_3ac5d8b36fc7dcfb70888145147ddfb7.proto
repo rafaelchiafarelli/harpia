@@ -1,0 +1,12 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+
+message bed_state {
+int32 ID_3ac5d8b36fc7dcfb70888145147ddfb7 = 1;
+int32 bed_id = 2;
+int32 occupied = 3;
+string STATUS_3ac5d8b36fc7dcfb70888145147ddfb7 = 4;
+string ERROR_3ac5d8b36fc7dcfb70888145147ddfb7 = 5;
+string ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7 = 6;
+}

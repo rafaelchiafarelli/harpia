@@ -85,6 +85,13 @@ third added by the sensitive-data roadmap, not Foundation):
   adapter copies the runtime header yet (nothing consumes it -- the db-encryption epic/C
   haven't started); these constants exist so whichever one does first
   doesn't hardcode a path into a sibling module.
+  Also `PY_AUDIT_SINK_MODULE` / `PY_AUDIT_SINK_RUNTIME_SRC` (python-target /
+  py-foundation task 4): `runtime/python/audit_sink.py`, the Python port
+  (`AuditSink` ABC, `NoOpAuditSink`, `default_audit_sink()` singleton; same
+  `record(operation, subject, detail="")` names as the header, Rule 5),
+  copied into a generated project as `harpia_runtime.compliance.audit_sink`
+  via `PyAdapter.runtime_copy.copy_runtime_module` by whichever Python
+  runtime records audit events.
 - `runtime/harpia_audit_sink.h` — F3: `AuditSink` (pure virtual `record()`)
   + `NoOpAuditSink` + `default_audit_sink()`. Hand-written, not generated.
 - `runtime/harpia_rbac.h` — **transport-authn epic, task 4 (rbac).** Hand-written
