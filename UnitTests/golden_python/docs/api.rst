@@ -865,6 +865,12 @@ harpia_runtime.soap
 .. automodule:: harpia_runtime.soap
    :members:
 
+harpia_runtime.tls
+------------------
+
+.. automodule:: harpia_runtime.tls
+   :members:
+
 harpia_runtime.xml
 ------------------
 
