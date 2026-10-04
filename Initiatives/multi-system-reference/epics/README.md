@@ -1,5 +1,8 @@
 # multi-system-reference — epics
 
+Epics 1–4 are done and shipped in V2 (2026-10-04); their task folders were
+removed. Only epic 5 remains.
+
 ## Order
 
 ```

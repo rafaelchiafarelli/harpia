@@ -1,9 +1,9 @@
 # Multi-system reference: Android (Java) + Linux (C++) + Windows DB server
 
-**Status: scoped, not started.** Planned 2026-09-26. Sequenced **next**, ahead
-of `doxygen-generation`'s `doc-comment-coverage` and `go-target`, per Rafael
-(2026-09-26): development on a real multi-program product is about to start
-and this is the missing proof.
+**Status: epics 1–4 shipped (V2, 2026-10-04); only epic 5
+`windows-verification` is open, for the Windows session.** Planned 2026-09-26.
+The shipped epics' plan folders were removed; the delivered system lives in
+`HarpiaTest/app_example/multi_system/` (see its README).
 
 ## 1. Why
 
