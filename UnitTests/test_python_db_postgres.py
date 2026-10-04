@@ -110,3 +110,47 @@ def test_round_trip_on_postgres(name, msgs, conn):
     assert len(dao.list()) == 3
     assert dao.remove(1) and not dao.remove(1)
     assert not dao.read(1, cls())
+
+
+@pytest.fixture()
+def fresh_db():
+    """A throwaway DATABASE (not just a schema): the migration's
+    information_schema introspection is not schema-qualified -- the same in
+    C++ -- so same-named tables in another schema would leak in."""
+    import psycopg
+    from psycopg.conninfo import make_conninfo
+    name = "harpia_py_mig_" + uuid.uuid4().hex[:10]
+    admin = psycopg.connect(PG_DSN, autocommit=True)
+    try:
+        admin.execute('CREATE DATABASE "{}"'.format(name))
+    except psycopg.Error as e:
+        admin.close()
+        pytest.skip("cannot CREATE DATABASE: {}".format(e))
+    conn = psycopg.connect(make_conninfo(PG_DSN, dbname=name))
+    yield conn
+    conn.close()
+    admin.execute('DROP DATABASE "{}"'.format(name))
+    admin.close()
+
+
+def test_migrate_on_postgres(msgs, fresh_db):
+    """task 5a on PostgreSQL: rename keeps data, stray dropped, TEXT strength
+    retyped to integer (ALTER COLUMN .. TYPE), version stamped, idempotent."""
+    conn = fresh_db
+    table = "beacon_log_table"
+    conn.execute('CREATE TABLE "{t}" ("{pk}" INTEGER PRIMARY KEY, "handle" TEXT, '
+                 '"strength" TEXT, "legacy_note" TEXT)'.format(t=table, pk=PK))
+    conn.execute("INSERT INTO \"{t}\" VALUES (1, 'north', '42', 'x')".format(t=table))
+    conn.commit()
+    mig = importlib.import_module("harpia_generated.migrate.beacon_log_{}_migrate".format(HASH))
+    assert mig.migrate_beacon_log(conn)
+    assert mig.migrate_beacon_log(conn)
+    cols = dict(conn.execute(
+        "SELECT column_name, data_type FROM information_schema.columns "
+        "WHERE table_name = %s", [table]).fetchall())
+    assert set(cols) == set(mig.SPEC.current_columns)
+    assert cols["strength"] == "integer"
+    got = msgs["beacon_log"]()
+    assert _dao("beacon_log")(conn).read(1, got)
+    assert got.label == "north" and got.strength == 42
+    assert conn.execute('SELECT "version" FROM "_harpia_schema_version"').fetchall() == [(HASH,)]

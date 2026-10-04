@@ -167,6 +167,38 @@ class DbBackend(ABC):
         generation time, only the live table's actual columns."""
 
     @abstractmethod
+    @abstractmethod
+    def drop_column_sql(self, table: str, name: str) -> str:
+        """``ALTER TABLE .. DROP COLUMN`` for a known column name (the static
+        twin of ``drop_column_dynamic``; Python-target migrations)."""
+
+    # -- migration plans for the Python target (python-target / py-database
+    # -- task 5): the SAME SQL the C++ *_dynamic methods embed, returned as
+    # -- data instead of C++ source. A plan is a dict:
+    # --   types_sql: the (name, type) introspection query
+    # --   steps: [([(column, expected_live_type), ...], [sql, ...]), ...] --
+    # --          a step runs when any listed column is live with another type
+    # --   adds / keep / strays / drop_sql (composed child tables only):
+    # --          ADD each missing data column; a live column not in keep is a
+    # --          stray -- "drop" drops it (drop_sql with <<NAME>>), "rebuild"
+    # --          forces the first step (whose rebuild leaves it behind).
+    @abstractmethod
+    def retype_plan(self, table: str, columns) -> dict:
+        """Main-table retype plan; ``columns`` as for retype_column_dynamic."""
+
+    @abstractmethod
+    def rep_child_plan(self, child: str, owner_type: str, val_sql: str) -> dict:
+        """Repeated-scalar child table ``value`` retype plan."""
+
+    @abstractmethod
+    def map_child_plan(self, child: str, owner_type: str, key_sql: str,
+                       val_sql: str) -> dict:
+        """Map child table ``key`` / ``value`` retype plan."""
+
+    @abstractmethod
+    def composed_child_plan(self, child: str, owner_type: str, columns) -> dict:
+        """Repeated-composed child table add/drop/retype plan."""
+
     def stamp_version(self, table: str, version: str) -> str:
         """Upsert ``(table, version)`` into ``_harpia_schema_version``."""
 
