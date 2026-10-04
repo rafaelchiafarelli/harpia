@@ -7,6 +7,8 @@ analysis and the same ``DbBackend`` object the C++ and Java targets use.
 """
 import os
 
+from Compliance.context import DEFAULT_PROJECT
+from Database.DbRegistryAdapter import DbRegistryAdapter
 from Database.backends import get_backend
 from Database.model import (RepeatedComposedField, analyze, create_table_sql, map_fields,
                             repeated_fields, type_registry)
@@ -15,6 +17,8 @@ from PyAdapter.runtime_copy import copy_runtime_module
 from Util.util import loadTemplate, write_if_different
 
 _DAO_TEMPLATE = loadTemplate(__file__, "dao.py.tmpl")
+_REGISTRY_TEMPLATE = loadTemplate(__file__, "registry.py.tmpl")
+REGISTRY_FILE = "registry.py"
 DAO_EXT = "_dao.py"
 
 _RUNTIME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runtime")
@@ -52,6 +56,7 @@ class PyDatabaseAdapter:
             write_if_different(os.path.join(
                 self.outDir, "{}_{}{}".format(msg.name, msg.md5Hash, DAO_EXT)), text)
             written += 1
+        write_if_different(os.path.join(self.outDir, REGISTRY_FILE), self._render_registry())
         self.log.print("copied {} DB runtime module(s); generated {} DAO(s) into {}".format(
             len(RUNTIMES), written, self.outDir))
         return None
@@ -108,6 +113,20 @@ class PyDatabaseAdapter:
             create_sql="".join("\n        {!r},".format(s) for s in create),
             drop_sql="".join("\n        {!r},".format(s) for s in drop),
             **{k: repr(v) for k, v in sql.items()})
+
+    def _render_registry(self):
+        """The Python port of DbRegistryAdapter's header: the same entries
+        and conflict notes (``DbRegistryAdapter._entries``)."""
+        project = getattr(self.compliance, "project", None) or DEFAULT_PROJECT
+        entries, conflicts = DbRegistryAdapter(self.messages, self.dest,
+                                               compliance=self.compliance)._entries()
+        rows = "".join("\n    RegistryEntry({!r}, Visibility.{}, {!r}),".format(
+            table, vis, project) for table, vis in entries)
+        notes = "".join(
+            "# note: table {!r} is also declared {} by message {!r} -- kept the "
+            "first declaration below\n".format(t, v, n) for t, n, v in conflicts)
+        return _REGISTRY_TEMPLATE.format(project=repr(project), notes=notes,
+                                         rows=rows + ("\n" if rows else ""))
 
     def _child_ddl(self, ch, owner_sql):
         if isinstance(ch, RepeatedComposedField):

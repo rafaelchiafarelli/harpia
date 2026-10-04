@@ -61,6 +61,12 @@ harpia_generated.db.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_dao
 .. automodule:: harpia_generated.db.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_dao
    :members:
 
+harpia_generated.db.registry
+----------------------------
+
+.. automodule:: harpia_generated.db.registry
+   :members:
+
 harpia_generated.db.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_dao
 -----------------------------------------------------------------
 
