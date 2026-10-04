@@ -42,6 +42,11 @@ class PythonBackend(CppBackend):
         ctx.report(PyEventsAdapter(messages=messages, dest=dest,
                                    compliance=compliance).Process())
 
+        # ZMQ transports (PUSH/PULL, PUB/SUB) for transport-bearing messages
+        from PyZmq.PyZmqAdapter import PyZmqAdapter
+        ctx.report(PyZmqAdapter(messages=messages, dest=dest,
+                                compliance=compliance).Process())
+
         # (later epics add their stages here, above the docs)
 
         # Sphinx skeleton -- LAST: it documents every module already on disk
