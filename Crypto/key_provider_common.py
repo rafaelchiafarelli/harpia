@@ -65,3 +65,20 @@ ENCRYPTED_COLUMN_RUNTIME_SRC = os.path.join(
 ENCRYPTED_COLUMN_RUNTIME_DEPS = (
     (KEY_PROVIDER_RUNTIME, KEY_PROVIDER_RUNTIME_SRC),
 ) + KEY_PROVIDER_RUNTIME_DEPS
+
+# -- python-target / py-crypto-phi: the Python ports ---------------------------
+# Hand-written modules under runtime/python/, copied into a generated Python
+# project with PyAdapter.runtime_copy.copy_runtime_module at the dotted module
+# name below (same shape as Compliance/audit_common.py's PY_AUDIT_SINK_*).
+# Each *_DEPS is (module, src) tuples to co-copy.
+from Compliance.audit_common import (  # noqa: E402
+    PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC)
+
+_PY_RUNTIME_DIR = os.path.join(_RUNTIME_DIR, "python")
+
+#: py-crypto-phi task 1 -- KeyProvider, Dek/WrappedDek, InMemoryKeyProvider.
+PY_KEY_PROVIDER_MODULE = "harpia_runtime.crypto.key_provider"
+PY_KEY_PROVIDER_RUNTIME_SRC = os.path.join(_PY_RUNTIME_DIR, "key_provider.py")
+PY_KEY_PROVIDER_RUNTIME_DEPS = (
+    (PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC),
+)

@@ -135,6 +135,27 @@ the backends → `harpia_key_provider.h` + its deps), mirroring
   and `KEY_PROVIDER_KMS_RUNTIME` (db-encryption task 2, so a deployment can hand the DAO a
   real persistent KeyProvider)) into `generated/cpp/crypto/`.
 
+## Python ports (python-target / py-crypto-phi)
+Hand-written modules under `runtime/python/`, copied into a generated Python
+project with `PyAdapter.runtime_copy.copy_runtime_module` at the dotted names
+in `key_provider_common.py` (`PY_*_MODULE` / `PY_*_RUNTIME_SRC` /
+`PY_*_RUNTIME_DEPS`, same shape as `Compliance.audit_common.PY_AUDIT_SINK_*`).
+Wiring the copy into the python backend (only when a `phi` column exists) is
+py-crypto-phi task 4; until then only tests copy them.
+- `runtime/python/key_provider.py` → `harpia_runtime.crypto.key_provider`
+  (task 1): `Dek` (`seal`/`open`, context manager, `close`), frozen
+  `WrappedDek(kek_version, bytes)`, `shred_key(w)` (`b"<v>:" + bytes`),
+  `xor_with`, `secure_zero(bytearray)`, `random_bytes`, `OP_*` (= C++ `kOp*`),
+  `KEY_LEN`, `KeyProvider` ABC, `InMemoryKeyProvider(audit_sink=None)` (+
+  `forget_kek_version`, `close`; `threading.Lock`). Same placeholder XOR as
+  C++, byte for byte; same audit records in the same order.
+  **Zeroization is best-effort** (key bytes in `bytearray`s wiped on
+  `Dek.close`/`__del__`, KEK eviction and provider `close`/`__del__`;
+  CPython can keep copies) — never claim C++ parity. **Gotcha:** a `Dek`
+  owns `material` and wipes it when collected, so `p.unwrap_dek(w).material`
+  is already empty once the temporary `Dek` is gone — hold the `Dek`, or copy
+  with `bytes(dek.material)`.
+
 ## Key facts / gotchas
 - **Selection order in `get_backend()`:** explicit `name` (e.g.
   `HARPIA_CRYPTO_BACKEND` env var, same convention as
