@@ -25,6 +25,8 @@ class crew_dao(Dao[crew]):
         Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
         Column('ORIGINATOR', ('ORIGINATOR',)),
     )
+    CHILDREN = (
+    )
     CREATE_TABLE_SQL = (
         'CREATE TABLE IF NOT EXISTS "crew_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "name" TEXT, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR" TEXT);',
     )

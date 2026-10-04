@@ -14,6 +14,12 @@ Conventions, matching the C++ DAO (``Database/CrudlAdapter.py``):
 - A SQL ``NULL`` reads back as the field's default.
 - ``read`` sets the stored fields on the message it is given (it does not
   clear the rest first).
+- Map / repeated fields live in child tables keyed by the parent's primary
+  key (``owner``): written after the main row, deleted and re-inserted on
+  update, read back in ``ordinal`` order after the main row (by ``read``
+  and ``list``), deleted by ``remove``. A repeated field of a table-bearing
+  message stores each child's key and persists the children through their
+  own DAO.
 
 - A composed field whose target owns a table is an FK column holding the
   child's primary key: on create/update a present child is written through
@@ -34,7 +40,7 @@ from typing import Any, ClassVar, Generic, Protocol, TypeVar, cast
 
 from google.protobuf.message import Message
 
-from harpia_runtime.db.bind import bind_value, extract_value
+from harpia_runtime.db.bind import bind_value, extract_value, from_db, to_db
 
 
 class Cursor(Protocol):
@@ -78,6 +84,35 @@ class Column:
     name: str
     path: tuple[str, ...]
     fk: str | None = None
+
+
+@dataclass(frozen=True)
+class ChildTable:
+    """A child table keyed by the parent's primary key (``owner``).
+
+    Attributes:
+        kind: ``"map"`` (``owner, key, value``), ``"repeated"`` (``owner,
+            ordinal, value``; ``fk`` set for a repeated field of a
+            table-bearing message: the value is each child's key) or
+            ``"composed"`` (``owner, ordinal`` + one column per flattened
+            field of a table-less element type).
+        path: Attribute names from the table's message to the map/repeated
+            field (two elements for an embed-nested one).
+        insert_sql: ``INSERT`` of one entry/element.
+        select_sql: ``SELECT`` of an owner's entries (``ORDER BY ordinal``).
+        delete_sql: ``DELETE`` of an owner's entries.
+        fk: The child DAO (``"module:Class"``) of a repeated FK.
+        columns: The per-element columns of a ``"composed"`` table, paths
+            relative to the element.
+    """
+
+    kind: str
+    path: tuple[str, ...]
+    insert_sql: str
+    select_sql: str
+    delete_sql: str
+    fk: str | None = None
+    columns: tuple[Column, ...] = ()
 
 
 M = TypeVar("M", bound=Message)
@@ -135,6 +170,8 @@ class Dao(Generic[M]):
     PK: ClassVar[str]
     #: insert/select order; the primary key is one of them
     COLUMNS: ClassVar[tuple[Column, ...]]
+    #: map / repeated child tables, in C++ write/read order
+    CHILDREN: ClassVar[tuple[ChildTable, ...]] = ()
     CREATE_TABLE_SQL: ClassVar[tuple[str, ...]]
     DROP_TABLE_SQL: ClassVar[tuple[str, ...]]
     INSERT_SQL: ClassVar[str]
@@ -175,6 +212,66 @@ class Dao(Generic[M]):
                 sub: Message = getattr(_owner(msg, col.path, True), col.path[-1])
                 sub.SetInParent()
                 dao_class(col.fk)(self.conn)._read_into(cur, value, sub)
+        if self.CHILDREN:
+            owner = self._pk_value(msg)
+            for child in self.CHILDREN:
+                self._read_child(cur, child, owner, msg)
+
+    # -- child tables (map / repeated), keyed by the parent's primary key ----
+    def _container(self, msg: Message, child: ChildTable, mutable: bool) -> Any:
+        return getattr(_owner(msg, child.path, mutable), child.path[-1])
+
+    def _field(self, msg: Message, child: ChildTable) -> Any:
+        return _owner(msg, child.path, False).DESCRIPTOR.fields_by_name[child.path[-1]]
+
+    def _write_child(self, cur: Any, child: ChildTable, owner: Any, msg: Message,
+                     update: bool) -> None:
+        if update:
+            cur.execute(child.delete_sql, [owner])
+        f = self._field(msg, child)
+        items = self._container(msg, child, False)
+        if child.kind == "map":
+            kf = f.message_type.fields_by_name["key"]
+            vf = f.message_type.fields_by_name["value"]
+            for key in items:
+                cur.execute(child.insert_sql,
+                            [owner, to_db(kf, key), to_db(vf, items[key])])
+            return
+        for ordinal, item in enumerate(items):
+            if child.kind == "composed":
+                values = [column_value(item, c) for c in child.columns]
+            elif child.fk is not None:
+                child_dao = dao_class(child.fk)(self.conn)
+                if update:
+                    child_dao._update(cur, item)
+                else:
+                    child_dao._create(cur, item)
+                values = [child_dao._pk_value(item)]
+            else:
+                values = [to_db(f, item)]
+            cur.execute(child.insert_sql, [owner, ordinal, *values])
+
+    def _read_child(self, cur: Any, child: ChildTable, owner: Any,
+                    msg: Message) -> None:
+        f = self._field(msg, child)
+        cur.execute(child.select_sql, [owner])
+        rows = cur.fetchall()
+        items = self._container(msg, child, True)
+        if child.kind == "map":
+            kf = f.message_type.fields_by_name["key"]
+            vf = f.message_type.fields_by_name["value"]
+            for key, value in rows:
+                items[from_db(kf, key)] = from_db(vf, value)
+            return
+        for row in rows:
+            if child.kind == "composed":
+                element = items.add()
+                for col, value in zip(child.columns, row, strict=False):
+                    set_column(element, col, value)
+            elif child.fk is not None:
+                dao_class(child.fk)(self.conn)._read_into(cur, row[0], items.add())
+            else:
+                items.append(from_db(f, row[0]))
 
     # -- cursor-level operations (no transaction handling; a parent DAO runs
     # -- its children's on its own cursor so one call is one transaction) ----
@@ -183,6 +280,10 @@ class Dao(Generic[M]):
             if col.fk is not None and _has_child(msg, col):
                 dao_class(col.fk)(self.conn)._create(cur, _child(msg, col))
         cur.execute(self.INSERT_SQL, [column_value(msg, c) for c in self.COLUMNS])
+        if self.CHILDREN:
+            owner = self._pk_value(msg)
+            for child in self.CHILDREN:
+                self._write_child(cur, child, owner, msg, update=False)
 
     def _read_into(self, cur: Any, pk: Any, out: M) -> bool:
         cur.execute(self.SELECT_SQL, [pk])
@@ -199,7 +300,12 @@ class Dao(Generic[M]):
         params = [column_value(msg, c) for c in self.COLUMNS if c.name != self.PK]
         params.append(self._pk_value(msg))
         cur.execute(self.UPDATE_SQL, params)
-        return bool(cur.rowcount > 0)
+        found = bool(cur.rowcount > 0)
+        if self.CHILDREN:
+            owner = self._pk_value(msg)
+            for child in self.CHILDREN:
+                self._write_child(cur, child, owner, msg, update=True)
+        return found
 
     # -- DDL ------------------------------------------------------------------
     def create_table(self) -> None:
@@ -251,7 +357,10 @@ class Dao(Generic[M]):
         """
         with self._tx() as cur:
             cur.execute(self.DELETE_SQL, [pk])
-            return bool(cur.rowcount > 0)
+            found = bool(cur.rowcount > 0)
+            for child in self.CHILDREN:
+                cur.execute(child.delete_sql, [pk])
+            return found
 
     def list(self, offset: int | None = None,
              limit: int | None = None) -> builtins.list[M]:

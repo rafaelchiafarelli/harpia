@@ -34,6 +34,15 @@ a stage of `LangBackend/python.py`'s `run_python`.
   read, a zero key leaves it absent, `remove` does not cascade (all as C++).
   Child DAOs run on the parent's cursor, so a whole call is still one
   transaction (stricter than C++, which commits per statement).
+  Task 2c: `ChildTable` specs (`CHILDREN`) cover every `map_fields()` /
+  `repeated_fields()` shape: `map` (`owner, key, value`), `repeated`
+  (`owner, ordinal, value`; with `fk` the value is each child's key and the
+  child goes through its own DAO), `composed` (`owner, ordinal` + the
+  element's flattened columns), and the embed-nested variants. Same order as
+  C++: written after the main row (maps, then repeated), delete-then-reinsert
+  on update, read in `ordinal` order by `read` and `list`, deleted by
+  `remove`, dropped before the main table. `bind.to_db` / `from_db` convert
+  one element / map key / map value by descriptor.
 
 ## Generated DAOs (`templates/dao.py.tmpl`)
 `harpia_generated/db/<name>_<hash>_dao.py` per table-bearing message: class
@@ -44,14 +53,18 @@ scoped-down table); statements use `param_placeholder()`. Column order is
 C++'s: scalar/enum/embedded columns, then FK columns. Embedded paths use the
 exact `.proto` names (resolved from the schema; `Database.model.Column.embed`
 holds C++'s lowercased accessors). The module
-docstring lists anything the C++ DAO persists that this DAO does not yet
-(`Deferred: ...`).
+docstring lists anything the C++ DAO persists that this DAO does not
+(`Deferred: ...`) — `none` for every fixture message since task 2c, asserted
+by `test_nothing_deferred`.
 
 ## Key facts / gotchas
 - **Placeholders are dialect-baked at generation time** through
   `DbBackend.param_placeholder()` (decision at task 1, option (a)): `?` for
   `sqlite3`, `%s` for `psycopg`. Additive on the shared backend; C++ (SOCI
   `:name`) and Java (JDBC `?`) never call it, so their goldens are unchanged.
+- A `composed` (repeated table-less message) element stores only its
+  flattened scalar/enum columns: the element's hidden `ID_`/`STATUS_`/...
+  fields don't round-trip (same as C++).
 - The HarpiaTest fixture has no `bool`/`int64` fields (the DSL has no
   `bool`), so the bind test also compiles a small probe `.proto` with every
   scalar kind.

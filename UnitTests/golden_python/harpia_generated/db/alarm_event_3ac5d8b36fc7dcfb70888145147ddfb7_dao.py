@@ -27,6 +27,8 @@ class alarm_event_dao(Dao[alarm_event]):
         Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
         Column('ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
     )
+    CHILDREN = (
+    )
     CREATE_TABLE_SQL = (
         'CREATE TABLE IF NOT EXISTS "alarm_event_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "patient_id" TEXT, "alarm_type" TEXT, "severity" INTEGER, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT);',
     )
