@@ -18,6 +18,24 @@ a stage of `LangBackend/python.py`'s `run_python`.
   `float`, strings as `str`; `NULL` reads back as the field default (like
   the C++ indicator check). Message/repeated fields raise `TypeError`.
 
+- `runtime/dao.py` → `harpia_runtime.db.dao` (task 2a): the CRUDL engine.
+  `Dao[M]` implements `create_table` / `drop_table` / `create(msg) -> bool` /
+  `read(pk, out) -> bool` / `update(msg) -> bool` / `remove(pk) -> bool` /
+  `list(offset=None, limit=None)` from class-level data a generated DAO
+  declares (`MESSAGE`, `TABLE`, `PK`, `COLUMNS` of `Column(name, path)`, and
+  every SQL string). `Connection` / `Cursor` are DB-API `Protocol`s.
+  Real DB errors raise; a `bool` only answers "row existed / affected".
+  Each call is one transaction (commit on success, rollback on error).
+
+## Generated DAOs (`templates/dao.py.tmpl`)
+`harpia_generated/db/<name>_<hash>_dao.py` per table-bearing message: class
+`<name>_dao(Dao[<name>])` holding the table spec and the exact SQL. The DDL
+is `Database.model.create_table_sql` (the very string the C++ DAO runs), so
+the Python table has the **same column set C++ declares** (unlike Java's
+scoped-down table); statements use `param_placeholder()`. The module
+docstring lists anything the C++ DAO persists that this DAO does not yet
+(`Deferred: ...`).
+
 ## Key facts / gotchas
 - **Placeholders are dialect-baked at generation time** through
   `DbBackend.param_placeholder()` (decision at task 1, option (a)): `?` for
