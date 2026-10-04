@@ -39,7 +39,31 @@ through `PyAdapter.runtime_copy.copy_runtime_module`. Always returns `None`.
   exactly the emitted subset (indentation-driven recursive descent) and
   merges. Not PyYAML: the generated project has no `pyyaml` dependency.
 
+- `runtime/serialize.py` → `harpia_runtime.serialize` (task 4): `Format`
+  (`JSON`/`XML`/`YAML`), `format_name`, `to_string`, `from_string`,
+  `tree_has_phi`, `redacted_to_string`. A phi-free type tree goes straight to
+  the engines (byte-identical to them); a phi-bearing tree renders through
+  the port of C++'s redacting walk, quirks included (prints proto3 defaults,
+  YAML strings get JSON escaping, JSON map keys escaped twice).
+  **Byte-identical to C++ `harpia::serialize::to_string`** for every fixture
+  message, redaction on and off.
+- `runtime/redaction.py` → `harpia_runtime.redaction`: `PLACEHOLDER`,
+  `redaction_enabled`, `set_redaction_enabled`, `should_redact`.
+- `runtime/redaction_audit.py` → `harpia_runtime.redaction_audit`:
+  `allow_phi_print(sink=None, reason="")` records
+  `phi_unredacted_output_enabled` then disables; `restore_phi_redaction`
+  re-enables then records `phi_unredacted_output_disabled`. The only module
+  here that imports the compliance runtime, so the adapter also copies
+  `harpia_runtime.compliance.audit_sink`.
+- **Generated** `harpia_generated/serialize/phi_registry.py`
+  (`templates/phi_registry.py.tmpl`): `PHI_FIELDS` (the same schema-order
+  pairs `SerializeAdapter` renders for C++), `is_phi`, `message_has_phi`.
+
 ## Key facts / gotchas
+- Redacted text is a lossy view. JSON with a placeholder in a numeric field
+  doesn't parse. Redacted XML/YAML parses, but only **numeric** phi fields
+  come back at their default: a **string** phi field reads the literal
+  `[REDACTED]` (C++ behaves the same; the task text said "default").
 - **YAML known differences from the C++ reader** (found 2026-10-04; the C++
   runtime was not changed — flagged to Rafael):
   - `from_yaml("{}")` (to_yaml's empty document) returns `True` in Python,
