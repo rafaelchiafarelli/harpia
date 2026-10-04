@@ -1,0 +1,14 @@
+plugins {
+    id 'application'
+}
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+application {
+    mainClass = 'com.harpia.multisystem.handheld.cli.Main'
+}
+dependencies {
+    implementation project(':core')
+    runtimeOnly "io.grpc:grpc-netty-shaded:${rootProject.ext.grpcVersion}"
+}

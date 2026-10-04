@@ -1,0 +1,41 @@
+// Thin Android shell over core/ -- no business logic here. Certificates, CURVE
+// keys and the endpoints come from a PKI folder attached as APK assets with
+// -PharpiaPkiDir=<dir> (the APK-bundled equivalent of res/raw that keeps the
+// provisioning scripts' file names), containing:
+//   ca.pem, client_handheld.pem, client_handheld_key.pem,
+//   zmq_server_public.key, zmq_handheld_public.key, zmq_handheld_secret.key,
+//   handheld.properties   station.host / station.port / station.authority /
+//                         sub.endpoint / id.base / notes.every
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.harpia.multisystem.handheld.app'
+    compileSdk 34
+    defaultConfig {
+        applicationId 'com.harpia.multisystem.handheld.app'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    packagingOptions {
+        resources.excludes += ['META-INF/INDEX.LIST', 'META-INF/io.netty.versions.properties']
+    }
+}
+
+def pki = project.findProperty('harpiaPkiDir')
+if (pki != null) {
+    android.sourceSets.main.assets.srcDirs += pki
+}
+
+dependencies {
+    implementation(project(':core'))
+    implementation "io.grpc:grpc-okhttp:${rootProject.ext.grpcVersion}"
+    implementation "io.grpc:grpc-android:${rootProject.ext.grpcVersion}"
+}

@@ -73,7 +73,10 @@ Returns `None`.
 - **Thread-safe.** `subs_` / `last_` / `has_last_` / `last_id_` are guarded
   by one `std::mutex`; `subscribe` / `unsubscribe` / `publish` / `has_last`
   / `subscriber_count` are safe to call concurrently. (`cached()` is
-  lock-free — `mode_` is `const`.)
+  lock-free — `mode_` is `const`.) Until db-concurrency task 1b this was
+  asserted but never run under a race detector (`test_events_callbacks.py`'s
+  churn test only checks it doesn't crash); `UnitTests/test_db_concurrency_audit.py`
+  now runs that churn under ThreadSanitizer, race-free.
 - **`read` never fires an event.** For an `event` message that also owns a
   table, `Database/CrudlAdapter.py` makes the generated DAO `#include` this
   module's `events/<name>_<hash>_events.h` and call

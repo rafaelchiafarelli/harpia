@@ -86,7 +86,17 @@ the backends → `harpia_key_provider.h` + its deps), mirroring
   unknown/forgotten/**shredded** DEK (Rule 5). `shred_dek(w)` (key-management task 3):
   permanent, irreversible, per-DEK — the right-to-erasure mechanism.
   **key-management task 4:** ctor takes a defaulted `AuditSink&`; every op is recorded;
-  KEKs zeroized on eviction + in the destructor. Not thread-safe.
+  KEKs zeroized on eviction + in the destructor. **Thread-safe since
+  db-concurrency task 1b** (multi-system-reference): every provider
+  (`InMemoryKeyProvider`, `LocalKeyProvider`, `KmsKeyProvider`, `MockKms`) holds a
+  per-instance `std::mutex` around its key/shred state, and
+  `detail::random_bytes` uses a `thread_local` `std::random_device`. Before that,
+  `default_key_provider()` -- ONE process-wide instance every phi DAO defaults to
+  -- was shared unguarded by a pooled server's handler threads (a
+  `std::map`/`std::set` mutated by rotate/shred, and a shared `static`
+  `random_device`). An integrator's own `KmsClient` must be thread-safe too.
+  Proven by `UnitTests/test_db_concurrency_audit.py` (TSan; fails on the old
+  headers).
 - `runtime/harpia_key_provider_local.h` — the key-management epic (+ key-management task 3 shred
   sidecar, + key-management task 4 audit/zeroize). The default no-KMS backend.
   `LocalKeyProvider` persists KEK material to

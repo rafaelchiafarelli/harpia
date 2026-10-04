@@ -27,6 +27,7 @@
 #include <grpcpp/grpcpp.h>
 #include <soci/soci.h>
 
+#include "db/harpia_db_pool.h"
 #include "grpc/harpia_grpc_mtls.h"
 #include "grpc/data_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.h"
 #include "grpc/users_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.h"
@@ -62,21 +63,36 @@ inline constexpr const char* kOpenSSLProvider = "fips";
 // and start listening on `addr`; `mtls` is consulted only when
 // kHardeningRequired is true. The no-address overload builds an in-process-only
 // server (no socket, no TLS) -- handy for unit-testing the CRUDL wiring.
+//
+// Database (db-concurrency task 1a): the soci::session overloads share that one
+// session across every RPC -- NOT thread-safe once calls run concurrently,
+// kept for single-client use and existing callers. The ::soci::connection_pool
+// overloads give each RPC its own borrowed session (db/harpia_db_pool.h);
+// `lease_timeout_ms` is how long an RPC waits for a free slot before failing
+// RESOURCE_EXHAUSTED. The caller constructs, sizes and opens the pool (for
+// SQLite: harpia::db::open_sqlite_pool, which sets WAL + a busy timeout). A
+// pool of SQLite :memory: connections is refused with std::invalid_argument
+// (db-concurrency task 1b) -- each would be its own empty database.
 class GrpcServer {
 public:
     GrpcServer(::soci::session& db, const std::string& addr,
                const MtlsFiles& mtls = {}) {
-        ::grpc::ServerBuilder builder;
-        builder.AddListeningPort(addr,
-                                 server_credentials(kEmitTls, mtls, kClientCertRequired));
-        register_all(db, builder);
-        server_ = builder.BuildAndStart();
+        start(&addr, mtls, &db, nullptr, ::harpia::db::kDefaultLeaseTimeoutMs);
     }
 
     explicit GrpcServer(::soci::session& db) {
-        ::grpc::ServerBuilder builder;
-        register_all(db, builder);
-        server_ = builder.BuildAndStart();
+        start(nullptr, {}, &db, nullptr, ::harpia::db::kDefaultLeaseTimeoutMs);
+    }
+
+    GrpcServer(::soci::connection_pool& pool, const std::string& addr,
+               const MtlsFiles& mtls = {},
+               int lease_timeout_ms = ::harpia::db::kDefaultLeaseTimeoutMs) {
+        start(&addr, mtls, nullptr, &pool, lease_timeout_ms);
+    }
+
+    explicit GrpcServer(::soci::connection_pool& pool,
+                        int lease_timeout_ms = ::harpia::db::kDefaultLeaseTimeoutMs) {
+        start(nullptr, {}, nullptr, &pool, lease_timeout_ms);
     }
 
     ::grpc::Server* get() const { return server_.get(); }
@@ -85,28 +101,43 @@ public:
     void shutdown() { if (server_) server_->Shutdown(); }
 
 private:
+    void start(const std::string* addr, const MtlsFiles& mtls, ::soci::session* db,
+               ::soci::connection_pool* pool, int lease_timeout_ms) {
+        if (pool) ::harpia::db::refuse_sqlite_memory_pool(*pool, lease_timeout_ms);
+        ::grpc::ServerBuilder builder;
+        if (addr) {
+            builder.AddListeningPort(*addr,
+                                     server_credentials(kEmitTls, mtls, kClientCertRequired));
+        }
+        register_all(builder, db, pool, lease_timeout_ms);
+        server_ = builder.BuildAndStart();
+    }
+
     template <class Svc>
-    void add(::soci::session& db, ::grpc::ServerBuilder& builder) {
-        auto svc = std::make_unique<Svc>(db);
+    void add(::grpc::ServerBuilder& builder, ::soci::session* db,
+             ::soci::connection_pool* pool, int lease_timeout_ms) {
+        std::unique_ptr<Svc> svc = pool ? std::make_unique<Svc>(*pool, lease_timeout_ms)
+                                        : std::make_unique<Svc>(*db);
         builder.RegisterService(svc.get());
         services_.push_back(std::move(svc));
     }
 
-    void register_all(::soci::session& db, ::grpc::ServerBuilder& builder) {
-        add< ::harpia::grpc_svc::data_service>(db, builder);
-        add< ::harpia::grpc_svc::users_service>(db, builder);
-        add< ::harpia::grpc_svc::vip_users_service>(db, builder);
-        add< ::harpia::grpc_svc::top_users_service>(db, builder);
-        add< ::harpia::grpc_svc::shipment_service>(db, builder);
-        add< ::harpia::grpc_svc::journey_service>(db, builder);
-        add< ::harpia::grpc_svc::crew_service>(db, builder);
-        add< ::harpia::grpc_svc::outpost_service>(db, builder);
-        add< ::harpia::grpc_svc::beacon_log_service>(db, builder);
-        add< ::harpia::grpc_svc::patient_vitals_service>(db, builder);
-        add< ::harpia::grpc_svc::alarm_event_service>(db, builder);
-        add< ::harpia::grpc_svc::telemetry_service>(db, builder);
-        add< ::harpia::grpc_svc::reception_desk_service>(db, builder);
-        add< ::harpia::grpc_svc::vault_service>(db, builder);
+    void register_all(::grpc::ServerBuilder& builder, ::soci::session* db,
+                      ::soci::connection_pool* pool, int lease_timeout_ms) {
+        add< ::harpia::grpc_svc::data_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::users_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::vip_users_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::top_users_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::shipment_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::journey_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::crew_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::outpost_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::beacon_log_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::patient_vitals_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::alarm_event_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::telemetry_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::reception_desk_service>(builder, db, pool, lease_timeout_ms);
+        add< ::harpia::grpc_svc::vault_service>(builder, db, pool, lease_timeout_ms);
     }
 
     std::vector<std::unique_ptr< ::grpc::Service>> services_;

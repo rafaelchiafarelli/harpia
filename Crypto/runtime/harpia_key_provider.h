@@ -35,6 +35,7 @@
 
 #include <cstdint>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <random>
 #include <set>
@@ -60,9 +61,12 @@ inline void secure_zero(std::string& s) {
 
 // Random key material for the PLACEHOLDER backends (InMemory / Local / the
 // MockKms reference). Not a CSPRNG contract -- a real backend draws keys
-// from its crypto module (F5 seam) or its KMS.
+// from its crypto module (F5 seam) or its KMS. One random_device PER THREAD
+// (db-concurrency task 1b): a shared `static` one was a data race once
+// generated servers ran phi DAOs on many threads, since
+// std::random_device::operator() is not guaranteed thread-safe.
 inline std::string random_bytes(std::string::size_type n) {
-    static std::random_device rd;
+    thread_local std::random_device rd;
     std::uniform_int_distribution<int> byte(0, 255);
     std::string out(n, '\0');
     for (auto& c : out) c = static_cast<char>(byte(rd));
@@ -173,6 +177,10 @@ inline constexpr const char* kOpShred    = "key_shred";
 // tests and for downstream tracks' tests that need a working KeyProvider
 // before O.2's real backend exists. NOT for production: keys live only in
 // process memory and the wrap/seal transforms are XOR, not crypto.
+//
+// Thread-safe (db-concurrency task 1b): every operation holds mu_. This one
+// matters most -- default_key_provider() is ONE process-wide instance that
+// every phi DAO of a multi-threaded generated server shares by default.
 class InMemoryKeyProvider : public KeyProvider {
 public:
     explicit InMemoryKeyProvider(
@@ -186,7 +194,10 @@ public:
         for (auto& kv : keks_) detail::secure_zero(kv.second);  // O.4
     }
 
-    std::uint64_t active_kek_version() const override { return active_; }
+    std::uint64_t active_kek_version() const override {
+        std::lock_guard<std::mutex> lock(mu_);
+        return active_;
+    }
 
     Dek generate_dek() override {
         audit_.record(kOpGenerate, "dek");
@@ -194,11 +205,13 @@ public:
     }
 
     WrappedDek wrap_dek(const Dek& dek) override {
+        std::lock_guard<std::mutex> lock(mu_);
         audit_.record(kOpWrap, "kek:" + std::to_string(active_));
         return WrappedDek{active_, Dek::xor_with(dek.material, keks_.at(active_))};
     }
 
     std::optional<Dek> unwrap_dek(const WrappedDek& w) override {
+        std::lock_guard<std::mutex> lock(mu_);
         const std::string subject = "kek:" + std::to_string(w.kek_version);
         if (shredded_.count(shred_key(w))) {                     // O.3
             audit_.record(kOpUnwrap, subject, "shredded");
@@ -214,6 +227,7 @@ public:
     }
 
     std::uint64_t rotate() override {
+        std::lock_guard<std::mutex> lock(mu_);
         ++active_;
         keks_[active_] = detail::random_bytes(kKeyLen);
         audit_.record(kOpRotate, "kek:" + std::to_string(active_));
@@ -221,6 +235,7 @@ public:
     }
 
     void shred_dek(const WrappedDek& w) override {
+        std::lock_guard<std::mutex> lock(mu_);
         shredded_.insert(shred_key(w));
         audit_.record(kOpShred, "kek:" + std::to_string(w.kek_version));
     }
@@ -229,6 +244,7 @@ public:
     // one record's DEK): this is the coarse "retire an old KEK entirely"
     // case, exposed since O.1 for deterministic unknown-version tests.
     void forget_kek_version(std::uint64_t version) {
+        std::lock_guard<std::mutex> lock(mu_);
         auto it = keks_.find(version);
         if (it == keks_.end()) return;
         detail::secure_zero(it->second);  // O.4
@@ -239,6 +255,7 @@ private:
     static constexpr std::string::size_type kKeyLen = 32;
 
     compliance::AuditSink& audit_;   // O.4
+    mutable std::mutex mu_;          // 1b: guards keks_/active_/shredded_
     std::map<std::uint64_t, std::string> keks_;
     std::uint64_t active_ = 1;
     std::set<std::string> shredded_;  // O.3: shred_key(w) of every shredded DEK

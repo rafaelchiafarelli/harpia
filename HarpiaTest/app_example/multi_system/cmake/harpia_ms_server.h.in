@@ -1,0 +1,26 @@
+// Rendered by CMake from cmake/harpia_ms_server.h.in -- do not edit.
+// The generated header names carry the schema hash (@HARPIA_MS_HASH@); this
+// shim is the one place station's source learns it.
+#pragma once
+#include <memory>
+#include <vector>
+
+#include "grpc/grpc_server_bringup.h"   // every <name>_service + mTLS + pool
+#include "migrate/reading_@HARPIA_MS_HASH@_migrate.h"
+#include "migrate/field_note_@HARPIA_MS_HASH@_migrate.h"
+
+#define HARPIA_MS_DB_DIALECT "@HARPIA_MS_DIALECT@"
+
+namespace harpia_ms {
+
+inline bool migrate_all(::soci::session& s) {
+    return ::harpia::db::migrate_reading(s) && ::harpia::db::migrate_field_note(s);
+}
+
+inline void make_services(::soci::connection_pool& pool, int lease_timeout_ms,
+                          std::vector<std::unique_ptr<::grpc::Service>>* out) {
+    out->push_back(std::make_unique<::harpia::grpc_svc::reading_service>(pool, lease_timeout_ms));
+    out->push_back(std::make_unique<::harpia::grpc_svc::field_note_service>(pool, lease_timeout_ms));
+}
+
+}  // namespace harpia_ms

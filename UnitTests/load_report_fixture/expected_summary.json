@@ -1,0 +1,30 @@
+{
+  "bucket_s": 10,
+  "clients": {"crashed": ["hh-a"], "exit_codes": {"0": 2, "137": 1}, "identities": 3, "spawned": 3},
+  "duration_s": 21.0,
+  "errors": {"DEADLINE_EXCEEDED": 1, "PERMISSION_DENIED": 2, "UNAVAILABLE": 1},
+  "errors_by_op": {"edge/create/PERMISSION_DENIED": 2, "edge/create/UNAVAILABLE": 1, "handheld/list/DEADLINE_EXCEEDED": 1},
+  "files": 3,
+  "malformed": 1,
+  "ops": {
+    "edge": {
+      "create": {"count": 5, "ok": 2, "ok_rate": 0.4, "ops_per_s": 0.238, "latency_us": {"p50": 250, "p95": 10000, "p99": 10000, "max": 10000}},
+      "list": {"count": 1, "ok": 1, "ok_rate": 1.0, "ops_per_s": 0.048, "latency_us": {"p50": 200, "p95": 200, "p99": 200, "max": 200}},
+      "read": {"count": 1, "ok": 1, "ok_rate": 1.0, "ops_per_s": 0.048, "latency_us": {"p50": 50, "p95": 50, "p99": 50, "max": 50}},
+      "session": {"count": 2, "ok": 2, "ok_rate": 1.0, "ops_per_s": 0.095, "latency_us": {"p50": 4000, "p95": 5000, "p99": 5000, "max": 5000}}
+    },
+    "handheld": {
+      "create": {"count": 1, "ok": 1, "ok_rate": 1.0, "ops_per_s": 0.048, "latency_us": {"p50": 400, "p95": 400, "p99": 400, "max": 400}},
+      "list": {"count": 1, "ok": 0, "ok_rate": 0.0, "ops_per_s": 0.048, "latency_us": {"p50": 10000000, "p95": 10000000, "p99": 10000000, "max": 10000000}},
+      "read": {"count": 1, "ok": 1, "ok_rate": 1.0, "ops_per_s": 0.048, "latency_us": {"p50": 80, "p95": 80, "p99": 80, "max": 80}},
+      "session": {"count": 1, "ok": 1, "ok_rate": 1.0, "ops_per_s": 0.048, "latency_us": {"p50": 6000, "p95": 6000, "p99": 6000, "max": 6000}}
+    }
+  },
+  "records": 17,
+  "subscribers": {"hh-a": {"samples": 4, "seq_gap_max": 3, "seq_gap_total": 4}},
+  "timeline": [
+    {"t_s": 0, "clients": 3, "ops": 10, "ok": 8, "errors": 2, "sub_recv": 2},
+    {"t_s": 10, "clients": 1, "ops": 2, "ok": 1, "errors": 1, "sub_recv": 1},
+    {"t_s": 20, "clients": 1, "ops": 1, "ok": 0, "errors": 1, "sub_recv": 1}
+  ]
+}
