@@ -116,8 +116,11 @@ def test_bringup_registers_every_rest_and_soap_route(http_dir):
     for name in rest_hdrs:
         assert '#include "rest/{}_{}_rest.h"'.format(name, HASH) in bringup
         assert '#include "soap/{}_{}_soap.h"'.format(name, HASH) in bringup
-        assert "::harpia::rest::register_{}(app_, db, rest_base);".format(name) in bringup
-        assert "::harpia::soap::register_{}_soap(app_, db, soap_base);".format(name) in bringup
+        # db-concurrency task 2: the `_with` forms take either the session or the pool
+        assert ("::harpia::rest::register_{}_with(app_, db, pool, lease_timeout_ms, "
+                "rest_base);".format(name)) in bringup
+        assert ("::harpia::soap::register_{}_soap_with(app_, db, pool, lease_timeout_ms, "
+                "soap_base);".format(name)) in bringup
 
 
 def test_selection_records_the_f5_choice(http_dir):

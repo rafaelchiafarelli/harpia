@@ -54,6 +54,7 @@ from Compliance.rbac_common import (
 from Compliance.session_common import (
     SESSION_RUNTIME, SESSION_RUNTIME_SRC, SESSION_RUNTIME_DEPS)
 from Database.auth_gate import rest_auth_fills, effective_rbac, transport_mode
+from Database.db_pool_common import DB_POOL_RUNTIME, DB_POOL_RUNTIME_SRC
 from Crypto.backend import get_backend as get_crypto_backend, \
     transport_hardening_required
 
@@ -179,6 +180,13 @@ class RestAdapter:
             table_msg_objs.append(msg)
 
         if table_msgs:
+            # db-concurrency task 2: every REST/SOAP header includes the pool
+            # runtime, which lives next to the DAOs it hands sessions to (the
+            # same copy GrpcServiceAdapter makes; copy_if_different is idempotent).
+            dbDir = os.path.join(self.dest, "generated", "cpp", "db")
+            os.makedirs(dbDir, exist_ok=True)
+            copy_if_different(DB_POOL_RUNTIME_SRC,
+                              os.path.join(dbDir, DB_POOL_RUNTIME))
             self._write_http_bringup(table_msgs, table_msg_objs,
                                      hardening_required)
 
@@ -226,8 +234,8 @@ class RestAdapter:
             '#include "soap/{}_{}{}"'.format(name, h, SOAP_EXT)
             for name, h in table_msgs)
         registrations = "\n".join(
-            "        ::harpia::rest::register_{n}(app_, db, rest_base);\n"
-            "        ::harpia::soap::register_{n}_soap(app_, db, soap_base);".format(
+            "        ::harpia::rest::register_{n}_with(app_, db, pool, lease_timeout_ms, rest_base);\n"
+            "        ::harpia::soap::register_{n}_soap_with(app_, db, pool, lease_timeout_ms, soap_base);".format(
                 n=name)
             for name, _ in table_msgs)
         backend = self.crypto_backend
