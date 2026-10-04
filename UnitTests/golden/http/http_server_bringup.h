@@ -42,6 +42,8 @@
 #include "crow.h"
 #include <soci/soci.h>
 
+#include "db/harpia_db_pool.h"
+
 #include "rest/data_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
 #include "rest/users_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
 #include "rest/vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
@@ -54,6 +56,8 @@
 #include "rest/patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
 #include "rest/alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
 #include "rest/telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
+#include "rest/reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
+#include "rest/vault_3ac5d8b36fc7dcfb70888145147ddfb7_rest.h"
 #include "soap/data_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
 #include "soap/users_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
 #include "soap/vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
@@ -66,6 +70,8 @@
 #include "soap/patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
 #include "soap/alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
 #include "soap/telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
+#include "soap/reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
+#include "soap/vault_3ac5d8b36fc7dcfb70888145147ddfb7_soap.h"
 #include "http/harpia_rbac.h"
 #include "http/harpia_session.h"
 #ifdef CROW_ENABLE_SSL
@@ -77,6 +83,12 @@ namespace http_transport {
 
 // transport_hardening_required(compliance) evaluated at generation time.
 inline constexpr bool kHardeningRequired = true;
+// message-level-hardening epic, protected-open-modifiers task 3:
+// at least one message's protected/open modifier diverges from
+// the project-wide default -- see Database/auth_gate.py's
+// transport_mode().
+inline constexpr bool kEmitTls = true;
+inline constexpr bool kClientCertRequired = false;
 // F5 CryptoBackend seam selection (recorded; see http_server_selection.json).
 inline constexpr const char* kCryptoBackend = "openssl_fips";
 inline constexpr const char* kOpenSSLProvider = "fips";
@@ -85,7 +97,7 @@ inline constexpr const char* kOpenSSLProvider = "fips";
 // A hardened project must be built with TLS support -- refuse to produce a
 // plaintext server for it (compile-time fail-safe, mirrors
 // harpia_grpc_mtls.h / harpia_dds_security.h throwing at run time).
-static_assert(!kHardeningRequired,
+static_assert(!kEmitTls,
     "transport_hardening_required(compliance) is true for this project: build "
     "the generated HTTP server with -DCROW_ENABLE_SSL (and link OpenSSL) so it "
     "can enforce mTLS. It will not serve plaintext.");
@@ -95,21 +107,47 @@ static_assert(!kHardeningRequired,
 // `rest_base` and every SOAP endpoint under `soap_base` (they must differ --
 // both put a POST route on <base>/<name>). Construct, then run(port). `mtls` is
 // consulted only when kHardeningRequired is true.
+//
+// Database (multi-system-reference / db-concurrency task 2): the soci::session
+// constructors share that one session across every request -- NOT thread-safe
+// once Crow's multithreaded() run serves requests concurrently; kept for
+// single-client use and existing callers. The ::soci::connection_pool
+// constructors give each request its own borrowed session
+// (db/harpia_db_pool.h); `lease_timeout_ms` is how long a request waits for a
+// free slot before answering 503. The caller constructs, sizes and opens the
+// pool (for SQLite: harpia::db::open_sqlite_pool). A pool of SQLite :memory:
+// connections is refused with std::invalid_argument.
 class HttpServer {
 public:
 #ifdef CROW_ENABLE_SSL
     HttpServer(::soci::session& db, const std::string& rest_base = "",
                const std::string& soap_base = "/soap",
                const MtlsFiles& mtls = {}) {
-        register_all(db, rest_base, soap_base);
-        if (kHardeningRequired) {
-            app_.ssl(make_server_context(kHardeningRequired, mtls));
-        }
+        register_all(&db, nullptr, ::harpia::db::kDefaultLeaseTimeoutMs,
+                     rest_base, soap_base);
+        secure(mtls);
+    }
+
+    HttpServer(::soci::connection_pool& pool, const std::string& rest_base = "",
+               const std::string& soap_base = "/soap",
+               const MtlsFiles& mtls = {},
+               int lease_timeout_ms = ::harpia::db::kDefaultLeaseTimeoutMs) {
+        ::harpia::db::refuse_sqlite_memory_pool(pool, lease_timeout_ms);
+        register_all(nullptr, &pool, lease_timeout_ms, rest_base, soap_base);
+        secure(mtls);
     }
 #else
     HttpServer(::soci::session& db, const std::string& rest_base = "",
                const std::string& soap_base = "/soap") {
-        register_all(db, rest_base, soap_base);
+        register_all(&db, nullptr, ::harpia::db::kDefaultLeaseTimeoutMs,
+                     rest_base, soap_base);
+    }
+
+    HttpServer(::soci::connection_pool& pool, const std::string& rest_base = "",
+               const std::string& soap_base = "/soap",
+               int lease_timeout_ms = ::harpia::db::kDefaultLeaseTimeoutMs) {
+        ::harpia::db::refuse_sqlite_memory_pool(pool, lease_timeout_ms);
+        register_all(nullptr, &pool, lease_timeout_ms, rest_base, soap_base);
     }
 #endif
 
@@ -118,32 +156,46 @@ public:
     void stop() { app_.stop(); }
 
 private:
-    void register_all(::soci::session& db, const std::string& rest_base,
+#ifdef CROW_ENABLE_SSL
+    void secure(const MtlsFiles& mtls) {
+        if (kEmitTls) {
+            app_.ssl(make_server_context(kEmitTls, mtls, kClientCertRequired));
+        }
+    }
+#endif
+
+    // Exactly one of `db` / `pool` is non-null.
+    void register_all(::soci::session* db, ::soci::connection_pool* pool,
+                      int lease_timeout_ms, const std::string& rest_base,
                       const std::string& soap_base) {
-        ::harpia::rest::register_data(app_, db, rest_base);
-        ::harpia::soap::register_data_soap(app_, db, soap_base);
-        ::harpia::rest::register_users(app_, db, rest_base);
-        ::harpia::soap::register_users_soap(app_, db, soap_base);
-        ::harpia::rest::register_vip_users(app_, db, rest_base);
-        ::harpia::soap::register_vip_users_soap(app_, db, soap_base);
-        ::harpia::rest::register_top_users(app_, db, rest_base);
-        ::harpia::soap::register_top_users_soap(app_, db, soap_base);
-        ::harpia::rest::register_shipment(app_, db, rest_base);
-        ::harpia::soap::register_shipment_soap(app_, db, soap_base);
-        ::harpia::rest::register_journey(app_, db, rest_base);
-        ::harpia::soap::register_journey_soap(app_, db, soap_base);
-        ::harpia::rest::register_crew(app_, db, rest_base);
-        ::harpia::soap::register_crew_soap(app_, db, soap_base);
-        ::harpia::rest::register_outpost(app_, db, rest_base);
-        ::harpia::soap::register_outpost_soap(app_, db, soap_base);
-        ::harpia::rest::register_beacon_log(app_, db, rest_base);
-        ::harpia::soap::register_beacon_log_soap(app_, db, soap_base);
-        ::harpia::rest::register_patient_vitals(app_, db, rest_base);
-        ::harpia::soap::register_patient_vitals_soap(app_, db, soap_base);
-        ::harpia::rest::register_alarm_event(app_, db, rest_base);
-        ::harpia::soap::register_alarm_event_soap(app_, db, soap_base);
-        ::harpia::rest::register_telemetry(app_, db, rest_base);
-        ::harpia::soap::register_telemetry_soap(app_, db, soap_base);
+        ::harpia::rest::register_data_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_data_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_users_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_users_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_vip_users_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_vip_users_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_top_users_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_top_users_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_shipment_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_shipment_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_journey_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_journey_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_crew_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_crew_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_outpost_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_outpost_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_beacon_log_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_beacon_log_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_patient_vitals_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_patient_vitals_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_alarm_event_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_alarm_event_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_telemetry_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_telemetry_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_reception_desk_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_reception_desk_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
+        ::harpia::rest::register_vault_with(app_, db, pool, lease_timeout_ms, rest_base);
+        ::harpia::soap::register_vault_soap_with(app_, db, pool, lease_timeout_ms, soap_base);
         register_session(rest_base, soap_base);
     }
 

@@ -20,7 +20,7 @@ code. The pipeline (see `harpia.process.md` for the full 15-stage spec):
 | 7 | run `protoc` → compilable C++ messages | ✅ implemented |
 | 8 | database / SQL (schema, CRUDL, version transforms) | ✅ CREATE TABLE schema + CRUDL DAO emitted against **SOCI** — database-agnostic: SQLite by default or PostgreSQL via `HARPIA_DB_BACKEND=postgresql` (same generated code, only the SQL dialect changes), incl. enum columns, singular FK to a table-bearing message (the child row is persisted/loaded via its own DAO, including one reached through a table-less embed, e.g. `outpost.berth.skipper`), a singular composed field to a table-less message flattened into prefixed columns (`data.val.var` → column `val_var`, recursively through further table-less nesting, e.g. `journey.path.start.city` → `path_start_city`), `map<K,V>` fields (direct or embed-nested) persisted in a child table `<table>__<path>` keyed by the parent PK (create/read/update/remove cascade), repeated scalar fields (`repeteable int tags`, direct or embed-nested like `data.val.scores`) persisted in an ordinal-keyed child table, repeated composed fields to a table-bearing message (`repeteable vip_users members`, a 1-to-many: each child persisted/loaded via its DAO through a link table), and repeated composed fields to a table-less message (`repeteable parcel cargo`: a child table with one column per the target's own flattened fields, no child DAO); the `repeteable` modifier now emits proto `repeated`. A table declaring a `pagination[size]` field gets a paginated `list(offset, limit)` DAO overload (see Stage 12/13). Schema migration / version transforms: a `migrate_<name>(db)` per table brings an older database up to the current schema — adds any column an older version lacks, RENAMEs a column carrying the `renamed_from[<old>]` DSL modifier, DROPs a live column the current schema no longer declares, and RETYPEs any column whose live SQL type no longer matches the current schema (detected by runtime introspection alone — no DSL modifier needed, since the column name is unchanged; Postgres uses a direct `ALTER COLUMN ... TYPE`, SQLite rebuilds the table since it has no such statement) (version stamped in `_harpia_schema_version`), plus an optional caller-supplied `data_transform` hook (`std::function<void(session&)>`, runs after add and before drop) for cross-version **value** transforms an automatic diff can't express, e.g. deriving one column from another (see `USAGE.md` §6) |
 | 9 | JSON adapter (`to_json`/`from_json` + checker) | ✅ message↔JSON + DB bulk export/import (NDJSON) |
-| 10 | XML adapter (`to_xml`/`from_xml` + XSD) | ✅ message↔XML + XSD + DB bulk export/import |
+| 10 | XML / YAML adapters (`to_xml`/`from_xml` + XSD, `to_yaml`/`from_yaml`) | ✅ message↔XML + XSD + DB bulk export/import; message↔YAML (reflection-based, parses the subset it emits, not general YAML) |
 | 11 | SOAP | ✅ SOAP get/set/update/delete endpoint (XML over HTTP) over CRUDL (Crow + tinyxml2), gated by the Stage 5 access credential (SOAP Header `<credentials>`, 401 Fault on mismatch); WSDL 1.1 descriptor emitted per message (`wsdl/<name>_<hash>.wsdl`, document/literal SOAP binding) |
 | 12 | HTML / REST bindings | ✅ REST CRUD (GET/POST/PUT/DELETE) over CRUDL (Crow) with JSON/XML content negotiation (`Content-Type`/`Accept`, via the JSON + XML adapters), gated by the Stage 5 access credential (`X-User`/`X-Pswd` headers, 401 on mismatch); GET-list is paginated via `?limit=&offset=` (defaulting to the table's declared `pagination[size]` when present) |
 | 13 | zmq/socket + gRPC access | ✅ gRPC stubs **wired to CRUDL** (per table message, a `<name>_service` impl: push→create, pullByID→read, streamSrc→list [paginated via the request's `offset`/`limit` fields when `limit>0`], heartBeat→echo), with the data RPCs gated by the Stage 5 credential via `x-user`/`x-pswd` call metadata (UNAUTHENTICATED on mismatch) **and** ZMQ push/pull + pub/sub, with a sender "originator" id (process.md 1.3.1.1): a compile-time constant for a unique publisher (`pull`/`event`/`stream`), or a runtime-unique id (pid + counter + random, no broker needed) for a shared publisher (`push`/`pushpull`); every ZMQ sender/receiver/publisher/subscriber constructor also takes an optional CURVE encryption keys parameter (default-disabled, `USAGE.md` §10). **Capability handshake** (message-versioning effort, shipped 2026-08-23, all four transports — see `Capability/CLAUDE.md`): one whole-project capability advertisement per generated peer per transport (`capabilities_service` for gRPC, a shared `GET <base>/capabilities` route for REST/SOAP, a REQ/REP exchange for ZMQ — all three carrying the same `capabilities_Request`/`capabilities_Response` wire messages) lists every message-type name the peer knows about; each transport's hand-written `negotiate()` runtime queries a peer's set with a real deadline (a peer that predates this feature, or never answers in time, resolves to a named "legacy peer" outcome, not a hang), and the shared `harpia::capability::Dispatcher` routes a message type to a registered handler when the peer's set covers it or to a mandatory fallback otherwise — never a silent no-op. |
@@ -40,8 +40,6 @@ for renamed/removed messages; see `USAGE.md` §11, `Util/CLAUDE.md`.
 
 Beyond the pipeline (the "## objective:"-onward spec section below is the
 design vision, not current status):
-- **No YAML serialization.** JSON and XML adapters exist; the spec also
-  calls for a YAML-style `toString`.
 - **Doxygen generation — plumbing ✅, coverage ongoing.** `Assets/Doxyfile`
   + the CMake `doxygen` target + `Doxygen/mainpage.py` (USAGE.md §4/§6/§11
   extraction) shipped as Foundation F6 (merged to `dev` 2026-08-23). What
@@ -56,35 +54,46 @@ design vision, not current status):
   `HarpiaTest/app_example/consumer -DUSE_TLS=ON`, `USAGE.md` §9. ZMQ has generated CURVE
   encryption (`bind`/`connect` live inside the generated sender/receiver
   classes, so this is a real generated-code change), `USAGE.md` §10.
-  Residuals: ZMQ CURVE is encryption only, no credential gate of its own
-  (unlike REST/SOAP/gRPC's `X-User`/`X-Pswd`); and the Windows vcpkg
-  `zeromq` `curve`+`sodium` build is unverified (Linux/Docker only so far).
-- **No multi-tier RBAC.** Every credential-gated surface checks a single
-  flat `X-User`/`X-Pswd`-style secret, not the admin/main/guest roles the
-  spec describes.
+  Residual: ZMQ CURVE is encryption only, no credential gate of its own
+  (unlike REST/SOAP/gRPC's `X-User`/`X-Pswd`). The Windows vcpkg
+  `zeromq` `curve`+`sodium` build is verified — see the Windows bullet below.
+- **Per-message hardening override — ✅ shipped, REST/SOAP/gRPC only.**
+  `admin`/`main`/`guest` RBAC + bearer sessions (below) used to be one
+  project-wide choice; the message-level-hardening epic
+  (protected-open-modifiers) adds `protected`/`open` DSL modifiers so a
+  single message can force the RBAC gate on, or the flat `X-User`/`X-Pswd`-
+  style credential on, regardless of the project's own compliance profile
+  (`Database/auth_gate.effective_rbac()`) — a project using neither modifier
+  anywhere is byte-identical to before this epic. **Still project-wide
+  only:** ZMQ CURVE key distribution (no credential gate of its own to begin
+  with, see the residual above) and DDS-Security participant identity — a
+  later epic, not yet scoped.
 - **Additional language targets.** Java is a **fully shipped** second
   target (stages 8–14 equivalents: DB ×2 dialects, JSON, XML, REST, SOAP,
   ZMQ core+CURVE, generated JUnit tests, Gradle packaging; the Docker image
   carries a JDK 17 + Gradle 8.5 toolchain so its JDK-gated tests run
   against a real JVM). Android consumption (message classes, gRPC client,
   ZMQ client) is verified on-device — `Docker/run_android_emulator_tests.sh`
-  boots a `/dev/kvm`-accelerated emulator, 4/4 instrumented tests pass;
+  boots a `/dev/kvm`-accelerated emulator, 6/6 instrumented tests pass, including
+  real hardened calls from the device to C++ servers (mTLS + session gRPC,
+  CURVE + ZAP ZMQ);
   this found and fixed one real ART-incompatibility bug
   (`java.lang.ProcessHandle`, a JDK9+ API absent from Android), see
   `HarpiaTest/app_example/android_consumer/README.md`. Node/Rust/Python remain spec-only,
   not started.
-- **Windows as a generated-code target — ✅ mostly.** The generator
-  (`main.py`) still runs only via Docker/Linux, but the *generated* C++
-  project builds and runs natively on Windows (MSVC + vcpkg): the ZMQ
-  server/client demo, the REST/JSON demo (`HarpiaTest/app_example/consumer`, incl.
-  `-DUSE_TLS=ON`), and the Stage 14 generated `ctest` suite (10/10, its
-  REST/SOAP HTTP test client ported to Winsock2) — `USAGE.md` §12.
-  Unverified on Windows (vcpkg feature added, build not run): the
-  PostgreSQL backend, and `-DUSE_ZMQ_CURVE=ON`.
+- **Windows as a generated-code target — ✅.** The generator (`main.py`)
+  still runs only via Docker/Linux, but the *generated* C++ project builds
+  and runs natively on Windows (MSVC 2022 + vcpkg): the ZMQ server/client
+  demo (incl. `-DUSE_ZMQ_CURVE=ON`), the REST/JSON demo
+  (`HarpiaTest/app_example/consumer`, incl. `-DUSE_TLS=ON`), the PostgreSQL
+  backend (`-DUSE_POSTGRES=ON`, against a live server), and the Stage 14
+  generated `ctest` suite (10/10, its REST/SOAP HTTP test client ported to
+  Winsock2) — `USAGE.md` §16.
 - **Compliance / medical-device profile — ✅ shipped (V1).** A
   `project.harpia.yaml` compliance profile (`Compliance/context.py`) now
   drives, when `risk_class: class_c` or `topology: cloud_connected`:
-  field-level `phi` encryption at rest + audit-on-access + `[REDACTED]`
+  field-level `phi` envelope encryption at rest (cipher is currently a
+  placeholder — see `USAGE.md` §9) + audit-on-access + `[REDACTED]`
   serialization, `critical`-message delivery guarantees, mTLS + `admin`/
   `main`/`guest` RBAC + bearer session tokens on REST/SOAP/gRPC, a ZMQ
   CURVE ZAP client-key allowlist, DDS transport with DDS-Security, in-process

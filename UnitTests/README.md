@@ -32,6 +32,21 @@ python3 -m venv .venv
 .venv/bin/python -m pytest
 ```
 
+## Opt-in tests (live PostgreSQL)
+
+Four tests need a reachable PostgreSQL server and so are skipped by a plain
+`Docker/run.sh pytest` run (they gate on `HARPIA_PG_DSN`):
+`test_stage8_pg.py` (2 — C++ SOCI/libpq CRUDL + retype migration) and
+`test_java_db_crudl_postgres.py` (2 — Java/JDBC driver wiring + CRUDL cycle).
+`Docker/run_pg_tests.sh` stands up a throwaway Postgres container, runs all
+four against it, and tears it down. Last full green run: 2026-09-02
+(PostgreSQL 16, `4 passed`).
+
+```sh
+Docker/run_pg_tests.sh            # all 4
+Docker/run_pg_tests.sh -k retype  # extra args pass through to pytest
+```
+
 ## Test files
 
 | file | what it checks | needs |

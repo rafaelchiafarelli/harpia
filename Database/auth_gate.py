@@ -1,12 +1,13 @@
 """Access-gate code fills for the generated REST / SOAP / gRPC transports
 (transport-authn epic -- flat credential gate in tasks 2/3, three-role RBAC in
-task 4, bearer sessions in task 5).
+task 4, bearer sessions in task 5; message-level-hardening epic,
+protected-open-modifiers task 3 -- the gate becomes per-message).
 
 One place decides, per transport, what the `{{auth_*}}` placeholders in
 `templates/{{rest,soap,grpc_service}}.h.tmpl` render to, so the three adapters
-stay thin. The choice is a single generation-time boolean, `rbac` (=
-`Crypto.backend.transport_hardening_required(compliance)` -- the same predicate
-that turns on mTLS), never a per-jurisdiction fan-out:
+stay thin. The choice is a generation-time boolean, `rbac`, computed **per
+message** by `effective_rbac()` below (was a single project-wide value before
+protected-open-modifiers task 3 -- see that function for the current rule):
 
   rbac == False -> the flat generated credential, unchanged from tasks 2/3:
       REST  X-User/X-Pswd headers        SOAP  <credentials> in the Header
@@ -33,7 +34,89 @@ fills below (empty in the flat variant, so it stays byte-identical).
 Each `*_auth_fills(name, hash, rbac)` returns a dict of already-rendered C++
 text keyed by the template's placeholder names -- callers splice it straight
 into `str.format(**fills, ...)`.
+
+**protected-open-modifiers task 3: per-message override.** A message tagged
+`protected` in the DSL (`Message.is_protected`) always gets the RBAC gate,
+regardless of the project-wide default; one tagged `open`
+(`Message.is_open`) always gets the flat/no-identity-required gate. Neither
+tag on a message means it inherits the project-wide default unchanged --
+this is what keeps a project using neither modifier byte-identical to before
+this task. See `effective_rbac()`. This is a purely per-message decision:
+composing an `open` message inside a `protected` one does NOT propagate
+`protected` onto it (and cannot conflict the other way either) -- a
+deliberate simplicity choice, not an oversight; a message's own declared
+modifier is the only input to its own gate.
+
+**Transport-level fallout.** The RBAC gate needs a client certificate's
+CommonName to exist at all, and TLS is normally one project-wide on/off
+switch -- so a `protected` message in an otherwise-unhardened (plaintext)
+project, or an `open` message in an otherwise-hardened (mTLS-required)
+project, needs the *transport itself* to change shape, not just that one
+message's generated gate code. `transport_mode()` below computes the two
+derived constants (`emit_tls` / `client_cert_required`) the adapters bake
+into the generated bring-up for this -- see its docstring, and
+`Initiatives/message-level-hardening/epics/protected-open-modifiers/tasks/2-mtls-optional-mode-spike-done.md`
+for the confirmed feasibility this implements.
 """
+
+
+def effective_rbac(msg, hardening_required):
+    """The per-message gate boolean protected-open-modifiers task 3 feeds into
+    `{{rest,soap,grpc}}_auth_fills()`, replacing the single project-wide value
+    every caller used before this task.
+
+    `msg.is_protected` always wins (RBAC gate, regardless of the project
+    default); `msg.is_open` always wins the other way (flat gate) when
+    `is_protected` isn't also set -- task 1 already makes both-set a hard
+    generation error, so this function never sees that combination. Neither
+    set -> the project-wide default, unchanged.
+    """
+    return bool(getattr(msg, "is_protected", False)) or (
+        hardening_required and not getattr(msg, "is_open", False))
+
+
+def transport_mode(messages, hardening_required):
+    """Whole-project transport shape for protected-open-modifiers task 3,
+    derived from every table-bearing message's `effective_rbac()` vs the
+    project-wide `hardening_required` default. Returns `(emit_tls,
+    client_cert_required)`:
+
+      emit_tls            -- should the generated bring-up run a TLS-capable
+                             server at all? True whenever the project is
+                             already hardened, OR at least one message is
+                             `protected` (it needs a client cert to check --
+                             there is no such thing as an RBAC decision with
+                             no transport to carry an identity on).
+      client_cert_required -- should a connecting client be REQUIRED to
+                             present a certificate (today's all-or-nothing
+                             mTLS), or only asked for one (task 2's confirmed
+                             "requested, not required" mode)? False whenever
+                             at least one message is `open` in an otherwise
+                             hardened project (an anonymous caller must be
+                             able to complete the handshake to reach it) --
+                             or whenever `emit_tls` is true only because of a
+                             `protected` message in an otherwise-unhardened
+                             project (nothing there expects to own a cert).
+
+    Both are exactly `hardening_required` (today's binary behaviour,
+    unchanged) whenever no message's `effective_rbac()` diverges from the
+    project default -- the byte-identical-output guarantee for a project
+    using neither modifier anywhere.
+
+    A message that needs the RBAC gate but whose project doesn't actually
+    supply real certificate files (`MtlsFiles.complete()`) is refused at run
+    time by `make_server_context()`/`server_credentials()`
+    (`SecurityRefused`) exactly as an incomplete hardened project is refused
+    today -- never a silent plaintext fallback for a message the schema says
+    must be gated.
+    """
+    any_open_under_hardening = hardening_required and any(
+        getattr(m, "is_open", False) for m in messages)
+    any_protected_under_open = (not hardening_required) and any(
+        getattr(m, "is_protected", False) for m in messages)
+    emit_tls = hardening_required or any_protected_under_open
+    client_cert_required = hardening_required and not any_open_under_hardening
+    return emit_tls, client_cert_required
 
 # REST verb / gRPC RPC / SOAP operation -> ::harpia::rbac::Operation member.
 # GET-list -> list, GET-item / pullByID -> read, POST / push -> create,

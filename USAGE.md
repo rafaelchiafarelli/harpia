@@ -268,6 +268,21 @@ app.port(8080).run();                                  // GET list honours ?limi
 or it is `401`. **Hardened:** see §8 — requests carry a client cert or a bearer
 token and are checked against the RBAC matrix.
 
+Crow's `multithreaded()` serves requests on several threads, so a server with
+more than one client should register over a connection pool rather than one
+shared session (same rules as the gRPC pool in §7.5):
+
+```cpp
+harpia::rest::register_users(app, pool, "/api/v1", /*lease_timeout_ms=*/2000);
+harpia::soap::register_users_soap(app, pool, "/soap", 2000);
+// or, every binding at once on one app:
+harpia::http_transport::HttpServer server(pool, "/api/v1", "/soap", mtls);
+```
+
+Each request borrows one session after the access gate; no free slot within
+the timeout answers `503` "db pool exhausted" (SOAP: `503` + a Fault), a dead
+connection that can't reconnect answers `503` "db reconnect failed".
+
 ### 7.4 SOAP
 
 ```cpp
@@ -283,18 +298,66 @@ header. The transport-free parse (`harpia::soap::message_from_request`) is in
 
 ```cpp
 #include "grpc/grpc_server_bringup.h"
-harpia::grpc_transport::GrpcServer server;             // registers every generated service
-server.Start("0.0.0.0:50051");                          // mTLS ServerCredentials when hardened, else insecure
-server.Wait();
+harpia::grpc_transport::MtlsFiles mtls{"ca.pem", "server.pem", "server_key.pem"};
+
+// one client at a time: every RPC shares this session (NOT thread-safe)
+harpia::grpc_transport::GrpcServer server(db, "0.0.0.0:50051", mtls);
+
+// many concurrent clients: each RPC borrows its own session from a pool
+::soci::connection_pool pool(16);
+for (std::size_t i = 0; i < 16; ++i) pool.at(i).open(::soci::postgresql, "host=... dbname=...");
+harpia::grpc_transport::GrpcServer server(pool, "0.0.0.0:50051", mtls,
+                                          /*lease_timeout_ms=*/2000);
+server.wait();
 ```
 
-Or wire one service onto your own `grpc::ServerBuilder`:
+`mtls` is used only when the project is hardened (mTLS required and verified);
+otherwise the server is insecure. Or wire one service onto your own
+`grpc::ServerBuilder`:
 
 ```cpp
 #include "grpc/users_<hash>_grpc.h"
-harpia::grpc_impl::users_service svc(db);
+harpia::grpc_svc::users_service svc(pool);   // or svc(db)
 builder.RegisterService(&svc);
 ```
+
+**Connection pool** (`db/harpia_db_pool.h`, `harpia::db::PooledSession`). With a
+pool, each RPC borrows exactly one session and always gives it back; a borrow
+that waits longer than `lease_timeout_ms` fails the RPC with
+`RESOURCE_EXHAUSTED` "db pool exhausted" instead of hanging; a dead connection
+(server restart, `pg_terminate_backend`) is reconnected on borrow (or the RPC
+fails `UNAVAILABLE` "db reconnect failed"); an exception mid-transaction is
+rolled back before the session goes back. `streamSrc` gives the session back
+before it streams, so a slow reader never holds a slot. Sizing is yours:
+stay under PostgreSQL's `max_connections` (default 100) minus admin headroom —
+each PostgreSQL connection is a server process, heavier on Windows. Tens of
+connections serve hundreds of clients when calls are short; beyond that, put
+PgBouncer in front. On PostgreSQL, the reconnect check pings the server once
+per borrow. The borrow deadline runs on the monotonic clock, so wall-clock
+steps (NTP, VM resume, WSL2 resync) don't cut waits short.
+
+**SQLite under a pool.** Open it with the helper, on a file:
+
+```cpp
+#include <soci/sqlite3/soci-sqlite3.h>
+::soci::connection_pool pool(4);
+harpia::db::open_sqlite_pool(pool, 4, ::soci::sqlite3, "/var/lib/app/app.db",
+                             /*busy_timeout_ms=*/5000);
+harpia::grpc_transport::GrpcServer server(pool, "0.0.0.0:50051", mtls);
+```
+
+It sets `PRAGMA journal_mode=WAL` (readers don't block the writer) and
+`PRAGMA busy_timeout` on every connection, so concurrent writers wait instead
+of failing with "database is locked". SQLite still runs one writer at a time;
+for many concurrent writers use PostgreSQL. A pool of `:memory:` connections is
+refused with `std::invalid_argument` (each would be its own empty database);
+use a file, or the single-session constructor for an in-memory database.
+
+**Shared state is thread-safe.** Besides its pooled session, a handler touches
+the key provider (phi DAOs), the audit sink, the RBAC map and the session
+revocation list. All harpia-shipped ones are safe to share across handler
+threads. A `KeyProvider`, `KmsClient` or `AuditSink` you write yourself is
+called from many threads too, so it must be thread-safe.
 
 RPCs map `push`→create, `pullByID`→read, `streamSrc`→list (paginated via the
 request's `offset`/`limit`), `heartBeat`→echo. Under hardening `heartBeat` mints
@@ -393,7 +456,7 @@ in:
 | `HARPIA_SESSION_KEY` | the HMAC key (raw, or `@<path>`); empty ⇒ sessions disabled |
 | `HARPIA_SESSION_TTL` | token lifetime in seconds (default 900) |
 | `HARPIA_SESSION_REVOCATIONS` | one revoked `jti` per line, re-read on change |
-| `HARPIA_ZMQ_ALLOWLIST` | `<z85-client-public-key> <identity>` per line — deny-all if absent |
+| `HARPIA_ZMQ_ALLOWLIST` | `<z85-client-public-key> <identity>` per line — deny-all if absent. `#` starts a comment only as the first character of a line's first token or of the identity; `#` inside a key is part of the key (it is a Z85 digit) |
 
 Bring the servers up with the generated helpers, which pick mTLS credentials
 automatically when hardened:
@@ -407,7 +470,26 @@ harpia::grpc_transport::GrpcServer grpc;
 grpc.Start("0.0.0.0:50051");
 ```
 
-Provision a dev PKI with `Assets/cmake/mtls_provision.sh <out_dir>`. Clients
+Provision a dev PKI with `Assets/cmake/mtls_provision.sh <out_dir> [server_CN] [identity ...]`.
+For a server on another machine add `--san <ip-or-hostname>` (repeatable; e.g.
+the LAN address, or `10.0.2.2` for the Android emulator). For many clients pass
+`--clients-file <file>` (one `<identity> <role>` per line, role `admin|main|guest`):
+one client cert per identity plus a ready `rbac_map.txt` for `HARPIA_RBAC_MAP`.
+Re-runs reuse the CA and keep existing identities (only new ones are issued).
+A **Java / Android client** of a hardened C++ server opens its channel with
+the generated `com.harpia.runtime.grpc.HarpiaGrpcTls` (works with
+`grpc-netty-shaded` and `grpc-okhttp`; PEMs as `InputStream`s, key in PKCS#8):
+
+```java
+ChannelCredentials creds = HarpiaGrpcTls.credentials(caPem, clientCertPem, clientKeyPem);
+ManagedChannel ch = Grpc.newChannelBuilderForAddress("station", 50051, creds).build();
+
+// optional bearer session (com.harpia.runtime.grpc.HarpiaSession)
+HarpiaSession s = HarpiaSession.issue(ch, users_ServiceGrpc.getHeartBeatMethod());
+var stub = users_ServiceGrpc.newBlockingStub(ch).withInterceptors(s.interceptor());
+s.withRetry(() -> stub.push(msg));   // re-issues once if the token expired
+```
+ Clients
 obtain a token from `POST <rest_base>/session` (REST/SOAP) or `heartBeat` +
 `harpia-issue-session` metadata (gRPC), then present `Authorization: Bearer
 <token>` — the token's CN, not the cert, is the identity for that call. The RBAC
@@ -415,9 +497,63 @@ matrix is fixed: admin = every verb, main = every verb but delete, guest =
 read/list/stream, heartbeat open to all. Each denial is one value-free audit
 record (`rbac_denied` / `session_denied` / `zap_denied`).
 
+### 8.1 Per-message override: `protected` / `open`
+
+The compliance profile picks one project-wide default, but a single message
+can override it (message-level-hardening epic, protected-open-modifiers):
+
+```
+protected message alarm_event { ... } alarm_event_table;  // always RBAC-gated
+open message catalog { ... } catalog_table;                // always the flat gate
+```
+
+- `protected message` — this message's REST/SOAP/gRPC endpoints always use
+  the RBAC/session gate above, even in a project whose compliance profile
+  does not request hardening.
+- `open message` — this message's endpoints always use the flat
+  `X-User`/`X-Pswd`-style credential (Stage 5), even in an otherwise-hardened
+  project. This is a downgrade to that credential, not "no check at all" —
+  a caller still needs it, it just never needs a client certificate.
+- Both on the same message is a generation-time error — fix the schema, it
+  is never silently resolved one way or the other.
+- A message using neither modifier is unaffected: it inherits whatever the
+  project's compliance profile already decides, byte-identically to before
+  this feature existed.
+- **Scope**: the REST/SOAP/gRPC RBAC/session axis only. ZMQ CURVE key
+  distribution and DDS-Security participant identity stay project-wide
+  (§11, §12) — a later epic, not yet per-message.
+- **No composition propagation**: a message's own `protected`/`open` is the
+  only input to its own gate. If a `protected` message composes another
+  message that has its own independent table (and therefore its own
+  independent endpoints), that composed message is NOT automatically
+  protected too — mark it explicitly if it needs to be. Losing protection
+  this way is a schema-authoring decision harpia does not infer or block.
+- **A `protected` message in an otherwise-unhardened project, or an `open`
+  message in an otherwise-hardened one, changes that project's transport,
+  not just the one message.** Crow/gRPC serve one listening socket per
+  project, so "TLS on for this route only" isn't possible at the transport
+  layer; instead the whole project's REST/SOAP/gRPC transport switches to
+  "client certificate requested, but not required" (confirmed feasible and
+  proven live in `UnitTests/test_mtls_optional_mode_spike.py`) — every other
+  message's own gate keeps enforcing its own requirement regardless. A
+  `protected` message under an unhardened default additionally needs real
+  mTLS PEM files supplied at runtime (the same `MtlsFiles`/env-driven
+  provisioning as §8 above) even though the project itself isn't
+  "hardened" — without them the generated code refuses to start rather than
+  silently serving that message in the clear.
+
 ---
 
 ## 9. `phi` fields — encryption, redaction, audit
+
+**Current cipher is a placeholder, not a real one.** The envelope-encryption
+machinery below (KEK/DEK separation, rotation, per-DEK crypto-shred,
+zeroization, audit-on-access) is real, but the actual `Dek::seal`/`open` step
+it wraps is an XOR placeholder (`Crypto/backend.py`'s `CryptoBackend` seam
+exists, but no backend has a real cipher bound to it yet). **Do not rely on
+this for confidentiality of real PHI today** — treat "at rest" below as
+describing the envelope and audit trail a real cipher will drop into, not
+current ciphertext strength.
 
 Tag a field `phi` and, with **no other change to your code**:
 
@@ -497,8 +633,10 @@ Keys are Z85 text (`zmq_curve_keypair()`'s native form). CURVE is a no-op over
 `inproc://`; `tcp://` and `ipc://` go through the real handshake. When the
 profile is hardened, bind-side `CURVE_SERVER` sockets additionally enforce the
 `HARPIA_ZMQ_ALLOWLIST` (§8) — an unknown client key is rejected at the handshake
-even with valid crypto; `Assets/cmake/zmq_zap_provision.sh` mints a starter
-allowlist.
+even with valid crypto; `Assets/cmake/zmq_zap_provision.sh <out_dir> [identity ...]`
+mints a starter allowlist (`--clients-file <file>`: the same identity file
+`mtls_provision.sh` takes, one CURVE keypair per identity; re-runs keep existing
+keys).
 
 **`ZMQ_LINGER`:** a socket with an undelivered message from a failed handshake
 blocks forever on destruction (`LINGER == -1`). If a sender might face a peer

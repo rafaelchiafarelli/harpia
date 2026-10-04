@@ -17,7 +17,7 @@ import os
 
 from Logger.logger import logger
 from Util.util import loadTemplate, write_if_different, copy_if_different
-from Database.auth_gate import soap_auth_fills
+from Database.auth_gate import soap_auth_fills, effective_rbac
 from Crypto.backend import transport_hardening_required
 
 SOAP_EXT = "_soap.h"
@@ -47,10 +47,12 @@ class SoapAdapter:
         # (static-fuzz-ci task 4a) -- the generated headers #include it.
         copy_if_different(_SOAP_RUNTIME_SRC,
                           os.path.join(self.outDir, SOAP_RUNTIME))
-        # transport-authn task 4: same gen-time RBAC-vs-flat choice as REST/gRPC
-        # (RestAdapter copies harpia_rbac.h into the shared generated/cpp/http/
-        # dir this endpoint #includes from, so nothing to copy here).
-        rbac = transport_hardening_required(self.compliance)
+        # message-level-hardening epic, protected-open-modifiers task 3: same
+        # per-message gate as REST/gRPC (auth_gate.effective_rbac) instead of
+        # one project-wide choice (RestAdapter copies harpia_rbac.h into the
+        # shared generated/cpp/http/ dir this endpoint #includes from, so
+        # nothing to copy here).
+        hardening_required = transport_hardening_required(self.compliance)
         written = 0
         for msg in self.messages:
             if getattr(msg, "isEnum", False) or not msg.tableName:
@@ -59,7 +61,8 @@ class SoapAdapter:
                 guard="HARPIA_SOAP_{}_{}".format(msg.name.upper(), msg.md5Hash),
                 name=msg.name,
                 hash=msg.md5Hash,
-                **soap_auth_fills(msg.name, msg.md5Hash, rbac),
+                **soap_auth_fills(msg.name, msg.md5Hash,
+                                  effective_rbac(msg, hardening_required)),
             )
             fileName = "{}_{}{}".format(msg.name, msg.md5Hash, SOAP_EXT)
             write_if_different(os.path.join(self.outDir, fileName), header)

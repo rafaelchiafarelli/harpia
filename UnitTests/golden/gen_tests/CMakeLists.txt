@@ -300,6 +300,48 @@ if(WIN32)
 endif()
 add_test(NAME telemetry_test COMMAND telemetry_test)
 
+add_executable(reception_desk_test reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
+target_include_directories(reception_desk_test PRIVATE
+    ${HARPIA_TEST_PROTO_INCLUDE_DIR}
+    ${CMAKE_SOURCE_DIR}/generated/cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/third_party/crow
+    ${CMAKE_SOURCE_DIR}/third_party/asio)
+target_link_libraries(reception_desk_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(reception_desk_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    # harpia_test_client.h (REST/SOAP HTTP round-trip client)
+    # is Winsock2 on this platform; its own #pragma comment
+    # covers MSVC, but link explicitly too for other Windows
+    # toolchains (e.g. MinGW, which ignores pragma comment).
+    target_link_libraries(reception_desk_test PRIVATE ws2_32)
+endif()
+add_test(NAME reception_desk_test COMMAND reception_desk_test)
+
+add_executable(vault_test vault_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
+target_include_directories(vault_test PRIVATE
+    ${HARPIA_TEST_PROTO_INCLUDE_DIR}
+    ${CMAKE_SOURCE_DIR}/generated/cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/third_party/crow
+    ${CMAKE_SOURCE_DIR}/third_party/asio)
+target_link_libraries(vault_test PRIVATE protofiles harpia_tinyxml2 ${HARPIA_SOCI_LIBS} Threads::Threads ${CMAKE_DL_LIBS})
+if(WIN32)
+    # Crow/asio pull in <windows.h>; without these its full
+    # umbrella pollutes unrelated identifiers elsewhere in the
+    # same translation unit (e.g. GetMessage, min/max).
+    target_compile_definitions(vault_test PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    # harpia_test_client.h (REST/SOAP HTTP round-trip client)
+    # is Winsock2 on this platform; its own #pragma comment
+    # covers MSVC, but link explicitly too for other Windows
+    # toolchains (e.g. MinGW, which ignores pragma comment).
+    target_link_libraries(vault_test PRIVATE ws2_32)
+endif()
+add_test(NAME vault_test COMMAND vault_test)
+
 add_executable(app_test app_3ac5d8b36fc7dcfb70888145147ddfb7_test.cpp)
 target_include_directories(app_test PRIVATE
     ${HARPIA_TEST_PROTO_INCLUDE_DIR}

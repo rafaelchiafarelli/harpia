@@ -93,8 +93,18 @@ def test_bringup_registers_every_rest_and_soap_route(http_dir):
     bringup = _read(os.path.join(http_dir, "http_server_bringup.h"))
     assert "class HttpServer" in bringup
     assert "inline constexpr bool kHardeningRequired = true;" in bringup  # repo profile is class_c
-    assert 'app_.ssl(make_server_context(kHardeningRequired, mtls));' in bringup
-    assert "static_assert(!kHardeningRequired," in bringup  # no-SSL build fail-safe
+    # message-level-hardening epic, protected-open-modifiers task 4:
+    # HarpiaTest/test.harpia now also carries an `open` message
+    # (reception_desk), which diverges from this hardened project's
+    # default -- so the bring-up is in the "mixed" shape
+    # (Database/auth_gate.transport_mode()), not the plain kHardeningRequired
+    # form. See UnitTests/test_message_hardening_gate.py for the byte-
+    # identical-when-nothing-diverges case this project no longer is.
+    assert "inline constexpr bool kEmitTls = true;" in bringup
+    assert "inline constexpr bool kClientCertRequired = false;" in bringup
+    assert ("app_.ssl(make_server_context(kEmitTls, mtls, "
+           "kClientCertRequired));") in bringup
+    assert "static_assert(!kEmitTls," in bringup  # no-SSL build fail-safe
 
     # every table message contributes a rest include, a soap include, and both
     # register calls -- derived from the collected rest headers, not hard-coded
@@ -106,8 +116,11 @@ def test_bringup_registers_every_rest_and_soap_route(http_dir):
     for name in rest_hdrs:
         assert '#include "rest/{}_{}_rest.h"'.format(name, HASH) in bringup
         assert '#include "soap/{}_{}_soap.h"'.format(name, HASH) in bringup
-        assert "::harpia::rest::register_{}(app_, db, rest_base);".format(name) in bringup
-        assert "::harpia::soap::register_{}_soap(app_, db, soap_base);".format(name) in bringup
+        # db-concurrency task 2: the `_with` forms take either the session or the pool
+        assert ("::harpia::rest::register_{}_with(app_, db, pool, lease_timeout_ms, "
+                "rest_base);".format(name)) in bringup
+        assert ("::harpia::soap::register_{}_soap_with(app_, db, pool, lease_timeout_ms, "
+                "soap_base);".format(name)) in bringup
 
 
 def test_selection_records_the_f5_choice(http_dir):
@@ -367,15 +380,22 @@ def test_live_https_requires_client_cert(built):
         assert resp.status == 200, "credentialed mTLS GET got {}".format(resp.status)
         conn.close()
 
-        # no client cert -> refused at the TLS handshake
+        # no client cert -> refused. HarpiaTest/test.harpia now also has an
+        # `open` message (message-level-hardening epic, protected-open-
+        # modifiers task 4's reception_desk fixture), so this project's
+        # transport no longer refuses a certless handshake outright (task
+        # 2's "requested, not required" mode) -- `users` (still a plain,
+        # fully-RBAC-gated message) refuses one layer up, at the RBAC gate
+        # (401; the X-User/X-Pswd flat headers are irrelevant to that gate).
+        # See UnitTests/test_mixed_mode_fixture.py for the dedicated proof.
         bad_ctx = ssl.create_default_context(cafile=built["ca"])
         bad_ctx.check_hostname = False
         bad = http.client.HTTPSConnection("127.0.0.1", port, context=bad_ctx,
                                           timeout=15)
-        with pytest.raises((ssl.SSLError, ConnectionError, OSError)):
-            bad.request("GET", "/v1/users",
-                        headers={"X-User": "users", "X-Pswd": HASH})
-            bad.getresponse()
+        bad.request("GET", "/v1/users",
+                    headers={"X-User": "users", "X-Pswd": HASH})
+        resp = bad.getresponse()
+        assert resp.status == 401
         bad.close()
     finally:
         try:
