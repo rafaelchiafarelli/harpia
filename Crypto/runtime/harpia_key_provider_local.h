@@ -34,6 +34,7 @@
 #include <iomanip>
 #include <ios>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -84,6 +85,8 @@ inline bool local_key_provider_acknowledged() {
     return s == "1" || s == "true" || s == "yes";
 }
 
+// Thread-safe (db-concurrency task 1b): every operation holds mu_, including
+// the store rewrite in rotate() and the shred-sidecar append.
 class LocalKeyProvider : public KeyProvider {
 public:
     explicit LocalKeyProvider(
@@ -103,7 +106,10 @@ public:
         for (auto& kv : keks_) detail::secure_zero(kv.second);  // O.4
     }
 
-    std::uint64_t active_kek_version() const override { return active_; }
+    std::uint64_t active_kek_version() const override {
+        std::lock_guard<std::mutex> lock(mu_);
+        return active_;
+    }
 
     Dek generate_dek() override {
         audit_.record(kOpGenerate, "dek");
@@ -111,11 +117,13 @@ public:
     }
 
     WrappedDek wrap_dek(const Dek& dek) override {
+        std::lock_guard<std::mutex> lock(mu_);
         audit_.record(kOpWrap, "kek:" + std::to_string(active_));
         return WrappedDek{active_, Dek::xor_with(dek.material, keks_.at(active_))};
     }
 
     std::optional<Dek> unwrap_dek(const WrappedDek& w) override {
+        std::lock_guard<std::mutex> lock(mu_);
         const std::string subject = "kek:" + std::to_string(w.kek_version);
         if (shredded_.count(shred_key(w))) {                     // O.3
             audit_.record(kOpUnwrap, subject, "shredded");
@@ -131,6 +139,7 @@ public:
     }
 
     std::uint64_t rotate() override {
+        std::lock_guard<std::mutex> lock(mu_);
         ++active_;
         keks_[active_] = detail::random_bytes(kKeyLen);
         persist();
@@ -143,6 +152,7 @@ public:
     // restart. The KEK store is untouched: shredding one record leaves
     // every other record, and every KEK, exactly as they were.
     void shred_dek(const WrappedDek& w) override {
+        std::lock_guard<std::mutex> lock(mu_);
         if (shredded_.insert(shred_key(w)).second) {
             std::ofstream out(shred_path(), std::ios::app);
             out << w.kek_version << " " << to_hex(w.bytes) << "\n";
@@ -214,6 +224,7 @@ private:
     }
 
     compliance::AuditSink& audit_;   // O.4
+    mutable std::mutex mu_;          // 1b: guards keks_/active_/shredded_ + files
     std::string path_;
     std::map<std::uint64_t, std::string> keks_{{1, detail::random_bytes(kKeyLen)}};
     std::uint64_t active_ = 1;
