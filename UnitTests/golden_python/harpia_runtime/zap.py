@@ -20,6 +20,12 @@ a hardened compliance profile, where every bind-side CURVE socket calls
   handler that finds the endpoint already bound (another handler serves the
   context) becomes inert instead of raising.
 
+Shut a context with a running handler down with ``ctx.term()`` after
+closing your own sockets -- the handler's thread then sees
+``ContextTerminated`` and closes its socket itself. Never ``ctx.destroy()``:
+it closes the handler's socket from another thread while the handler is
+using it, and libzmq aborts.
+
 Written by hand rather than with ``zmq.auth.ThreadAuthenticator``: that
 reads certificate directories, not this allowlist file, and has no audit
 hook, so it could not match the C++ format, fail-safe default and audit.

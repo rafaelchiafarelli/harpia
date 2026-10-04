@@ -14,10 +14,10 @@ import zmq
 from harpia_generated.protofiles.{name}_{hash}_pb2 import (
     {name},
 )
-from harpia_runtime.zmq import (
+{extra_imports}from harpia_runtime.zmq import (
 {runtime_imports}
 )
-
+{post_imports}
 #: compile-time sender id of this message type (the C++ ``origin_id()``)
 ORIGIN_ID = {origin_id_lit}
 {factories}

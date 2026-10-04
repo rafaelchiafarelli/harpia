@@ -49,15 +49,35 @@
   `#` (what fixes/000005 broke), the parser test a synthetic `#`-leading
   token.
 
+## `critical` delivery (task 3)
+- `Compliance/runtime/python/delivery.py` → `harpia_runtime.delivery`
+  (path constant `Compliance.delivery_common.PY_DELIVERY_*`): `crc32`
+  (`zlib.crc32`, equal to C++ `detail::crc32`), `Envelope.stamp`/`crc_ok`,
+  `Arrival` + `check_on_arrival`, `BoundedQueue` (`queue_rotated` audit on
+  overflow), `Mailbox` (`mailbox_overwritten`); caller-synchronized.
+- `runtime/zmq_delivery.py` → `harpia_runtime.zmq_delivery`:
+  `QueuedSender(Sender)` — `send`/`publish` → `PushOutcome | None`
+  (`None` only on an encode failure), seq from 1, envelope kept local;
+  `flush()` sends payloads oldest-first, stops at the first `ZMQError`;
+  `pending()`, `queue()`. Both modules (+ audit sink) are copied only when a
+  `critical` transport message exists.
+- A `critical` type's `new_sender`/`new_publisher` return `QueuedSender`
+  with extra `queue_capacity=128`, `audit_sink=None` (queue subject = the
+  message name, as C++). Receivers unchanged (no arrival checking, as C++).
+
 ## Key facts / gotchas
 - **Wire = C++ wire:** one serialized-protobuf frame, no envelope. Proven
   by a generated C++ `courier_sender` → Python `new_receiver` test.
 - `harpia_runtime.zmq` does `import zmq`; absolute imports mean that is
   pyzmq, not itself.
+- **Tear a context with a ZAP handler down with `ctx.term()`, never
+  `ctx.destroy()`**: destroy closes the handler's socket from another thread
+  and libzmq aborts (seen as a segfault in `test_py_zmq_curve.py`).
 - PUB/SUB has the classic slow-joiner: tests publish until the
   subscription is live.
 
 ## Touchpoints
 - Depends on: `ZmqAdapter.ZmqAdapter` (`_modifiers`, `_origin_id`,
   `_is_one_to_many`), `PyAdapter.runtime_copy`.
-- Tested by: `UnitTests/test_py_zmq.py`, `test_py_zmq_curve.py`.
+- Tested by: `UnitTests/test_py_zmq.py`, `test_py_zmq_curve.py`,
+  `test_py_delivery.py`.

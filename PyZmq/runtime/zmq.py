@@ -135,13 +135,18 @@ class Sender(Generic[M]):
         """The underlying socket (for options, polling, closing)."""
         return self._socket
 
-    def send(self, msg: M) -> bool:
-        """Stamp a copy of ``msg`` and send it; ``False`` if not sent."""
+    def _stamped(self, msg: M) -> M:
+        """A copy of ``msg`` carrying this sender's origin id."""
         stamped = type(msg)()
         stamped.CopyFrom(msg)
         field = _origin_field(stamped.DESCRIPTOR)
         if field is not None:
             setattr(stamped, field, self._origin)
+        return stamped
+
+    def send(self, msg: M) -> bool:
+        """Stamp a copy of ``msg`` and send it; ``False`` if not sent."""
+        stamped = self._stamped(msg)
         try:
             self._socket.send(stamped.SerializeToString())
         except zmq.Again:
