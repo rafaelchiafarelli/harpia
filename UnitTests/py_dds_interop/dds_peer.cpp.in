@@ -1,9 +1,14 @@
 // python-target / py-dds -- C++ DDS peer for test_py_dds.py (@HASH@ is
 // substituted by the test).
 //
-//   dds_peer pub <alarm|vitals> <topic> <n>   wait for a match, publish 1..n
-//   dds_peer sub <alarm|vitals> <topic> <n>   print READY, then GOT lines
-//                                             until n received or 20 s
+//   dds_peer pub <alarm|vitals> <topic> <n> [certs]  wait for a match,
+//                                                    publish 1..n
+//   dds_peer sub <alarm|vitals> <topic> <n> [certs]  print READY, then GOT
+//                                                    lines until n or 20 s
+// With [certs] (a dds_security_provision.sh output dir) the participant is
+// harpia::dds_security::secured_participant; domain from $HARPIA_DDS_DOMAIN
+// (default 0).
+//   dds_peer xml - - 0 <certs>   print the Cyclone <Security> config XML
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -11,6 +16,7 @@
 #include <thread>
 
 #include "dds/dds.hpp"
+#include "dds/harpia_dds_security.h"
 #include "dds/alarm_event_@HASH@_dds.h"
 #include "dds/vitals_publication_@HASH@_dds.h"
 
@@ -48,11 +54,34 @@ static int subscribe(Sub& sub, int n, Show show) {
   return 0;
 }
 
+static harpia::dds_security::SecurityFiles files_from(const std::string& c) {
+  harpia::dds_security::SecurityFiles f;
+  f.identity_ca = c + "/identity_ca.pem";
+  f.identity_certificate = c + "/identity_certificate.pem";
+  f.private_key = c + "/private_key.pem";
+  f.permissions_ca = c + "/permissions_ca.pem";
+  f.governance = c + "/governance.p7s";
+  f.permissions = c + "/permissions.p7s";
+  return f;
+}
+
+static ::dds::domain::DomainParticipant participant(int argc, char** argv) {
+  const char* d = std::getenv("HARPIA_DDS_DOMAIN");
+  const uint32_t domain = d ? static_cast<uint32_t>(std::atoi(d)) : 0;
+  if (argc < 6) return ::dds::domain::DomainParticipant(domain);
+  return harpia::dds_security::secured_participant(domain, files_from(argv[5]));
+}
+
 int main(int argc, char** argv) {
-  if (argc != 5) return 2;
+  if (argc != 5 && argc != 6) return 2;
   const std::string mode = argv[1], type = argv[2], topic = argv[3];
   const int n = std::atoi(argv[4]);
-  ::dds::domain::DomainParticipant dp(0);
+  if (mode == "xml") {
+    std::printf("%s", harpia::dds_security::detail::security_config_xml(
+        files_from(argv[5]), "fips").c_str());
+    return 0;
+  }
+  auto dp = participant(argc, argv);
   if (type == "alarm") {
     if (mode == "pub") {
       alarm_event_publisher p(dp, topic);
