@@ -150,7 +150,7 @@ public:
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
             long long l6 = 0; ::soci::indicator n6;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"sponsor\", \"name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"myUsers\" FROM \"user_table\"",
+            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"sponsor\", \"name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"myUsers\" FROM \"user_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"",
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6));
             st.execute();
             while (st.fetch()) {
@@ -180,6 +180,9 @@ public:
     }
 
     // Paginated list: LIMIT/OFFSET applied server-side. offset is 0-based.
+    // Both lists ORDER BY the primary key: SQL guarantees no row order
+    // otherwise, and PostgreSQL's heap order shifts after an UPDATE, so
+    // pages could skip or repeat rows (cpp-dao-list-order-DEFECT).
     bool list(std::vector<::top_users>* out, long long offset, long long limit) {
         try {
             int l0 = 0; ::soci::indicator n0;
@@ -189,7 +192,7 @@ public:
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
             long long l6 = 0; ::soci::indicator n6;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"sponsor\", \"name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"myUsers\" FROM \"user_table\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
+            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"sponsor\", \"name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"myUsers\" FROM \"user_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6));
             st.execute();
             while (st.fetch()) {
