@@ -481,6 +481,66 @@ tx.send(msg);                                                          // bool; 
 `*_sender` / `*_receiver` (PUB/SUB). CURVE keys are a trailing defaulted
 argument — see §11.
 
+Frames are one serialized protobuf message each, the same bytes in every
+language, so C++, Java and Python peers mix freely on one endpoint. Which
+factories a message gets follows its modifiers: `push`/`pull` → sender
+(PUSH, connects) + receiver (PULL, binds); `event`/`stream` → publisher
+(PUB, binds) + subscriber (SUB, connects). Every sender stamps an origin
+id into the message: a compile-time `ORIGIN_ID` in `ORIGINATOR_<hash>` for a
+one-to-* type (it also has `pull`/`event`/`stream`), a per-sender runtime id
+in `ORIGINATOR` for a push-only (many-to-*) type.
+
+**Java** (`java/`, JeroMQ — `com.harpia.generated.zmq.<name>_zmq`, runtime
+`com.harpia.runtime.zmq.HarpiaZmq`):
+
+```java
+import com.harpia.generated.users;
+import com.harpia.generated.zmq.users_zmq;
+import com.harpia.runtime.zmq.HarpiaZmq;
+import org.zeromq.ZContext;
+
+try (ZContext ctx = new ZContext()) {
+    HarpiaZmq.Receiver rx = users_zmq.newReceiver(ctx, "tcp://*:5555");       // PULL, binds
+    HarpiaZmq.Sender   tx = users_zmq.newSender(ctx, "tcp://localhost:5555"); // PUSH, connects
+    tx.send(users.newBuilder().setName("neo").build());   // boolean; stamps the origin id
+    users.Builder in = users.newBuilder();
+    if (rx.receive(in)) { /* in.getName() */ }            // blocking; false on a bad frame / closed socket
+
+    HarpiaZmq.Sender   pub = users_zmq.newPublisher(ctx, "tcp://*:5556");       // PUB, binds
+    HarpiaZmq.Receiver sub = users_zmq.newSubscriber(ctx, "tcp://localhost:5556"); // SUB, every message
+}
+```
+
+`receive()` blocks; for a timeout use the raw socket
+(`rx.socket().setReceiveTimeOut(ms)`), and `tx.socket()` / `rx.socket()` for
+any other JeroMQ option. Java has no `stream` lifecycle class and no
+`critical` queue (§7.7 / §7.9 are C++ and Python only): for those types Java
+gets the plain publisher/subscriber.
+
+**Python** (`python/` — `harpia_generated.zmq.<name>_<hash>_zmq`, runtime
+`harpia_runtime.zmq`, pyzmq):
+
+```python
+import zmq
+from harpia_generated.zmq import users_<hash>_zmq as users_zmq
+from harpia_generated.protofiles.users_<hash>_pb2 import users
+
+ctx = zmq.Context()
+rx = users_zmq.new_receiver(ctx, "tcp://*:5555")          # PULL, binds
+tx = users_zmq.new_sender(ctx, "tcp://localhost:5555")    # PUSH, connects
+tx.send(users(name="neo"))                                # bool; the caller's message is not modified
+got = rx.recv()                                           # users | None (timeout, or frame didn't parse)
+
+pub = users_zmq.new_publisher(ctx, "tcp://*:5556")        # PUB, binds
+sub = users_zmq.new_subscriber(ctx, "tcp://localhost:5556")
+pub.publish(users(name="neo"))                            # publish is send's PUB-side name
+tx.close(); rx.close(); pub.close(); sub.close()
+```
+
+`recv()` blocks; set `rx.socket.rcvtimeo = ms` for a timeout (it then
+returns `None`). `new_sender(..., origin="my-id")` overrides the stamped
+origin id.
+
 ### 7.7 Stream lifecycle
 
 ```cpp
@@ -503,6 +563,24 @@ Two synchronous time-based teardowns latch `INVALID`: a stop-deadline watchdog
 (`stop_deadline_ms` since the last usable message, default 30 s) and
 dead-connection reclamation (`reclaim_after_ms` since any inbound frame,
 default 60 s).
+
+**Python** — `<name>_stream` in the same module, same semantics:
+
+```python
+from harpia_generated.zmq import sensor_feed_<hash>_zmq as feed
+from harpia_runtime.zmq_stream import StreamConfig, StreamStatus
+
+st = feed.sensor_feed_stream(ctx)
+if st.setup(StreamConfig("tcp://localhost:6000", topic="")) is StreamStatus.OK:
+    while True:
+        r = st.read(timeout_ms=500)                # never blocks longer than the timeout
+        if r.status is StreamStatus.OK:        handle(r.msg)
+        elif r.status is StreamStatus.TIMEOUT: continue
+        else: break                                # STOPPED or INVALID (watchdog / reclamation)
+st.stop()                                          # idempotent; also a context manager
+```
+
+Java has no stream class; use the plain subscriber.
 
 ### 7.8 Events / callbacks
 
@@ -540,6 +618,22 @@ pub.pending();           // how many are still queued
 Queue overflow rotates the oldest entry and emits a `queue_rotated` audit
 record — never a silent drop. Non-`critical` senders keep the plain
 `bool send()` API.
+
+**Python** — the generated publisher of a `critical` type is a
+`harpia_runtime.zmq_delivery.QueuedSender`:
+
+```python
+from harpia_generated.zmq import alarm_event_<hash>_zmq as alarms
+
+pub = alarms.new_publisher(ctx, "tcp://*:7000", queue_capacity=128,
+                           audit_sink=my_sink)    # default: the shared no-op sink
+pub.publish(alarm)       # enqueues, never touches the socket; returns a PushOutcome (None: unserializable)
+pub.flush()              # sends oldest-first, returns how many went out
+pub.pending()            # still queued
+```
+
+Java has no `critical` queue: a Java publisher of a `critical` type sends
+immediately, without the CRC/sequence envelope or rotation audit.
 
 ---
 
@@ -744,10 +838,52 @@ mints a starter allowlist (`--clients-file <file>`: the same identity file
 `mtls_provision.sh` takes, one CURVE keypair per identity; re-runs keep existing
 keys).
 
+**Java:** keys are raw 32-byte arrays (`HarpiaZmq.generateCurveKeyPair()` →
+`{public, secret}`; decode Z85 text with `org.zeromq.ZMQ.Curve.z85Decode`):
+
+```java
+byte[][] server = HarpiaZmq.generateCurveKeyPair(), client = HarpiaZmq.generateCurveKeyPair();
+HarpiaZmq.Receiver rx = users_zmq.newReceiver(ctx, "tcp://*:5555",
+        HarpiaZmq.CurveKeys.server(server[1]));                        // bind side: own secret
+HarpiaZmq.Sender tx = users_zmq.newSender(ctx, "tcp://host:5555",
+        HarpiaZmq.CurveKeys.client(server[0], client[0], client[1]));  // connect side
+```
+
+**Limitation:** a Java *bind* side (receiver / publisher) is
+encryption-only. It runs no ZAP handler, so even under a hardened profile it
+accepts any client with valid CURVE crypto and does **not** enforce
+`HARPIA_ZMQ_ALLOWLIST`. A Java *client* of a hardened C++ or Python server is
+fully checked (tested). When the allowlist matters, put the binding side in
+C++ or Python.
+
+**Python:** keys are Z85 text (`harpia_runtime.zmq.generate_curve_keypair()`
+→ `(public, secret)`):
+
+```python
+from harpia_runtime.zmq import CurveClientKeys, CurveServerKeys, generate_curve_keypair
+
+srv_pub, srv_sec = generate_curve_keypair()
+cli_pub, cli_sec = generate_curve_keypair()
+rx = users_zmq.new_receiver(ctx, "tcp://*:5555", curve=CurveServerKeys(srv_sec))
+tx = users_zmq.new_sender(ctx, "tcp://host:5555",
+                          curve=CurveClientKeys(srv_pub, cli_pub, cli_sec))
+```
+
+Hardened profile: a Python bind side starts the ZAP handler
+(`harpia_runtime.zap`) and enforces `HARPIA_ZMQ_ALLOWLIST` exactly as C++
+does, with a value-free `zap_denied` audit record per refused key. With no
+allowlist file **every** client is refused, so the example above only
+delivers once the file lists the client: `<cli_pub> <identity>` per line, read
+when the socket is created. Passing the
+wrong key type (`CurveClientKeys` to a binding socket) raises `TypeError`.
+The same keys work across languages (Z85 ⇄ raw bytes via `z85Decode` /
+`z85Encode` on the Java side).
+
 **`ZMQ_LINGER`:** a socket with an undelivered message from a failed handshake
 blocks forever on destruction (`LINGER == -1`). If a sender might face a peer
 that fails to authenticate, set
-`sender.socket().set(zmq::sockopt::linger, 0)`.
+`sender.socket().set(zmq::sockopt::linger, 0)` (Java:
+`tx.socket().setLinger(0)`; Python: `tx.socket.linger = 0`).
 
 ---
 
