@@ -13,6 +13,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 import grpc
 
+from harpia_generated.capability import (
+    capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_grpc,
+)
 from harpia_generated.grpc import (
     alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_grpc,
     beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_grpc,
@@ -64,6 +67,8 @@ class GrpcServer:
         telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.add_to_server(telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.telemetry_Service(pool), self.server)
         reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.add_to_server(reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.reception_desk_Service(pool), self.server)
         vault_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.add_to_server(vault_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.vault_Service(pool), self.server)
+        # capability handshake (ungated, like heartBeat)
+        capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_grpc.add_to_server(self.server)
         creds = grpc_server_credentials(EMIT_TLS, mtls, CLIENT_CERT_REQUIRED)
         if creds is None:
             self._port = self.server.add_insecure_port(address)
