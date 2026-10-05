@@ -126,3 +126,22 @@ Returns `None` (always — the artifacts are always meaningful; no
   wiring.
 - Extended by: the `versioning` epic (the six `harpia:git_*` lineage
   properties — complete).
+
+## Python target (python-target / py-artifacts)
+- **SBOM (task 1):** `ComplianceReport(..., python_target=True)` (passed by
+  `LangBackend/cpp.py` when the running backend is `python`) adds the
+  generated Python package (`type: application`, `bom-ref
+  pypi:harpia-generated`, `pkg:pypi/harpia-generated@0.0.0`) and every
+  declared PyPI runtime dependency (`PyAdapter.dependencies.RUNTIME_DEPENDENCIES`
+  — the same constants that render `pyproject.toml`; imported into
+  `components.PYTHON_RUNTIME`, never scraped): `bom-ref pypi:<name>` (so
+  `pypi:protobuf` sits next to `lib:protobuf`), `scope` required / optional
+  (+ `harpia:python_extra`), `version` = the exact pin for `==`, else the
+  declared range string; `purl` `pkg:pypi/<name>@<version>` for an exact pin,
+  `pkg:pypi/<name>` for a range (a range has no single version).
+  **Decision (log 41):** the Python project is a *component*, not a
+  `metadata.component` sub-entry — `metadata` stays the schema project.
+  A C++-only run's `bom.json` is unchanged (`python_target` defaults False).
+- **Known gap (not fixed here):** a `java` run does not list the generated
+  Gradle project's dependencies (grpc-java, protobuf-java, sqlite-jdbc,
+  jeromq, …) — pre-existing.
