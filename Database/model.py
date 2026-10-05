@@ -452,6 +452,12 @@ def analyze(msg, types=None, backend=None):
                          .format(v.name, v.type[0]))
             continue
         sql_type, kind = scalar
+        if getattr(v, "is_phi", False):
+            # a phi value is stored as enc:v1: ciphertext TEXT whatever its
+            # scalar type (cpp-phi-numeric-column-type-DEFECT): a numeric
+            # column type rejects it on PostgreSQL. The bind kind stays the
+            # field's own; the DAOs bind phi as text already.
+            sql_type = backend.sql_type("STRING")
         columns.append(Column(v.name, sql_type, pk=v.name.startswith("ID_"),
                               required="REQUIRED" in mods,
                               unique="UNIQUE" in mods,
