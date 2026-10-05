@@ -344,3 +344,70 @@ def test_java_sqlite_list_in_pk_order(tmp_path):
     run = subprocess.run(["java", "-cp", classpath, "smoke.ListOrder", str(tmp_path / "o.db")],
                          capture_output=True, text=True, timeout=60)
     assert run.returncode == 0 and "OK" in run.stdout, run.stdout + run.stderr
+
+
+# java-jdbc-null-text-DEFECT: a row whose non-key columns are SQL NULL (as a
+# C++/Python migration leaves the columns it added on pre-existing rows).
+_NULLABLE_HARPIA = (
+    "enum shade{\n"
+    "    dark;\n"
+    "    light;\n"
+    "}\n"
+    "message nullable_row{\n"
+    "    string s;\n"
+    "    int n;\n"
+    "    int64 big;\n"
+    "    float f;\n"
+    "    shade c;\n"
+    "    optional string os;\n"
+    "    optional int oi;\n"
+    "}nullable_row_table;\n"
+)
+
+
+@pytest.mark.skipif(not _HAS_JAVA_TOOLCHAIN, reason=SKIP_REASON)
+def test_java_reads_null_columns(tmp_path):
+    """JdbcBind.extract leaves a NULL column at the field default (""/0/
+    first enum value), like the C++ and Python DAOs -- read() and list()
+    succeed instead of throwing (setField(fd, null) NPE'd on text)."""
+    harpia_file, include_folder = _write_fixture(tmp_path / "src", _NULLABLE_HARPIA)
+    out = generate(tmp_path / "out", lang="java", harpia_file=harpia_file,
+                   include_folder=include_folder)
+    classpath = build_and_classpath(os.path.join(out, "java"), {
+        "smoke/NullRead.java":
+            "package smoke;\n"
+            "import com.harpia.generated.nullable_row;\n"
+            "import com.harpia.generated.shade;\n"
+            "import com.harpia.generated.db.nullable_row_dao;\n"
+            "import com.google.protobuf.Descriptors.FieldDescriptor;\n"
+            "import java.sql.*;\n"
+            "import java.util.*;\n"
+            "public class NullRead {\n"
+            "    public static void main(String[] args) throws Exception {\n"
+            "        Class.forName(\"org.sqlite.JDBC\");\n"
+            "        String pk = null;\n"
+            "        for (FieldDescriptor fd : nullable_row.getDescriptor().getFields())\n"
+            "            if (fd.getName().startsWith(\"ID_\")) pk = fd.getName();\n"
+            "        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n"
+            "            nullable_row_dao dao = new nullable_row_dao(conn);\n"
+            "            if (!dao.createTable()) System.exit(1);\n"
+            "            try (Statement st = conn.createStatement()) {\n"
+            "                st.execute(\"INSERT INTO \\\"nullable_row_table\\\" (\\\"\" + pk + \"\\\") VALUES (7)\");\n"
+            "            }\n"
+            "            nullable_row.Builder b = nullable_row.newBuilder();\n"
+            "            if (!dao.read(7, b)) System.exit(2);\n"
+            "            nullable_row r = b.build();\n"
+            "            if (!r.getS().equals(\"\") || r.getN() != 0 || r.getBig() != 0L) System.exit(3);\n"
+            "            if (r.getF() != 0f || r.getC() != shade.dark) System.exit(4);\n"
+            "            if (!r.getOs().equals(\"\") || r.getOi() != 0) System.exit(5);\n"
+            "            List<nullable_row> all = new ArrayList<>();\n"
+            "            if (!dao.list(all) || all.size() != 1 || !all.get(0).equals(r)) System.exit(6);\n"
+            "        }\n"
+            "        System.out.println(\"OK\");\n"
+            "    }\n"
+            "}\n",
+    })
+    run = subprocess.run(["java", "-cp", classpath, "smoke.NullRead"],
+                         capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0 and "OK" in run.stdout, \
+        "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)
