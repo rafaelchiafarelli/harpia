@@ -169,10 +169,9 @@ from `DbBackend`. `psycopg` is the generated project's optional
 UnitTests/test_python_db_postgres.py`.
 
 ## Key facts / gotchas
-- **`list()` orders by the primary key** (decision at task 3). The C++ DAO's
-  `list` has no `ORDER BY`, so its pages are unstable on PostgreSQL (rows
-  come back in physical order, which an `UPDATE` changes); SQLite happens to
-  return rowid = key order. Flagged to Rafael as a C++ finding.
+- **`list()` orders by the primary key** (decision at task 3), the same as
+  the C++ and Java DAOs since cpp-dao-list-order-DEFECT: without it pages
+  are unstable on PostgreSQL (physical order, which an `UPDATE` changes).
 - `limit=None` binds the largest 64-bit value, not `-1` (PostgreSQL rejects a
   negative `LIMIT`).
 - PostgreSQL migration introspection (`information_schema`) sees only

@@ -82,7 +82,7 @@ public final class reception_desk_dao {
     }
 
     public boolean list(List<reception_desk> out) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"visitor_name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"reception_desk_table\"");
+        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"visitor_name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"reception_desk_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 reception_desk.Builder builder = reception_desk.newBuilder();
