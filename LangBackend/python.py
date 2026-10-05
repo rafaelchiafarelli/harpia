@@ -62,6 +62,11 @@ class PythonBackend(CppBackend):
         ctx.report(PyGrpcAdapter(messages=messages, dest=dest, compliance=compliance,
                                  rootHash=ctx.root_hash).Process())
 
+        # WS-Discovery responder advertising the SOAP endpoints
+        from PySdc.PySdcAdapter import PySdcAdapter
+        ctx.report(PySdcAdapter(messages=messages, dest=dest,
+                                compliance=compliance).Process())
+
         # DDS publish/subscribe for `dds` messages (harpia_dds::Frame topic)
         from PyDds.PyDdsAdapter import PyDdsAdapter
         ctx.report(PyDdsAdapter(messages=messages, dest=dest, compliance=compliance,
