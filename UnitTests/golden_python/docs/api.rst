@@ -19,6 +19,18 @@ harpia_generated.capability.capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
 .. automodule:: harpia_generated.capability.capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
    :members:
 
+harpia_generated.capability.capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_http
+------------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.capability.capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_http
+   :members:
+
+harpia_generated.capability.capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+-----------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.capability.capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_zmq
+   :members:
+
 harpia_generated.db
 -------------------
 
@@ -749,6 +761,18 @@ harpia_runtime.capability.grpc
 ------------------------------
 
 .. automodule:: harpia_runtime.capability.grpc
+   :members:
+
+harpia_runtime.capability.http
+------------------------------
+
+.. automodule:: harpia_runtime.capability.http
+   :members:
+
+harpia_runtime.capability.zmq
+-----------------------------
+
+.. automodule:: harpia_runtime.capability.zmq
    :members:
 
 harpia_runtime.compliance

@@ -14,6 +14,9 @@ When some message is RBAC-gated the server also issues bearer session tokens
 (``POST <rest_base>/session`` / ``POST <soap_base>/session``, see
 :func:`harpia_runtime.rbac_gates.register_session_routes`).
 """
+from harpia_generated.capability import (
+    capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_http,
+)
 from harpia_generated.rest import (
     alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_rest,
     beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_rest,
@@ -101,6 +104,8 @@ class HttpServer:
         reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
         vault_3ac5d8b36fc7dcfb70888145147ddfb7_rest.register(self.router, pool, rest_base)
         vault_3ac5d8b36fc7dcfb70888145147ddfb7_soap.register(self.router, pool, soap_base)
+        # capability handshake (ungated, like heartBeat)
+        capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_http.register_capabilities(self.router, rest_base)
         # bearer-session issuance (RBAC-gated messages exist)
         register_session_routes(self.router, rest_base, soap_base)
         tls = http_server_context(EMIT_TLS, mtls, CLIENT_CERT_REQUIRED)
