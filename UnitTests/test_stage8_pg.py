@@ -190,3 +190,80 @@ def test_pg_migration_retype(pg_generated, tmp_path):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, "PG retype migration failed at check #{}\n{}".format(
         run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_migration_ignores_other_schemas(pg_generated, tmp_path):
+    """Migration introspection only sees the current schema
+    (cpp-pg-introspection-schema-DEFECT). A "decoy" schema holds a same-named
+    beacon_log_table (an extra column, strength as TEXT) and a
+    telemetry_table__decoy_child table: migrating "public" must neither try
+    to drop/retype the decoy's columns there nor reap the decoy child table,
+    and must leave the decoy schema untouched."""
+    cpp_root = pg_generated
+    prog = tmp_path / "pg_migrate_schemas.cpp"
+    prog.write_text(
+        '#include "migrate/beacon_log_{h}_migrate.h"\n'
+        '#include "migrate/telemetry_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n#include <set>\n#include <string>\n#include <vector>\n"
+        "static std::set<std::string> cols(::soci::session& db, const std::string& schema,\n"
+        "                                  const std::string& table) {{\n"
+        "    std::vector<std::string> v(64); std::vector<::soci::indicator> ind(64);\n"
+        "    db << \"SELECT column_name FROM information_schema.columns WHERE \"\n"
+        "          \"table_schema = :s AND table_name = :t\", ::soci::use(schema), ::soci::use(table),\n"
+        "          ::soci::into(v, ind);\n"
+        "    return std::set<std::string>(v.begin(), v.end());\n"
+        "}}\n"
+        "static std::string type_of(::soci::session& db, const std::string& schema,\n"
+        "                           const std::string& table, const std::string& col) {{\n"
+        "    std::string t; ::soci::indicator ti = ::soci::i_null;\n"
+        "    db << \"SELECT data_type FROM information_schema.columns WHERE table_schema = :s \"\n"
+        "          \"AND table_name = :t AND column_name = :c\", ::soci::use(schema),\n"
+        "          ::soci::use(table), ::soci::use(col), ::soci::into(t, ti);\n"
+        "    return ti == ::soci::i_ok ? t : std::string();\n"
+        "}}\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    auto exec = [&db](const std::string& s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        '    exec("DROP SCHEMA IF EXISTS \\"decoy\\" CASCADE;");\n'
+        '    exec("DROP TABLE IF EXISTS \\"beacon_log_table\\";");\n'
+        "    {{ std::vector<std::string> kids(64); std::vector<::soci::indicator> ki(64);\n"
+        "      db << \"SELECT table_name FROM information_schema.tables WHERE \"\n"
+        "            \"table_schema = current_schema() AND table_name LIKE 'telemetry_table%'\",\n"
+        "            ::soci::into(kids, ki);\n"
+        '      for (const auto& k : kids) exec("DROP TABLE IF EXISTS \\"" + k + "\\" CASCADE;"); }}\n'
+        '    if (!exec("CREATE SCHEMA \\"decoy\\";")) return 2;\n'
+        '    if (!exec("CREATE TABLE \\"decoy\\".\\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '\\"label\\" TEXT, \\"strength\\" TEXT, \\"decoy_only\\" TEXT);")) return 3;\n'
+        '    if (!exec("CREATE TABLE \\"decoy\\".\\"telemetry_table__decoy_child\\" (\\"owner\\" INTEGER);")) return 4;\n'
+        "    // public: the current shape, built by the migration itself\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 10;\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 11;\n"
+        '    if (cols(db, "public", "beacon_log_table").count("decoy_only")) return 12;\n'
+        '    if (type_of(db, "public", "beacon_log_table", "strength") != "integer") return 13;\n'
+        "    if (!::harpia::db::migrate_telemetry(db)) return 20;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 21;\n"
+        "    // the decoy schema is untouched\n"
+        '    if (!cols(db, "decoy", "beacon_log_table").count("decoy_only")) return 30;\n'
+        '    if (type_of(db, "decoy", "beacon_log_table", "strength") != "text") return 31;\n'
+        '    if (cols(db, "decoy", "telemetry_table__decoy_child").empty()) return 32;\n'
+        '    exec("DROP SCHEMA IF EXISTS \\"decoy\\" CASCADE;");\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    objs = [os.path.join(cpp_root, "protofiles", "{}_{}.pb.cc".format(m, HASH))
+            for m in ("beacon_log", "telemetry", "trace_row")]
+    binary = str(tmp_path / "pg_migrate_schemas")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog), *objs, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG two-schema migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0, "PG two-schema migration failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
