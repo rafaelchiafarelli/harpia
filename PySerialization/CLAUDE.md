@@ -68,9 +68,9 @@ through `PyAdapter.runtime_copy.copy_runtime_module`. Always returns `None`.
   runtime was not changed — flagged to Rafael):
   - (fixed, cpp-yaml-empty-mapping-DEFECT) `from_yaml("{}")` — to_yaml's
     empty document at column 0 — returns `True` in both runtimes now.
-  - A map with a negative integer key (`-5: ...`) round-trips in neither
-    runtime: the key line starts with `-` and reads as a sequence item. The
-    parity fixture therefore uses non-negative map keys.
+  - (fixed, cpp-yaml-negative-map-keys-DEFECT) a negative integer map key
+    (`-5: ...`) round-trips in both runtimes: `-` starts an item only before
+    a space / end of line. The parity fixture populates negative keys again.
   - Otherwise `from_yaml`'s bool matches C++, including `False` for a
     document whose only content is empty lists (`f: []`, nothing matched).
 - **JSON is byte-identical to C++** for every fixture message (156 types,
