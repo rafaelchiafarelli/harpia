@@ -32,3 +32,10 @@ C++'s `XmlAdapter` still emits a thin per-message wrapper header (`<name>_xml.h`
 ## Touchpoints
 - Called by: `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`), right after `JavaDatabase`'s two adapters in the same stage list.
 - Depends on: `Util.util.copy_if_different`, `Logger.logger`, `Errors.Error`. The runtime class itself depends only on `protobuf-java` (already a `build.gradle` dependency since J.2) and JDK-builtin `javax.xml`/`org.w3c.dom` — no new Gradle dependency for this session at all.
+
+## Known differences from the C++ `to_xml` (python-target / tri-language-interop task 4, not fixed here)
+`UnitTests/test_serialize_xlang3.py` compares `HarpiaXml.toXml` with the C++ (and Python) `to_xml` over the whole fixture. The documents parse to the same message both ways; the bytes differ in exactly three ways, pinned in the test's `JAVA_XML_DIFFERENCES`:
+- an empty element is `<x/>` (C++ `<x></x>`);
+- `"` and `'` in text are written raw (C++ `&quot;` / `&apos;`);
+- floats print with `Float/Double.toString` (`0.0`, `15.25`), C++ with `%f` (`0.000000`, `15.250000`).
+Aligning them changes `UnitTests/golden_java/` bytes. Logged as item 47 in `Initiatives/python-target/NEXT_SESSION.md`. `HarpiaJson` differs from C++ only in whitespace (protobuf's pretty printer), with equal objects.
