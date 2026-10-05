@@ -481,3 +481,40 @@ def test_zmq_stream_dead_connection_reclaimed(built):
     assert run.returncode == 0, \
         "zmq stream dead-connection reclamation check failed at #{}".format(
             run.returncode)
+
+
+def test_all_zmq_headers_in_one_tu(built):
+    """cpp-zmq-header-odr-DEFECT: every generated zmq/*_zmq.h can be included
+    in ONE translation unit (a program using several ZMQ message types), and
+    two different types round-trip from that program. runtime_origin_id()
+    used to be defined unguarded in every header -> redefinition error."""
+    headers = sorted(os.path.basename(p) for p in
+                     glob.glob(os.path.join(built["zmq_dir"], "*_zmq.h")))
+    assert len(headers) > 2
+    prog = os.path.join(built["tmp"], "zmq_all_in_one.cc")
+    with open(prog, "w") as f:
+        f.write("".join('#include "zmq/{}"\n'.format(h) for h in headers))
+        f.write(
+            "int main() {{\n"
+            "    ::zmq::context_t ctx{{1}};\n"
+            '    harpia::zmq_transport::users_receiver ur(ctx, "inproc://u");\n'
+            '    harpia::zmq_transport::users_sender   us(ctx, "inproc://u");\n'
+            '    harpia::zmq_transport::courier_receiver cr(ctx, "inproc://c");\n'
+            '    harpia::zmq_transport::courier_sender   cs(ctx, "inproc://c");\n'
+            '    ::users u; u.set_name("neo"); if (!us.send(u)) return 1;\n'
+            "    ::courier c; if (!cs.send(c)) return 2;\n"
+            '    ::users u2; if (!ur.recv(&u2) || u2.name() != "neo") return 3;\n'
+            "    ::courier c2; if (!cr.recv(&c2)) return 4;\n"
+            "    if (c2.originator().empty()) return 5;  // stamped with runtime_origin_id()\n"
+            "    return 0;\n"
+            "}}\n".format(h=HASH))
+    pb_ccs = sorted(glob.glob(os.path.join(built["proto_dir"], "*.pb.cc")))
+    binary = os.path.join(built["tmp"], "zmq_all_in_one")
+    c = subprocess.run(["g++", "-std=c++17", "-I", built["cpp_root"],
+                        *_pkgconfig("--cflags"), prog, *pb_ccs, "-o", binary,
+                        *_pkgconfig("--libs"), "-lpthread"],
+                       capture_output=True, text=True, timeout=900)
+    assert c.returncode == 0, "one-TU ZMQ program failed to build:\n" + c.stderr[-3000:]
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "one-TU ZMQ round trip failed at check #{}".format(
+        run.returncode)
