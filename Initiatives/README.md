@@ -34,6 +34,32 @@ points it doesn't cover:
   a `:` / `'` / `"` / `_` / backtick anywhere in a `//` comment hard-errors the
   file.
 
+## Working the `*-DEFECT` initiatives
+
+Every DEFECT task follows the same three steps, written into each task file:
+
+1. **Corroborate (red first).** Write the named unit test before touching the
+   code under fix and run it on the unmodified tree. It must fail (or, where a
+   strict xfail already pins the defect, xfail for the stated reason). If it
+   passes, the defect isn't real: record that in the commit, mark the task
+   `-done` with no code change, and stop.
+2. **Fix.** Only the task's deliverable.
+3. **Unit test stays.** The red test is now green and is kept as the
+   regression test; strict xfails pinning the defect are un-marked.
+
+Run order (one chain per clone, so one at a time; worst impact first,
+golden-moving tasks never in parallel):
+
+1. `cpp-pg-introspection-schema-DEFECT` — data loss on shared PG databases.
+2. `cpp-key-store-permissions-DEFECT` — KEK world-readable.
+3. `cpp-phi-numeric-column-type-DEFECT` — numeric phi unusable on PG.
+4. `cpp-dao-list-order-DEFECT` — PG pages skip/duplicate rows.
+5. `java-jdbc-null-text-DEFECT` — Java can't read migrated rows.
+6. `cpp-zmq-header-odr-DEFECT` — two ZMQ types in one TU don't compile.
+7. `cpp-yaml-empty-mapping-DEFECT`, then `cpp-yaml-negative-map-keys-DEFECT`
+   (same file, `harpia_yaml.h`).
+8. `java-xml-byte-parity-DEFECT` — byte parity only, no wrong data.
+
 ## Index
 
 | Doc | Status |
@@ -51,7 +77,7 @@ points it doesn't cover:
 | [cpp-phi-numeric-column-type-DEFECT/](cpp-phi-numeric-column-type-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). A numeric `phi` column keeps its numeric SQL type but stores `enc:v1:` text → rejected on PostgreSQL in every language. Moves goldens. 2 tasks (DDL, migration). |
 | [cpp-zmq-header-odr-DEFECT/](cpp-zmq-header-odr-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). Every `zmq/*_zmq.h` defines `runtime_origin_id()` → two ZMQ message types can't be used in one C++ TU. Moves goldens. 1 task + 1 planning decision. |
 | [java-jdbc-null-text-DEFECT/](java-jdbc-null-text-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). `JdbcBind.extract` NPEs on a NULL text column, so Java can't read rows that predate a C++/Python migration; DAO header omits child tables. Moves `golden_java/`. 2 tasks. |
-| [java-xml-byte-parity-DEFECT/](java-xml-byte-parity-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). Java XML differs from C++/Python bytes in 3 pinned ways (`<x/>`, unescaped quotes, float text); JSON only in whitespace. Moves `golden_java/`. 2 tasks (JSON one optional). |
+| [java-xml-byte-parity-DEFECT/](java-xml-byte-parity-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). Java XML differs from C++/Python bytes in 3 pinned ways (`<x/>`, unescaped quotes, float text); JSON only in whitespace (kept). Moves `golden_java/`. 1 task. |
 | [go-target/](go-target/README.md) | **Scoped, not started.** Language #4 (resequenced behind python-target 2026-10-03), full compliance parity except DDS + ZMQ-CURVE/ZAP (pure-Go constraint). Depends on python-target's `lang-backend-seam` epic; its interop epic adds Go as the 4th peer to python-target's harness. No task files yet. |
 
 Finished plans are removed from this index once done — the shipped behavior is

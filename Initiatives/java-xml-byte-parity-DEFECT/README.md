@@ -21,8 +21,8 @@ three ways (pinned there as `JAVA_XML_DIFFERENCES`):
    C++ `std::to_string` / `%f` (`0.000000`, `15.250000`).
 
 Java JSON (`HarpiaJson`, `JsonFormat.printer()`) differs from C++ only in
-whitespace (pretty printer); the objects are equal. Optional cleanup:
-`.omittingInsignificantWhitespace()` would make it byte-identical too.
+whitespace (pretty printer); the objects are equal. Kept as-is (Rafael,
+2026-10-05): JSON is not part of this initiative.
 
 Matters for anything that signs, hashes, caches or diffs the XML text across
 languages (e.g. SOAP envelopes compared byte for byte).
@@ -30,4 +30,4 @@ languages (e.g. SOAP envelopes compared byte for byte).
 ## Scope
 
 One epic: **`java-xml-parity`**. **Moves `UnitTests/golden_java/`** and
-changes Java's XML/JSON text (not its meaning). See `epics/README.md`.
+changes Java's XML text (not its meaning). See `epics/README.md`.

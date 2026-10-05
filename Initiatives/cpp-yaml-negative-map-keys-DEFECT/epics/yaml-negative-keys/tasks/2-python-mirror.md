@@ -1,12 +1,21 @@
 ## Python YAML reader mirrors the fix; parity fixture uses negative keys
 
-- **Depends on:** task 1, and python-target's `py-serialization` epic present
-  on the branch (`PySerialization/runtime/yaml.py`).
-- **Deliverable:** the same item-vs-key rule in
-  `PySerialization/runtime/yaml.py`; drop the "non-negative map keys only"
-  restriction from the YAML parity fixture in `UnitTests/_py_cpp_parity.py`
-  (and the note in `PySerialization/CLAUDE.md`).
-- **Tests:** parity test with negative map keys — C++ ↔ Python both
-  directions, byte-identical `to_yaml`, equal messages after `from_yaml`.
-- **Quality gate:** `test_python_quality_gate.py` (ruff + mypy on the
-  generated tree).
+- **Depends on:** task 1. python-target's `PySerialization/runtime/yaml.py`
+  is on `dev` (shipped 2026-10-05).
+- **1. Corroborate (red first):** add
+  `UnitTests/test_py_yaml.py::test_py_yaml_map_negative_int_keys` — the
+  Python mirror of task 1's round trip (same fixture). Must **fail** on the
+  unmodified Python runtime (`yaml.py` ~229/266/311 decide item-vs-key on
+  `startswith("-")`). If it passes, stop and record the finding.
+- **2. Fix:** the same item-vs-key rule in `PySerialization/runtime/yaml.py`
+  (one helper, every call site); drop the "non-negative map keys only"
+  restriction from `UnitTests/_py_cpp_parity.py` and the note in
+  `PySerialization/CLAUDE.md` (~line 72).
+- **3. Unit tests (required, kept):**
+  - `test_py_yaml_map_negative_int_keys` (above) — now green.
+  - Parity: the negative keys in `_py_cpp_parity.py` make
+    `test_serialize_xlang3.py::test_yaml_cpp_equals_python` assert
+    byte-identical `to_yaml` and equal messages C++ ↔ Python both directions.
+- **Golden:** regenerate `UnitTests/golden_python/` only if the runtime is
+  snapshotted there; diff must be only this change.
+- **Quality gate:** `test_python_quality_gate.py` (ruff + mypy).
