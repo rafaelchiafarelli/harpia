@@ -82,7 +82,7 @@ public final class outpost_dao {
     }
 
     public boolean list(List<outpost> out) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"commander\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"outpost_table\"");
+        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"commander\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"outpost_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 outpost.Builder builder = outpost.newBuilder();
