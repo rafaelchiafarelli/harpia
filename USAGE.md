@@ -23,7 +23,7 @@ stage does internally*, see `harpia.process.md`.
 Runs the whole pipeline inside the `harpia-build` Docker image (Docker is the
 only host dependency), writes a portable C++ project into the output folder,
 then builds it and runs its generated `ctest` suite. Both folders may live
-anywhere; the output folder is regenerated **write-if-different** (§13) — safe to
+anywhere; the output folder is regenerated **write-if-different** (§16) — safe to
 reuse across runs, never wiped first.
 
 ---
@@ -36,8 +36,9 @@ modules it imports:
 ```
 HarpiaTest/
 ├── test.harpia          # the one root definition file
-└── Include/
-    └── file3.harpia     # pulled in via  import "file3.harpia";
+├── Include/
+│   └── file3.harpia     # pulled in via  import "file3.harpia";
+└── schema_registry/     # WRITTEN BY HARPIA on the first run -- commit it (§5.4)
 ```
 
 ---
@@ -131,41 +132,139 @@ project: clinic              # owner key for public/private DB segregation (defa
 
 ## 5. What gets generated
 
+Every run writes a complete **C++ project** into the output folder. A Java or
+Python target (§5.1) adds its own `java/` or `python/` project **next to** it,
+in the same folder. `<hash>` in a file name is the md5 of your root
+`.harpia` file's text (`users_<hash>_crudl.h`), so file names change when the
+root file changes.
+
 ```
-my_project/
-├── CMakeLists.txt              # -DHARPIA_BUILD_TESTS=ON for the ctest suite
-├── HOW_TO_BUILD.md
+my_project/                     # <output_folder>
+├── CMakeLists.txt              # the C++ project; -DHARPIA_BUILD_TESTS=ON for the ctest suite
+├── HOW_TO_BUILD.md             # written by run_harpia.sh only
 ├── vcpkg.json                  # Windows dependency manifest (§16)
-├── proto/                      # .proto files derived from your messages
-├── database/                   # generated SQL schema (CREATE TABLE …)
+├── Doxyfile  USAGE_EXCERPT.md  # `doxygen` target + its main page
+├── cmake/                      # helper scripts (mTLS / CURVE / DDS-Security provisioning)
+├── proto/                      # .proto files derived from your messages (+ *_service.proto)
+├── database/                   # SQL schema per table message (<name>_<hash>_table.sql)
 ├── wsdl/                       # WSDL 1.1 per persisted message
+├── modifier/  access_modifier/  database_access/   # per-message flag sidecars
+├── build_metadata/             # crypto_backend.json (the chosen crypto backend)
 ├── client/  server/            # runnable demo apps
 ├── tests/                      # generated ctest suite (opt-in)
 ├── third_party/                # vendored: sqlite, tinyxml2, crow, asio, cyclonedds
-└── generated/
-    ├── ComplianceReport/       # bom.json (CycloneDX SBOM), traceability.{json,md}, compliance_report*.md
-    └── cpp/
-        ├── protofiles/         # protobuf + gRPC C++ (compiled from proto/)
-        ├── db/                 # CRUDL DAOs (+ harpia_db_registry.h)
-        ├── migrate/            # schema-migration helpers
-        ├── dbio/               # DB <-> JSON/XML bulk import/export
-        ├── json/  xml/  yaml/  # per-format adapters
-        ├── serialize/          # unified to_string/from_string façade + phi redaction
-        ├── rest/  soap/        # HTTP CRUD (Crow) + SOAP-over-HTTP endpoint
-        ├── http/               # shared REST+SOAP server bring-up (mTLS when hardened)
-        ├── grpc/               # gRPC service impls + server bring-up
-        ├── zmq/                # ZeroMQ push/pull/stream transports
-        ├── events/             # in-process event/callback channels
-        ├── dds/                # DDS transports (only if a `dds` message exists)
-        ├── capability/         # message-type-set advertisement + negotiate()
-        ├── delivery/           # critical-message queue runtime (only if a `critical` transport message exists)
-        ├── crypto/             # KeyProvider + encrypted-column runtime (only if a `phi` column exists)
-        ├── zap/                # ZMQ ZAP allowlist runtime (only when hardened + CURVE)
-        └── sdc/                # WS-Discovery responder + participant descriptors
+├── generated/
+│   ├── ComplianceReport/       # bom.json (CycloneDX SBOM), traceability.{json,md}, compliance_report*.md
+│   └── cpp/                    # <-- the C++ sources you include (put this on your include path)
+│       ├── protofiles/         # protobuf + gRPC C++ (compiled from proto/)
+│       ├── db/                 # CRUDL DAOs (+ harpia_db_registry.h)
+│       ├── migrate/            # schema-migration helpers
+│       ├── dbio/               # DB <-> JSON/XML bulk import/export
+│       ├── json/  xml/  yaml/  # per-format adapters
+│       ├── serialize/          # unified to_string/from_string façade + phi redaction
+│       ├── rest/  soap/        # HTTP CRUD (Crow) + SOAP-over-HTTP endpoint
+│       ├── http/               # shared REST+SOAP server bring-up (mTLS when hardened)
+│       ├── grpc/               # gRPC service impls + server bring-up
+│       ├── zmq/                # ZeroMQ push/pull/stream transports
+│       ├── events/             # in-process event/callback channels
+│       ├── dds/                # DDS transports (only if a `dds` message exists)
+│       ├── capability/         # message-type-set advertisement + negotiate()
+│       ├── delivery/           # critical-message queue runtime (only if a `critical` transport message exists)
+│       ├── crypto/             # KeyProvider + encrypted-column runtime (only if a `phi` column exists)
+│       ├── zap/                # ZMQ ZAP allowlist runtime (only when hardened + CURVE)
+│       └── sdc/                # WS-Discovery responder + participant descriptors
+├── java/                       # only with HARPIA_GEN_LANG=java   (§5.2)
+└── python/                     # only with HARPIA_GEN_LANG=python (§5.3)
 ```
 
 The generated project builds on any machine with a C++17 toolchain +
 protobuf/gRPC — it does **not** need the Harpia repo. Copy the folder and build.
+
+### 5.1 Choosing the language target
+
+`HARPIA_GEN_LANG` = `cpp` (default), `java` or `python`. `run_harpia.sh`
+always generates C++ and does not forward `HARPIA_GEN_LANG` (nor
+`HARPIA_DB_BACKEND` / `HARPIA_COMPLIANCE_CONFIG`), so for Java or Python run
+`main.py` in the image. Paths are inside the container: the repo is mounted at
+`/harpia`, so keep the input and output folders under the repo (e.g. `build/`)
+or mount them yourself:
+
+```sh
+Docker/run.sh env HARPIA_GEN_LANG=python \
+    HARPIA_INPUT_FILE=./HarpiaTest/test.harpia \
+    HARPIA_INCLUDE_FOLDER=./HarpiaTest/Include \
+    HARPIA_OUTPUT_DIR=/harpia/build/my_project \
+    python3 main.py
+```
+
+### 5.2 Java target (`java/`) — a Gradle project
+
+```
+java/
+├── build.gradle  settings.gradle          # protobuf + grpc plugins, JDBC drivers, JeroMQ
+└── src/
+    ├── main/
+    │   ├── proto/protofiles/              # copies of proto/ with java_package com.harpia.generated
+    │   └── java/com/harpia/
+    │       ├── generated/                 # <-- generated per-message sources
+    │       │   ├── db/<name>_dao.java     #   JDBC CRUDL DAO
+    │       │   ├── rest/  soap/           #   HTTP endpoints (JDK HttpServer)
+    │       │   └── zmq/<name>_zmq.java    #   JeroMQ factories
+    │       └── runtime/                   # hand-written runtimes copied verbatim
+    │           └── db/ json/ xml/ rest/ soap/ zmq/ grpc/   (JdbcBind, HarpiaJson, HarpiaXml, HarpiaGrpcTls, HarpiaSession, …)
+    └── test/java/com/harpia/generated/test/<name>_Test.java   # generated JUnit 5 tests
+```
+
+The message classes themselves (`com.harpia.generated.<name>`) and the gRPC
+stubs are produced by the protobuf Gradle plugin at **build** time from
+`src/main/proto/` — they are not files in the output. Build with
+`cd java && gradle build` (runs the generated JUnit tests too). Java has no
+phi encryption, YAML, migration or DDS (see the module `CLAUDE.md` files).
+
+### 5.3 Python target (`python/`) — an installable package
+
+```
+python/
+├── pyproject.toml                         # deps + extras; mypy/ruff config
+├── harpia_generated/                      # <-- generated per-message sources
+│   ├── protofiles/<name>_<hash>_pb2.py(.pyi)  (+ _pb2_grpc.py for services)
+│   ├── db/<name>_<hash>_dao.py   migrate/   dbio/
+│   ├── rest/  soap/  grpc/  http/          # transports + server bring-up
+│   ├── zmq/   dds/   events/   sdc/   capability/   serialize/
+├── harpia_runtime/                        # hand-written runtimes copied verbatim
+│   ├── db/  crypto/  compliance/  http/  dds/  capability/
+│   └── json.py xml.py yaml.py zmq.py rbac.py session.py tls.py …
+├── proto/harpia_generated/protofiles/     # the .proto copies the _pb2 modules were built from
+├── tests/                                 # generated pytest suite (conftest.py + test_<name>_<hash>.py)
+└── docs/                                  # Sphinx (conf.py, index.rst, api.rst)
+```
+
+Import as `harpia_generated.db.users_<hash>_dao` / `harpia_runtime.yaml`;
+`pip install ./python` (or put `python/` on `PYTHONPATH`); run its tests with
+`pytest python/tests`.
+
+### 5.4 Where your files go — what to commit
+
+- **Your sources** (the root `.harpia` + `Include/`) live in the input
+  folder. Harpia also writes **`schema_registry/<root stem>/<message>.fieldmap`
+  next to the root `.harpia`**: the frozen protobuf wire number of every field,
+  so reordering, adding, removing or `renamed_from`-renaming fields keeps the
+  existing numbers and old and new peers still parse each other's bytes.
+  **Commit it with your `.harpia` files.** Deleting
+  it renumbers fields on the next run and breaks wire compatibility with
+  every already-deployed peer.
+- **The output folder is generated.** Don't hand-edit it. Regenerate it, or
+  commit it as a whole if you vendor it. Regeneration is write-if-different:
+  unchanged files keep their mtime, and files of a removed or renamed message
+  are pruned.
+- **Your application code** lives outside the output folder and consumes it:
+  C++ puts `<out>/generated/cpp` on the include path (§7); Java depends on the
+  `java/` Gradle project (or its built jar); Python installs or imports
+  `python/`.
+- **Runtime files you create** (the `LocalKeyProvider` store and its `.shred`
+  sidecar, mTLS/CURVE material from `cmake/` scripts, SQLite databases)
+  belong to your deployment, not to the source tree or the output folder.
+  Keep key material out of version control.
 
 ---
 
