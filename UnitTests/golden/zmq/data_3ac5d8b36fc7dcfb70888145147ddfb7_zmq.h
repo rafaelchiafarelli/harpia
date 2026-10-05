@@ -98,6 +98,10 @@ inline bool stream_config_valid(const StreamConfig& c) {
 // (process.md 1.3.1.1). Combines the process id, a per-process monotonic
 // counter, and random bits, so concurrent senders across processes and
 // within one process never collide -- no coordinating broker/service needed.
+// Guarded like the CURVE key structs so it stays single when several
+// *_zmq.h headers land in one translation unit (cpp-zmq-header-odr-DEFECT).
+#ifndef HARPIA_ZMQ_ORIGIN_ID_DEFINED
+#define HARPIA_ZMQ_ORIGIN_ID_DEFINED
 inline std::string runtime_origin_id() {
     static std::atomic<std::uint64_t> counter{0};
     std::random_device rd;
@@ -110,6 +114,7 @@ inline std::string runtime_origin_id() {
 #endif
     return oss.str();
 }
+#endif  // HARPIA_ZMQ_ORIGIN_ID_DEFINED
 
 // push/pull: data_sender pushes (stamping origin), data_receiver pulls.
 class data_sender {

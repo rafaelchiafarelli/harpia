@@ -109,6 +109,31 @@ def test_crudl_dao_notes_deferred_columns(tmp_path):
     assert "JdbcBind.bind(ps" not in text.split("Deferred columns")[1].split("\n")[0]
 
 
+
+def test_deferred_header_names_child_tables(tmp_path):
+    """java-jdbc-null-text-DEFECT task 2: the DAO header names every map/
+    repeated child table the Java DAO never reads or writes (it used to say
+    nothing about them -- telemetry's header read "none")."""
+    out = generate(tmp_path, lang="java")
+    db = os.path.join(out, "java", "src", "main", "java", "com", "harpia", "generated", "db")
+    expected = {
+        "telemetry": ["telemetry_table__gauges", "telemetry_table__flags",
+                      "telemetry_table__samples", "telemetry_table__notes",
+                      "telemetry_table__traces"],
+        "shipment": ["shipment_table__cargo"],
+        "data": ["table_data__val_a", "table_data__val_b", "table_data__val_c",
+                 "table_data__tags", "table_data__val_scores"],
+        "users": [],
+    }
+    for name, children in expected.items():
+        head = open(os.path.join(db, name + "_dao.java")).read().split("package ")[0]
+        line = next((l for l in head.splitlines() if "Child tables" in l), None)
+        assert line is not None, head
+        if children:
+            assert all(c in line for c in children), (name, line)
+        else:
+            assert line.rstrip().endswith(": none"), (name, line)
+
 # -- integration: a real gradle+JDK build --------------------------------
 
 @pytest.mark.skipif(not _HAS_JAVA_TOOLCHAIN, reason=SKIP_REASON)
@@ -302,3 +327,112 @@ def test_sqlite_round_trip_survives_process_restart(tmp_path):
                           capture_output=True, text=True, timeout=60)
     assert read.returncode == 0, "read process failed:\n" + read.stdout + read.stderr
     assert "READ_OK" in read.stdout
+
+
+# cpp-dao-list-order-DEFECT (Java): list() returns primary-key order even
+# after UPDATEs. Arg: a JDBC URL (PostgreSQL) or an SQLite file path.
+_LIST_ORDER_PROBE = (
+    "package smoke;\n"
+    "import com.harpia.generated.users;\n"
+    "import com.harpia.generated.db.users_dao;\n"
+    "import com.google.protobuf.Descriptors.FieldDescriptor;\n"
+    "import java.sql.*;\n"
+    "import java.util.*;\n"
+    "public class ListOrder {{\n"
+    "    public static void main(String[] args) throws Exception {{\n"
+    "        Connection conn = args[0].startsWith(\"jdbc:\")\n"
+    "            ? DriverManager.getConnection(args[0]) : UsersCrudlHelper.open(args[0]);\n"
+    "        users_dao dao = new users_dao(conn);\n"
+    "        dao.dropTable(); if (!dao.createTable()) System.exit(1);\n"
+    "        int n = 50;\n"
+    "        for (int i = n; i >= 1; --i)\n"
+    "            if (!dao.create(UsersCrudlHelper.withId(users.newBuilder().setName(\"u\"), i))) System.exit(2);\n"
+    "        for (int i = 1; i <= n; i += 2)\n"
+    "            if (!dao.update(UsersCrudlHelper.withId(users.newBuilder().setName(\"moved\"), i))) System.exit(3);\n"
+    "        List<users> all = new ArrayList<>();\n"
+    "        if (!dao.list(all) || all.size() != n) System.exit(4);\n"
+    "        FieldDescriptor fd = users.getDescriptor().findFieldByName(UsersCrudlHelper.PK_FIELD);\n"
+    "        for (int i = 0; i < n; ++i)\n"
+    "            if (((Number) all.get(i).getField(fd)).intValue() != i + 1) System.exit(5);\n"
+    "        dao.dropTable(); conn.close();\n"
+    "        System.out.println(\"OK\");\n"
+    "    }}\n"
+    "}}\n").format()
+
+
+@pytest.mark.skipif(not _HAS_JAVA_TOOLCHAIN, reason=SKIP_REASON)
+def test_java_sqlite_list_in_pk_order(tmp_path):
+    out = generate(tmp_path / "out", lang="java")
+    classpath = build_and_classpath(os.path.join(out, "java"), {
+        "smoke/UsersCrudlHelper.java": _USERS_CRUDL_HELPER,
+        "smoke/ListOrder.java": _LIST_ORDER_PROBE})
+    run = subprocess.run(["java", "-cp", classpath, "smoke.ListOrder", str(tmp_path / "o.db")],
+                         capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0 and "OK" in run.stdout, run.stdout + run.stderr
+
+
+# java-jdbc-null-text-DEFECT: a row whose non-key columns are SQL NULL (as a
+# C++/Python migration leaves the columns it added on pre-existing rows).
+_NULLABLE_HARPIA = (
+    "enum shade{\n"
+    "    dark;\n"
+    "    light;\n"
+    "}\n"
+    "message nullable_row{\n"
+    "    string s;\n"
+    "    int n;\n"
+    "    int64 big;\n"
+    "    float f;\n"
+    "    shade c;\n"
+    "    optional string os;\n"
+    "    optional int oi;\n"
+    "}nullable_row_table;\n"
+)
+
+
+@pytest.mark.skipif(not _HAS_JAVA_TOOLCHAIN, reason=SKIP_REASON)
+def test_java_reads_null_columns(tmp_path):
+    """JdbcBind.extract leaves a NULL column at the field default (""/0/
+    first enum value), like the C++ and Python DAOs -- read() and list()
+    succeed instead of throwing (setField(fd, null) NPE'd on text)."""
+    harpia_file, include_folder = _write_fixture(tmp_path / "src", _NULLABLE_HARPIA)
+    out = generate(tmp_path / "out", lang="java", harpia_file=harpia_file,
+                   include_folder=include_folder)
+    classpath = build_and_classpath(os.path.join(out, "java"), {
+        "smoke/NullRead.java":
+            "package smoke;\n"
+            "import com.harpia.generated.nullable_row;\n"
+            "import com.harpia.generated.shade;\n"
+            "import com.harpia.generated.db.nullable_row_dao;\n"
+            "import com.google.protobuf.Descriptors.FieldDescriptor;\n"
+            "import java.sql.*;\n"
+            "import java.util.*;\n"
+            "public class NullRead {\n"
+            "    public static void main(String[] args) throws Exception {\n"
+            "        Class.forName(\"org.sqlite.JDBC\");\n"
+            "        String pk = null;\n"
+            "        for (FieldDescriptor fd : nullable_row.getDescriptor().getFields())\n"
+            "            if (fd.getName().startsWith(\"ID_\")) pk = fd.getName();\n"
+            "        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n"
+            "            nullable_row_dao dao = new nullable_row_dao(conn);\n"
+            "            if (!dao.createTable()) System.exit(1);\n"
+            "            try (Statement st = conn.createStatement()) {\n"
+            "                st.execute(\"INSERT INTO \\\"nullable_row_table\\\" (\\\"\" + pk + \"\\\") VALUES (7)\");\n"
+            "            }\n"
+            "            nullable_row.Builder b = nullable_row.newBuilder();\n"
+            "            if (!dao.read(7, b)) System.exit(2);\n"
+            "            nullable_row r = b.build();\n"
+            "            if (!r.getS().equals(\"\") || r.getN() != 0 || r.getBig() != 0L) System.exit(3);\n"
+            "            if (r.getF() != 0f || r.getC() != shade.dark) System.exit(4);\n"
+            "            if (!r.getOs().equals(\"\") || r.getOi() != 0) System.exit(5);\n"
+            "            List<nullable_row> all = new ArrayList<>();\n"
+            "            if (!dao.list(all) || all.size() != 1 || !all.get(0).equals(r)) System.exit(6);\n"
+            "        }\n"
+            "        System.out.println(\"OK\");\n"
+            "    }\n"
+            "}\n",
+    })
+    run = subprocess.run(["java", "-cp", classpath, "smoke.NullRead"],
+                         capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0 and "OK" in run.stdout, \
+        "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)

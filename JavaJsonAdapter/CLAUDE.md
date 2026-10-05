@@ -1,7 +1,7 @@
 # JavaJsonAdapter — Java target: JSON pass-through (one shared runtime, no per-message generation)
 
 **Pipeline role:** Java-target Stage 9 equivalent (session J.4, `Initiatives/multi-language-targets/thread-1-java-target`). Ships a single hand-written Java class wrapping `protobuf-java-util`'s `com.google.protobuf.util.JsonFormat` — the same canonical protobuf-JSON mapping the C++ (`JsonAdapter`) and future Python targets use.
-**Entry point (from main.py):** gated behind `HARPIA_GEN_LANG=java` (default `cpp`, unaffected), called right after `GradleAdapter` in the same block: `JavaJsonAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; main.py logs it).
+**Entry point (from `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`)):** called right after `GradleAdapter` in the same stage list: `JavaJsonAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; `ctx.report` logs it).
 **Inputs → Outputs:** consumes message objects only to decide whether there's anything to generate for (`Errors.Types.NOTHING_TO_REPORT` if `messages` is empty) — the runtime class itself is message-agnostic. Emits exactly one file: `<dest>/java/src/main/java/com/harpia/runtime/json/HarpiaJson.java`.
 
 ## Files
@@ -44,6 +44,6 @@ introducing a second, Android-specific protobuf runtime.
 - Return-type/exception shape deliberately does NOT mirror C++'s boolean-return-plus-out-param style (`bool to_json(msg, std::string* out)`) — that's a C++ idiom (no natural multi-return, prefers status codes), not something worth porting into Java, where returning the value directly and throwing on the one real failure mode is the idiomatic shape.
 
 ## Touchpoints
-- Called by: `main.py`, gated on `HARPIA_GEN_LANG=java`, right after `GradleAdapter` in the same conditional block.
+- Called by: `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`), right after `GradleAdapter` in the same stage list.
 - Depends on: `Util.util.copy_if_different`, `Logger.logger`, `Errors.Error`. The runtime class itself depends only on `protobuf-java`/`protobuf-java-util` (declared in `GradleAdapter`'s `build.gradle`), never on this repo's Python code at runtime.
 - Consumed by: any Java-target REST/SOAP session that needs JSON (X-content-negotiation, mirroring `Database/RestAdapter.py`'s C++ story) — not yet scoped in the 27-session breakdown by name.

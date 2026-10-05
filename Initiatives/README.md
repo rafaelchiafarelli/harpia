@@ -34,6 +34,21 @@ points it doesn't cover:
   a `:` / `'` / `"` / `_` / backtick anywhere in a `//` comment hard-errors the
   file.
 
+## Working the `*-DEFECT` initiatives
+
+Every DEFECT task follows the same three steps, written into each task file:
+
+1. **Corroborate (red first).** Write the named unit test before touching the
+   code under fix and run it on the unmodified tree. It must fail (or, where a
+   strict xfail already pins the defect, xfail for the stated reason). If it
+   passes, the defect isn't real: record that in the commit, mark the task
+   `-done` with no code change, and stop.
+2. **Fix.** Only the task's deliverable.
+3. **Unit test stays.** The red test is now green and is kept as the
+   regression test; strict xfails pinning the defect are un-marked.
+
+Open DEFECT initiatives: see the `*-DEFECT` rows of the index below.
+
 ## Index
 
 | Doc | Status |
@@ -42,7 +57,8 @@ points it doesn't cover:
 | [feature-examples/](feature-examples/README.md) | **Partly shipped.** Fixture cleanup shipped 2026-08-24. The `worked-examples` epic (one small runnable example per generated feature + an index) — not started. |
 | [doxygen-generation.md](doxygen-generation/doxygen-generation.md) | Foundation F6 + Ground Rule 6 plumbing **shipped** 2026-08-23. The `doc-comment-coverage` epic (real per-template doc-comments) — **not started**, after `multi-system-reference`. |
 | [ci-pipeline/](ci-pipeline/README.md) | **Scoped, not started.** GitHub Actions running the existing `Docker/run.sh pytest UnitTests/` suite on push/PR, plus image-layer caching. 2 tasks, both written. Highest leverage-per-effort of the open initiatives — no CI today means nothing independently re-verifies any "N passed" claim. |
-| [python-target/](python-target/README.md) | **Planned, not started — all 14 epics / 54 tasks written (2026-10-03).** Language #3 (resequenced ahead of Go at another project's request): full C++ compliance parity with no carve-outs (DDS + CURVE/ZAP included), stdlib + standard C-extension bindings, generation-time codegen under `<dest>/python/`. Epic 0 is the `LangBackend` seam (moved here from go-target). No FHIR façade (C++ has none). Ends with a C++/Java/Python interop epic. Implement after `multi-system-reference`'s chain clears this clone, or in a separate clone. |
+| [python-target/](python-target/README.md) | **Shipped in V3 (2026-10-05)**: all 14 epics / 54 tasks, full Docker suite green. Language #3: full C++ compliance parity (DDS + CURVE/ZAP included), generation-time codegen under `<dest>/python/`, C++/Java/Python interop tests (`test_*_xlang3.py`, `test_dds_xlang.py`). Decisions + findings for review: [NEXT_SESSION.md](python-target/NEXT_SESSION.md) (items 1-48), pending Rafael's review — the folder stays only for that log. Its nine C++/Java findings were fixed in V3 (see below). |
+| [cpp-phi-unencrypted-field-shapes-DEFECT/](cpp-phi-unencrypted-field-shapes-DEFECT/README.md) | **Defect, not started** (found 2026-10-05 while fixing the numeric-phi defect). `phi` on an enum field, an embedded sub-field, a repeated or a map field is stored in plaintext by the C++ and Python DAOs, with no audit. 3 tasks; task 1 is a refuse-vs-encrypt decision. |
 | [go-target/](go-target/README.md) | **Scoped, not started.** Language #4 (resequenced behind python-target 2026-10-03), full compliance parity except DDS + ZMQ-CURVE/ZAP (pure-Go constraint). Depends on python-target's `lang-backend-seam` epic; its interop epic adds Go as the 4th peer to python-target's harness. No task files yet. |
 
 Finished plans are removed from this index once done — the shipped behavior is
@@ -57,6 +73,16 @@ hardening modifiers) shipped 2026-09-19 — see `USAGE.md` §8.1,
 initiative (N-peer ZMQ PUB/SUB fan-out + PUSH/PULL load-balance, C++ and
 C++↔Java) shipped 2026-09-26 — see `HarpiaTest/app_example/fanout/README.md`
 and `UnitTests/test_zmq_*fanout*.py` / `test_zmq_*pushpull*.py`.
+The nine **python-target findings** (`*-DEFECT` initiatives, fixed
+2026-10-05, shipped in **V3**): PG migration introspection limited to
+`current_schema()`, `LocalKeyProvider` store `0600` + loose-store refusal
+(C++ + Python), phi scalar columns TEXT in the DDL, DAO `list` ordered by the
+primary key (C++ + Java), `JdbcBind` NULL reads + Java DAO child-table
+disclosure, ZMQ `runtime_origin_id()` guard, C++ `from_yaml("{}")`, negative
+YAML map keys (C++ + Python), Java XML byte parity — see `Database/CLAUDE.md`,
+`Crypto/CLAUDE.md`, `JavaDatabase/CLAUDE.md`, `ZmqAdapter/CLAUDE.md`,
+`YamlAdapter/CLAUDE.md`, `PySerialization/CLAUDE.md`,
+`JavaXmlAdapter/CLAUDE.md`. Each has its regression test.
 Earlier removed-on-completion plans: Postgres backend
 (`Database/CLAUDE.md`), crash/interrupt recovery (`Util/CLAUDE.md`),
 message-versioning (`Message/CLAUDE.md`, `Capability/CLAUDE.md`),

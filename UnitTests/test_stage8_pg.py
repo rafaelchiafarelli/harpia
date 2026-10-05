@@ -190,3 +190,231 @@ def test_pg_migration_retype(pg_generated, tmp_path):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, "PG retype migration failed at check #{}\n{}".format(
         run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_migration_ignores_other_schemas(pg_generated, tmp_path):
+    """Migration introspection only sees the current schema
+    (cpp-pg-introspection-schema-DEFECT). A "decoy" schema holds a same-named
+    beacon_log_table (an extra column, strength as TEXT) and a
+    telemetry_table__decoy_child table: migrating "public" must neither try
+    to drop/retype the decoy's columns there nor reap the decoy child table,
+    and must leave the decoy schema untouched."""
+    cpp_root = pg_generated
+    prog = tmp_path / "pg_migrate_schemas.cpp"
+    prog.write_text(
+        '#include "migrate/beacon_log_{h}_migrate.h"\n'
+        '#include "migrate/telemetry_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n#include <set>\n#include <string>\n#include <vector>\n"
+        "static std::set<std::string> cols(::soci::session& db, const std::string& schema,\n"
+        "                                  const std::string& table) {{\n"
+        "    std::vector<std::string> v(64); std::vector<::soci::indicator> ind(64);\n"
+        "    db << \"SELECT column_name FROM information_schema.columns WHERE \"\n"
+        "          \"table_schema = :s AND table_name = :t\", ::soci::use(schema), ::soci::use(table),\n"
+        "          ::soci::into(v, ind);\n"
+        "    return std::set<std::string>(v.begin(), v.end());\n"
+        "}}\n"
+        "static std::string type_of(::soci::session& db, const std::string& schema,\n"
+        "                           const std::string& table, const std::string& col) {{\n"
+        "    std::string t; ::soci::indicator ti = ::soci::i_null;\n"
+        "    db << \"SELECT data_type FROM information_schema.columns WHERE table_schema = :s \"\n"
+        "          \"AND table_name = :t AND column_name = :c\", ::soci::use(schema),\n"
+        "          ::soci::use(table), ::soci::use(col), ::soci::into(t, ti);\n"
+        "    return ti == ::soci::i_ok ? t : std::string();\n"
+        "}}\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    auto exec = [&db](const std::string& s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        '    exec("DROP SCHEMA IF EXISTS \\"decoy\\" CASCADE;");\n'
+        '    exec("DROP TABLE IF EXISTS \\"beacon_log_table\\";");\n'
+        "    {{ std::vector<std::string> kids(64); std::vector<::soci::indicator> ki(64);\n"
+        "      db << \"SELECT table_name FROM information_schema.tables WHERE \"\n"
+        "            \"table_schema = current_schema() AND table_name LIKE 'telemetry_table%'\",\n"
+        "            ::soci::into(kids, ki);\n"
+        '      for (const auto& k : kids) exec("DROP TABLE IF EXISTS \\"" + k + "\\" CASCADE;"); }}\n'
+        '    if (!exec("CREATE SCHEMA \\"decoy\\";")) return 2;\n'
+        '    if (!exec("CREATE TABLE \\"decoy\\".\\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '\\"label\\" TEXT, \\"strength\\" TEXT, \\"decoy_only\\" TEXT);")) return 3;\n'
+        '    if (!exec("CREATE TABLE \\"decoy\\".\\"telemetry_table__decoy_child\\" (\\"owner\\" INTEGER);")) return 4;\n'
+        "    // public: the current shape, built by the migration itself\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 10;\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 11;\n"
+        '    if (cols(db, "public", "beacon_log_table").count("decoy_only")) return 12;\n'
+        '    if (type_of(db, "public", "beacon_log_table", "strength") != "integer") return 13;\n'
+        "    if (!::harpia::db::migrate_telemetry(db)) return 20;\n"
+        "    if (!::harpia::db::migrate_telemetry(db)) return 21;\n"
+        "    // the decoy schema is untouched\n"
+        '    if (!cols(db, "decoy", "beacon_log_table").count("decoy_only")) return 30;\n'
+        '    if (type_of(db, "decoy", "beacon_log_table", "strength") != "text") return 31;\n'
+        '    if (cols(db, "decoy", "telemetry_table__decoy_child").empty()) return 32;\n'
+        '    exec("DROP SCHEMA IF EXISTS \\"decoy\\" CASCADE;");\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    objs = [os.path.join(cpp_root, "protofiles", "{}_{}.pb.cc".format(m, HASH))
+            for m in ("beacon_log", "telemetry", "trace_row")]
+    binary = str(tmp_path / "pg_migrate_schemas")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog), *objs, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG two-schema migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0, "PG two-schema migration failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_phi_numeric_roundtrip(pg_generated, tmp_path):
+    """cpp-phi-numeric-column-type-DEFECT: the C++ patient_vitals DAO (phi
+    float heart_rate, stored as enc:v1: text) creates, reads and lists a row
+    on a real PostgreSQL server."""
+    cpp_root = pg_generated
+    store = str(tmp_path / "keks.store")
+    prog = tmp_path / "pg_phi.cpp"
+    prog.write_text(
+        '#include "db/patient_vitals_{h}_crudl.h"\n'
+        '#include "crypto/harpia_key_provider_local.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n#include <string>\n#include <vector>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    ::harpia::crypto::LocalKeyProviderConfig cfg; cfg.storage_path = \"{s}\";\n"
+        "    ::harpia::crypto::LocalKeyProvider kp(cfg);\n"
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    dao.drop_table(); if (!dao.create_table()) return 1;\n"
+        "    ::patient_vitals v; v.set_id_{h}(1); v.set_patient_id(\"p-7\");\n"
+        "    v.set_heart_rate(72.5f); v.set_device_note(\"n\");\n"
+        "    if (!dao.create(v)) return 2;\n"
+        "    ::patient_vitals got; if (!dao.read(1, &got)) return 3;\n"
+        '    if (got.patient_id() != "p-7" || got.heart_rate() != 72.5f) return 4;\n'
+        "    std::string raw; db << \"SELECT \\\"heart_rate\\\" FROM \\\"patient_vitals_table\\\"\", ::soci::into(raw);\n"
+        '    if (raw.rfind("enc:v1:", 0) != 0) return 5;\n'
+        "    std::vector<::patient_vitals> all; if (!dao.list(&all) || all.size() != 1) return 6;\n"
+        "    dao.drop_table();\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH, s=store))
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    pb_cc = os.path.join(cpp_root, "protofiles", "patient_vitals_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "pg_phi")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", os.path.join(cpp_root, "crypto"),
+         "-I", pg_inc, *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG phi program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0, "PG phi round trip failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_migrate_retypes_legacy_phi_column(pg_generated, tmp_path):
+    """cpp-phi-numeric-column-type-DEFECT task 2 on PostgreSQL: an older
+    generation's heart_rate DOUBLE PRECISION (which could never hold
+    ciphertext, so only a raw plaintext row can exist) is retyped to text
+    NOT NULL by migrate_patient_vitals; the plaintext row still reads (an
+    unmarked value passes through decrypt) and new rows encrypt."""
+    cpp_root = pg_generated
+    store = str(tmp_path / "keks.store")
+    prog = tmp_path / "pg_phi_mig.cpp"
+    prog.write_text(
+        '#include "migrate/patient_vitals_{h}_migrate.h"\n'
+        '#include "crypto/harpia_key_provider_local.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        '    exec("DROP TABLE IF EXISTS \\"patient_vitals_table\\";");\n'
+        '    if (!exec("CREATE TABLE \\"patient_vitals_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '\\"patient_id\\" TEXT, \\"heart_rate\\" DOUBLE PRECISION NOT NULL, \\"device_note\\" TEXT, '
+        '\\"STATUS_{h}\\" TEXT, \\"ERROR_{h}\\" TEXT, \\"ORIGINATOR\\" TEXT);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"patient_vitals_table\\\" (\\\"ID_{h}\\\", \\\"patient_id\\\", "
+        "\\\"heart_rate\\\") VALUES (1, 'legacy', 61.5);\")) return 3;\n"
+        "    if (!::harpia::db::migrate_patient_vitals(db)) return 4;\n"
+        "    std::string t, n; ::soci::indicator ti, ni;\n"
+        "    db << \"SELECT data_type, is_nullable FROM information_schema.columns WHERE \"\n"
+        "          \"table_schema = current_schema() AND table_name = 'patient_vitals_table' \"\n"
+        "          \"AND column_name = 'heart_rate'\", ::soci::into(t, ti), ::soci::into(n, ni);\n"
+        '    if (t != "text" || n != "NO") return 5;\n'
+        "    ::harpia::crypto::LocalKeyProviderConfig cfg; cfg.storage_path = \"{s}\";\n"
+        "    ::harpia::crypto::LocalKeyProvider kp(cfg);\n"
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    ::patient_vitals got; if (!dao.read(1, &got)) return 6;\n"
+        '    if (got.heart_rate() != 61.5f) return 7;\n'
+        "    ::patient_vitals v; v.set_id_{h}(2); v.set_patient_id(\"p\"); v.set_heart_rate(70.25f);\n"
+        "    if (!dao.create(v)) return 8;\n"
+        "    ::patient_vitals g2; if (!dao.read(2, &g2) || g2.heart_rate() != 70.25f) return 9;\n"
+        "    if (!::harpia::db::migrate_patient_vitals(db)) return 10;   // idempotent\n"
+        '    exec("DROP TABLE IF EXISTS \\"patient_vitals_table\\";");\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH, s=store))
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    pb_cc = os.path.join(cpp_root, "protofiles", "patient_vitals_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "pg_phi_mig")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", os.path.join(cpp_root, "crypto"),
+         "-I", pg_inc, *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG phi migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0, "PG phi migration failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_list_pages_are_stable(pg_generated, tmp_path):
+    """cpp-dao-list-order-DEFECT: list() and list(offset, limit) return rows
+    in primary-key order on PostgreSQL even after UPDATEs moved tuples to the
+    heap's end -- so paging visits every row exactly once."""
+    cpp_root = pg_generated
+    prog = tmp_path / "pg_list_order.cpp"
+    prog.write_text(
+        '#include "db/users_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n#include <string>\n#include <vector>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    ::harpia::db::users_dao dao(db); dao.drop_table();\n"
+        "    if (!dao.create_table()) return 1;\n"
+        "    const int n = 50;\n"
+        "    for (int i = 1; i <= n; ++i) {{ ::users u; u.set_id_{h}(i); u.set_name(\"u\");\n"
+        "      if (!dao.create(u)) return 2; }}\n"
+        "    for (int i = 1; i <= n; i += 2) {{ ::users u; u.set_id_{h}(i); u.set_name(\"moved\");\n"
+        "      if (!dao.update(u)) return 3; }}\n"
+        "    std::vector<::users> all; if (!dao.list(&all) || (int)all.size() != n) return 4;\n"
+        "    for (int i = 0; i < n; ++i) if (all[i].id_{h}() != i + 1) return 5;\n"
+        "    std::vector<::users> paged;\n"
+        "    for (long long off = 0; off < n; off += 7) {{ std::vector<::users> page;\n"
+        "      if (!dao.list(&page, off, 7)) return 6;\n"
+        "      paged.insert(paged.end(), page.begin(), page.end()); }}\n"
+        "    if ((int)paged.size() != n) return 7;\n"
+        "    for (int i = 0; i < n; ++i) if (paged[i].id_{h}() != i + 1) return 8;\n"
+        "    dao.drop_table();\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    pb_cc = os.path.join(cpp_root, "protofiles", "users_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "pg_list_order")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG list-order program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0, "PG list order failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)

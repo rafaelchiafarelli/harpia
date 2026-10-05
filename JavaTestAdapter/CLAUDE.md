@@ -1,7 +1,7 @@
 # JavaTestAdapter — Java target: generated JUnit 5 tests (a scoped subset of the C++ suite)
 
 **Pipeline role:** Java-target Stage 14 equivalent (session J.21, `Initiatives/multi-language-targets/thread-1-java-target`). A Java-source-emitting counterpart for a **subset** of `TestAdapter.py`'s ~8 C++ body builders — see "What's deliberately not ported" below before assuming parity.
-**Entry point (from main.py):** gated behind `HARPIA_GEN_LANG=java`, called right after `JavaZmqAdapter` in the same block: `JavaTestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; main.py logs it).
+**Entry point (from `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`)):** called right after `JavaZmqAdapter` in the same stage list: `JavaTestAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()`. Returns `None` or an `Error` (non-fatal; `ctx.report` logs it).
 **Inputs → Outputs:** consumes message objects (same table-bearing filter as `JavaDatabase`/`JavaRestAdapter`/`JavaSoapAdapter`). Emits `<dest>/java/src/test/java/com/harpia/generated/test/<name>_Test.java` — Gradle's standard test source root, which already sees every `src/main/java` class without any extra `build.gradle` wiring (the `java` plugin sets that dependency up by default).
 
 ## Files
@@ -25,6 +25,6 @@ An enum column's test value is derived from its own `FieldDescriptor` too (`fd.g
 - A message whose *every* user-declared field is embed/FK/map/repeated still gets a real, non-degenerate test class: `usable` always includes at least the front-end-injected `ID_<hash>`/`STATUS_<hash>`/`ERROR_<hash>`/`ORIGINATOR[_<hash>]` columns (plain top-level strings — see `JavaDatabase/CLAUDE.md`).
 
 ## Touchpoints
-- Called by: `main.py`, gated on `HARPIA_GEN_LANG=java`, right after `JavaZmqAdapter` in the same conditional block.
+- Called by: `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`), right after `JavaZmqAdapter` in the same stage list.
 - Depends on: `Database.model` (`type_registry`, `analyze`), `JavaDatabase` (the `<name>_dao` classes it tests), `JavaJsonAdapter`/`JavaXmlAdapter` (`HarpiaJson`/`HarpiaXml`), `Util.util.write_if_different`/`loadTemplate`, `Logger.logger`, `Errors.Error`.
 - Verified by: `UnitTests/test_java_junit_tests.py` (structural, always run) + a gradle+JDK-gated `gradle test` run — this session's own stated acceptance bar ("verified together with J.23, not duplicated here"), landing now since both prerequisites (JUnit wiring, real DAOs/runtimes) already exist.

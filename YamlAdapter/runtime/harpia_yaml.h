@@ -330,6 +330,13 @@ inline void set_scalar(::google::protobuf::Message* msg,
 inline void read_mapping(const std::vector<Ln>& L, size_t& i, int indent,
                          ::google::protobuf::Message* msg, int& hits);
 
+// A line starts a sequence item only when its '-' is followed by a space or
+// ends the line: "-5: x" is a map entry with a negative integer key, "- 5"
+// is an item (cpp-yaml-negative-map-keys-DEFECT).
+inline bool is_seq_item(const std::string& s) {
+    return !s.empty() && s[0] == '-' && (s.size() == 1 || s[1] == ' ');
+}
+
 inline void skip_block(const std::vector<Ln>& L, size_t& i, int indent) {
     while (i < L.size() && L[i].indent > indent) ++i;
 }
@@ -338,8 +345,7 @@ inline void read_sequence(const std::vector<Ln>& L, size_t& i, int indent,
                           ::google::protobuf::Message* msg, const FD* f,
                           int& hits) {
     const auto* refl = msg->GetReflection();
-    while (i < L.size() && L[i].indent == indent && !L[i].s.empty() &&
-           L[i].s[0] == '-') {
+    while (i < L.size() && L[i].indent == indent && is_seq_item(L[i].s)) {
         std::string rest = L[i].s.substr(1);
         size_t b = rest.find_first_not_of(' ');
         rest = (b == std::string::npos) ? std::string() : rest.substr(b);
@@ -360,7 +366,7 @@ inline void read_sequence(const std::vector<Ln>& L, size_t& i, int indent,
                 } else if (itf && !hasVal && i < L.size() &&
                            L[i].indent > indent + 2) {
                     int ci = L[i].indent;
-                    if (!L[i].s.empty() && L[i].s[0] == '-')
+                    if (is_seq_item(L[i].s))
                         read_sequence(L, i, ci, item, itf, hits);
                     else if (itf->cpp_type() == FD::CPPTYPE_MESSAGE)
                         read_mapping(L, i, ci,
@@ -383,7 +389,7 @@ inline void read_map(const std::vector<Ln>& L, size_t& i, int indent,
                      ::google::protobuf::Message* msg, const FD* f, int& hits) {
     const auto* refl = msg->GetReflection();
     while (i < L.size() && L[i].indent == indent && !L[i].s.empty() &&
-           L[i].s[0] != '-') {
+           !is_seq_item(L[i].s)) {
         std::string key, val;
         bool hasVal;
         split_kv(L[i].s, key, val, hasVal);
@@ -427,7 +433,7 @@ inline void apply_entry(const std::vector<Ln>& L, size_t& i, int indent,
     }
     if (i >= L.size() || L[i].indent <= indent) return;  // empty block
     const int childIndent = L[i].indent;
-    if (!L[i].s.empty() && L[i].s[0] == '-') {
+    if (is_seq_item(L[i].s)) {
         read_sequence(L, i, childIndent, msg, f, hits);
     } else if (f->is_map()) {
         read_map(L, i, childIndent, msg, f, hits);
@@ -441,7 +447,7 @@ inline void apply_entry(const std::vector<Ln>& L, size_t& i, int indent,
 inline void read_mapping(const std::vector<Ln>& L, size_t& i, int indent,
                          ::google::protobuf::Message* msg, int& hits) {
     while (i < L.size() && L[i].indent == indent && !L[i].s.empty() &&
-           L[i].s[0] != '-') {
+           !is_seq_item(L[i].s)) {
         const std::string s = L[i].s;
         ++i;
         apply_entry(L, i, indent, s, msg, hits);
@@ -463,6 +469,9 @@ inline std::string to_yaml(const ::google::protobuf::Message& msg) {
 // false); an empty document or "{}" is a valid empty message and returns true.
 inline bool from_yaml(const std::string& yaml, ::google::protobuf::Message* msg) {
     const auto lines = detail::tokenize(yaml);
+    // to_yaml's empty document: valid, nothing to merge (the Python runtime
+    // does the same -- cpp-yaml-empty-mapping-DEFECT).
+    if (lines.size() == 1 && lines[0].indent == 0 && lines[0].s == "{}") return true;
     size_t i = 0;
     int hits = 0;
     detail::read_mapping(lines, i, 0, msg, hits);

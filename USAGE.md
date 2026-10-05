@@ -572,6 +572,13 @@ Tag a field `phi` and, with **no other change to your code**:
   An unrecoverable value decrypts to the type's default (0 / "") — never a
   throw.
 
+  The local key store (and its `<path>.shred` sidecar) is written owner-only
+  (`0600`) on POSIX. A store whose mode lets group or others read it is
+  **refused**: the constructor throws `LocalKeyStoreInsecure` (Python raises
+  the same-named error). If that happens, assume the keys may have been read:
+  rotate, then `chmod 0600` the files. A `phi` column is always TEXT in the
+  DDL; the generated migration retypes an older numeric `phi` column.
+
 - **in serialization** — `harpia::serialize::to_string(msg, fmt)` renders every
   `phi` value as `[REDACTED]` in JSON, XML and YAML. Redacted output is a lossy
   view, not a round-trip format. The sanctioned, audited opt-out:

@@ -106,6 +106,13 @@ the backends → `harpia_key_provider.h` + its deps), mirroring
   `local_key_provider_acknowledged()` (reads `HARPIA_ACK_LOCAL_KEY_PROVIDER`)
   or the config field. Shred → `<storage_path>.shred` append-only sidecar,
   never rewrites the KEK store. `#include`s `harpia_key_provider.h`.
+  **File modes (cpp-key-store-permissions-DEFECT):** on POSIX the store and
+  the sidecar are written owner-only `0600` regardless of umask (`open(...,
+  0600)` + `fchmod` before any byte); an existing store or sidecar with any
+  group/other bit makes the ctor throw `LocalKeyStoreInsecure` (path + octal
+  mode in `what()`) — refused, never tightened silently (Rafael 2026-10-05):
+  the operator rotates if exposure is possible, then `chmod 0600`. Windows:
+  no POSIX modes, ACLs out of scope, check compiled out.
 - `runtime/harpia_key_provider_kms.h` — the key-management epic. The KMS/HSM
   extension point. `KmsClient` (the tiny seam an integrator implements for
   AWS KMS / Vault / a PKCS#11 HSM — four ops over opaque bytes + an
@@ -134,6 +141,57 @@ the backends → `harpia_key_provider.h` + its deps), mirroring
   interface + `harpia_audit_sink.h` (db-encryption task 1), plus `KEY_PROVIDER_LOCAL_RUNTIME`
   and `KEY_PROVIDER_KMS_RUNTIME` (db-encryption task 2, so a deployment can hand the DAO a
   real persistent KeyProvider)) into `generated/cpp/crypto/`.
+
+## Python ports (python-target / py-crypto-phi)
+Hand-written modules under `runtime/python/`, copied into a generated Python
+project with `PyAdapter.runtime_copy.copy_runtime_module` at the dotted names
+in `key_provider_common.py` (`PY_*_MODULE` / `PY_*_RUNTIME_SRC` /
+`PY_*_RUNTIME_DEPS`, same shape as `Compliance.audit_common.PY_AUDIT_SINK_*`).
+Wiring the copy into the python backend (only when a `phi` column exists) is
+py-crypto-phi task 4; until then only tests copy them.
+- `runtime/python/key_provider.py` → `harpia_runtime.crypto.key_provider`
+  (task 1): `Dek` (`seal`/`open`, context manager, `close`), frozen
+  `WrappedDek(kek_version, bytes)`, `shred_key(w)` (`b"<v>:" + bytes`),
+  `xor_with`, `secure_zero(bytearray)`, `random_bytes`, `OP_*` (= C++ `kOp*`),
+  `KEY_LEN`, `KeyProvider` ABC, `InMemoryKeyProvider(audit_sink=None)` (+
+  `forget_kek_version`, `close`; `threading.Lock`). Same placeholder XOR as
+  C++, byte for byte; same audit records in the same order.
+  **Zeroization is best-effort** (key bytes in `bytearray`s wiped on
+  `Dek.close`/`__del__`, KEK eviction and provider `close`/`__del__`;
+  CPython can keep copies) — never claim C++ parity. **Gotcha:** a `Dek`
+  owns `material` and wipes it when collected, so `p.unwrap_dek(w).material`
+  is already empty once the temporary `Dek` is gone — hold the `Dek`, or copy
+  with `bytes(dek.material)`.
+- `runtime/python/key_provider_local.py` → `harpia_runtime.crypto.key_provider_local`
+  (task 2): `LocalKeyProvider(cfg, audit_sink=None)`, frozen
+  `LocalKeyProviderConfig(storage_path, phi_at_scale=False, acknowledged=False)`,
+  `LocalKeyProviderRefused` (raised before the store is touched),
+  `local_key_provider_acknowledged()` / `ACK_ENV`. **Same store format as
+  C++** (`<version> <lowercase hex>` per KEK, ascending, truncate-rewrite;
+  `<path>.shred` append-only `<version> <hex wrapped DEK>`), so one store is
+  shared across languages — proven both ways (wrap/unwrap/shred) against the
+  C++ `LocalKeyProvider`. Loading an existing store records no KEK
+  generation (as C++).
+  Same file modes as C++: store + sidecar `0600` via `os.open(..., 0o600)` +
+  `fchmod`; a loose existing one raises `LocalKeyStoreInsecure` (same message
+  shape); skipped on Windows.
+- `runtime/python/key_provider_kms.py` → `harpia_runtime.crypto.key_provider_kms`
+  (task 2): `KmsClient` ABC (`active_version`/`wrap`/`unwrap`/`rotate` over
+  bytes + int version), `KmsKeyProvider(kms, audit_sink=None)` (routes,
+  per-DEK shred is a local set), `MockKms` (+ `forget_version`).
+- `runtime/python/encrypted_column.py` → `harpia_runtime.crypto.encrypted_column`
+  (task 3): `ENC_MARKER`, `encrypt_field(kp, str) -> str`, `decrypt_field`,
+  `decrypt_field_ll` (strtoll, int64-saturating, also past `int()`'s digit
+  limit), `decrypt_field_int` (32-bit wrap like the C++ cast),
+  `decrypt_field_float` (strtod prefix; no hex floats), and
+  `default_key_provider()` (one lazily-built process-wide
+  `InMemoryKeyProvider`). Frame byte-identical to C++ (big-endian
+  `>QI` header, lowercase hex), proven both ways over one shared
+  `LocalKeyProvider` store. Text is UTF-8. **Decision (task 3):** a value
+  that opens to invalid UTF-8 decrypts to `""` (Rule 5: unrecoverable,
+  never raise, no mojibake); C++ would return the raw bytes. Hex in the
+  frame is validated strictly (no whitespace, which `bytes.fromhex` would
+  otherwise accept).
 
 ## Key facts / gotchas
 - **Selection order in `get_backend()`:** explicit `name` (e.g.

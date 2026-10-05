@@ -1,0 +1,11 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "com.harpia.generated";
+
+message courier {
+int32 ID_3ac5d8b36fc7dcfb70888145147ddfb7 = 1;
+string payload = 2;
+string STATUS_3ac5d8b36fc7dcfb70888145147ddfb7 = 3;
+string ERROR_3ac5d8b36fc7dcfb70888145147ddfb7 = 4;
+string ORIGINATOR = 5;
+}

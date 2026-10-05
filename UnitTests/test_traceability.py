@@ -57,15 +57,17 @@ FIXTURE = [
     _Msg("Color", [], is_enum=True),
 ]
 
-_N_PHI_REQS   = len([r for r in REQUIREMENTS if r.applies_to == "phi_field"])
-_N_PHI_TBL    = len([r for r in REQUIREMENTS if r.applies_to == "phi_field_table"])
-_N_CRIT_REQS  = len([r for r in REQUIREMENTS if r.applies_to == "critical_message"])
-_N_PROJ_REQS  = len([r for r in REQUIREMENTS if r.applies_to == "project"])
+# a C++-only run's catalog (python-run-only requirements are py-artifacts')
+_CPP_REQS     = [r for r in REQUIREMENTS if not r.python_run_only]
+_N_PHI_REQS   = len([r for r in _CPP_REQS if r.applies_to == "phi_field"])
+_N_PHI_TBL    = len([r for r in _CPP_REQS if r.applies_to == "phi_field_table"])
+_N_CRIT_REQS  = len([r for r in _CPP_REQS if r.applies_to == "critical_message"])
+_N_PROJ_REQS  = len([r for r in _CPP_REQS if r.applies_to == "project"])
 
 
-def _emit(dest, messages=FIXTURE):
-    err = ComplianceReport(messages=messages, dest=str(dest),
-                           compliance=None).Process()
+def _emit(dest, messages=FIXTURE, python_target=False):
+    err = ComplianceReport(messages=messages, dest=str(dest), compliance=None,
+                           python_target=python_target).Process()
     assert err is None
     out = os.path.join(str(dest), "generated", "ComplianceReport")
     with open(os.path.join(out, TRACEABILITY_JSON)) as f:
@@ -160,3 +162,50 @@ def test_rewrite_is_stable(tmp_path):
     m1 = os.stat(p).st_mtime_ns
     _emit(tmp_path)
     assert os.stat(p).st_mtime_ns == m1
+
+
+
+# -- python-target / py-artifacts task 2 ---------------------------------------
+
+def test_python_rows_carry_both_targets(tmp_path):
+    rows, md = _emit(tmp_path, python_target=True)
+    by_req = {}
+    for r in rows:
+        by_req.setdefault(r["requirement_id"], r)
+        assert r["mechanism"] and r["evidence"], r
+        if "python_mechanism" in r:
+            assert r["python_mechanism"] and r["python_evidence"], r
+    for rid in ("R1-RED", "R1-ENC", "R5-AUDIT-DB", "R5-AUDIT-OPTOUT", "R4A-ORDERED",
+                "R3-INTEGRITY", "SBOM", "TRANSPORT-MTLS-RBAC", "ZMQ-ZAP", "SESSIONS",
+                "DDS-SECURITY"):
+        assert "python_mechanism" in by_req[rid], rid
+    assert md.count("**Python:**") == sum(1 for r in rows if "python_mechanism" in r)
+
+
+def test_python_weaker_mechanisms_are_stated(tmp_path):
+    rows, _ = _emit(tmp_path, python_target=True)
+    enc = next(r for r in rows if r["requirement_id"] == "R1-ENC")
+    assert "WEAKER THAN C++" in enc["python_mechanism"]
+    assert "zeroization is best-effort" in enc["python_mechanism"]
+    tr = next(r for r in rows if r["requirement_id"] == "TRANSPORT-MTLS-RBAC")
+    assert "WEAKER THAN C++" in tr["python_mechanism"]
+
+
+def test_every_cited_test_file_exists():
+    for req in REQUIREMENTS:
+        for ref in req.test_refs + req.py_test_refs:
+            path = os.path.join(HERE, ref.split("::")[0])
+            assert os.path.exists(path), (req.id, ref)
+
+
+def test_cpp_only_rows_unchanged_by_python_evidence(tmp_path):
+    rows, md = _emit(tmp_path / "cpp")
+    assert all("python_mechanism" not in r for r in rows)
+    assert "**Python:**" not in md
+    ids = {r["requirement_id"] for r in rows}
+    assert not ids & {r.id for r in REQUIREMENTS if r.python_run_only}
+    py_rows, _ = _emit(tmp_path / "py", python_target=True)
+    stripped = [{k: v for k, v in r.items() if not k.startswith("python_")}
+                for r in py_rows
+                if not REQUIREMENTS_BY_ID[r["requirement_id"]].python_run_only]
+    assert stripped == rows

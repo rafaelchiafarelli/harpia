@@ -206,3 +206,63 @@ def test_acknowledgment_env_helper(tmp_path):
     env = dict(os.environ)
     env.pop("HARPIA_ACK_LOCAL_KEY_PROVIDER", None)
     assert subprocess.run([str(b)], env=env).returncode == 1
+
+
+def test_store_and_sidecar_are_0600_under_umask_022(tmp_path):
+    """cpp-key-store-permissions-DEFECT: the KEK store and its .shred sidecar
+    are created owner-only (0600) whatever the umask -- they hold KEK
+    material / shred records, never world-readable."""
+    if os.name == "nt":
+        pytest.skip("POSIX file modes")
+    b = _compile(tmp_path, '''
+    using namespace harpia::crypto;
+    ::umask(022);
+    LocalKeyProviderConfig cfg;
+    cfg.storage_path = "%s";
+    LocalKeyProvider kp(cfg);
+    WrappedDek w = kp.wrap_dek(kp.generate_dek());
+    kp.shred_dek(w);
+    kp.rotate();                                 // rewrites the store
+''' % _store(tmp_path), "local_modes", extra_top="#include <sys/stat.h>\n")
+    r = _run(b)
+    assert r.returncode == 0, r.stdout + r.stderr
+    store = _store(tmp_path)
+    assert oct(os.stat(store).st_mode & 0o777) == oct(0o600)
+    assert oct(os.stat(store + ".shred").st_mode & 0o777) == oct(0o600)
+
+
+@pytest.mark.parametrize("loose", ["store", "shred"])
+def test_loose_existing_store_is_refused(tmp_path, loose):
+    """A store (or .shred sidecar) with any group/other bit set is refused
+    with LocalKeyStoreInsecure (Rafael 2026-10-05: refuse, never tighten
+    silently) -- the KEK may already have leaked; the operator must act."""
+    if os.name == "nt":
+        pytest.skip("POSIX file modes")
+    store = _store(tmp_path)
+    make = _compile(tmp_path, '''
+    using namespace harpia::crypto;
+    LocalKeyProviderConfig cfg;
+    cfg.storage_path = "%s";
+    LocalKeyProvider kp(cfg);
+    kp.shred_dek(kp.wrap_dek(kp.generate_dek()));
+''' % store, "local_make")
+    assert _run(make).returncode == 0
+    os.chmod(store if loose == "store" else store + ".shred", 0o644)
+    before = open(store).read()
+    b = _compile(tmp_path, '''
+    using namespace harpia::crypto;
+    LocalKeyProviderConfig cfg;
+    cfg.storage_path = "%s";
+    try {
+        LocalKeyProvider kp(cfg);
+        return 30;                               // loaded a loose store
+    } catch (const LocalKeyStoreInsecure& e) {
+        std::string m = e.what();
+        if (m.find("%s") == std::string::npos) return 31;
+        if (m.find("0644") == std::string::npos) return 32;
+    }
+''' % (store, store if loose == "store" else store + ".shred"), "local_loose")
+    r = _run(b)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert open(store).read() == before          # refused before any rewrite
+    assert os.stat(store if loose == "store" else store + ".shred").st_mode & 0o777 == 0o644

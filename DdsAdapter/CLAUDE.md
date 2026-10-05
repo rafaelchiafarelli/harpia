@@ -35,7 +35,11 @@ emitted `dds` message carries a `phi` field, `harpia_dds_security.h`, and a
   static `dds_governance.xml`, renders `permissions.xml` (its `<topic>` list
   = the schema's `dds` message names) from `templates/permissions.xml.tmpl`,
   and writes `dds_security_selection.json` (`self.crypto_backend` fields +
-  `transport_hardening_required(self.compliance)`).
+  `transport_hardening_required(self.compliance)`). The three documents
+  are written by `write_security_documents(security_dir, topics)` — public
+  so python-target's `PyDdsAdapter` writes the same bytes into
+  `python/harpia_generated/dds/security/` (refactor proven byte-identical by
+  the C++ golden).
 - `runtime/harpia_dds_security.h` — hand-written, copied verbatim next to the
   per-message headers (like `harpia_audit_sink.h`). `harpia::dds_security`:
   `SecurityFiles` (the six PKI paths + `complete()`), `SecurityRefused`,

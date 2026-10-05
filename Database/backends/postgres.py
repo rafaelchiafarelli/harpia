@@ -53,6 +53,10 @@ class PostgresBackend(DbBackend):
     def int_type(self):
         return "INTEGER"
 
+    # -- DB-API parameter style (Python target) ---------------------------------
+    def param_placeholder(self):
+        return "%s"  # psycopg (DB-API paramstyle format)
+
     # -- columns & tables -----------------------------------------------------
     def column_def(self, sql_type, *, pk=False, required=False, unique=False):
         # caller-assigned PK -- a plain primary key, NOT SERIAL/IDENTITY (the id
@@ -109,7 +113,8 @@ class PostgresBackend(DbBackend):
 
     def list_columns_sql(self, table):
         return ("SELECT column_name FROM information_schema.columns "
-                "WHERE table_name = '{}';").format(table)
+                "WHERE table_schema = current_schema() "
+                "AND table_name = '{}';").format(table)
 
     def add_column(self, table, name, column_def):
         return 'ALTER TABLE "{}" ADD COLUMN "{}" {};'.format(
@@ -118,6 +123,9 @@ class PostgresBackend(DbBackend):
     def rename_column(self, table, old, new):
         return 'ALTER TABLE "{}" RENAME COLUMN "{}" TO "{}";'.format(
             table, old, new)
+
+    def drop_column_sql(self, table, name):
+        return 'ALTER TABLE "{}" DROP COLUMN "{}";'.format(table, name)
 
     def drop_column_dynamic(self, table, name_expr):
         return '"ALTER TABLE \\"{}\\" DROP COLUMN \\"" + {} + "\\";"'.format(
@@ -130,15 +138,20 @@ class PostgresBackend(DbBackend):
 
     def list_column_types_sql(self, table):
         return ("SELECT column_name, data_type FROM information_schema.columns "
-                "WHERE table_name = '{}';").format(table)
+                "WHERE table_schema = current_schema() "
+                "AND table_name = '{}';").format(table)
 
     # -- migration: child tables (repeated / map) --------------------------
     def list_tables_sql(self, prefix):
         # every "<prefix>__*" table; substr (not LIKE, whose _ is a wildcard)
         # keeps the match exact, and the shape mirrors list_columns_sql.
+        # All three introspection queries see only current_schema(), where
+        # unqualified CREATE TABLE lands: a same-named table in another
+        # schema must never enter the migration diff.
         n = len(prefix) + 2
         return ("SELECT table_name FROM information_schema.tables "
-                "WHERE substr(table_name, 1, {}) = '{}__';").format(n, prefix)
+                "WHERE table_schema = current_schema() "
+                "AND substr(table_name, 1, {}) = '{}__';").format(n, prefix)
 
     def rename_table(self, old, new):
         return 'ALTER TABLE "{}" RENAME TO "{}";'.format(old, new)
@@ -146,14 +159,48 @@ class PostgresBackend(DbBackend):
     def drop_table_dynamic(self, name_expr):
         return '"DROP TABLE \\"" + {} + "\\";"'.format(name_expr)
 
+    @staticmethod
+    def _alter_type_sql(table, name, sql_type):
+        return ('ALTER TABLE "{t}" ALTER COLUMN "{n}" TYPE {st} '
+                'USING "{n}"::{st};').format(t=table, n=name, st=sql_type)
+
+    # Python-target plans (python-target / py-database task 5): the same SQL
+    # as the C++ *_dynamic methods below, as data. information_schema reports
+    # lower-case type names, hence the .lower() expectations (as in C++).
+    def rep_child_plan(self, child, owner_type, val_sql):
+        return {"types_sql": self.list_column_types_sql(child),
+                "steps": [([("value", val_sql.lower())],
+                           [self._alter_type_sql(child, "value", val_sql)])]}
+
+    def map_child_plan(self, child, owner_type, key_sql, val_sql):
+        return {"types_sql": self.list_column_types_sql(child),
+                "steps": [([("key", key_sql.lower())],
+                           [self._alter_type_sql(child, "key", key_sql)]),
+                          ([("value", val_sql.lower())],
+                           [self._alter_type_sql(child, "value", val_sql)])]}
+
+    def composed_child_plan(self, child, owner_type, columns):
+        columns = list(columns)
+        return {"types_sql": self.list_column_types_sql(child),
+                "adds": [(n, self.add_column(child, n, d)) for n, _t, d in columns],
+                "keep": ["owner", "ordinal"] + [c[0] for c in columns],
+                "strays": "drop",
+                "drop_sql": self.drop_column_sql(child, "<<NAME>>"),
+                "steps": [([(n, t.lower())], [self._alter_type_sql(child, n, t)])
+                          for n, t, _d in columns]}
+
+    def retype_plan(self, table, columns):
+        return {"types_sql": self.list_column_types_sql(table),
+                "steps": [([(n, t.lower())], [self._alter_type_sql(table, n, t)])
+                          for n, t, _d in columns]}
+
     def retype_rep_child_dynamic(self, child, owner_type, val_sql):
         # Postgres has a direct ALTER COLUMN ... TYPE, so the (owner, ordinal,
         # value) child table's "value" column is fixed in place, guarded by
         # its live type. information_schema.columns.data_type reports the
         # canonical lower-case name, exactly as in retype_column_dynamic.
         types_sql = self.list_column_types_sql(child)
-        alter_sql = ('ALTER TABLE "{}" ALTER COLUMN "value" TYPE {} '
-                     'USING "value"::{};').format(child, val_sql, val_sql)
+        alter_sql = self._alter_type_sql(child, "value", val_sql)
         return (
             '        {{\n'
             '            std::map<std::string, std::string> _rct;\n'
@@ -177,10 +224,8 @@ class PostgresBackend(DbBackend):
         # the type of "key" (part of PRIMARY KEY(owner, key)) is fine in
         # Postgres -- it transparently rebuilds the backing index.
         types_sql = self.list_column_types_sql(child)
-        key_alter = ('ALTER TABLE "{}" ALTER COLUMN "key" TYPE {} '
-                     'USING "key"::{};').format(child, key_sql, key_sql)
-        val_alter = ('ALTER TABLE "{}" ALTER COLUMN "value" TYPE {} '
-                     'USING "value"::{};').format(child, val_sql, val_sql)
+        key_alter = self._alter_type_sql(child, "key", key_sql)
+        val_alter = self._alter_type_sql(child, "value", val_sql)
         return (
             '        {{\n'
             '            std::map<std::string, std::string> _mct;\n'
@@ -220,8 +265,7 @@ class PostgresBackend(DbBackend):
             '                if (_ect.count("{n}") && _ect["{n}"] != "{lc}") '
             'db << "{alter}";'.format(
                 n=name, lc=t.lower(),
-                alter=_esc('ALTER TABLE "{}" ALTER COLUMN "{}" TYPE {} '
-                           'USING "{}"::{};'.format(child, name, t, name, t)))
+                alter=_esc(self._alter_type_sql(child, name, t)))
             for name, t, _d in columns)
         return (
             '        {{\n'
@@ -261,10 +305,7 @@ class PostgresBackend(DbBackend):
         # compares have_types[name] against.
         lines = []
         for name, sql_type, _column_def in columns:
-            alter_sql = (
-                'ALTER TABLE "{t}" ALTER COLUMN "{n}" TYPE {st} '
-                'USING "{n}"::{st};'
-            ).format(t=table, n=name, st=sql_type)
+            alter_sql = self._alter_type_sql(table, name, sql_type)
             lines.append(
                 '        if (have_types.count("{n}") && have_types["{n}"] '
                 '!= "{et}") {{\n'
