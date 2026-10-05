@@ -577,6 +577,96 @@ harpia_generated.rest.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_rest
 .. automodule:: harpia_generated.rest.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_rest
    :members:
 
+harpia_generated.sdc
+--------------------
+
+.. automodule:: harpia_generated.sdc
+   :members:
+
+harpia_generated.sdc.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+---------------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.alarm_event_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+--------------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.beacon_log_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.crew_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+--------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.crew_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.data_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+--------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.data_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.journey_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+-----------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.journey_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.outpost_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+-----------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.outpost_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.patient_vitals_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.reception_desk_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+------------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.shipment_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.telemetry_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.top_users_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.users_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+---------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.users_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.vault_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+---------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.vault_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
+harpia_generated.sdc.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+-------------------------------------------------------------------
+
+.. automodule:: harpia_generated.sdc.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_sdc
+   :members:
+
 harpia_generated.serialize
 --------------------------
 
@@ -995,6 +1085,12 @@ harpia_runtime.tls
 ------------------
 
 .. automodule:: harpia_runtime.tls
+   :members:
+
+harpia_runtime.wsdiscovery
+--------------------------
+
+.. automodule:: harpia_runtime.wsdiscovery
    :members:
 
 harpia_runtime.xml
