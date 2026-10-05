@@ -216,3 +216,36 @@ def test_py_migration_ignores_other_schemas(msgs, conn):
         conn.rollback()
         conn.execute('DROP SCHEMA "{}" CASCADE'.format(decoy))
         conn.commit()
+
+
+def test_py_migrate_retypes_legacy_phi_column(msgs, conn, tmp_path):
+    """cpp-phi-numeric-column-type-DEFECT task 2, Python engine on PG: a
+    legacy heart_rate DOUBLE PRECISION (plaintext row only -- PG never
+    accepted the ciphertext) is retyped to text NOT NULL, the row reads,
+    new rows encrypt, idempotent."""
+    from harpia_runtime.crypto.key_provider_local import (LocalKeyProvider,
+                                                          LocalKeyProviderConfig)
+    conn.execute('CREATE TABLE "patient_vitals_table" ("{pk}" INTEGER PRIMARY KEY, '
+                 '"patient_id" TEXT, "heart_rate" DOUBLE PRECISION NOT NULL, '
+                 '"device_note" TEXT, "STATUS_{h}" TEXT, "ERROR_{h}" TEXT, '
+                 '"ORIGINATOR" TEXT)'.format(pk=PK, h=HASH))
+    conn.execute("INSERT INTO \"patient_vitals_table\" (\"{}\", \"patient_id\", \"heart_rate\") "
+                 "VALUES (1, 'legacy', 61.5)".format(PK))
+    conn.commit()
+    mig = importlib.import_module(
+        "harpia_generated.migrate.patient_vitals_{}_migrate".format(HASH))
+    assert mig.migrate_patient_vitals(conn) and mig.migrate_patient_vitals(conn)
+    assert conn.execute(
+        "SELECT data_type, is_nullable FROM information_schema.columns WHERE "
+        "table_schema = current_schema() AND table_name = 'patient_vitals_table' "
+        "AND column_name = 'heart_rate'").fetchone() == ("text", "NO")
+    kp = LocalKeyProvider(LocalKeyProviderConfig(str(tmp_path / "keks")))
+    dao = _dao("patient_vitals")(conn, key_provider=kp)
+    got = msgs["patient_vitals"]()
+    assert dao.read(1, got) and got.heart_rate == 61.5
+    new = msgs["patient_vitals"]()
+    setattr(new, PK, 2)
+    new.patient_id, new.heart_rate = "p", 70.25
+    assert dao.create(new)
+    got = msgs["patient_vitals"]()
+    assert dao.read(2, got) and got.heart_rate == 70.25
