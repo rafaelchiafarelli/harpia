@@ -1,0 +1,37 @@
+
+
+XML = {{"Content-Type": "text/xml"}}
+
+
+def test_access_rights() -> None:
+    # RBAC gate (transport-authn): the fixed role x operation matrix, and no
+    # client-certificate identity is fail-closed
+    assert permitted(Role.admin, Operation.remove)
+    assert not permitted(Role.guest, Operation.create)
+    assert permitted(Role.guest, Operation.read)
+    assert not permitted(Role.main, Operation.remove)
+    assert permitted(Role.none, Operation.heartbeat)
+    assert decide("", Operation.create, {name_lit}) is Decision.unauthenticated
+
+
+def test_rest_api(tmp_path: Path) -> None:
+    # an anonymous (no client certificate) caller is refused on every gated
+    # route; the role matrix over mTLS is harpia's own UnitTests/test_py_rbac.py
+    pool = _pool(tmp_path)
+    path = "/api/v1/{name}"
+    with testing.serve(pool, rest=[rest.register]) as port:
+        assert testing.request(port, "GET", path)[0] == 401
+        assert testing.request(port, "GET", path + "/1")[0] == 401
+        assert testing.request(port, "POST", path, "{{}}",
+                               {{"Content-Type": "application/json"}})[0] == 401
+        assert testing.request(port, "DELETE", path + "/1")[0] == 401
+
+
+def test_soap_api(tmp_path: Path) -> None:
+    pool = _pool(tmp_path)
+    path = "/soap/{name}"
+    with testing.serve(pool, soap=[soap.register]) as port:
+        for op in ("<get><id>1</id></get>",
+                   "<set>" + to_xml(testing.sample({name})) + "</set>"):
+            status, body = testing.request(port, "POST", path, testing.soap_envelope(op), XML)
+            assert status == 401 and "Client.Authentication" in body

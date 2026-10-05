@@ -18,6 +18,8 @@ dependencies = [
 zmq = ["pyzmq>=24.0.1,<27"]
 postgres = ["psycopg>=3.1.17,<4"]
 dds = ["cyclonedds==0.10.5"]
+# the generated per-message suite under tests/ (py-tests)
+test = ["pytest>=7"]
 
 [tool.setuptools.packages.find]
 include = ["harpia_runtime*", "harpia_generated*"]
@@ -45,6 +47,9 @@ ignore_errors = true
 module = ["grpc", "grpc.*"]
 ignore_missing_imports = true
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
 [tool.ruff]
 target-version = "py310"
 extend-exclude = ["*_pb2.py", "*_pb2.pyi", "*_pb2_grpc.py", "docs/_build"]
@@ -55,6 +60,8 @@ select = ["E", "F", "W", "I", "B", "UP"]
 [tool.ruff.lint.isort]
 known-first-party = ["harpia_runtime", "harpia_generated"]
 
-# Generated modules embed whole SQL statements / descriptors on one line.
+# Generated modules (and the generated tests) embed whole SQL statements /
+# descriptors / hash-qualified names on one line.
 [tool.ruff.lint.per-file-ignores]
 "harpia_generated/**/*.py" = ["E501"]
+"tests/**/*.py" = ["E501"]
