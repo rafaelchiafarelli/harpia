@@ -313,3 +313,61 @@ def test_pg_phi_numeric_roundtrip(pg_generated, tmp_path):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=60)
     assert run.returncode == 0, "PG phi round trip failed at check #{}\n{}".format(
         run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_migrate_retypes_legacy_phi_column(pg_generated, tmp_path):
+    """cpp-phi-numeric-column-type-DEFECT task 2 on PostgreSQL: an older
+    generation's heart_rate DOUBLE PRECISION (which could never hold
+    ciphertext, so only a raw plaintext row can exist) is retyped to text
+    NOT NULL by migrate_patient_vitals; the plaintext row still reads (an
+    unmarked value passes through decrypt) and new rows encrypt."""
+    cpp_root = pg_generated
+    store = str(tmp_path / "keks.store")
+    prog = tmp_path / "pg_phi_mig.cpp"
+    prog.write_text(
+        '#include "migrate/patient_vitals_{h}_migrate.h"\n'
+        '#include "crypto/harpia_key_provider_local.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        '    exec("DROP TABLE IF EXISTS \\"patient_vitals_table\\";");\n'
+        '    if (!exec("CREATE TABLE \\"patient_vitals_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '\\"patient_id\\" TEXT, \\"heart_rate\\" DOUBLE PRECISION NOT NULL, \\"device_note\\" TEXT, '
+        '\\"STATUS_{h}\\" TEXT, \\"ERROR_{h}\\" TEXT, \\"ORIGINATOR\\" TEXT);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"patient_vitals_table\\\" (\\\"ID_{h}\\\", \\\"patient_id\\\", "
+        "\\\"heart_rate\\\") VALUES (1, 'legacy', 61.5);\")) return 3;\n"
+        "    if (!::harpia::db::migrate_patient_vitals(db)) return 4;\n"
+        "    std::string t, n; ::soci::indicator ti, ni;\n"
+        "    db << \"SELECT data_type, is_nullable FROM information_schema.columns WHERE \"\n"
+        "          \"table_schema = current_schema() AND table_name = 'patient_vitals_table' \"\n"
+        "          \"AND column_name = 'heart_rate'\", ::soci::into(t, ti), ::soci::into(n, ni);\n"
+        '    if (t != "text" || n != "NO") return 5;\n'
+        "    ::harpia::crypto::LocalKeyProviderConfig cfg; cfg.storage_path = \"{s}\";\n"
+        "    ::harpia::crypto::LocalKeyProvider kp(cfg);\n"
+        "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
+        "    ::patient_vitals got; if (!dao.read(1, &got)) return 6;\n"
+        '    if (got.heart_rate() != 61.5f) return 7;\n'
+        "    ::patient_vitals v; v.set_id_{h}(2); v.set_patient_id(\"p\"); v.set_heart_rate(70.25f);\n"
+        "    if (!dao.create(v)) return 8;\n"
+        "    ::patient_vitals g2; if (!dao.read(2, &g2) || g2.heart_rate() != 70.25f) return 9;\n"
+        "    if (!::harpia::db::migrate_patient_vitals(db)) return 10;   // idempotent\n"
+        '    exec("DROP TABLE IF EXISTS \\"patient_vitals_table\\";");\n'
+        "    return 0;\n"
+        "}}\n".format(h=HASH, s=store))
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    pb_cc = os.path.join(cpp_root, "protofiles", "patient_vitals_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "pg_phi_mig")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", os.path.join(cpp_root, "crypto"),
+         "-I", pg_inc, *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG phi migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0, "PG phi migration failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
