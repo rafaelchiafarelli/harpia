@@ -7,12 +7,10 @@ strings, int64 > 2^53), empty, sparse (``test_py_xml._variants``) --
 serialized by the three runtimes:
 
 - **XML / YAML**: C++ == Python byte for byte (the ``py-serialization`` bar
-  over the whole fixture). Java XML (``HarpiaXml``) is compared with C++ too;
-  every C++/Java difference is a **finding, not fixed here**: each one must
-  fall in a class pinned in ``JAVA_XML_DIFFERENCES`` (empty-element form,
-  quote escaping, float spelling -- the parsed trees are otherwise equal),
-  and every pinned class must still occur (so a new difference fails, and
-  so does a fix); logged in ``Initiatives/python-target/NEXT_SESSION.md``. Each language's
+  over the whole fixture). Java XML (``HarpiaXml``) == C++ byte for byte too
+  (java-xml-byte-parity-DEFECT; ``JAVA_XML_DIFFERENCES`` is empty and the
+  three former classes -- ``<x/>`` empties, unescaped quotes, float
+  spelling -- each have a focused test). Each language's
   XML also parses back to the original in the other two. Java has no YAML.
 - **JSON**: every language's JSON parses to the original message in the
   other two (all six directions); C++ == Python byte for byte; the Java
@@ -49,15 +47,11 @@ pytestmark = pytest.mark.skipif(
 
 VARIANTS = ("populated", "empty", "sparse")
 
-# Every C++/Java XML difference falls in one of these classes (each case's
-# parsed trees are equal once they're accounted for). Findings for Rafael
-# (NEXT_SESSION item 47) -- not fixed here; a new class, or a fix, fails.
-JAVA_XML_DIFFERENCES = {
-    "empty element": "Java writes <x/>, C++ <x></x>",
-    "quotes": "C++ escapes \" and ' in text (&quot; &apos;), Java writes them raw",
-    "float text": "C++ prints floats with %f (0.000000, 15.250000), Java with "
-                  "Float/Double.toString (0.0, 15.25)",
-}
+# Java XML is byte-identical to C++ (and Python) since java-xml-byte-parity-
+# DEFECT; the three former difference classes (<x/> empties, unescaped
+# quotes, Float.toString floats) each have a focused test at the end of this
+# file. xml_difference_classes stays as the diagnostic for a regression.
+JAVA_XML_DIFFERENCES = {}
 
 # Every C++/Java JSON byte difference falls in these classes (the parsed
 # objects are equal in every case; C++ == Python byte for byte).
@@ -246,10 +240,8 @@ def test_xml(gen, msgs, java, cases):
         ctext, jtext = ctext.decode(), jtext.decode()
         assert x.to_xml(m) == ctext, (name, variant)
         if jtext != ctext:
-            classes = xml_difference_classes(ctext, jtext)
-            assert classes <= set(JAVA_XML_DIFFERENCES), (name, variant, classes)
-            seen |= classes
-    assert seen == set(JAVA_XML_DIFFERENCES)
+            seen |= xml_difference_classes(ctext, jtext)
+    assert seen == set(JAVA_XML_DIFFERENCES), seen  # Java == C++ byte for byte
 
     # each language's XML parses back to the original in the other two
     populated = [(n, m) for n, v, m in cases if v == "populated"]
@@ -331,3 +323,49 @@ def test_redacted_to_string_cpp_equals_python(gen, msgs, cases):
         assert ok and text.decode() == ser.to_string(m, fmt), (n, v, op)
         if v in ("populated", "secret"):
             assert "[REDACTED]" in text.decode(), (n, v, op)
+
+
+# -- java-xml-byte-parity-DEFECT: one focused case per former difference class --
+
+def _cpp_java_xml(gen, java, typ, messages):
+    reqs = [("to_xml", typ, m.SerializeToString()) for m in messages]
+    cpp, jv = P.run(gen, reqs), java_run(java, reqs)
+    out = []
+    for (cok, ctext), (jok, jtext) in zip(cpp, jv):
+        assert cok and jok, jtext
+        out.append((ctext.decode(), jtext.decode()))
+    return out
+
+
+def test_java_xml_empty_element_matches_cpp(gen, msgs, java):
+    """An empty string field is <name></name> in C++ and Java (Java's DOM
+    Transformer wrote <name/>)."""
+    m = msgs["users"]()
+    m.address = "somewhere"
+    for cpp, jv in _cpp_java_xml(gen, java, "users", [m]):
+        assert "<name></name>" in cpp and jv == cpp, (cpp, jv)
+
+
+def test_java_xml_quotes_escaped_like_cpp(gen, msgs, java):
+    """& < > " ' are escaped exactly as harpia_xml.h does (Java wrote the
+    quotes raw)."""
+    m = msgs["users"]()
+    m.name, m.address = "a \"quoted\" 'name'", "x & y <z>"
+    for cpp, jv in _cpp_java_xml(gen, java, "users", [m]):
+        assert "&quot;" in cpp and "&apos;" in cpp and jv == cpp, (cpp, jv)
+
+
+def test_java_xml_float_text_matches_cpp(gen, msgs, java):
+    """Floats print like std::to_string (%f, round-half-even on the exact
+    binary value): 0.000000, 15.250000, 0.007812 (a %f tie), -0.000000,
+    big values, nan / inf (Java wrote Float.toString: 0.0, 15.25, ...)."""
+    values = [0.0, 15.25, 0.0078125, -0.0, -1.5, 1e10, 3.4e38, 1.17549435e-38,
+              123456.789, float("nan"), float("inf"), float("-inf")]
+    ms = []
+    for v in values:
+        m = msgs["patient_vitals"]()
+        m.heart_rate = v
+        ms.append(m)
+    x = importlib.import_module("harpia_runtime.xml")
+    for v, m, (cpp, jv) in zip(values, ms, _cpp_java_xml(gen, java, "patient_vitals", ms)):
+        assert jv == cpp == x.to_xml(m), (v, cpp, jv, x.to_xml(m))

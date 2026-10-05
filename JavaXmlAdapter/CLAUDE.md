@@ -6,7 +6,7 @@
 
 ## Files
 - `JavaXmlAdapter.py` — `Process()` copies (`copy_if_different`) `runtime/HarpiaXml.java` in. No per-message loop.
-- `runtime/HarpiaXml.java` — hand-written (NOT generated), copied verbatim. `toXml(Message)` / `fromXml(String, Message.Builder)` (J.11), walking any message via `Descriptors.FieldDescriptor` + `Message.getField(fd)`/`hasField(fd)`/`getRepeatedField(fd, k)`/`getRepeatedFieldCount(fd)` — handles nested messages, repeated fields and enums generically, no per-message/per-field generated code, same as the C++ runtime. Uses `javax.xml`'s DOM (`DocumentBuilderFactory`/`Document`/`Transformer`) — **JDK-builtin, zero extra dependency**, genuinely cheaper than C++'s story (which had to vendor `tinyxml2`, since protobuf has no built-in XML support in either language). DOM's own serializer handles XML-escaping automatically (`&`/`<`/`>`/etc. in text content) — no hand-rolled `escape()` helper needed, unlike the C++ runtime's own `detail::escape()`.
+- `runtime/HarpiaXml.java` — hand-written (NOT generated), copied verbatim. `toXml(Message)` / `fromXml(String, Message.Builder)` (J.11), walking any message via `Descriptors.FieldDescriptor` + `Message.getField(fd)`/`hasField(fd)`/`getRepeatedField(fd, k)`/`getRepeatedFieldCount(fd)` — handles nested messages, repeated fields and enums generically, no per-message/per-field generated code, same as the C++ runtime. **Writing** is a hand-rolled string writer that mirrors `harpia_xml.h` byte for byte (java-xml-byte-parity-DEFECT): no XML declaration, `<x></x>` for an empty element, the same `escape()` (`& < > " '`), floats/doubles as `std::to_string` / `%f` — `fixed6()`: six decimals of the exact binary value rounded half-to-even like glibc (not `String.format`, which rounds HALF_UP — `0.0078125` → `0.007812`), `-0.000000`, `nan`/`-nan`, `inf`/`-inf`; unsigned 32/64-bit types printed unsigned. **Reading** still uses `javax.xml`'s DOM (`DocumentBuilderFactory`, JDK-builtin, zero extra dependency, where C++ vendors `tinyxml2`); its float parse also accepts the C spellings `nan`/`inf`.
 
 ## Depends on the full protobuf-java runtime, not `protobuf-javalite`
 This runtime's whole approach (walking `Descriptors.FieldDescriptor` via
@@ -33,9 +33,5 @@ C++'s `XmlAdapter` still emits a thin per-message wrapper header (`<name>_xml.h`
 - Called by: `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`), right after `JavaDatabase`'s two adapters in the same stage list.
 - Depends on: `Util.util.copy_if_different`, `Logger.logger`, `Errors.Error`. The runtime class itself depends only on `protobuf-java` (already a `build.gradle` dependency since J.2) and JDK-builtin `javax.xml`/`org.w3c.dom` — no new Gradle dependency for this session at all.
 
-## Known differences from the C++ `to_xml` (python-target / tri-language-interop task 4, not fixed here)
-`UnitTests/test_serialize_xlang3.py` compares `HarpiaXml.toXml` with the C++ (and Python) `to_xml` over the whole fixture. The documents parse to the same message both ways; the bytes differ in exactly three ways, pinned in the test's `JAVA_XML_DIFFERENCES`:
-- an empty element is `<x/>` (C++ `<x></x>`);
-- `"` and `'` in text are written raw (C++ `&quot;` / `&apos;`);
-- floats print with `Float/Double.toString` (`0.0`, `15.25`), C++ with `%f` (`0.000000`, `15.250000`).
-Aligning them changes `UnitTests/golden_java/` bytes. Logged as item 47 in `Initiatives/python-target/NEXT_SESSION.md`. `HarpiaJson` differs from C++ only in whitespace (protobuf's pretty printer), with equal objects.
+## Byte parity with the C++ `to_xml`
+`UnitTests/test_serialize_xlang3.py::test_xml` asserts `HarpiaXml.toXml` == the C++ (and Python) `to_xml` byte for byte over the whole fixture (`JAVA_XML_DIFFERENCES` is empty). The three former differences — `<x/>` empties, raw `"`/`'`, `Float.toString` floats (python-target log item 47) — each have a focused test there (`test_java_xml_{empty_element,quotes_escaped,float_text}_matches_cpp`). `HarpiaJson` still differs from C++ only in whitespace (protobuf's pretty printer), with equal objects — kept on purpose (Rafael, 2026-10-05).

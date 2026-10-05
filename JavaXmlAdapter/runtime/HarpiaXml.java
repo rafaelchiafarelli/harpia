@@ -22,15 +22,12 @@ import com.google.protobuf.Descriptors.EnumValueDescriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor;
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType;
 import com.google.protobuf.Message;
+import com.google.protobuf.ByteString;
 import java.io.StringReader;
-import java.io.StringWriter;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -40,28 +37,29 @@ import org.xml.sax.InputSource;
 public final class HarpiaXml {
     private HarpiaXml() {}
 
-    // message -> XML. The root element is the message type name.
+    // message -> XML. The root element is the message type name. Written
+    // byte for byte like the C++ harpia_xml.h (and the Python runtime):
+    // no XML declaration, <x></x> for an empty element, & < > " ' escaped,
+    // floats/doubles as std::to_string (%f) -- java-xml-byte-parity-DEFECT
+    // (the DOM Transformer wrote <x/>, raw quotes and Float.toString).
     public static String toXml(Message msg) {
-        try {
-            Document doc = newDocument();
-            Element root = doc.createElement(msg.getDescriptorForType().getName());
-            doc.appendChild(root);
-            writeMessage(doc, root, msg);
-            return serialize(doc);
-        } catch (Exception e) {
-            throw new IllegalStateException("HarpiaXml.toXml failed", e);
-        }
+        String root = msg.getDescriptorForType().getName();
+        StringBuilder out = new StringBuilder();
+        out.append('<').append(root).append('>');
+        writeMessage(msg, out);
+        out.append("</").append(root).append('>');
+        return out.toString();
     }
 
-    private static void writeMessage(Document doc, Element parent, Message msg) {
+    private static void writeMessage(Message msg, StringBuilder out) {
         for (FieldDescriptor fd : msg.getDescriptorForType().getFields()) {
             String tag = fd.getName();
             if (fd.isRepeated()) {
                 int n = msg.getRepeatedFieldCount(fd);
                 for (int k = 0; k < n; k++) {
-                    Element el = doc.createElement(tag);
-                    parent.appendChild(el);
-                    writeValue(doc, el, fd, msg.getRepeatedField(fd, k));
+                    out.append('<').append(tag).append('>');
+                    writeValue(fd, msg.getRepeatedField(fd, k), out);
+                    out.append("</").append(tag).append('>');
                 }
             } else {
                 // proto3 implicit-presence scalars are emitted with their
@@ -78,21 +76,79 @@ public final class HarpiaXml {
                 if (fd.hasPresence() && !msg.hasField(fd)) {
                     continue;
                 }
-                Element el = doc.createElement(tag);
-                parent.appendChild(el);
-                writeValue(doc, el, fd, msg.getField(fd));
+                out.append('<').append(tag).append('>');
+                writeValue(fd, msg.getField(fd), out);
+                out.append("</").append(tag).append('>');
             }
         }
     }
 
-    private static void writeValue(Document doc, Element el, FieldDescriptor fd, Object value) {
-        if (fd.getJavaType() == JavaType.MESSAGE) {
-            writeMessage(doc, el, (Message) value);
-        } else if (fd.getJavaType() == JavaType.ENUM) {
-            el.setTextContent(((EnumValueDescriptor) value).getName());
-        } else {
-            el.setTextContent(String.valueOf(value));
+    private static void writeValue(FieldDescriptor fd, Object value, StringBuilder out) {
+        switch (fd.getJavaType()) {
+            case MESSAGE:
+                writeMessage((Message) value, out);
+                break;
+            case ENUM:
+                out.append(((EnumValueDescriptor) value).getName());
+                break;
+            case INT:
+                if (isUnsigned(fd)) out.append(Integer.toUnsignedString((Integer) value));
+                else out.append((int) (Integer) value);
+                break;
+            case LONG:
+                if (isUnsigned(fd)) out.append(Long.toUnsignedString((Long) value));
+                else out.append((long) (Long) value);
+                break;
+            case FLOAT:
+                // std::to_string(float) promotes to double first
+                out.append(fixed6((double) (Float) value));
+                break;
+            case DOUBLE:
+                out.append(fixed6((Double) value));
+                break;
+            case BOOLEAN:
+                out.append(((Boolean) value) ? "true" : "false");
+                break;
+            case BYTE_STRING:
+                escape(((ByteString) value).toStringUtf8(), out);
+                break;
+            default:
+                escape(String.valueOf(value), out);
         }
+    }
+
+    private static boolean isUnsigned(FieldDescriptor fd) {
+        switch (fd.getType()) {
+            case UINT32: case FIXED32: case UINT64: case FIXED64: return true;
+            default: return false;
+        }
+    }
+
+    // harpia_xml.h detail::escape
+    private static void escape(String in, StringBuilder out) {
+        for (int i = 0; i < in.length(); i++) {
+            char c = in.charAt(i);
+            switch (c) {
+                case '&': out.append("&amp;"); break;
+                case '<': out.append("&lt;"); break;
+                case '>': out.append("&gt;"); break;
+                case '"': out.append("&quot;"); break;
+                case '\'': out.append("&apos;"); break;
+                default: out.append(c);
+            }
+        }
+    }
+
+    // std::to_string(double) == printf("%f"): six decimals of the EXACT
+    // binary value, ties to even (glibc), so BigDecimal(v) + HALF_EVEN, not
+    // String.format (HALF_UP); "-0.000000", "nan"/"-nan", "inf"/"-inf" as
+    // glibc spells them.
+    static String fixed6(double v) {
+        boolean negative = (Double.doubleToRawLongBits(v) & Long.MIN_VALUE) != 0;
+        if (Double.isNaN(v)) return negative ? "-nan" : "nan";
+        if (Double.isInfinite(v)) return negative ? "-inf" : "inf";
+        String text = new BigDecimal(v).setScale(6, RoundingMode.HALF_EVEN).toPlainString();
+        return negative && !text.startsWith("-") ? "-" + text : text;
     }
 
     // ---- read (XML -> message) ---------------------------------------
@@ -164,9 +220,9 @@ public final class HarpiaXml {
             case LONG:
                 return Long.parseLong(text);
             case FLOAT:
-                return Float.parseFloat(text);
+                return (float) parseDouble(text);
             case DOUBLE:
-                return Double.parseDouble(text);
+                return parseDouble(text);
             case BOOLEAN:
                 return Boolean.parseBoolean(text);
             case STRING:
@@ -188,16 +244,16 @@ public final class HarpiaXml {
         }
     }
 
-    static Document newDocument() throws Exception {
-        DocumentBuilder db = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-        return db.newDocument();
-    }
-
-    static String serialize(Document doc) throws Exception {
-        Transformer t = TransformerFactory.newInstance().newTransformer();
-        t.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
-        StringWriter sw = new StringWriter();
-        t.transform(new DOMSource(doc), new StreamResult(sw));
-        return sw.toString();
+    // Double.parseDouble plus the strtod spellings C++ writes and reads:
+    // "nan"/"-nan", "inf"/"-inf" (any case, "infinity" too).
+    private static double parseDouble(String text) {
+        String t = text.trim().toLowerCase(java.util.Locale.ROOT);
+        boolean neg = t.startsWith("-");
+        String body = (neg || t.startsWith("+")) ? t.substring(1) : t;
+        if (body.equals("nan")) return neg ? -Double.NaN : Double.NaN;
+        if (body.equals("inf") || body.equals("infinity")) {
+            return neg ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+        }
+        return Double.parseDouble(text.trim());
     }
 }
