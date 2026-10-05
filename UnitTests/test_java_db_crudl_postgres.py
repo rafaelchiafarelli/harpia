@@ -120,3 +120,17 @@ def test_users_crudl_full_cycle_against_postgres(tmp_path):
                          capture_output=True, text=True, timeout=60)
     assert run.returncode == 0, "Postgres CRUDL cycle failed:\n" + run.stdout + run.stderr
     assert "OK" in run.stdout
+
+
+def test_java_pg_list_in_pk_order(tmp_path):
+    """cpp-dao-list-order-DEFECT (Java on PostgreSQL): list() is pk-ordered
+    after UPDATEs moved tuples to the heap's end."""
+    from UnitTests.test_java_db_crudl import _LIST_ORDER_PROBE
+    out = generate(tmp_path / "out", lang="java", db_backend="postgresql")
+    classpath = build_and_classpath(os.path.join(out, "java"), {
+        "smoke/UsersCrudlHelper.java": _USERS_CRUDL_HELPER,
+        "smoke/ListOrder.java": _LIST_ORDER_PROBE})
+    run = subprocess.run(["java", "-cp", classpath, "smoke.ListOrder", _dsn_to_jdbc_url(PG_DSN)],
+                         capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0 and "OK" in run.stdout, \
+        "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)

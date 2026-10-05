@@ -143,8 +143,8 @@ class PyDatabaseAdapter:
                 table, ", ".join("{} = {}".format(q(n), ph) for n in non_pk),
                 q(pk.name), ph),
             "delete_sql": "DELETE FROM {} WHERE {} = {}".format(table, q(pk.name), ph),
-            # ORDER BY the key: stable pages on every dialect (the C++ DAO has
-            # no ORDER BY; SQLite happens to return rowid = key order)
+            # ORDER BY the key: stable pages on every dialect (as the C++ and
+            # Java DAOs -- cpp-dao-list-order-DEFECT)
             "list_sql": "SELECT {} FROM {} ORDER BY {}".format(sel, table, q(pk.name)),
             "list_page_sql": "SELECT {} FROM {} ORDER BY {} LIMIT {} OFFSET {}".format(
                 sel, table, q(pk.name), ph, ph),
