@@ -55,7 +55,10 @@ HARPIA_TOOL_VERSION = "0.2.0"
 
 
 class ComplianceReport:
-    def __init__(self, messages, dest, compliance=None) -> None:
+    def __init__(self, messages, dest, compliance=None, python_target=False) -> None:
+        # py-artifacts: the python backend ran, so the SBOM also lists the
+        # generated Python package and its declared runtime dependencies
+        self.python_target = python_target
         self.messages = messages
         self.dest = dest
         self.compliance = compliance
@@ -243,17 +246,50 @@ class ComplianceReport:
                 entry["purl"] = "pkg:{}/{}@{}".format(purl_type, name, version)
             out.append(entry)
 
+        if self.python_target:
+            out.extend(self._python_components())
         return sorted(out, key=lambda c: c["name"])
+
+    def _python_components(self):
+        """python-target: the generated package (an ``application``
+        component) and each declared PyPI runtime dependency (``scope``
+        ``optional`` + a ``harpia:python_extra`` property for an extra)."""
+        out = [{
+            "type": "application",
+            "bom-ref": "pypi:{}".format(components.PYTHON_PROJECT_NAME),
+            "name": components.PYTHON_PROJECT_NAME,
+            "version": components.PYTHON_PROJECT_VERSION,
+            "description": "the generated Python project (<dest>/python/)",
+            "purl": "pkg:pypi/{}@{}".format(components.PYTHON_PROJECT_NAME,
+                                            components.PYTHON_PROJECT_VERSION),
+        }]
+        for dep in components.PYTHON_RUNTIME:
+            entry = {
+                "type": "library",
+                "bom-ref": "pypi:{}".format(dep.name),
+                "name": dep.name,
+                "version": components.python_version(dep.specifier),
+                "description": dep.description,
+                "scope": "required" if dep.extra is None else "optional",
+                "purl": components.python_purl(dep.name, dep.specifier),
+            }
+            if dep.extra is not None:
+                entry["properties"] = [{"name": "harpia:python_extra",
+                                        "value": dep.extra}]
+            out.append(entry)
+        return out
 
     # -- traceability matrix (task 2) -------------------------------------
 
     def _traceability_rows(self):
         """One row per (schema construct, applicable compliance requirement).
         Deterministic, no timestamp -- golden-snapshotted."""
-        phi_reqs       = [r for r in REQUIREMENTS if r.applies_to == "phi_field"]
-        phi_table_reqs = [r for r in REQUIREMENTS if r.applies_to == "phi_field_table"]
-        crit_reqs      = [r for r in REQUIREMENTS if r.applies_to == "critical_message"]
-        project_reqs   = [r for r in REQUIREMENTS if r.applies_to == "project"]
+        catalog = [r for r in REQUIREMENTS
+                   if self.python_target or not r.python_run_only]
+        phi_reqs       = [r for r in catalog if r.applies_to == "phi_field"]
+        phi_table_reqs = [r for r in catalog if r.applies_to == "phi_field_table"]
+        crit_reqs      = [r for r in catalog if r.applies_to == "critical_message"]
+        project_reqs   = [r for r in catalog if r.applies_to == "project"]
 
         rows = []
 
@@ -266,6 +302,11 @@ class ComplianceReport:
                 "mechanism": req.mechanism,
                 "evidence": list(req.test_refs),
             })
+            # python-target: one row, both targets' evidence (C++-only rows
+            # keep their exact shape)
+            if self.python_target and req.py_mechanism:
+                rows[-1]["python_mechanism"] = req.py_mechanism
+                rows[-1]["python_evidence"] = list(req.py_test_refs)
 
         for msg in self.messages or []:
             if getattr(msg, "isEnum", False):
@@ -303,6 +344,11 @@ def _traceability_table(rows):
         req = "**{}** -- {}".format(r["requirement_id"],
                                     r["requirement"].replace("|", "\\|"))
         mech = r["mechanism"].replace("|", "\\|")
+        if "python_mechanism" in r:  # python-target: both targets in one row
+            mech = "**C++:** {}<br>**Python:** {}".format(
+                mech, r["python_mechanism"].replace("|", "\\|"))
+            evidence += "<br>" + "<br>".join(
+                "`{}` (Python)".format(e) for e in r["python_evidence"])
         lines.append("| `{}` | {} | {} | {} | {} |".format(
             r["construct"], req, r["rule_ref"], mech, evidence))
     return "\n".join(lines)
