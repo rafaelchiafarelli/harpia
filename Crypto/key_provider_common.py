@@ -65,3 +65,39 @@ ENCRYPTED_COLUMN_RUNTIME_SRC = os.path.join(
 ENCRYPTED_COLUMN_RUNTIME_DEPS = (
     (KEY_PROVIDER_RUNTIME, KEY_PROVIDER_RUNTIME_SRC),
 ) + KEY_PROVIDER_RUNTIME_DEPS
+
+# -- python-target / py-crypto-phi: the Python ports ---------------------------
+# Hand-written modules under runtime/python/, copied into a generated Python
+# project with PyAdapter.runtime_copy.copy_runtime_module at the dotted module
+# name below (same shape as Compliance/audit_common.py's PY_AUDIT_SINK_*).
+# Each *_DEPS is (module, src) tuples to co-copy.
+from Compliance.audit_common import (  # noqa: E402
+    PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC)
+
+_PY_RUNTIME_DIR = os.path.join(_RUNTIME_DIR, "python")
+
+#: py-crypto-phi task 1 -- KeyProvider, Dek/WrappedDek, InMemoryKeyProvider.
+PY_KEY_PROVIDER_MODULE = "harpia_runtime.crypto.key_provider"
+PY_KEY_PROVIDER_RUNTIME_SRC = os.path.join(_PY_RUNTIME_DIR, "key_provider.py")
+PY_KEY_PROVIDER_RUNTIME_DEPS = (
+    (PY_AUDIT_SINK_MODULE, PY_AUDIT_SINK_RUNTIME_SRC),
+)
+
+#: py-crypto-phi task 2 -- LocalKeyProvider (C++-compatible store + .shred).
+PY_KEY_PROVIDER_LOCAL_MODULE = "harpia_runtime.crypto.key_provider_local"
+PY_KEY_PROVIDER_LOCAL_RUNTIME_SRC = os.path.join(_PY_RUNTIME_DIR, "key_provider_local.py")
+#: py-crypto-phi task 2 -- KmsClient seam, KmsKeyProvider, MockKms.
+PY_KEY_PROVIDER_KMS_MODULE = "harpia_runtime.crypto.key_provider_kms"
+PY_KEY_PROVIDER_KMS_RUNTIME_SRC = os.path.join(_PY_RUNTIME_DIR, "key_provider_kms.py")
+#: each backend imports key_provider (whose own deps then apply)
+PY_KEY_PROVIDER_LOCAL_RUNTIME_DEPS = (
+    (PY_KEY_PROVIDER_MODULE, PY_KEY_PROVIDER_RUNTIME_SRC),
+) + PY_KEY_PROVIDER_RUNTIME_DEPS
+PY_KEY_PROVIDER_KMS_RUNTIME_DEPS = PY_KEY_PROVIDER_LOCAL_RUNTIME_DEPS
+
+#: py-crypto-phi task 3 -- enc:v1: column helpers (+ default_key_provider).
+PY_ENCRYPTED_COLUMN_MODULE = "harpia_runtime.crypto.encrypted_column"
+PY_ENCRYPTED_COLUMN_RUNTIME_SRC = os.path.join(_PY_RUNTIME_DIR, "encrypted_column.py")
+PY_ENCRYPTED_COLUMN_RUNTIME_DEPS = (
+    (PY_KEY_PROVIDER_MODULE, PY_KEY_PROVIDER_RUNTIME_SRC),
+) + PY_KEY_PROVIDER_RUNTIME_DEPS

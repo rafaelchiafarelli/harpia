@@ -1,0 +1,19 @@
+syntax = "proto3";
+package frameworkProtos;
+
+// S5 capability handshake (plans/message-versioning.md). A peer calls
+// GetCapabilities once (harpia::capability::negotiate, see
+// GrpcCapabilityAdapter/runtime/harpia_capability.h) to learn the set of
+// message-type names the other side's generated code actually knows about,
+// instead of discovering a mismatch by having a push/pull/stream call for an
+// unknown type fail (or, on a transport with no compile-time backstop,
+// silently misroute).
+message capabilities_Request {}
+
+message capabilities_Response {
+    repeated string message_types = 1;
+}
+
+service capabilities_Service {
+    rpc GetCapabilities(capabilities_Request) returns (capabilities_Response) {}
+}
