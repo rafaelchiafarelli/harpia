@@ -33,7 +33,7 @@ import os
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
 from Util.util import write_if_different, loadTemplate
-from Database.model import type_registry, analyze
+from Database.model import type_registry, analyze, child_table_names
 
 _KIND_TO_JAVA = {"int": "int", "int64": "long", "double": "double", "text": "String"}
 # PreparedStatement/ResultSet setter/getter suffix per column kind -- only
@@ -88,7 +88,8 @@ class JavaCrudlAdapter:
                 self.log.print("{}: no primary-key column found, skipping".format(msg.name))
                 continue
 
-            source = self._render(msg, table, pk, usable, deferred)
+            children = child_table_names(msg, types, self.backend)
+            source = self._render(msg, table, pk, usable, deferred, children)
             fileName = "{}_dao.java".format(msg.name)
             write_if_different(os.path.join(self.outDir, fileName), source)
             written += 1
@@ -102,7 +103,7 @@ class JavaCrudlAdapter:
         self.log.print("generated {} Java CRUDL DAO(s) into {}".format(written, self.outDir))
         return None
 
-    def _render(self, msg, table, pk, usable, deferred):
+    def _render(self, msg, table, pk, usable, deferred, children=()):
         non_pk = [c for c in usable if not c.pk]
         pk_java_type = _KIND_TO_JAVA[pk.kind]
         pk_setter = _KIND_TO_JDBC_SETTER[pk.kind]
@@ -140,6 +141,7 @@ class JavaCrudlAdapter:
             name=msg.name,
             table=table,
             deferred_note=deferred_note,
+            child_note=", ".join(children) or "none",
             pk_field=pk.name,
             pk_java_type=pk_java_type,
             pk_setter=pk_setter,

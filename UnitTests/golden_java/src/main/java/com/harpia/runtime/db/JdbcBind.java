@@ -55,41 +55,53 @@ public final class JdbcBind {
     }
 
     // Extract column `columnLabel` from `rs` into field `fieldName` on
-    // `builder`.
+    // `builder`. A SQL NULL (e.g. a column a C++/Python migration added to a
+    // pre-existing row) sets the field's default value -- ""/0/the first
+    // enum value -- exactly as the C++ (indicator-guarded) and Python DAOs
+    // do; setField(fd, null) used to throw (java-jdbc-null-text-DEFECT).
     public static void extract(ResultSet rs, String columnLabel, Message.Builder builder,
                                String fieldName) throws SQLException {
         FieldDescriptor fd = fieldFor(builder, fieldName);
+        Object value;
         switch (fd.getJavaType()) {
             case INT:
-                builder.setField(fd, rs.getInt(columnLabel));
+                value = rs.getInt(columnLabel);
                 break;
             case LONG:
-                builder.setField(fd, rs.getLong(columnLabel));
+                value = rs.getLong(columnLabel);
                 break;
             case FLOAT:
-                builder.setField(fd, rs.getFloat(columnLabel));
+                value = rs.getFloat(columnLabel);
                 break;
             case DOUBLE:
-                builder.setField(fd, rs.getDouble(columnLabel));
+                value = rs.getDouble(columnLabel);
                 break;
             case STRING:
-                builder.setField(fd, rs.getString(columnLabel));
+                value = rs.getString(columnLabel);
                 break;
             case ENUM:
                 int number = rs.getInt(columnLabel);
+                if (rs.wasNull()) {
+                    value = null;
+                    break;
+                }
                 EnumValueDescriptor evd = fd.getEnumType().findValueByNumber(number);
                 if (evd == null) {
                     throw new IllegalArgumentException(
                         "JdbcBind.extract: unrecognized enum value " + number
                         + " for field " + fieldName);
                 }
-                builder.setField(fd, evd);
+                value = evd;
                 break;
             default:
                 throw new IllegalArgumentException(
                     "JdbcBind.extract: unsupported field type " + fd.getJavaType()
                     + " for field " + fieldName);
         }
+        if (rs.wasNull()) {
+            value = fd.getDefaultValue();
+        }
+        builder.setField(fd, value);
     }
 
     private static FieldDescriptor fieldFor(MessageOrBuilder msgOrBuilder, String fieldName) {
