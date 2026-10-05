@@ -25,10 +25,10 @@ three languages:
   (``test_py_db_migrate.STARTS``) and is migrated by C++ or by Python; C++
   and Python read the old row equally, and all three languages write rows
   into the migrated table and read each other's equally (Java has no
-  migration of its own -- see ``JavaDatabase/CLAUDE.md``). Java reading the
-  pre-migration row is a strict xfail: the columns the migration added are
-  NULL there and ``JdbcBind.extract`` NPEs on a NULL string (JAVA FINDING,
-  NEXT_SESSION item 44);
+  migration of its own -- see ``JavaDatabase/CLAUDE.md``). Java reads the
+  pre-migration row too: the columns the migration added are NULL there and
+  extract as the field default, as in C++ and Python
+  (java-jdbc-null-text-DEFECT);
 - **PostgreSQL** (opt-in ``HARPIA_PG_DSN``, run by ``Docker/run_pg_tests.sh``):
   the same matrix and migration, every slot a throwaway DATABASE.
   ``patient_vitals`` (numeric phi column, now TEXT in the DDL --
@@ -535,12 +535,8 @@ def test_java_scope_is_asserted(sqlite_side):
         assert reasons, n
 
 
-# A row that predates the migration has NULL in every column the migration
-# added (here STATUS_/ERROR_/ORIGINATOR); Java's JdbcBind.extract passes a NULL
-# string to Builder.setField -> NullPointerException, where C++ and Python
-# read the default. JAVA FINDING (NEXT_SESSION item 44) -- strict so a fix shows.
-_JAVA_NULL_TEXT = pytest.mark.xfail(
-    strict=True, reason="JAVA FINDING (item 44): JdbcBind.extract NPEs on a NULL text column")
+# Java reads the pre-migration row too: a NULL column extracts as the field
+# default, as in C++ and Python (java-jdbc-null-text-DEFECT).
 
 
 @pytest.mark.parametrize("migrator", ("cpp", "python"))
@@ -550,7 +546,6 @@ def test_sqlite_migration_then_cross_read(case, migrator, sqlite_side, tmp_path)
                str(tmp_path / "keks"))
 
 
-@_JAVA_NULL_TEXT
 @pytest.mark.parametrize("migrator", ("cpp", "python"))
 def test_sqlite_java_reads_pre_migration_row(migrator, sqlite_side, tmp_path):
     _migration(sqlite_side, "rename_drop_add", migrator, str(tmp_path / "beacon.sqlite"),
@@ -625,7 +620,6 @@ def test_pg_migration_then_cross_read(case, migrator, pg_side, pg_databases, tmp
 
 
 @pg_only
-@_JAVA_NULL_TEXT
 @pytest.mark.parametrize("migrator", ("cpp", "python"))
 def test_pg_java_reads_pre_migration_row(migrator, pg_side, pg_databases, tmp_path):
     _migration(pg_side, "rename_drop_add", migrator, pg_databases(), str(tmp_path / "keks"),
