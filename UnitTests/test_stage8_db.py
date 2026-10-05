@@ -1818,3 +1818,29 @@ def test_dbio_roundtrip(generated, sqlite_obj, tmp_path):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
     assert run.returncode == 0, "DB import/export round-trip failed at check #{}".format(
         run.returncode)
+
+
+# every phi column of a table-bearing fixture message (HarpiaTest/Include/
+# file3.harpia): (table sql file stem, column, required)
+_PHI_COLUMNS = [("patient_vitals", "patient_id", False),
+                ("patient_vitals", "heart_rate", True),
+                ("alarm_event", "patient_id", False)]
+
+
+@pytest.mark.parametrize("dialect", ["sqlite", "postgresql"])
+def test_phi_columns_are_text_in_ddl(dialect, tmp_path):
+    """cpp-phi-numeric-column-type-DEFECT: a phi column stores enc:v1: text,
+    so its DDL type is the dialect's TEXT whatever the field's scalar type
+    (heart_rate is a float); a required phi column keeps NOT NULL."""
+    import re
+    env = dict(os.environ, HARPIA_DB_BACKEND=dialect, HARPIA_OUTPUT_DIR=str(tmp_path),
+               HARPIA_INPUT_FILE="./HarpiaTest/test.harpia",
+               HARPIA_INCLUDE_FOLDER="./HarpiaTest/Include")
+    r = subprocess.run([sys.executable, "main.py"], cwd=REPO_ROOT, env=env,
+                       capture_output=True, text=True, timeout=300)
+    assert r.returncode == 0, r.stdout + r.stderr
+    for stem, col, required in _PHI_COLUMNS:
+        sql = (tmp_path / "database" / "{}_{}_table.sql".format(stem, HASH)).read_text()
+        m = re.search(r'"{}" ([A-Z ]+?),?\n'.format(col), sql)
+        assert m, sql
+        assert m.group(1) == ("TEXT NOT NULL" if required else "TEXT"), (stem, col, m.group(1))
