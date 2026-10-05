@@ -54,3 +54,7 @@ test_java_db_crudl_postgres.py` is opt-in (`HARPIA_PG_DSN` + gradle/JDK),
 same posture as `UnitTests/test_stage8_pg.py` on the C++ side — parses the
 same libpq-style DSN into a JDBC URL rather than introducing a parallel
 Postgres-config mechanism.
+
+## Known findings (python-target / tri-language-interop task 2, not fixed here)
+- **`JdbcBind.extract` NPEs on a NULL text column**: `STRING` passes `rs.getString(...)` straight to `Builder.setField`, and protobuf refuses `null`. C++ and Python read NULL as the default. A row that predates a C++/Python migration has NULL in every column the migration added, so a Java DAO can't read it (`UnitTests/test_db_xlang3.py::test_*_java_reads_pre_migration_row`, strict xfail). Fixing it moves `UnitTests/golden_java/` bytes. Logged as item 44 in `Initiatives/python-target/NEXT_SESSION.md`.
+- The per-DAO "Deferred columns" header lists embed/FK columns only. A message whose map/repeated fields live in child tables (`telemetry`, `shipment`, `data`'s maps) is labelled `none` (or lists only its embeds), even though Java never reads or writes those child tables (see "Deliberately reduced scope" above). `test_db_xlang3.py` therefore derives Java's scope from the Python DAO's `COLUMNS`/`CHILDREN`/`PHI_FIELDS`, not from this header.
