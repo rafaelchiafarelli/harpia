@@ -28,4 +28,5 @@ Export either var to override (pin a fixed image name, or deliberately share one
   - `Docker/run.sh pytest UnitTests/` — run the test suite
   - `Docker/run.sh python3 main.py` — run the full generator pipeline
 - **TTY:** `run.sh` passes `-t` only when stdin **and** stdout are terminals, so it works unchanged in non-interactive / CI / agent shells (a bare `docker run -it` there errors with "the input device is not a TTY"). No need to hand-roll the `docker run` line anymore.
+- `run_pg_tests.sh` — the opt-in live-Postgres tests (`test_stage8_pg.py`, `test_java_db_crudl_postgres.py`, the PG half of `test_db_xlang3.py`) against a throwaway `postgres:16-alpine` container; extra args go to pytest.
 - The opt-in live-Postgres tests (`test_stage8_pg.py`, `test_java_db_crudl_postgres.py`) spin up a `--name harpia-pg` container on a `harpia-pg-net` network per their docstrings — those fixed names collide if two sessions set them up at once; give them per-session suffixes if you need concurrent PG runs.
