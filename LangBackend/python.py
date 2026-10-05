@@ -49,8 +49,8 @@ class PythonBackend(CppBackend):
 
         # HTTP: REST CRUD routes + the threaded server bring-up
         from PyHttp.PyHttpAdapter import PyHttpAdapter
-        ctx.report(PyHttpAdapter(messages=messages, dest=dest,
-                                 compliance=compliance).Process())
+        ctx.report(PyHttpAdapter(messages=messages, dest=dest, compliance=compliance,
+                                 rootHash=ctx.root_hash).Process())
 
         # capability handshake: dispatcher + gRPC negotiate + advertisement
         from PyCapability.PyCapabilityAdapter import PyCapabilityAdapter

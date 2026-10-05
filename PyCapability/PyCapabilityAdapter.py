@@ -2,10 +2,11 @@
 ``GrpcCapabilityAdapter`` / ``HttpCapabilityAdapter`` /
 ``ZmqCapabilityAdapter``, message-versioning S5).
 
-Copies the transport-agnostic ``Dispatcher`` and the gRPC ``negotiate()``
-runtime under ``harpia_runtime.capability`` and generates the whole-project
-``harpia_generated/capability/capabilities_<roothash>_grpc.py`` servicer
-(registered by the generated ``GrpcServer``). The advertised set is
+Copies the transport-agnostic ``Dispatcher`` and the gRPC / HTTP / ZMQ
+``negotiate()`` runtimes under ``harpia_runtime.capability`` and generates the
+whole-project ``harpia_generated/capability/capabilities_<roothash>_{grpc,
+http,zmq}.py`` advertisements (the gRPC servicer is registered by the
+generated ``GrpcServer``, the HTTP route by ``HttpServer``). The advertised set is
 ``Capability.capability_common.message_type_names`` -- imported, not
 re-derived.
 """
@@ -17,18 +18,33 @@ from PyAdapter.runtime_copy import copy_runtime_module
 from Util.util import loadTemplate, write_if_different
 
 _GRPC = loadTemplate(__file__, "capabilities_grpc.py.tmpl")
+_HTTP = loadTemplate(__file__, "capabilities_http.py.tmpl")
+_ZMQ = loadTemplate(__file__, "capabilities_zmq.py.tmpl")
 _RUNTIME_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runtime")
 #: (source file under runtime/, destination module)
 RUNTIMES = (
     ("dispatch.py", "harpia_runtime.capability.dispatch"),
     ("grpc.py", "harpia_runtime.capability.grpc"),
+    ("http.py", "harpia_runtime.capability.http"),
+    ("zmq.py", "harpia_runtime.capability.zmq"),
 )
-GRPC_EXT = "_grpc.py"
 
 
 def grpc_module(root_hash):
     """The generated servicer's module name (``capabilities_<roothash>_grpc``)."""
-    return "capabilities_{}{}".format(root_hash, GRPC_EXT[:-3])
+    return "capabilities_{}_grpc".format(root_hash)
+
+
+def has_http(messages):
+    """True when ``PyHttpAdapter`` emits an ``HttpServer`` (a table-bearing
+    message exists), which the HTTP capability route lives on."""
+    return any(not getattr(m, "isEnum", False) and getattr(m, "tableName", None)
+               for m in messages)
+
+
+def http_module(root_hash):
+    """The generated HTTP route's module name (``capabilities_<roothash>_http``)."""
+    return "capabilities_{}_http".format(root_hash)
 
 
 class PyCapabilityAdapter:
@@ -47,10 +63,14 @@ class PyCapabilityAdapter:
         write_if_different(os.path.join(self.outDir, "__init__.py"),
                            '"""Generated capability advertisements (whole project)."""\n')
         types = message_type_names(self.messages)
-        write_if_different(
-            os.path.join(self.outDir, grpc_module(self.rootHash) + ".py"),
-            _GRPC.format(root_hash=self.rootHash,
-                         type_list="".join("    {!r},\n".format(t) for t in types).rstrip("\n")))
+        type_list = "".join("    {!r},\n".format(t) for t in types).rstrip("\n")
+        outputs = [(_GRPC, grpc_module(self.rootHash)),
+                   (_ZMQ, "capabilities_{}_zmq".format(self.rootHash))]
+        if has_http(self.messages):  # the route needs harpia_runtime.http (PyHttp)
+            outputs.append((_HTTP, http_module(self.rootHash)))
+        for tmpl, module in outputs:
+            write_if_different(os.path.join(self.outDir, module + ".py"),
+                               tmpl.format(root_hash=self.rootHash, type_list=type_list))
         self.log.print("generated capability advertisement ({} type(s)) into {}".format(
             len(types), self.outDir))
         return None

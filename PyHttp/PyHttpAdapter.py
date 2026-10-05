@@ -15,6 +15,7 @@ from Compliance.session_common import (
 from Database.auth_gate import effective_rbac, transport_mode
 from Logger.logger import logger
 from PyAdapter.runtime_copy import copy_runtime_module
+from PyCapability.PyCapabilityAdapter import http_module
 from Util.util import loadTemplate, write_if_different
 
 _REST = loadTemplate(__file__, "rest.py.tmpl")
@@ -81,8 +82,11 @@ def copy_rbac_runtimes(dest):
 
 
 class PyHttpAdapter:
-    def __init__(self, messages, dest, compliance=None) -> None:
+    def __init__(self, messages, dest, compliance=None, rootHash=None) -> None:
         self.compliance = compliance
+        # py-versioning task 2: with the root hash HttpServer also registers
+        # GET <rest_base>/capabilities
+        self.rootHash = rootHash
         self.messages = messages
         self.dest = dest
         self.pyRoot = os.path.join(dest, "python", "harpia_generated")
@@ -187,6 +191,13 @@ class PyHttpAdapter:
             "        {0}_{1}_rest.register(self.router, pool, rest_base)\n"
             "        {0}_{1}_soap.register(self.router, pool, soap_base)\n".format(
                 m.name, m.md5Hash) for m in tables).rstrip("\n")
+        if self.rootHash:
+            cap = http_module(self.rootHash)
+            imports = "from harpia_generated.capability import (\n    {},\n)\n{}".format(
+                cap, imports)
+            registrations += ("\n        # capability handshake (ungated, like heartBeat)\n"
+                              "        {}.register_capabilities(self.router, rest_base)".format(
+                                  cap))
         if any(self._rbac(m) for m in tables):
             registrations += ("\n        # bearer-session issuance (RBAC-gated messages exist)\n"
                               "        register_session_routes(self.router, rest_base, soap_base)")

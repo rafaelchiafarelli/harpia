@@ -213,3 +213,233 @@ def test_cpp_client_negotiates_with_python_server(use, tmp_path):
     finally:
         server.stop(None).wait()
     assert out == ["LEGACY", "1"]
+
+
+# -- task 2: HTTP + ZMQ slices ---------------------------------------------------------
+
+def _free_port():
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def _http_server(register=True):
+    router_mod = _mod("harpia_runtime.http.router")
+    router = router_mod.Router()
+    if register:
+        _mod("harpia_generated.capability.capabilities_{h}_http").register_capabilities(
+            router, "/api/v1")
+    router.add("GET", "/api/v1/other", lambda req: router_mod.text(200, "x"))
+    srv = router_mod.Server(router)
+    srv.start()
+    return srv
+
+
+def _http_negotiate(port, timeout=2.0, base="/api/v1"):
+    calls = []
+    t0 = time.monotonic()
+    got = _mod("harpia_runtime.capability.http").negotiate(
+        "127.0.0.1", port, base, timeout, on_legacy_peer=lambda: calls.append(1))
+    return got, len(calls), time.monotonic() - t0
+
+
+def test_http_negotiate_and_body(use):
+    import urllib.request
+    srv = _http_server()
+    try:
+        got, legacy, _ = _http_negotiate(srv.port)
+        with urllib.request.urlopen("http://127.0.0.1:%d/api/v1/capabilities" % srv.port) as r:
+            body, ctype = r.read().decode(), r.headers["Content-Type"]
+    finally:
+        srv.stop()
+    assert got == set(_cpp_types(use)) and legacy == 0
+    assert ctype == "application/json"
+    assert body == '{"messageTypes":[%s]}' % ",".join('"%s"' % t for t in _cpp_types(use))
+
+
+def test_http_legacy_peers(use):
+    import threading
+    srv = _http_server(register=False)  # a pre-capability peer: 404
+    try:
+        assert _http_negotiate(srv.port)[:2] == (None, 1)
+    finally:
+        srv.stop()
+    assert _http_negotiate(_free_port(), 1.0)[:2] == (None, 1)  # refused
+    mute = socket.socket()  # accepts, never answers
+    mute.bind(("127.0.0.1", 0))
+    mute.listen(4)
+    held = []
+    threading.Thread(target=lambda: held.append(mute.accept()), daemon=True).start()
+    try:
+        got, legacy, took = _http_negotiate(mute.getsockname()[1], 0.4)
+    finally:
+        mute.close()
+    assert (got, legacy) == (None, 1) and took < 2.0
+
+
+def test_http_server_registers_route(use, pki, tmp_path):
+    import ssl
+    import urllib.request
+    pool = R._grpc_pool(tmp_path)
+    tls = _mod("harpia_runtime.tls")
+    srv = _mod("harpia_generated.http.http_server_bringup").HttpServer(
+        pool, host="localhost", rest_base="/v1",
+        mtls=tls.MtlsFiles(pki["ca"], pki["cert"], pki["key"]))
+    srv.start()
+    try:
+        ctx = ssl.create_default_context(cafile=pki["ca"])  # anonymous: ungated
+        with urllib.request.urlopen("https://localhost:%d/v1/capabilities" % srv.port,
+                                    context=ctx) as r:
+            assert r.status == 200 and b'"messageTypes"' in r.read()
+    finally:
+        srv.stop()
+
+
+def _zmq_responder(ctx, endpoint, n):
+    import threading
+    resp = _mod("harpia_generated.capability.capabilities_{h}_zmq").CapabilitiesResponder(
+        ctx, endpoint)
+    t = threading.Thread(target=lambda: [resp.serve_once() for _ in range(n)], daemon=True)
+    t.start()
+    return resp, t
+
+
+def test_zmq_negotiate_and_legacy(use):
+    zmq = pytest.importorskip("zmq")
+    ctx = zmq.Context()
+    port = _free_port()
+    resp, t = _zmq_responder(ctx, "tcp://127.0.0.1:%d" % port, 1)
+    calls = []
+    neg = _mod("harpia_runtime.capability.zmq").negotiate
+    try:
+        got = neg(ctx, "tcp://127.0.0.1:%d" % port, 2.0, lambda: calls.append(1))
+        t.join(5)
+    finally:
+        resp.close()
+    assert got == set(_cpp_types(use)) and calls == []
+    t0 = time.monotonic()
+    assert neg(ctx, "tcp://127.0.0.1:%d" % _free_port(), 0.4, lambda: calls.append(1)) is None
+    assert calls == [1] and time.monotonic() - t0 < 2.0
+    ctx.term()
+
+
+_CPP_PEER = r'''
+#include <chrono>
+#include <cstdio>
+#include <iostream>
+#include <string>
+#include <thread>
+#include "crow.h"
+#include "capability/capabilities_@HASH@_http.h"
+#include "capability/capabilities_@HASH@_zmq.h"
+#include "capability/harpia_http_capability.h"
+#include "capability/harpia_zmq_capability.h"
+static void print(const std::optional<std::set<std::string>>& t, int legacy) {
+    if (!t) { std::printf("LEGACY %d\n", legacy); return; }
+    for (const auto& s : *t) std::printf("%s\n", s.c_str());
+}
+int main(int, char** argv) {
+    const std::string mode = argv[1];
+    int legacy = 0;
+    if (mode == "http-client") {
+        const auto t = harpia::capability::negotiate(argv[2], std::stoi(argv[3]), argv[4],
+                                                     3000, [&] { ++legacy; });
+        print(t, legacy);
+    } else if (mode == "zmq-client") {
+        ::zmq::context_t ctx;
+        const auto t = harpia::capability::negotiate(
+            ctx, argv[2], std::chrono::milliseconds(3000), [&] { ++legacy; });
+        print(t, legacy);
+    } else if (mode == "zmq-server") {
+        ::zmq::context_t ctx;
+        harpia::zmq_capability::capabilities_responder r(ctx, argv[2]);
+        std::cout << "READY" << std::endl;
+        r.serve_once();
+    } else {  // http-server <port>
+        crow::logger::setLogLevel(crow::LogLevel::Critical);
+        crow::SimpleApp app;
+        harpia::http_capability::register_capabilities(app, "/api/v1");
+        app.bindaddr("127.0.0.1").port(std::stoi(argv[2]));
+        std::thread t([&] { app.run(); });
+        app.wait_for_server_start();
+        std::cout << "READY" << std::endl;
+        std::string line; std::getline(std::cin, line);
+        app.stop(); t.join();
+    }
+    return 0;
+}
+'''
+
+
+@pytest.fixture(scope="module")
+def cap_peer(gen, tmp_path_factory):
+    third = os.path.join(REPO_ROOT, "third_party")
+    cpp_root = os.path.join(gen, "generated", "cpp")
+    pb = os.path.join(cpp_root, "protofiles", "capabilities_service.pb.cc")
+    if shutil.which("g++") is None or not os.path.exists(pb) or \
+            not os.path.exists(os.path.join(third, "asio", "asio.hpp")):
+        pytest.skip("needs g++ + protobuf + cppzmq + vendored crow/asio")
+    d = tmp_path_factory.mktemp("cap_peer")
+    (d / "p.cpp").write_text(_CPP_PEER.replace("@HASH@", HASH))
+    flags = subprocess.run(["pkg-config", "--cflags", "--libs", "protobuf", "libzmq"],
+                           capture_output=True, text=True, check=True).stdout.split()
+    c = subprocess.run(["g++", "-std=c++17", "-DASIO_STANDALONE", "-I", cpp_root,
+                        "-I", os.path.join(third, "crow"), "-I", os.path.join(third, "asio"),
+                        str(d / "p.cpp"), pb, "-o", str(d / "p"), *flags, "-lpthread"],
+                       capture_output=True, text=True, timeout=900)
+    assert c.returncode == 0, c.stderr[-3000:]
+    return str(d / "p")
+
+
+def test_cpp_and_python_http_both_ways(use, cap_peer):
+    want = sorted(_cpp_types(use))
+    srv = _http_server()
+    try:
+        out = subprocess.run([cap_peer, "http-client", "127.0.0.1", str(srv.port), "/api/v1"],
+                             capture_output=True, text=True, timeout=60).stdout.split()
+        legacy = subprocess.run([cap_peer, "http-client", "127.0.0.1", str(srv.port), "/nope"],
+                                capture_output=True, text=True, timeout=60).stdout.split()
+    finally:
+        srv.stop()
+    assert out == want and legacy == ["LEGACY", "1"]
+    port = _free_port()
+    proc = subprocess.Popen([cap_peer, "http-server", str(port)], stdin=subprocess.PIPE,
+                            stdout=subprocess.PIPE, text=True)
+    try:
+        assert proc.stdout.readline().strip() == "READY"
+        got, n, _ = _http_negotiate(port, 3.0)
+    finally:
+        proc.stdin.close()
+        proc.wait(timeout=30)
+    assert got == set(want) and n == 0
+
+
+def test_cpp_and_python_zmq_both_ways(use, cap_peer):
+    zmq = pytest.importorskip("zmq")
+    want = sorted(_cpp_types(use))
+    ctx = zmq.Context()
+    port = _free_port()
+    resp, t = _zmq_responder(ctx, "tcp://127.0.0.1:%d" % port, 1)
+    try:
+        out = subprocess.run([cap_peer, "zmq-client", "tcp://127.0.0.1:%d" % port],
+                             capture_output=True, text=True, timeout=60).stdout.split()
+        t.join(5)
+    finally:
+        resp.close()
+    assert out == want
+    dead = subprocess.run([cap_peer, "zmq-client", "tcp://127.0.0.1:%d" % _free_port()],
+                          capture_output=True, text=True, timeout=60).stdout.split()
+    assert dead == ["LEGACY", "1"]
+    port = _free_port()
+    proc = subprocess.Popen([cap_peer, "zmq-server", "tcp://127.0.0.1:%d" % port],
+                            stdout=subprocess.PIPE, text=True)
+    try:
+        assert proc.stdout.readline().strip() == "READY"
+        got = _mod("harpia_runtime.capability.zmq").negotiate(
+            ctx, "tcp://127.0.0.1:%d" % port, 3.0)
+    finally:
+        proc.wait(timeout=30)
+        ctx.term()
+    assert got == set(want)
