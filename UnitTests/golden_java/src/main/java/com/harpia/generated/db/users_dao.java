@@ -85,7 +85,7 @@ public final class users_dao {
     }
 
     public boolean list(List<users> out) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"address\", \"name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"user_table\"");
+        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"address\", \"name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"user_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 users.Builder builder = users.newBuilder();

@@ -82,7 +82,7 @@ public final class shipment_dao {
     }
 
     public boolean list(List<shipment> out) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"tag\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"shipment_table\"");
+        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"tag\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"shipment_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 shipment.Builder builder = shipment.newBuilder();
