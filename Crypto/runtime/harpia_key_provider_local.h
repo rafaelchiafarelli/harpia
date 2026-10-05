@@ -24,6 +24,16 @@
 // never touched. O.4: the ctor takes an AuditSink& (every key op is
 // recorded); KEKs are zeroized on eviction and in the destructor. Out of
 // scope here: the KMS/HSM reference adapter (O.5, harpia_key_provider_kms.h).
+//
+// File modes (cpp-key-store-permissions-DEFECT): on POSIX the store and the
+// .shred sidecar are created and rewritten owner-only (0600), whatever the
+// umask -- open(..., 0600) + fchmod before any byte is written, so there is
+// no window with wider bits. An existing store or sidecar with any group/
+// other bit set is REFUSED (LocalKeyStoreInsecure), never tightened
+// silently: its KEK material may already have been read, so the operator
+// must decide (rotate, then chmod 0600). On Windows there are no POSIX
+// modes; protecting the file (ACLs) is out of scope and the check is
+// compiled out.
 #ifndef HARPIA_CRYPTO_KEY_PROVIDER_LOCAL_H
 #define HARPIA_CRYPTO_KEY_PROVIDER_LOCAL_H
 
@@ -42,6 +52,13 @@
 #include <string>
 #include <utility>
 
+#ifndef _WIN32
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <cerrno>
+#endif
+
 #include "harpia_key_provider.h"
 
 namespace harpia {
@@ -58,6 +75,25 @@ public:
               "acknowledged (set LocalKeyProviderConfig::acknowledged / "
               "HARPIA_ACK_LOCAL_KEY_PROVIDER after making a KMS-vs-local "
               "decision)") {}
+};
+
+// Thrown by LocalKeyProvider's constructor when the existing KEK store or
+// its .shred sidecar is readable/writable by group or others (POSIX only).
+class LocalKeyStoreInsecure : public std::runtime_error {
+public:
+    LocalKeyStoreInsecure(const std::string& path, unsigned mode)
+        : std::runtime_error(
+              "LocalKeyProvider refused: key store file " + path +
+              " has mode " + octal(mode) + "; it must be 0600 (owner-only). "
+              "Its key material may have been exposed: rotate, then "
+              "chmod 0600") {}
+
+private:
+    static std::string octal(unsigned mode) {
+        std::ostringstream os;
+        os << std::oct << std::setw(4) << std::setfill('0') << (mode & 0777u);
+        return os.str();
+    }
 };
 
 struct LocalKeyProviderConfig {
@@ -95,6 +131,8 @@ public:
         : audit_(audit), path_(cfg.storage_path) {
         if (cfg.phi_at_scale && !cfg.acknowledged)
             throw LocalKeyProviderRefused();
+        refuse_if_loose(path_);
+        refuse_if_loose(shred_path());
         if (!load()) {
             persist();  // fresh store: KEK v1 was minted in the ctor init
             audit_.record(kOpGenerate, "kek:" + std::to_string(active_));
@@ -153,10 +191,11 @@ public:
     // every other record, and every KEK, exactly as they were.
     void shred_dek(const WrappedDek& w) override {
         std::lock_guard<std::mutex> lock(mu_);
-        if (shredded_.insert(shred_key(w)).second) {
-            std::ofstream out(shred_path(), std::ios::app);
-            out << w.kek_version << " " << to_hex(w.bytes) << "\n";
-        }
+        if (shredded_.insert(shred_key(w)).second)
+            write_private(shred_path(),
+                          std::to_string(w.kek_version) + " " +
+                              to_hex(w.bytes) + "\n",
+                          true);
         audit_.record(kOpShred, "kek:" + std::to_string(w.kek_version));
     }
 
@@ -203,9 +242,47 @@ private:
     }
 
     void persist() const {
-        std::ofstream out(path_, std::ios::trunc);
+        std::string text;
         for (const auto& kv : keks_)
-            out << kv.first << " " << to_hex(kv.second) << "\n";
+            text += std::to_string(kv.first) + " " + to_hex(kv.second) + "\n";
+        write_private(path_, text, false);
+        detail::secure_zero(text);
+    }
+
+    // Owner-only write (truncate or append). POSIX: the fd is opened 0600
+    // and fchmod'ed before any byte lands, so a pre-existing file being
+    // rewritten never holds key material with wider bits either.
+    static void write_private(const std::string& path, const std::string& data,
+                              bool append) {
+#ifndef _WIN32
+        const int flags = O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC);
+        const int fd = ::open(path.c_str(), flags, 0600);
+        if (fd < 0) return;
+        if (::fchmod(fd, 0600) != 0) { ::close(fd); return; }
+        const char* p = data.data();
+        std::string::size_type left = data.size();
+        while (left > 0) {
+            const ::ssize_t n = ::write(fd, p, left);
+            if (n < 0) { if (errno == EINTR) continue; break; }
+            p += n;
+            left -= static_cast<std::string::size_type>(n);
+        }
+        ::close(fd);
+#else
+        std::ofstream out(path, append ? std::ios::app : std::ios::trunc);
+        out << data;
+#endif
+    }
+
+    // An existing file with any group/other bit is refused (never tightened).
+    static void refuse_if_loose(const std::string& path) {
+#ifndef _WIN32
+        struct ::stat st;
+        if (::stat(path.c_str(), &st) == 0 && (st.st_mode & 077) != 0)
+            throw LocalKeyStoreInsecure(path, static_cast<unsigned>(st.st_mode));
+#else
+        (void)path;
+#endif
     }
 
     std::string shred_path() const { return path_ + ".shred"; }

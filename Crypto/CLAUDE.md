@@ -106,6 +106,13 @@ the backends → `harpia_key_provider.h` + its deps), mirroring
   `local_key_provider_acknowledged()` (reads `HARPIA_ACK_LOCAL_KEY_PROVIDER`)
   or the config field. Shred → `<storage_path>.shred` append-only sidecar,
   never rewrites the KEK store. `#include`s `harpia_key_provider.h`.
+  **File modes (cpp-key-store-permissions-DEFECT):** on POSIX the store and
+  the sidecar are written owner-only `0600` regardless of umask (`open(...,
+  0600)` + `fchmod` before any byte); an existing store or sidecar with any
+  group/other bit makes the ctor throw `LocalKeyStoreInsecure` (path + octal
+  mode in `what()`) — refused, never tightened silently (Rafael 2026-10-05):
+  the operator rotates if exposure is possible, then `chmod 0600`. Windows:
+  no POSIX modes, ACLs out of scope, check compiled out.
 - `runtime/harpia_key_provider_kms.h` — the key-management epic. The KMS/HSM
   extension point. `KmsClient` (the tiny seam an integrator implements for
   AWS KMS / Vault / a PKCS#11 HSM — four ops over opaque bytes + an
