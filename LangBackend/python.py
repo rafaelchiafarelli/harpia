@@ -52,10 +52,15 @@ class PythonBackend(CppBackend):
         ctx.report(PyHttpAdapter(messages=messages, dest=dest,
                                  compliance=compliance).Process())
 
-        # gRPC servicers + the server bring-up
+        # capability handshake: dispatcher + gRPC negotiate + advertisement
+        from PyCapability.PyCapabilityAdapter import PyCapabilityAdapter
+        ctx.report(PyCapabilityAdapter(messages=messages, dest=dest, rootHash=ctx.root_hash,
+                                       compliance=compliance).Process())
+
+        # gRPC servicers + the server bring-up (registers the capability service)
         from PyGrpc.PyGrpcAdapter import PyGrpcAdapter
-        ctx.report(PyGrpcAdapter(messages=messages, dest=dest,
-                                 compliance=compliance).Process())
+        ctx.report(PyGrpcAdapter(messages=messages, dest=dest, compliance=compliance,
+                                 rootHash=ctx.root_hash).Process())
 
         # DDS publish/subscribe for `dds` messages (harpia_dds::Frame topic)
         from PyDds.PyDdsAdapter import PyDdsAdapter

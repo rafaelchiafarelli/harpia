@@ -11,6 +11,7 @@ import os
 from Crypto.backend import transport_hardening_required
 from Database.auth_gate import effective_rbac, transport_mode
 from Logger.logger import logger
+from PyCapability.PyCapabilityAdapter import grpc_module
 from PyHttp.PyHttpAdapter import copy_rbac_runtimes
 from PyAdapter.runtime_copy import copy_runtime_module
 from Util.util import loadTemplate, write_if_different
@@ -27,8 +28,11 @@ GRPC_EXT = "_grpc.py"
 
 
 class PyGrpcAdapter:
-    def __init__(self, messages, dest, compliance=None) -> None:
+    def __init__(self, messages, dest, compliance=None, rootHash=None) -> None:
         self.compliance = compliance
+        # py-versioning task 1: with the root hash the bring-up also registers
+        # harpia_generated.capability.capabilities_<roothash>_grpc
+        self.rootHash = rootHash
         self.messages = messages
         self.dest = dest
         self.outDir = os.path.join(dest, "python", "harpia_generated", "grpc")
@@ -109,6 +113,12 @@ class PyGrpcAdapter:
         registrations = "\n".join(
             "        {0}_{1}_grpc.add_to_server({0}_{1}_grpc.{0}_Service(pool), "
             "self.server)".format(m.name, m.md5Hash) for m in tables)
+        if self.rootHash:
+            cap = grpc_module(self.rootHash)
+            imports = "from harpia_generated.capability import (\n    {},\n)\n{}".format(
+                cap, imports)
+            registrations += ("\n        # capability handshake (ungated, like heartBeat)\n"
+                              "        {}.add_to_server(self.server)".format(cap))
         hardening, mode_consts, tls_args = self._transport()
         return _BRINGUP.format(hardening=hardening, mode_consts=mode_consts, tls_args=tls_args,
                                imports=imports, registrations=registrations,
