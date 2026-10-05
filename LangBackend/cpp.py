@@ -145,4 +145,7 @@ class CppBackend(LangBackend):
         ctx.report(TestAdapter(messages=messages, dest=dest, compliance=compliance).Process())
 
         #15. compliance report -- CycloneDX SBOM for the generated project
-        ctx.report(ComplianceReport(messages=messages, dest=dest, compliance=compliance).Process())
+        # python-target / py-artifacts: a python run (PythonBackend extends this
+        # class) also lists the generated Python package's dependencies
+        ctx.report(ComplianceReport(messages=messages, dest=dest, compliance=compliance,
+                                    python_target=self.name == "python").Process())

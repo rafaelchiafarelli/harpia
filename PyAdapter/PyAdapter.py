@@ -35,6 +35,7 @@ import subprocess
 import tempfile
 
 from Logger.logger import logger
+from PyAdapter.dependencies import pyproject_fills
 from Errors.Error import Error, Types, Classes
 from Util.util import (loadTemplate, write_if_different, copy_if_different,
                        copy_tree_if_different)
@@ -95,7 +96,7 @@ class PyAdapter:
     def Process(self):
         os.makedirs(self.protoDir, exist_ok=True)
         write_if_different(os.path.join(self.pyRoot, "pyproject.toml"),
-                           _PYPROJECT_TEMPLATE)
+                           _PYPROJECT_TEMPLATE.format(**pyproject_fills()))
         _copy_runtime(_RUNTIME_SRC_DIR, self.pyRoot)
 
         copied = 0
