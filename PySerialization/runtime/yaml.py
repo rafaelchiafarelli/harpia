@@ -12,15 +12,12 @@ returns ``False`` only when there were lines but none of them matched.
 A general YAML parser would accept and emit forms the C++ runtime doesn't,
 so the generated project has no ``pyyaml`` dependency.
 
-Known differences from the C++ reader (found 2026-10-04, C++ not changed):
-
-- The document ``{}`` (what :func:`to_yaml` emits for an empty message)
-  returns ``True`` here, as the C++ header's own comment documents; the C++
-  code returns ``false`` for it.
-- A map with a negative integer key (``-5: ...``) does not round-trip in
-  either runtime: the key line starts with ``-`` and reads as a sequence
-  item. C++ then adds an entry with default key and value; Python skips the
-  item.
+Same reader rules as C++: the document ``{}`` (what :func:`to_yaml` emits for
+an empty message) returns ``True``, and a line is a sequence item only when
+its ``-`` is followed by a space or ends the line, so a negative integer map
+key (``-5: ...``) reads as a map entry (both formerly differed from C++ or
+failed in both: cpp-yaml-empty-mapping-DEFECT,
+cpp-yaml-negative-map-keys-DEFECT).
 """
 from typing import Any
 
@@ -208,6 +205,13 @@ def _mutable(msg: Message, f: FieldDescriptor) -> Message:
     return sub
 
 
+def _is_seq_item(s: str) -> bool:
+    """A sequence item starts with ``-`` followed by a space or the end of
+    the line; ``-5: x`` is a map entry with a negative key (as C++
+    ``detail::is_seq_item``)."""
+    return s.startswith("-") and (len(s) == 1 or s[1] == " ")
+
+
 class _Reader:
     def __init__(self, text: str) -> None:
         self.lines: list[tuple[int, str]] = []
@@ -226,7 +230,7 @@ class _Reader:
         if self.i >= len(self.lines):
             return False
         ind, s = self.lines[self.i]
-        return ind == indent and s != "" and (s[0] == "-") == dash
+        return ind == indent and s != "" and _is_seq_item(s) == dash
 
     def set_scalar(self, msg: Message, f: FieldDescriptor | None, raw: str) -> None:
         if f is None or f.cpp_type == FD.CPPTYPE_MESSAGE:
@@ -263,7 +267,7 @@ class _Reader:
                 elif (itf is not None and not has_val and self.i < len(self.lines)
                         and self.lines[self.i][0] > indent + 2):
                     ci, s = self.lines[self.i]
-                    if s.startswith("-"):
+                    if _is_seq_item(s):
                         self.read_sequence(ci, item, itf)
                     elif itf.cpp_type == FD.CPPTYPE_MESSAGE and not is_repeated(itf):
                         self.read_mapping(ci, _mutable(item, itf))
@@ -308,7 +312,7 @@ class _Reader:
         if self.i >= len(self.lines) or self.lines[self.i][0] <= indent:
             return
         child, first = self.lines[self.i]
-        if first.startswith("-"):
+        if _is_seq_item(first):
             self.read_sequence(child, msg, f)
         elif is_map(f):
             self.read_map(child, msg, f)

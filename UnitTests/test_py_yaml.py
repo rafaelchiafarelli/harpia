@@ -114,3 +114,22 @@ def test_cpp_reads_python_yaml(gen, env):
     res = P.run(gen, [("from_yaml", n, y.to_yaml(m).encode()) for n, m in cases])
     for (name, m), (_ok, out) in zip(cases, res):
         assert msgs[name].FromString(out) == m, name
+
+
+def test_py_yaml_map_negative_int_keys(env):
+    """cpp-yaml-negative-map-keys-DEFECT (Python mirror): "-5: ..." map
+    lines are map entries, not sequence items -- top level and nested."""
+    y, msgs = env
+    q = msgs["queen"]()
+    for k, v in ((-5, "minus five"), (0, "zero"), (7, "seven"), (-2147483648, "min")):
+        q.c[k] = v
+    q.b["-k"] = -3
+    back = msgs["queen"]()
+    assert y.from_yaml(y.to_yaml(q), back) and back == q
+    d = msgs["data"]()
+    d.i = 4
+    d.val.c[-1] = "neg"
+    d.val.c[2] = "pos"
+    d.tags.extend([-9, 3])
+    back = msgs["data"]()
+    assert y.from_yaml(y.to_yaml(d), back) and back == d

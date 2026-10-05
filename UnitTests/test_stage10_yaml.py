@@ -250,3 +250,49 @@ def test_yaml_unknown_keys_only_is_rejected(built):
         "}\n")
     assert run.returncode == 0, "rejection check failed at #{}\n{}".format(
         run.returncode, run.stderr)
+
+
+def test_yaml_map_negative_int_keys(built):
+    """cpp-yaml-negative-map-keys-DEFECT: a map<int, ...> entry with a
+    negative key is written as "-5: ..." and must read back as a map entry,
+    not as a sequence item -- top level (queen.c) and nested inside an
+    embedded message (data.val.c)."""
+    run = _build_run(built, "queen",
+        "#include <climits>\n"
+        "#include <iostream>\n"
+        "int main() {\n"
+        "    ::queen a;\n"
+        '    (*a.mutable_c())[-5] = "minus five";\n'
+        '    (*a.mutable_c())[0] = "zero";\n'
+        '    (*a.mutable_c())[7] = "seven";\n'
+        '    (*a.mutable_c())[INT_MIN] = "min";\n'
+        '    (*a.mutable_b())["-k"] = -3;\n'
+        "    const std::string y = harpia::yaml::to_yaml(a);\n"
+        "    std::cerr << y;\n"
+        "    ::queen b;\n"
+        "    if (!harpia::yaml::from_yaml(y, &b)) return 1;\n"
+        "    if (b.c_size() != 4) return 2;\n"
+        '    if (b.c().count(-5) == 0 || b.c().at(-5) != "minus five") return 3;\n'
+        '    if (b.c().count(INT_MIN) == 0 || b.c().at(INT_MIN) != "min") return 4;\n'
+        '    if (b.b().at("-k") != -3) return 5;\n'
+        "    if (b.var() != a.var()) return 6;\n"
+        "    return 0;\n"
+        "}\n")
+    assert run.returncode == 0, "negative map keys (top level) failed at #{}\n{}".format(
+        run.returncode, run.stderr)
+    run = _build_run(built, "data",
+        "#include <iostream>\n"
+        "int main() {\n"
+        "    ::data a; a.set_i(4);\n"
+        '    (*a.mutable_val()->mutable_c())[-1] = "neg";\n'
+        '    (*a.mutable_val()->mutable_c())[2] = "pos";\n'
+        "    a.add_tags(-9); a.add_tags(3);\n"
+        "    const std::string y = harpia::yaml::to_yaml(a);\n"
+        "    std::cerr << y;\n"
+        "    ::data b;\n"
+        "    if (!harpia::yaml::from_yaml(y, &b)) return 1;\n"
+        "    if (a.SerializeAsString() != b.SerializeAsString()) return 2;\n"
+        "    return 0;\n"
+        "}\n", extra_pb=("prince", "grower"))
+    assert run.returncode == 0, "negative map keys (nested) failed at #{}\n{}".format(
+        run.returncode, run.stderr)
