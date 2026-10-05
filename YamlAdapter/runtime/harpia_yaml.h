@@ -463,6 +463,9 @@ inline std::string to_yaml(const ::google::protobuf::Message& msg) {
 // false); an empty document or "{}" is a valid empty message and returns true.
 inline bool from_yaml(const std::string& yaml, ::google::protobuf::Message* msg) {
     const auto lines = detail::tokenize(yaml);
+    // to_yaml's empty document: valid, nothing to merge (the Python runtime
+    // does the same -- cpp-yaml-empty-mapping-DEFECT).
+    if (lines.size() == 1 && lines[0].indent == 0 && lines[0].s == "{}") return true;
     size_t i = 0;
     int hits = 0;
     detail::read_mapping(lines, i, 0, msg, hits);
