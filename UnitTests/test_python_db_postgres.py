@@ -121,31 +121,9 @@ def test_round_trip_on_postgres(name, msgs, conn):
     assert not dao.read(1, cls())
 
 
-@pytest.fixture()
-def fresh_db():
-    """A throwaway DATABASE (not just a schema): the migration's
-    information_schema introspection is not schema-qualified -- the same in
-    C++ -- so same-named tables in another schema would leak in."""
-    import psycopg
-    from psycopg.conninfo import make_conninfo
-    name = "harpia_py_mig_" + uuid.uuid4().hex[:10]
-    admin = psycopg.connect(PG_DSN, autocommit=True)
-    try:
-        admin.execute('CREATE DATABASE "{}"'.format(name))
-    except psycopg.Error as e:
-        admin.close()
-        pytest.skip("cannot CREATE DATABASE: {}".format(e))
-    conn = psycopg.connect(make_conninfo(PG_DSN, dbname=name))
-    yield conn
-    conn.close()
-    admin.execute('DROP DATABASE "{}"'.format(name))
-    admin.close()
-
-
-def test_migrate_on_postgres(msgs, fresh_db):
+def test_migrate_on_postgres(msgs, conn):
     """task 5a on PostgreSQL: rename keeps data, stray dropped, TEXT strength
     retyped to integer (ALTER COLUMN .. TYPE), version stamped, idempotent."""
-    conn = fresh_db
     table = "beacon_log_table"
     conn.execute('CREATE TABLE "{t}" ("{pk}" INTEGER PRIMARY KEY, "handle" TEXT, '
                  '"strength" TEXT, "legacy_note" TEXT)'.format(t=table, pk=PK))
@@ -156,7 +134,7 @@ def test_migrate_on_postgres(msgs, fresh_db):
     assert mig.migrate_beacon_log(conn)
     cols = dict(conn.execute(
         "SELECT column_name, data_type FROM information_schema.columns "
-        "WHERE table_name = %s", [table]).fetchall())
+        "WHERE table_schema = current_schema() AND table_name = %s", [table]).fetchall())
     assert set(cols) == set(mig.SPEC.current_columns)
     assert cols["strength"] == "integer"
     got = msgs["beacon_log"]()
@@ -165,11 +143,10 @@ def test_migrate_on_postgres(msgs, fresh_db):
     assert conn.execute('SELECT "version" FROM "_harpia_schema_version"').fetchall() == [(HASH,)]
 
 
-def test_migrate_child_tables_on_postgres(msgs, fresh_db):
+def test_migrate_child_tables_on_postgres(msgs, conn):
     """task 5b on PostgreSQL: child-table renames keep their rows, an orphan
     child table is reaped, the map key/value and the repeated-composed shape
     are evolved (ALTER COLUMN .. TYPE / ADD / DROP), idempotent."""
-    conn = fresh_db
     t = "telemetry_table"
     for sql in [
         'CREATE TABLE "{t}" ("{pk}" INTEGER PRIMARY KEY, "label" TEXT)',
@@ -202,7 +179,7 @@ def test_migrate_child_tables_on_postgres(msgs, fresh_db):
     def types(table):
         return dict(conn.execute(
             "SELECT column_name, data_type FROM information_schema.columns "
-            "WHERE table_name = %s", [table]).fetchall())
+            "WHERE table_schema = current_schema() AND table_name = %s", [table]).fetchall())
 
     assert (types(t + "__gauges")["key"], types(t + "__gauges")["value"]) == ("text", "integer")
     traces = types(t + "__traces")
@@ -213,3 +190,37 @@ def test_migrate_child_tables_on_postgres(msgs, fresh_db):
     assert dict(got.flags) == {-3: "neg", 4: "four"}
     assert dict(got.gauges) == {"7": 42}
     assert [tr.kind for tr in got.traces] == ["5"]
+
+
+def test_py_migration_ignores_other_schemas(msgs, conn):
+    """cpp-pg-introspection-schema-DEFECT, Python engine: a same-named
+    beacon_log_table (extra column, strength TEXT) and a
+    telemetry_table__decoy_child in ANOTHER schema neither leak into this
+    schema's migration nor get touched by it."""
+    decoy = "harpia_decoy_" + uuid.uuid4().hex[:10]
+    conn.execute('CREATE SCHEMA "{}"'.format(decoy))
+    conn.execute('CREATE TABLE "{d}"."beacon_log_table" ("{pk}" INTEGER PRIMARY KEY, '
+                 '"label" TEXT, "strength" TEXT, "decoy_only" TEXT)'.format(d=decoy, pk=PK))
+    conn.execute('CREATE TABLE "{}"."telemetry_table__decoy_child" ("owner" INTEGER)'.format(decoy))
+    conn.commit()
+    try:
+        for name in ("beacon_log", "telemetry"):
+            mig = importlib.import_module(
+                "harpia_generated.migrate.{}_{}_migrate".format(name, HASH))
+            assert getattr(mig, "migrate_" + name)(conn)
+            assert getattr(mig, "migrate_" + name)(conn)
+
+        def cols(schema, table):
+            return dict(conn.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_schema = %s AND table_name = %s", [schema, table]).fetchall())
+        here = conn.execute("SELECT current_schema()").fetchone()[0]
+        assert "decoy_only" not in cols(here, "beacon_log_table")
+        assert cols(here, "beacon_log_table")["strength"] == "integer"
+        assert cols(decoy, "beacon_log_table")["decoy_only"] == "text"
+        assert cols(decoy, "beacon_log_table")["strength"] == "text"
+        assert cols(decoy, "telemetry_table__decoy_child")
+    finally:
+        conn.rollback()
+        conn.execute('DROP SCHEMA "{}" CASCADE'.format(decoy))
+        conn.commit()
