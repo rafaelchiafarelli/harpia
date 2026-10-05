@@ -175,10 +175,10 @@ UnitTests/test_python_db_postgres.py`.
   return rowid = key order. Flagged to Rafael as a C++ finding.
 - `limit=None` binds the largest 64-bit value, not `-1` (PostgreSQL rejects a
   negative `LIMIT`).
-- PostgreSQL migration introspection (`information_schema`) is not
-  schema-qualified, in C++ and Python alike: a same-named table in another
-  schema leaks into the diff. The PG migration test uses a throwaway
-  database. Flagged to Rafael.
+- PostgreSQL migration introspection (`information_schema`) sees only
+  `current_schema()`, in C++ and Python alike (shared `DbBackend` SQL;
+  cpp-pg-introspection-schema-DEFECT): a same-named table in another schema
+  never enters the diff (`test_py_migration_ignores_other_schemas`).
 - `users` and `top_users` share the table name `user_table` (the fixture's
   visibility collision): never create every DAO's table in one database.
 - **Placeholders are dialect-baked at generation time** through

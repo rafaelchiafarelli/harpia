@@ -113,7 +113,8 @@ class PostgresBackend(DbBackend):
 
     def list_columns_sql(self, table):
         return ("SELECT column_name FROM information_schema.columns "
-                "WHERE table_name = '{}';").format(table)
+                "WHERE table_schema = current_schema() "
+                "AND table_name = '{}';").format(table)
 
     def add_column(self, table, name, column_def):
         return 'ALTER TABLE "{}" ADD COLUMN "{}" {};'.format(
@@ -137,15 +138,20 @@ class PostgresBackend(DbBackend):
 
     def list_column_types_sql(self, table):
         return ("SELECT column_name, data_type FROM information_schema.columns "
-                "WHERE table_name = '{}';").format(table)
+                "WHERE table_schema = current_schema() "
+                "AND table_name = '{}';").format(table)
 
     # -- migration: child tables (repeated / map) --------------------------
     def list_tables_sql(self, prefix):
         # every "<prefix>__*" table; substr (not LIKE, whose _ is a wildcard)
         # keeps the match exact, and the shape mirrors list_columns_sql.
+        # All three introspection queries see only current_schema(), where
+        # unqualified CREATE TABLE lands: a same-named table in another
+        # schema must never enter the migration diff.
         n = len(prefix) + 2
         return ("SELECT table_name FROM information_schema.tables "
-                "WHERE substr(table_name, 1, {}) = '{}__';").format(n, prefix)
+                "WHERE table_schema = current_schema() "
+                "AND substr(table_name, 1, {}) = '{}__';").format(n, prefix)
 
     def rename_table(self, old, new):
         return 'ALTER TABLE "{}" RENAME TO "{}";'.format(old, new)
