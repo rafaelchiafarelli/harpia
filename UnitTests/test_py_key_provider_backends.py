@@ -141,6 +141,39 @@ def test_local_shred_sidecar(local, tmp_path):
     assert other is not None and other.material == b.material  # per record
 
 
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+def test_local_store_and_sidecar_are_0600(local, tmp_path):
+    """cpp-key-store-permissions-DEFECT (Python mirror): store + sidecar are
+    owner-only whatever the umask, also after a rotate rewrite."""
+    old = os.umask(0o022)
+    try:
+        path = tmp_path / "keks.txt"
+        p = _local(local, path)
+        p.shred_dek(p.wrap_dek(p.generate_dek()))
+        p.rotate()
+    finally:
+        os.umask(old)
+    assert oct(path.stat().st_mode & 0o777) == oct(0o600)
+    assert oct((tmp_path / "keks.txt.shred").stat().st_mode & 0o777) == oct(0o600)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX file modes")
+@pytest.mark.parametrize("loose", ["store", "shred"])
+def test_local_loose_store_is_refused(local, tmp_path, loose):
+    """A loose store / sidecar raises LocalKeyStoreInsecure (path + mode in
+    the message), before anything is read or rewritten -- as C++."""
+    path = tmp_path / "keks.txt"
+    p = _local(local, path)
+    p.shred_dek(p.wrap_dek(p.generate_dek()))
+    target = path if loose == "store" else tmp_path / "keks.txt.shred"
+    os.chmod(target, 0o640)
+    before = path.read_bytes()
+    with pytest.raises(local.LocalKeyStoreInsecure) as e:
+        _local(local, path)
+    assert str(target) in str(e.value) and "0640" in str(e.value)
+    assert path.read_bytes() == before and target.stat().st_mode & 0o777 == 0o640
+
 def test_local_audit(local, mods, tmp_path):
     sink = _sink(mods)
     path = tmp_path / "s"
@@ -252,6 +285,9 @@ def test_python_store_unwraps_in_cpp_and_cpp_shred_binds_python(local, cpp_local
     assert _run(cpp_local, "unwrap", path, w.kek_version, w.bytes.hex()) == [dek.material.hex()]
     _run(cpp_local, "shred", path, w.kek_version, w.bytes.hex())
     assert _local(local, path).unwrap_dek(w) is None
+    if os.name != "nt":  # either language's files load in the other: both 0600
+        for f in (path, tmp_path / "shared.keks.shred"):
+            assert f.stat().st_mode & 0o777 == 0o600
 
 
 @pytest.mark.skipif(
