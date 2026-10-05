@@ -72,6 +72,11 @@ class PythonBackend(CppBackend):
         ctx.report(PyDdsAdapter(messages=messages, dest=dest, compliance=compliance,
                                 crypto_backend=ctx.crypto_backend).Process())
 
+        # generated per-message unit tests (python/tests/)
+        from PyTests.PyTestAdapter import PyTestAdapter
+        ctx.report(PyTestAdapter(messages=messages, dest=dest,
+                                 compliance=compliance).Process())
+
         # (later epics add their stages here, above the docs)
 
         # Sphinx skeleton -- LAST: it documents every module already on disk
