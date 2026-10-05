@@ -1,0 +1,17 @@
+
+def test_all_good(tmp_path: Path) -> None:
+    pool = _pool(tmp_path)
+    first = testing.sample({name}, "a", pk=1)
+    probe = testing.probe_text({name})
+    with testing.serve(pool, rest=[rest.register], soap=[soap.register]) as port:
+        assert testing.request(port, "POST", "/api/v1/{name}", to_json(first),
+                               {{"Content-Type": "application/json", **CRED}})[0] == 201
+        status, body = testing.request(port, "POST", "/soap/{name}", testing.soap_envelope(
+            "<get><id>1</id></get>", SOAP_CRED), XML)
+        assert status == 200 and "<getResponse>" in body
+        assert probe is None or probe in body
+    with pool.borrow() as conn:
+        got = {name}()
+        assert {name}_dao(conn).read(1, got)
+        assert (testing.persisted_view({name}_dao, got)
+                == testing.persisted_view({name}_dao, first))

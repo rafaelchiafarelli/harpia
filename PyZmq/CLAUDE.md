@@ -94,3 +94,9 @@ as activity.
   `_is_one_to_many`), `PyAdapter.runtime_copy`.
 - Tested by: `UnitTests/test_py_zmq.py`, `test_py_zmq_curve.py`,
   `test_py_delivery.py`, `test_py_zmq_stream.py`.
+
+- **Fix (found by py-tests task 2):** `harpia_runtime.zap` (+ the audit
+  sink) now ships with `harpia_runtime.zmq` under every profile — `zmq.py`
+  imports it lazily, so a low-risk tree used to fail `mypy --strict`. Inert
+  unless a receiver is built with `zap=True` (still only under a hardened
+  profile).

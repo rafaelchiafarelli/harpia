@@ -17,18 +17,29 @@ by ``PyTestAdapter`` (python-target / py-tests). The generated
 - :func:`create_tables` creates a DAO's table and the tables it reaches;
 - :func:`persisted_view` is what a DAO stores for a message (its columns,
   FK children's own views, and the map / repeated / composed child tables),
-  the comparison a CRUDL round trip checks.
+  the comparison a CRUDL round trip checks;
+- py-tests task 2, the HTTP bodies: :func:`serve` stands the generated REST /
+  SOAP registrations up on a plain in-process server on an ephemeral port
+  (like the C++ tests' Crow app -- not the mTLS ``HttpServer``),
+  :func:`request` is a small client, :func:`soap_envelope` /
+  :func:`probe_text` build what the checks send and look for.
 """
+import contextlib
+import http.client
+from collections.abc import Callable, Iterator, Sequence
 from typing import Any, TypeVar
 
 from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from google.protobuf.message import Message
 
 from harpia_runtime.db.dao import Connection, Dao, _owner, column_value, dao_class
+from harpia_runtime.db.pool import ConnectionPool
+from harpia_runtime.http.router import Request, Router, Server
 
 M = TypeVar("M", bound=Message)
 
 _ID_PREFIX = "ID_"
+_HIDDEN = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
 _INT32 = FieldDescriptor.CPPTYPE_INT32
 _FLOATS = (FieldDescriptor.CPPTYPE_DOUBLE, FieldDescriptor.CPPTYPE_FLOAT)
 _INT64S = (FieldDescriptor.CPPTYPE_INT64, FieldDescriptor.CPPTYPE_UINT64)
@@ -176,3 +187,63 @@ def persisted_view(dao_cls: type[Dao[Any]], msg: Message) -> dict[str, Any]:
         else:
             view[key] = list(items)
     return view
+
+
+#: a generated ``register(router, pool, base)`` (REST or SOAP module)
+Register = Callable[[Router, ConnectionPool, str], None]
+
+
+@contextlib.contextmanager
+def serve(pool: ConnectionPool, rest: Sequence[Register] = (),
+          soap: Sequence[Register] = (), rest_base: str = "/api/v1",
+          soap_base: str = "/soap") -> Iterator[int]:
+    """Serve ``rest`` / ``soap`` registrations on ``127.0.0.1`` (plain HTTP,
+    ephemeral port); yields the port."""
+    router = Router()
+    for register in rest:
+        register(router, pool, rest_base)
+    for register in soap:
+        register(router, pool, soap_base)
+    server = Server(router)
+    server.start()
+    try:
+        yield server.port
+    finally:
+        server.stop()
+
+
+def request(port: int, method: str, path: str, body: str | bytes | None = None,
+            headers: dict[str, str] | None = None,
+            timeout: float = 10.0) -> tuple[int, str]:
+    """One HTTP request to ``127.0.0.1:port``: ``(status, body)``."""
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
+    try:
+        conn.request(method, path, body=body, headers=headers or {})
+        res = conn.getresponse()
+        return res.status, res.read().decode("utf-8", "replace")
+    finally:
+        conn.close()
+
+
+def soap_envelope(body: str, header: str = "") -> str:
+    """A SOAP 1.1 request envelope (``header`` is the inner Header XML)."""
+    head = f"<soap:Header>{header}</soap:Header>" if header else ""
+    return ('<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">'
+            f"{head}<soap:Body>{body}</soap:Body></soap:Envelope>")
+
+
+def probe_text(cls: type[Message]) -> str | None:
+    """The :func:`sample` value of ``cls``'s first non-hidden top-level text
+    field (what a served body must contain), or ``None``."""
+    for f in cls.DESCRIPTOR.fields:
+        if (f.type == FieldDescriptor.TYPE_STRING
+                and f.label != FieldDescriptor.LABEL_REPEATED
+                and not f.name.startswith(_HIDDEN)):
+            return str(_scalar(f, "a"))
+    return None
+
+
+def fake_request(headers: dict[str, str] | None = None) -> Request:
+    """A bare :class:`~harpia_runtime.http.router.Request` for calling a
+    generated access gate directly (no server)."""
+    return Request("GET", "/", {}, {k.lower(): v for k, v in (headers or {}).items()})

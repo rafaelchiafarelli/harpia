@@ -119,9 +119,11 @@ class PyZmqAdapter:
         if not transports:
             return None
         copy_runtime_module(self.dest, os.path.join(_RUNTIME_DIR, "zmq.py"), ZMQ_MODULE)
-        if self.hardened:
-            copy_runtime_module(self.dest, os.path.join(_RUNTIME_DIR, "zap.py"), ZAP_MODULE)
-            copy_runtime_module(self.dest, PY_AUDIT_SINK_RUNTIME_SRC, PY_AUDIT_SINK_MODULE)
+        # zmq.py imports harpia_runtime.zap (lazily, only when ZAP is on), so
+        # it ships with zmq.py under every profile -- otherwise a low-risk
+        # tree fails mypy --strict. Inert unless a receiver enables ZAP.
+        copy_runtime_module(self.dest, os.path.join(_RUNTIME_DIR, "zap.py"), ZAP_MODULE)
+        copy_runtime_module(self.dest, PY_AUDIT_SINK_RUNTIME_SRC, PY_AUDIT_SINK_MODULE)
         if any("STREAM" in mods for _, mods, *_ in transports):
             copy_runtime_module(self.dest, os.path.join(_RUNTIME_DIR, "zmq_stream.py"),
                                 ZMQ_STREAM_MODULE)

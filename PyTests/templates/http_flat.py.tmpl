@@ -1,0 +1,82 @@
+
+
+#: the flat generated credential (REST headers / SOAP Header)
+CRED = {{"X-User": {name_lit}, "X-Pswd": {hash_lit}}}
+SOAP_CRED = "<credentials><user>{name}</user><pswd>{hash}</pswd></credentials>"
+JSON_HDR = {{**CRED, "Content-Type": "application/json"}}
+XML = {{"Content-Type": "text/xml"}}
+
+
+def test_access_rights() -> None:
+    good = parse_envelope(testing.soap_envelope("", SOAP_CRED))
+    wrong = parse_envelope(testing.soap_envelope("", SOAP_CRED.replace({hash_lit}, "wrong")))
+    none = parse_envelope(testing.soap_envelope(""))
+    assert good is not None and wrong is not None and none is not None
+    assert soap.EARLY_GATE(testing.fake_request(), good) is None
+    for bad in (wrong, none):
+        refusal = soap.EARLY_GATE(testing.fake_request(), bad)
+        assert refusal is not None and refusal.status == 401
+    assert rest.GATE(testing.fake_request(CRED), "read") is None
+    bad_headers: list[dict[str, str]] = [{{}}, {{**CRED, "X-Pswd": "nope"}}]
+    for headers in bad_headers:
+        refusal = rest.GATE(testing.fake_request(headers), "read")
+        assert refusal is not None and refusal.status == 401
+
+
+def test_rest_api(tmp_path: Path) -> None:
+    pool = _pool(tmp_path)
+    path = "/api/v1/{name}"
+    with testing.serve(pool, rest=[rest.register]) as port:
+        assert testing.request(port, "GET", path)[0] == 401
+        assert testing.request(port, "GET", path, headers={{**CRED, "X-Pswd": "x"}})[0] == 401
+        first = testing.sample({name}, "a", pk=1)
+        assert testing.request(port, "POST", path, to_json(first), JSON_HDR)[0] == 201
+        status, body = testing.request(port, "GET", path + "/1", headers=CRED)
+        got = {name}()
+        assert status == 200 and from_json(body, got)
+        assert _view(got) == _view(first)
+        assert testing.request(port, "GET", path, headers=CRED)[0] == 200
+        status, body = testing.request(port, "GET", path + "/1",
+                                       headers={{**CRED, "Accept": "application/xml"}})
+        got = {name}()
+        assert status == 200 and from_xml(body, got) and _view(got) == _view(first)
+        second = testing.sample({name}, "a", pk=2, id_base=2000)
+        assert testing.request(port, "POST", path, to_xml(second),
+                               {{**CRED, "Content-Type": "application/xml"}})[0] == 201
+        assert testing.request(port, "GET", path + "/2", headers=CRED)[0] == 200
+        changed = testing.sample({name}, "b", pk=1)
+        assert testing.request(port, "PUT", path + "/1", to_json(changed), JSON_HDR)[0] == 204
+        status, body = testing.request(port, "GET", path + "/1", headers=CRED)
+        got = {name}()
+        assert from_json(body, got) and _view(got) == _view(changed)
+        assert testing.request(port, "DELETE", path + "/1", headers=CRED)[0] == 204
+        assert testing.request(port, "GET", path + "/1", headers=CRED)[0] == 404
+
+
+def test_soap_api(tmp_path: Path) -> None:
+    pool = _pool(tmp_path)
+    path = "/soap/{name}"
+    first = testing.sample({name}, "a", pk=1)
+    probe = testing.probe_text({name})
+    with testing.serve(pool, soap=[soap.register]) as port:
+        status, body = testing.request(port, "POST", path, testing.soap_envelope(
+            "<set>" + to_xml(first) + "</set>",
+            SOAP_CRED.replace({hash_lit}, "wrong")), XML)
+        assert status == 401 and "Client.Authentication" in body
+        status, body = testing.request(port, "POST", path, testing.soap_envelope(
+            "<set>" + to_xml(first) + "</set>", SOAP_CRED), XML)
+        assert status == 200 and "<ok>true</ok>" in body
+        status, body = testing.request(port, "POST", path, testing.soap_envelope(
+            "<get><id>1</id></get>", SOAP_CRED), XML)
+        assert status == 200 and "<getResponse>" in body
+        assert probe is None or probe in body
+        changed = testing.sample({name}, "b", pk=1)
+        status, body = testing.request(port, "POST", path, testing.soap_envelope(
+            "<update>" + to_xml(changed) + "</update>", SOAP_CRED), XML)
+        assert status == 200 and "<ok>true</ok>" in body
+        status, body = testing.request(port, "POST", path, testing.soap_envelope(
+            "<delete><id>1</id></delete>", SOAP_CRED), XML)
+        assert status == 200 and "<ok>true</ok>" in body
+        status, body = testing.request(port, "POST", path, testing.soap_envelope(
+            "<get><id>1</id></get>", SOAP_CRED), XML)
+        assert status == 200 and "not found" in body
