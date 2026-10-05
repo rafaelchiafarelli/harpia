@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-# Runs the 4 opt-in live-PostgreSQL tests against a throwaway Postgres server:
+# Runs the opt-in live-PostgreSQL tests against a throwaway Postgres server:
 #
 #   UnitTests/test_stage8_pg.py               (C++ SOCI/libpq CRUDL + retype migration)
 #   UnitTests/test_java_db_crudl_postgres.py  (Java/JDBC driver wiring + CRUDL cycle)
+#   UnitTests/test_db_xlang3.py               (C++/Java/Python DAOs on one database;
+#                                              only its PG half needs the server)
 #
-# These two files are skipped by the normal `Docker/run.sh pytest` run because
+# These files are skipped by the normal `Docker/run.sh pytest` run because
 # they need HARPIA_PG_DSN pointing at a reachable server (see each file's
 # module docstring). This script stands one up in a container, points the
 # tests at it over a user-defined network, and tears it all down after.
 #
 # Nothing is installed on the host; the Postgres image is pulled on first use.
 #
-#   Docker/run_pg_tests.sh                 # run all 4
+#   Docker/run_pg_tests.sh                 # run them all
 #   Docker/run_pg_tests.sh -k roundtrip    # extra args are passed through to pytest
 set -euo pipefail
 
@@ -52,4 +54,5 @@ docker run --rm --network "$NET" \
     -e GRADLE_USER_HOME=/tmp/.gradle \
     -e HARPIA_PG_DSN="$DSN" \
     "$HARPIA_IMAGE" \
-    pytest UnitTests/test_stage8_pg.py UnitTests/test_java_db_crudl_postgres.py "$@"
+    pytest UnitTests/test_stage8_pg.py UnitTests/test_java_db_crudl_postgres.py \
+    UnitTests/test_db_xlang3.py "$@"
