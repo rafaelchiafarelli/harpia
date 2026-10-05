@@ -172,6 +172,9 @@ py-crypto-phi task 4; until then only tests copy them.
   shared across languages — proven both ways (wrap/unwrap/shred) against the
   C++ `LocalKeyProvider`. Loading an existing store records no KEK
   generation (as C++).
+  Same file modes as C++: store + sidecar `0600` via `os.open(..., 0o600)` +
+  `fchmod`; a loose existing one raises `LocalKeyStoreInsecure` (same message
+  shape); skipped on Windows.
 - `runtime/python/key_provider_kms.py` → `harpia_runtime.crypto.key_provider_kms`
   (task 2): `KmsClient` ABC (`active_version`/`wrap`/`unwrap`/`rotate` over
   bytes + int version), `KmsKeyProvider(kms, audit_sink=None)` (routes,
