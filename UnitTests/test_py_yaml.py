@@ -10,8 +10,8 @@ generated ``pyproject.toml`` has no PyYAML dependency.
 C++ parity (+ g++): for every fixture message (populated / empty / sparse)
 ``to_yaml`` is byte-identical to the C++ runtime, ``from_yaml`` of the C++
 output equals the original, the C++ reader parses Python's output back to
-the original, and ``from_yaml``'s bool return matches C++ everywhere except
-the documented ``{}`` case.
+the original, and ``from_yaml``'s bool return matches C++ everywhere,
+including the empty document ``{}`` (cpp-yaml-empty-mapping-DEFECT).
 """
 import importlib
 import os
@@ -89,11 +89,6 @@ def test_to_yaml_byte_identical_to_cpp(gen, env):
         assert back == m, name
 
 
-def _cpp_return(text):
-    """C++ from_yaml's documented-vs-actual gap: "{}" is True here, false in C++."""
-    return text != "{}\n"
-
-
 @pytest.mark.skipif(not P.HAVE_CPP, reason=P.SKIP_CPP)
 def test_from_yaml_return_matches_cpp(gen, env):
     y, msgs = env
@@ -101,11 +96,15 @@ def test_from_yaml_return_matches_cpp(gen, env):
     texts = [y.to_yaml(m) for _, m in cases]
     res = P.run(gen, [("from_yaml", n, t.encode()) for (n, _), t in zip(cases, texts)])
     for (name, _), text, (ok, _) in zip(cases, texts, res):
-        py_ok = y.from_yaml(text, msgs[name]())
-        if text == "{}\n":
-            assert py_ok and not ok, name
-        else:
-            assert py_ok == ok, name
+        assert y.from_yaml(text, msgs[name]()) == ok, name
+    assert "{}\n" in texts  # the empty-document case is really exercised
+    # the bare empty document, for every type: both True, nothing merged
+    names = sorted(msgs)
+    res = P.run(gen, [("from_yaml", n, b"{}") for n in names])
+    for name, (ok, out) in zip(names, res):
+        fresh = msgs[name]()
+        assert ok and y.from_yaml("{}", fresh), name
+        assert msgs[name].FromString(out) == msgs[name](), name
 
 
 @pytest.mark.skipif(not P.HAVE_CPP, reason=P.SKIP_CPP)

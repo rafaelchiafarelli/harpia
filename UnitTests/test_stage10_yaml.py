@@ -206,3 +206,47 @@ def test_yaml_map_roundtrip(built):
         "}}\n")
     assert run.returncode == 0, "map round-trip failed at #{}\n{}".format(
         run.returncode, run.stderr)
+
+
+def test_yaml_empty_mapping_document(built):
+    """cpp-yaml-empty-mapping-DEFECT: from_yaml accepts "{}" (bare, with a
+    newline, after a "---" marker, trailing blanks) at column 0 as a valid empty message -- true,
+    message left default -- as its own header comment and the Python runtime
+    say. (to_yaml writes a top-level "{}" only when no field is emitted, i.e.
+    every field has presence and is unset; proto3 scalars are always
+    written, so the fixture has no such message.)"""
+    run = _build_run(built, "users",
+        "int main() {\n"
+        "    ::users empty;\n"
+        "    const std::string y = harpia::yaml::to_yaml(empty);\n"
+        '    const char* docs[] = {"{}", "{}\\n", "---\\n{}\\n", "{}   \\n"};\n'
+        "    int code = 10;\n"
+        "    for (const char* d : docs) {\n"
+        "        ::users m; m.set_name(\"stale\");\n"
+        "        m.Clear();\n"
+        "        if (!harpia::yaml::from_yaml(d, &m)) return code;\n"
+        "        if (m.SerializeAsString() != empty.SerializeAsString()) return code + 1;\n"
+        "        code += 2;\n"
+        "    }\n"
+        "    ::users r; if (!harpia::yaml::from_yaml(y, &r)) return 2;\n"
+        "    return 0;\n"
+        "}\n")
+    assert run.returncode == 0, "empty-mapping check failed at #{}\n{}".format(
+        run.returncode, run.stderr)
+
+
+def test_yaml_unknown_keys_only_is_rejected(built):
+    """The "not our format" signal survives the {} fix: a document whose only
+    keys match no field, or a non-{} flow value, still returns false."""
+    run = _build_run(built, "users",
+        "int main() {\n"
+        '    const char* docs[] = {"nope: 1\\n", "{a: 1}\\n", "{} extra\\n", "[]\\n"};\n'
+        "    int code = 1;\n"
+        "    for (const char* d : docs) {\n"
+        "        ::users m; if (harpia::yaml::from_yaml(d, &m)) return code;\n"
+        "        ++code;\n"
+        "    }\n"
+        "    return 0;\n"
+        "}\n")
+    assert run.returncode == 0, "rejection check failed at #{}\n{}".format(
+        run.returncode, run.stderr)
