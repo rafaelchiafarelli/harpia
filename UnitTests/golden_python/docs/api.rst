@@ -1081,6 +1081,12 @@ harpia_runtime.soap
 .. automodule:: harpia_runtime.soap
    :members:
 
+harpia_runtime.testing
+----------------------
+
+.. automodule:: harpia_runtime.testing
+   :members:
+
 harpia_runtime.tls
 ------------------
 
