@@ -142,6 +142,17 @@ Returns `None` (always — the artifacts are always meaningful; no
   **Decision (log 41):** the Python project is a *component*, not a
   `metadata.component` sub-entry — `metadata` stays the schema project.
   A C++-only run's `bom.json` is unchanged (`python_target` defaults False).
+- **Traceability (task 2):** `Req` gains `py_mechanism` / `py_test_refs`
+  (the Python target's mechanism + `UnitTests/test_py_*.py` evidence) and
+  `python_run_only`. A python run's rows add `python_mechanism` /
+  `python_evidence` (**decision, log 42: one row, two evidence lists**; the
+  Markdown cell reads `**C++:** … <br>**Python:** …`). Weaker Python
+  mechanisms say `WEAKER THAN C++` (R1-ENC best-effort zeroization;
+  TRANSPORT-MTLS-RBAC gRPC mixed mode). Four transport-security requirements
+  (TRANSPORT-MTLS-RBAC, ZMQ-ZAP, SESSIONS, DDS-SECURITY) had no catalog
+  entry; they are `python_run_only` (both targets' evidence) so a C++-only
+  run's matrix stays byte-identical — listing them for C++ too is a golden
+  change left for Rafael.
 - **Known gap (not fixed here):** a `java` run does not list the generated
   Gradle project's dependencies (grpc-java, protobuf-java, sqlite-jdbc,
   jeromq, …) — pre-existing.

@@ -284,10 +284,12 @@ class ComplianceReport:
     def _traceability_rows(self):
         """One row per (schema construct, applicable compliance requirement).
         Deterministic, no timestamp -- golden-snapshotted."""
-        phi_reqs       = [r for r in REQUIREMENTS if r.applies_to == "phi_field"]
-        phi_table_reqs = [r for r in REQUIREMENTS if r.applies_to == "phi_field_table"]
-        crit_reqs      = [r for r in REQUIREMENTS if r.applies_to == "critical_message"]
-        project_reqs   = [r for r in REQUIREMENTS if r.applies_to == "project"]
+        catalog = [r for r in REQUIREMENTS
+                   if self.python_target or not r.python_run_only]
+        phi_reqs       = [r for r in catalog if r.applies_to == "phi_field"]
+        phi_table_reqs = [r for r in catalog if r.applies_to == "phi_field_table"]
+        crit_reqs      = [r for r in catalog if r.applies_to == "critical_message"]
+        project_reqs   = [r for r in catalog if r.applies_to == "project"]
 
         rows = []
 
@@ -300,6 +302,11 @@ class ComplianceReport:
                 "mechanism": req.mechanism,
                 "evidence": list(req.test_refs),
             })
+            # python-target: one row, both targets' evidence (C++-only rows
+            # keep their exact shape)
+            if self.python_target and req.py_mechanism:
+                rows[-1]["python_mechanism"] = req.py_mechanism
+                rows[-1]["python_evidence"] = list(req.py_test_refs)
 
         for msg in self.messages or []:
             if getattr(msg, "isEnum", False):
@@ -337,6 +344,11 @@ def _traceability_table(rows):
         req = "**{}** -- {}".format(r["requirement_id"],
                                     r["requirement"].replace("|", "\\|"))
         mech = r["mechanism"].replace("|", "\\|")
+        if "python_mechanism" in r:  # python-target: both targets in one row
+            mech = "**C++:** {}<br>**Python:** {}".format(
+                mech, r["python_mechanism"].replace("|", "\\|"))
+            evidence += "<br>" + "<br>".join(
+                "`{}` (Python)".format(e) for e in r["python_evidence"])
         lines.append("| `{}` | {} | {} | {} | {} |".format(
             r["construct"], req, r["rule_ref"], mech, evidence))
     return "\n".join(lines)
