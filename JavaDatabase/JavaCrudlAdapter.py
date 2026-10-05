@@ -112,6 +112,10 @@ class JavaCrudlAdapter:
         insert_sql = 'INSERT INTO "{}" ({}) VALUES ({})'.format(table, col_names_sql, placeholders)
         select_all_sql = 'SELECT {} FROM "{}"'.format(col_names_sql, table)
         select_by_pk_sql = '{} WHERE "{}" = ?'.format(select_all_sql, pk.name)
+        # list() orders by the key, as the C++ and Python DAOs: no ORDER BY
+        # means no defined order (PostgreSQL heap order shifts after an
+        # UPDATE) -- cpp-dao-list-order-DEFECT
+        select_list_sql = '{} ORDER BY "{}"'.format(select_all_sql, pk.name)
         set_clause = ", ".join('"{}" = ?'.format(c.name) for c in non_pk)
         update_sql = 'UPDATE "{}" SET {} WHERE "{}" = ?'.format(table, set_clause, pk.name)
         delete_sql = 'DELETE FROM "{}" WHERE "{}" = ?'.format(table, pk.name)
@@ -141,7 +145,7 @@ class JavaCrudlAdapter:
             pk_setter=pk_setter,
             insert_sql=_escape_java(insert_sql),
             select_by_pk_sql=_escape_java(select_by_pk_sql),
-            select_all_sql=_escape_java(select_all_sql),
+            select_list_sql=_escape_java(select_list_sql),
             update_sql=_escape_java(update_sql),
             delete_sql=_escape_java(delete_sql),
             create_table_sql=_escape_java(create_table_sql),
