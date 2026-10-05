@@ -53,6 +53,10 @@ class SqliteBackend(DbBackend):
     def int_type(self):
         return "INTEGER"
 
+    # -- DB-API parameter style (Python target) ---------------------------------
+    def param_placeholder(self):
+        return "?"  # sqlite3 (DB-API paramstyle qmark)
+
     # -- columns & tables -----------------------------------------------------
     def column_def(self, sql_type, *, pk=False, required=False, unique=False):
         # Caller-assigned PK -- a plain rowid alias, NOT AUTOINCREMENT. The id
@@ -119,6 +123,9 @@ class SqliteBackend(DbBackend):
         return 'ALTER TABLE "{}" RENAME COLUMN "{}" TO "{}";'.format(
             table, old, new)
 
+    def drop_column_sql(self, table, name):
+        return 'ALTER TABLE "{}" DROP COLUMN "{}";'.format(table, name)
+
     def drop_column_dynamic(self, table, name_expr):
         return '"ALTER TABLE \\"{}\\" DROP COLUMN \\"" + {} + "\\";"'.format(
             table, name_expr)
@@ -147,12 +154,7 @@ class SqliteBackend(DbBackend):
     def drop_table_dynamic(self, name_expr):
         return '"DROP TABLE \\"" + {} + "\\";"'.format(name_expr)
 
-    def retype_rep_child_dynamic(self, child, owner_type, val_sql):
-        # No ALTER COLUMN ... TYPE in SQLite: rebuild the (owner, ordinal,
-        # value) child table with "value" at the current element type,
-        # CASTing every row across. Guarded by the child's live "value" type
-        # so an already-current table is untouched.
-        types_sql = self.list_column_types_sql(child)
+    def _rep_rebuild_sql(self, child, owner_type, val_sql):
         tmp = "{}__retype_tmp".format(child)
         create_sql = ('CREATE TABLE "{}" ("owner" {}, "ordinal" INTEGER, '
                       '"value" {}, PRIMARY KEY("owner", "ordinal"));').format(
@@ -162,6 +164,21 @@ class SqliteBackend(DbBackend):
                           tmp, val_sql, child)
         drop_sql = 'DROP TABLE "{}";'.format(child)
         rename_sql = 'ALTER TABLE "{}" RENAME TO "{}";'.format(tmp, child)
+        return [create_sql, insert_sql, drop_sql, rename_sql]
+
+    def rep_child_plan(self, child, owner_type, val_sql):
+        return {"types_sql": self.list_column_types_sql(child),
+                "steps": [([("value", val_sql)],
+                           self._rep_rebuild_sql(child, owner_type, val_sql))]}
+
+    def retype_rep_child_dynamic(self, child, owner_type, val_sql):
+        # No ALTER COLUMN ... TYPE in SQLite: rebuild the (owner, ordinal,
+        # value) child table with "value" at the current element type,
+        # CASTing every row across. Guarded by the child's live "value" type
+        # so an already-current table is untouched.
+        types_sql = self.list_column_types_sql(child)
+        create_sql, insert_sql, drop_sql, rename_sql = self._rep_rebuild_sql(
+            child, owner_type, val_sql)
         return (
             '        {{\n'
             '            std::map<std::string, std::string> _rct;\n'
@@ -183,11 +200,7 @@ class SqliteBackend(DbBackend):
                  insert=_esc(insert_sql), drop=_esc(drop_sql),
                  rename=_esc(rename_sql))
 
-    def retype_map_child_dynamic(self, child, owner_type, key_sql, val_sql):
-        # As retype_rep_child_dynamic, for a (owner, key, value) map child
-        # table: either the key or the value type may have moved, so guard
-        # on both. SQLite still has no ALTER COLUMN ... TYPE -> rebuild.
-        types_sql = self.list_column_types_sql(child)
+    def _map_rebuild_sql(self, child, owner_type, key_sql, val_sql):
         tmp = "{}__retype_tmp".format(child)
         create_sql = ('CREATE TABLE "{}" ("owner" {}, "key" {}, "value" {}, '
                       'PRIMARY KEY("owner", "key"));').format(
@@ -197,6 +210,20 @@ class SqliteBackend(DbBackend):
                       'FROM "{}";').format(tmp, key_sql, val_sql, child)
         drop_sql = 'DROP TABLE "{}";'.format(child)
         rename_sql = 'ALTER TABLE "{}" RENAME TO "{}";'.format(tmp, child)
+        return [create_sql, insert_sql, drop_sql, rename_sql]
+
+    def map_child_plan(self, child, owner_type, key_sql, val_sql):
+        return {"types_sql": self.list_column_types_sql(child),
+                "steps": [([("key", key_sql), ("value", val_sql)],
+                           self._map_rebuild_sql(child, owner_type, key_sql, val_sql))]}
+
+    def retype_map_child_dynamic(self, child, owner_type, key_sql, val_sql):
+        # As retype_rep_child_dynamic, for a (owner, key, value) map child
+        # table: either the key or the value type may have moved, so guard
+        # on both. SQLite still has no ALTER COLUMN ... TYPE -> rebuild.
+        types_sql = self.list_column_types_sql(child)
+        create_sql, insert_sql, drop_sql, rename_sql = self._map_rebuild_sql(
+            child, owner_type, key_sql, val_sql)
         return (
             '        {{\n'
             '            std::map<std::string, std::string> _mct;\n'
@@ -219,6 +246,34 @@ class SqliteBackend(DbBackend):
                  create=_esc(create_sql), insert=_esc(insert_sql),
                  drop=_esc(drop_sql), rename=_esc(rename_sql))
 
+    def _composed_rebuild_sql(self, child, owner_type, columns):
+        tmp = "{}__evolve_tmp".format(child)
+        data_defs = "".join(', "{}" {}'.format(n, t) for n, t, _d in columns)
+        create_sql = ('CREATE TABLE "{}" ("owner" {}, "ordinal" INTEGER{}, '
+                      'PRIMARY KEY("owner", "ordinal"));').format(
+                          tmp, owner_type, data_defs)
+        collist = ", ".join('"{}"'.format(n)
+                            for n in ["owner", "ordinal"] + [c[0] for c in columns])
+        sellist = ", ".join(['"owner"', '"ordinal"']
+                            + ['CAST("{}" AS {})'.format(n, t)
+                               for n, t, _d in columns])
+        insert_sql = 'INSERT INTO "{}" ({}) SELECT {} FROM "{}";'.format(
+            tmp, collist, sellist, child)
+        drop_sql = 'DROP TABLE "{}";'.format(child)
+        rename_sql = 'ALTER TABLE "{}" RENAME TO "{}";'.format(tmp, child)
+        return [create_sql, insert_sql, drop_sql, rename_sql]
+
+    def composed_child_plan(self, child, owner_type, columns):
+        # SQLite: ADD missing data columns, then ONE rebuild if a live data
+        # column is a stray or any type drifted (the rebuild drops strays).
+        columns = list(columns)
+        return {"types_sql": self.list_column_types_sql(child),
+                "adds": [(n, self.add_column(child, n, d)) for n, _t, d in columns],
+                "keep": ["owner", "ordinal"] + [c[0] for c in columns],
+                "strays": "rebuild",
+                "steps": [([(n, t) for n, t, _d in columns],
+                           self._composed_rebuild_sql(child, owner_type, columns))]}
+
     def evolve_rep_composed_child_dynamic(self, child, owner_type, columns):
         # A repeated-composed child table has one data column per the
         # table-less target's own flattened field, so its columns evolve
@@ -238,20 +293,8 @@ class SqliteBackend(DbBackend):
         type_checks = "".join(
             '\n                if (_ect.count("{n}") && _ect["{n}"] != "{t}") '
             '_erebuild = true;'.format(n=name, t=t) for name, t, _d in columns)
-        tmp = "{}__evolve_tmp".format(child)
-        data_defs = "".join(', "{}" {}'.format(n, t) for n, t, _d in columns)
-        create_sql = ('CREATE TABLE "{}" ("owner" {}, "ordinal" INTEGER{}, '
-                      'PRIMARY KEY("owner", "ordinal"));').format(
-                          tmp, owner_type, data_defs)
-        collist = ", ".join('"{}"'.format(n)
-                            for n in ["owner", "ordinal"] + [c[0] for c in columns])
-        sellist = ", ".join(['"owner"', '"ordinal"']
-                            + ['CAST("{}" AS {})'.format(n, t)
-                               for n, t, _d in columns])
-        insert_sql = 'INSERT INTO "{}" ({}) SELECT {} FROM "{}";'.format(
-            tmp, collist, sellist, child)
-        drop_sql = 'DROP TABLE "{}";'.format(child)
-        rename_sql = 'ALTER TABLE "{}" RENAME TO "{}";'.format(tmp, child)
+        create_sql, insert_sql, drop_sql, rename_sql = self._composed_rebuild_sql(
+            child, owner_type, columns)
         return (
             '        {{\n'
             '            std::set<std::string> _ec;\n'
@@ -283,18 +326,7 @@ class SqliteBackend(DbBackend):
                  insert=_esc(insert_sql), drop=_esc(drop_sql),
                  rename=_esc(rename_sql))
 
-    def retype_column_dynamic(self, table, columns):
-        # SQLite has no ALTER COLUMN ... TYPE at all, so a real type change
-        # needs a whole-table rebuild: create a tmp table with the CURRENT
-        # schema, copy every row across with a CAST per column, drop the old
-        # table, rename the tmp one into place. Only worth doing when at
-        # least one column's live type actually differs -- one bool guards
-        # the whole block, checked against every column up front.
-        columns = list(columns)
-        checks = "\n".join(
-            '            if (have_types.count("{n}") && have_types["{n}"] '
-            '!= "{t}") _needs_retype = true;'.format(n=name, t=sql_type)
-            for name, sql_type, _column_def in columns)
+    def _retype_rebuild_sql(self, table, columns):
         tmp = "{}__retype_tmp".format(table)
         create_sql = self.create_table(
             tmp, [(name, column_def) for name, _sql_type, column_def in columns],
@@ -307,6 +339,29 @@ class SqliteBackend(DbBackend):
             tmp, col_list, select_list, table)
         drop_sql = self.drop_table(table, if_exists=False)
         rename_sql = 'ALTER TABLE "{}" RENAME TO "{}";'.format(tmp, table)
+        return [create_sql, insert_sql, drop_sql, rename_sql]
+
+    def retype_plan(self, table, columns):
+        # SQLite: one whole-table rebuild when any column's live type differs
+        columns = list(columns)
+        return {"types_sql": self.list_column_types_sql(table),
+                "steps": [([(n, t) for n, t, _d in columns],
+                           self._retype_rebuild_sql(table, columns))]}
+
+    def retype_column_dynamic(self, table, columns):
+        # SQLite has no ALTER COLUMN ... TYPE at all, so a real type change
+        # needs a whole-table rebuild: create a tmp table with the CURRENT
+        # schema, copy every row across with a CAST per column, drop the old
+        # table, rename the tmp one into place. Only worth doing when at
+        # least one column's live type actually differs -- one bool guards
+        # the whole block, checked against every column up front.
+        columns = list(columns)
+        checks = "\n".join(
+            '            if (have_types.count("{n}") && have_types["{n}"] '
+            '!= "{t}") _needs_retype = true;'.format(n=name, t=sql_type)
+            for name, sql_type, _column_def in columns)
+        create_sql, insert_sql, drop_sql, rename_sql = self._retype_rebuild_sql(
+            table, columns)
         return (
             '        bool _needs_retype = false;\n'
             '{checks}\n'

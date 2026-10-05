@@ -185,3 +185,67 @@ def test_rewrite_is_stable_when_nothing_changed(tmp_path, monkeypatch):
     ComplianceReport(messages=[], dest=str(tmp_path),
                      compliance=_context()).Process()
     assert os.stat(bom_path).st_mtime_ns == mtime1
+
+
+# -- python-target / py-artifacts task 1: Python components ------------------
+
+def _emit_python(dest, compliance=None):
+    assert ComplianceReport(messages=[], dest=str(dest), compliance=compliance,
+                            python_target=True).Process() is None
+    with open(os.path.join(str(dest), "generated", "ComplianceReport", SBOM_FILENAME)) as f:
+        return json.load(f)
+
+
+def test_python_components_listed_and_schema_valid(tmp_path, schema):
+    import re
+    from PyAdapter.dependencies import RUNTIME_DEPENDENCIES
+    bom = _emit_python(tmp_path, _context())
+    comp_def = schema["definitions"]["component"]
+    py = [c for c in bom["components"] if c["bom-ref"].startswith("pypi:")]
+    assert {c["name"] for c in py} == \
+        {"harpia-generated"} | {d.name for d in RUNTIME_DEPENDENCIES}
+    assert {d.name for d in RUNTIME_DEPENDENCIES} == \
+        {"protobuf", "grpcio", "pyzmq", "psycopg", "cyclonedds"}
+    refs = [c["bom-ref"] for c in bom["components"]]
+    assert len(refs) == len(set(refs))  # pypi:protobuf next to lib:protobuf
+    for c in py:
+        for key in comp_def["required"]:
+            assert key in c
+        assert c["type"] in comp_def["properties"]["type"]["enum"]
+        assert c["version"] and c["version"] != components.UNKNOWN
+        assert re.fullmatch(r"pkg:pypi/[a-z0-9-]+(@[0-9][0-9.]*)?", c["purl"]), c["purl"]
+        if "scope" in c:
+            assert c["scope"] in comp_def["properties"]["scope"]["enum"]
+    by = {c["name"]: c for c in py}
+    assert by["cyclonedds"]["version"] == "0.10.5"
+    assert by["cyclonedds"]["purl"] == "pkg:pypi/cyclonedds@0.10.5"
+    assert by["protobuf"]["version"] == ">=4.21.12,<5"   # the declared range
+    assert by["protobuf"]["purl"] == "pkg:pypi/protobuf"  # no single version
+    assert by["protobuf"]["scope"] == "required"
+    assert by["psycopg"]["scope"] == "optional"
+    assert by["psycopg"]["properties"] == [{"name": "harpia:python_extra",
+                                            "value": "postgres"}]
+    assert by["harpia-generated"]["type"] == "application"
+    names = [c["name"] for c in bom["components"]]
+    assert names == sorted(names)
+
+
+def test_cpp_only_bom_unchanged_by_the_python_feature(tmp_path, monkeypatch):
+    monkeypatch.setattr("ComplianceReport.ComplianceReport._rfc3339_now",
+                        lambda: "2026-01-01T00:00:00Z")
+    default, path = _emit(tmp_path / "a", _context())
+    explicit = ComplianceReport(messages=[], dest=str(tmp_path / "b"), compliance=_context(),
+                                python_target=False)
+    assert explicit.Process() is None
+    with open(os.path.join(str(tmp_path / "b"), "generated", "ComplianceReport",
+                           SBOM_FILENAME)) as f:
+        assert json.load(f) == default
+    assert not any(c["bom-ref"].startswith("pypi:") for c in default["components"])
+
+
+def test_pyproject_renders_the_declared_dependencies():
+    from PyAdapter.dependencies import RUNTIME_DEPENDENCIES, pyproject_fills
+    fills = pyproject_fills()
+    for d in RUNTIME_DEPENDENCIES:
+        line = '"{}{}"'.format(d.name, d.specifier)
+        assert line in (fills["dependencies"] if d.extra is None else fills["extras"])

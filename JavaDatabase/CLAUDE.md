@@ -1,10 +1,10 @@
 # JavaDatabase — Java target: JDBC bind/extract runtime + CRUDL DAO generation
 
 **Pipeline role:** Java-target Stage 8 equivalent (sessions J.5/J.6/J.7, `Initiatives/multi-language-targets/thread-1-java-target`, landed together — see their history files). Reuses `Database/model.py`'s language-agnostic `type_registry()`/`analyze()` IR as-is to derive columns, then generates a per-table-bearing-message CRUDL DAO against a reflection-based JDBC bind/extract runtime.
-**Entry points (from main.py):** both gated behind `HARPIA_GEN_LANG=java`, called right after `JavaJsonAdapter` in the same block, sharing the SAME `dbBackend` the C++ Stage-8 calls later in `main.py` use (resolved once, moved earlier in the file for this reason):
+**Entry points (from `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`)):** both called right after `JavaJsonAdapter`, sharing the SAME `DbBackend` (`ctx.db_backend`) the C++ Stage-8 calls in `LangBackend/cpp.py` use (resolved once in `main.py`):
 - `JavaDbAdapter(messages=msgFactory.messages, dest=testDestination, compliance=complianceContext).Process()` — ships the runtime.
 - `JavaCrudlAdapter(messages=msgFactory.messages, dest=testDestination, backend=dbBackend, compliance=complianceContext).Process()` — generates the DAOs.
-Both return `None` or an `Error` (non-fatal; main.py logs it).
+Both return `None` or an `Error` (non-fatal; `ctx.report` logs it).
 **Inputs → Outputs:** `JavaDbAdapter` emits `<dest>/java/src/main/java/com/harpia/runtime/db/JdbcBind.java`. `JavaCrudlAdapter` emits `<dest>/java/src/main/java/com/harpia/generated/db/<name>_dao.java` for every message with a `tableName`.
 
 ## Files
@@ -28,13 +28,13 @@ Only top-level scalar/enum columns (`analyze()` output where `Column.embed` is `
 `JavaCrudlAdapter`'s `CREATE_TABLE_SQL` declares **only** the `usable` columns — NOT the full schema `Database/SqlAdapter.py` already writes to `<dest>/database/<name>_<hash>_table.sql` for the C++ target (unconditionally, regardless of `HARPIA_GEN_LANG`). Reusing that full schema instead would mean the Java DAO's `INSERT` violates a `NOT NULL` constraint on any `REQUIRED` deferred column it never binds. So for a message with any deferred column, **the Java target's own SQLite table has fewer columns than the C++ target's table of the same name** — self-consistent on its own terms, a real and disclosed divergence, not a bug. `users`/`beacon_log`/`crew`/`patient_vitals` (all-scalar messages) have no deferred columns, so their Java and C++ schemas match exactly.
 
 ## Key facts / gotchas
-- `dbBackend` is resolved once in `main.py`, **before** the `HARPIA_GEN_LANG` block (moved there from its original spot next to the C++ Stage-8 calls) specifically so both targets share the identical `DbBackend` for a given run — `HARPIA_DB_BACKEND=postgresql` picks Postgres for both, not just C++.
+- `dbBackend` is resolved once in `main.py`, **before** the language backend runs, and carried on the `GenerationContext` specifically so every target shares the identical `DbBackend` for a given run — `HARPIA_DB_BACKEND=postgresql` picks Postgres for both, not just C++.
 - The primary-key column's Java parameter type (`read(int id, ...)`/`remove(int id)`) is derived from `pk.kind` via a `kind -> Java primitive` map, not hardcoded to `int` — in practice it's always `int` (every `ID_<hash>` is `INT32` per the front-end's own injection, confirmed against the golden `.proto` output), but deriving it keeps the generator correct if that ever changes rather than silently wrong.
 - `create()`/`update()` bind the PK explicitly, matching the C++/SOCI convention (`Database/backends/sqlite.py`'s `column_def()`: "Caller-assigned PK... The id is set by the caller and bound on INSERT, so no auto-generation is introduced") — the DB never assigns it.
 - DAO methods return `boolean` (found/not-found, or insert/update affected a row) but let `SQLException` propagate on a real error, rather than swallowing it into a `false` return the way the C++/SOCI side's `try`/`catch`-wrapped bool return might read at a glance — a deliberate Java-idiom choice (checked exceptions for real failures, boolean only for the affirmatively boolean "did a row exist" question), not an attempt to mirror the C++ signature byte for byte.
 
 ## Touchpoints
-- Called by: `main.py`, gated on `HARPIA_GEN_LANG=java`, right after `JavaJsonAdapter` in the same conditional block; `JavaCrudlAdapter` additionally needs `dbBackend` (see above).
+- Called by: `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`), right after `JavaJsonAdapter` in the same stage list; `JavaCrudlAdapter` additionally needs `dbBackend` (see above).
 - Depends on: `Database.model` (`type_registry`, `analyze` — NOT `map_fields`/`repeated_fields`, not called this session), `Database.backends.DbBackend` (`create_table`/`drop_table`/`column_def` — via `Column.sql_def()`), `Util.util.write_if_different`/`copy_if_different`/`loadTemplate`, `Logger.logger`, `Errors.Error`.
 - Consumed by: whichever future session lifts the embed/FK/map/repeated deferral — that's extending `JavaCrudlAdapter`'s column filter, not a new adapter.
 
@@ -54,3 +54,7 @@ test_java_db_crudl_postgres.py` is opt-in (`HARPIA_PG_DSN` + gradle/JDK),
 same posture as `UnitTests/test_stage8_pg.py` on the C++ side — parses the
 same libpq-style DSN into a JDBC URL rather than introducing a parallel
 Postgres-config mechanism.
+
+## Known findings (python-target / tri-language-interop task 2, not fixed here)
+- **`JdbcBind.extract` NPEs on a NULL text column**: `STRING` passes `rs.getString(...)` straight to `Builder.setField`, and protobuf refuses `null`. C++ and Python read NULL as the default. A row that predates a C++/Python migration has NULL in every column the migration added, so a Java DAO can't read it (`UnitTests/test_db_xlang3.py::test_*_java_reads_pre_migration_row`, strict xfail). Fixing it moves `UnitTests/golden_java/` bytes. Logged as item 44 in `Initiatives/python-target/NEXT_SESSION.md`.
+- The per-DAO "Deferred columns" header lists embed/FK columns only. A message whose map/repeated fields live in child tables (`telemetry`, `shipment`, `data`'s maps) is labelled `none` (or lists only its embeds), even though Java never reads or writes those child tables (see "Deliberately reduced scope" above). `test_db_xlang3.py` therefore derives Java's scope from the Python DAO's `COLUMNS`/`CHILDREN`/`PHI_FIELDS`, not from this header.
