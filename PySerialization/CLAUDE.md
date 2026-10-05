@@ -66,9 +66,8 @@ through `PyAdapter.runtime_copy.copy_runtime_module`. Always returns `None`.
   `[REDACTED]` (C++ behaves the same; the task text said "default").
 - **YAML known differences from the C++ reader** (found 2026-10-04; the C++
   runtime was not changed — flagged to Rafael):
-  - `from_yaml("{}")` (to_yaml's empty document) returns `True` in Python,
-    as the task and the C++ header comment specify; the C++ code returns
-    `false` (no line matched a field).
+  - (fixed, cpp-yaml-empty-mapping-DEFECT) `from_yaml("{}")` — to_yaml's
+    empty document at column 0 — returns `True` in both runtimes now.
   - A map with a negative integer key (`-5: ...`) round-trips in neither
     runtime: the key line starts with `-` and reads as a sequence item. The
     parity fixture therefore uses non-negative map keys.
