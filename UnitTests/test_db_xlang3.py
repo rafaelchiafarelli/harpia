@@ -524,10 +524,14 @@ def test_java_scope_is_asserted(sqlite_side):
             assert all(c in deferred for c in nested), (n, nested, deferred)
             reasons.append("embed/fk")
         if dao_cls.CHILDREN:
-            # the Java DAO never touches the child tables (its header's
-            # deferred list doesn't name them -- NEXT_SESSION item 44)
+            # the Java DAO never touches the child tables: its header's
+            # "Child tables" line names each one (java-jdbc-null-text-DEFECT
+            # task 2) and no code below the header mentions them
+            children = re.search(r"Child tables \(.*\): (.*)", src).group(1)
+            body = src.split("package ", 1)[1]
             for child in dao_cls.CHILDREN:
-                assert child.insert_sql.split('"')[1] not in src, (n, child)
+                table = child.insert_sql.split('"')[1]
+                assert table in children and table not in body, (n, child)
             reasons.append("children")
         if getattr(dao_cls, "PHI_FIELDS", ()):
             assert "KeyProvider" not in src and "enc:v1" not in src, n
