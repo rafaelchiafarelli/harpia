@@ -1,0 +1,19 @@
+
+def test_all_good(tmp_path: Path) -> None:
+    # the RBAC-gated HTTP surface needs an mTLS identity this in-process
+    # harness can't present: the cross-layer round trip goes DAO +
+    # serializers, and the HTTP check proves the gate is fail-closed
+    pool = _pool(tmp_path)
+    first = testing.sample({name}, "a", pk=1)
+    with pool.borrow() as conn:
+        dao = {name}_dao(conn)
+        assert dao.create(first)
+        got = {name}()
+        assert dao.read(1, got)
+        assert (testing.persisted_view({name}_dao, got)
+                == testing.persisted_view({name}_dao, first))
+    round_trip = {name}()
+    assert from_json(to_json(first), round_trip) and round_trip == first
+    with testing.serve(pool, rest=[rest.register], soap=[soap.register]) as port:
+        assert testing.request(port, "POST", "/api/v1/{name}", to_json(first),
+                               {{"Content-Type": "application/json"}})[0] == 401

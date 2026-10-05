@@ -60,6 +60,34 @@ ENVIRONMENT = [
      [["pkg-config", "--modversion", "libzmq"]]),
 ]
 
+# python-target / py-artifacts task 1: the generated Python project's runtime
+# dependencies, listed only when the python backend ran. Declared once in
+# PyAdapter.dependencies (which also renders pyproject.toml) and imported
+# here -- never scraped back out of the rendered file.
+from PyAdapter.dependencies import RUNTIME_DEPENDENCIES as PYTHON_RUNTIME  # noqa: E402
+
+#: the generated Python package itself (pyproject.toml ``[project]``)
+PYTHON_PROJECT_NAME = "harpia-generated"
+PYTHON_PROJECT_VERSION = "0.0.0"
+
+
+def python_version(specifier):
+    """The SBOM version of a declared PyPI specifier: the exact version for
+    an ``==`` pin, otherwise the declared range itself (``">=4.21.12,<5"``);
+    ``UNKNOWN`` when nothing is declared."""
+    if not specifier:
+        return UNKNOWN
+    return specifier[2:] if specifier.startswith("==") else specifier
+
+
+def python_purl(name, specifier):
+    """``pkg:pypi/<name>@<version>`` for an exact pin; a range has no single
+    version, so its purl names the package only (``pkg:pypi/<name>``)."""
+    if specifier.startswith("=="):
+        return "pkg:pypi/{}@{}".format(name.lower(), specifier[2:])
+    return "pkg:pypi/{}".format(name.lower())
+
+
 _VER_RE = re.compile(r"(\d+(?:\.\d+){1,3})")
 
 
