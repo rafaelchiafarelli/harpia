@@ -224,3 +224,77 @@ def test_cpp_writes_python_reads_and_back(gen, cpp_vitals, tmp_path):
     out = subprocess.run([cpp_vitals, str(db), str(store), "read", "4"], capture_output=True,
                          text=True, check=True, timeout=60).stdout.strip()
     assert out == "py-patient|58.50|from python"
+
+
+# -- cpp-phi-numeric-column-type-DEFECT task 2: a legacy numeric phi column ----
+# An older generation made heart_rate REAL; SQLite still held the enc:v1: text
+# the DAO wrote (type affinity). The generated migration must retype it to
+# TEXT and every row must still decrypt -- in C++ and in Python alike.
+
+_LEGACY_VITALS = ('CREATE TABLE "patient_vitals_table" ("{pk}" INTEGER PRIMARY KEY, '
+                  '"patient_id" TEXT, "heart_rate" REAL NOT NULL, "device_note" TEXT, '
+                  '"STATUS_{h}" TEXT, "ERROR_{h}" TEXT, "ORIGINATOR" TEXT)').format(pk=PK, h=HASH)
+
+_CPP_MIG = r'''
+#include <soci/soci.h>
+#include <soci/sqlite3/soci-sqlite3.h>
+#include "migrate/patient_vitals_%(h)s_migrate.h"
+int main(int, char** argv) {
+    ::soci::session db(::soci::sqlite3, argv[1]);
+    return ::harpia::db::migrate_patient_vitals(db) ? 0 : 1;
+}
+'''
+
+
+@pytest.fixture(scope="module")
+def cpp_vitals_migrate(gen, tmp_path_factory):
+    if not HAVE_SOCI:
+        pytest.skip("needs g++ + SOCI sqlite3 + protobuf")
+    cpp_root = os.path.join(gen, "generated", "cpp")
+    d = tmp_path_factory.mktemp("cpp_phi_mig")
+    (d / "m.cpp").write_text(_CPP_MIG % {"h": HASH})
+    flags = subprocess.run(["pkg-config", "--cflags", "--libs", "protobuf"],
+                           capture_output=True, text=True, check=True).stdout.split()
+    pb = os.path.join(cpp_root, "protofiles", "patient_vitals_{}.pb.cc".format(HASH))
+    exe = d / "m"
+    c = subprocess.run(["g++", "-std=c++17", "-I", cpp_root, str(d / "m.cpp"), pb, "-o", str(exe),
+                        "-lsoci_core", "-lsoci_sqlite3", *flags, "-lpthread", "-ldl"],
+                       capture_output=True, text=True, timeout=300)
+    assert c.returncode == 0, c.stderr
+    return str(exe)
+
+
+@pytest.mark.parametrize("migrator", ["cpp", "python"])
+def test_migrate_retypes_legacy_phi_column(migrator, gen, cpp_vitals, cpp_vitals_migrate,
+                                           tmp_path):
+    from harpia_runtime.crypto.key_provider_local import (LocalKeyProvider,
+                                                          LocalKeyProviderConfig)
+    db, store = tmp_path / "legacy.sqlite", tmp_path / "legacy.keks"
+    conn = sqlite3.connect(str(db))
+    conn.execute(_LEGACY_VITALS)
+    conn.commit()
+    subprocess.run([cpp_vitals, str(db), str(store), "write"], check=True, timeout=60)  # pk 3
+    kp = LocalKeyProvider(LocalKeyProviderConfig(str(store)))
+    assert _mod("patient_vitals").patient_vitals_dao(conn, key_provider=kp).create(
+        _vitals(4, patient="py-patient", rate=58.5, note="from python"))
+    assert conn.execute('SELECT "heart_rate" FROM "patient_vitals_table" WHERE "{}" = 3'
+                        .format(PK)).fetchone()[0].startswith("enc:v1:")
+    conn.close()
+    if migrator == "cpp":
+        subprocess.run([cpp_vitals_migrate, str(db)], check=True, timeout=60)
+    conn = sqlite3.connect(str(db))
+    if migrator == "python":
+        mig = importlib.import_module(
+            "harpia_generated.migrate.patient_vitals_{}_migrate".format(HASH))
+        assert mig.migrate_patient_vitals(conn)
+    types = {r[1]: (r[2], r[3]) for r in conn.execute(
+        "SELECT * FROM pragma_table_info('patient_vitals_table')")}
+    assert types["heart_rate"] == ("TEXT", 1)  # retyped, NOT NULL kept
+    dao = _mod("patient_vitals").patient_vitals_dao(conn, key_provider=kp)
+    got = _mod("patient_vitals").patient_vitals()
+    assert dao.read(3, got) and (got.patient_id, got.heart_rate) == ("cpp-patient", 61.25)
+    got = _mod("patient_vitals").patient_vitals()
+    assert dao.read(4, got) and (got.patient_id, got.heart_rate) == ("py-patient", 58.5)
+    out = subprocess.run([cpp_vitals, str(db), str(store), "read", "4"], capture_output=True,
+                         text=True, check=True, timeout=60).stdout.strip()
+    assert out == "py-patient|58.50|from python"

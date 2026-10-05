@@ -103,7 +103,7 @@ inline bool migrate_patient_vitals(::soci::session& db,
             db << "ALTER TABLE \"patient_vitals_table\" ADD COLUMN \"patient_id\" TEXT;";
         }
         if (!have.count("heart_rate")) {
-            db << "ALTER TABLE \"patient_vitals_table\" ADD COLUMN \"heart_rate\" REAL;";
+            db << "ALTER TABLE \"patient_vitals_table\" ADD COLUMN \"heart_rate\" TEXT;";
         }
         if (!have.count("device_note")) {
             db << "ALTER TABLE \"patient_vitals_table\" ADD COLUMN \"device_note\" TEXT;";
@@ -155,14 +155,14 @@ inline bool migrate_patient_vitals(::soci::session& db,
         bool _needs_retype = false;
             if (have_types.count("ID_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["ID_3ac5d8b36fc7dcfb70888145147ddfb7"] != "INTEGER") _needs_retype = true;
             if (have_types.count("patient_id") && have_types["patient_id"] != "TEXT") _needs_retype = true;
-            if (have_types.count("heart_rate") && have_types["heart_rate"] != "REAL") _needs_retype = true;
+            if (have_types.count("heart_rate") && have_types["heart_rate"] != "TEXT") _needs_retype = true;
             if (have_types.count("device_note") && have_types["device_note"] != "TEXT") _needs_retype = true;
             if (have_types.count("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["STATUS_3ac5d8b36fc7dcfb70888145147ddfb7"] != "TEXT") _needs_retype = true;
             if (have_types.count("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["ERROR_3ac5d8b36fc7dcfb70888145147ddfb7"] != "TEXT") _needs_retype = true;
             if (have_types.count("ORIGINATOR") && have_types["ORIGINATOR"] != "TEXT") _needs_retype = true;
         if (_needs_retype) {
-            db << "CREATE TABLE \"patient_vitals_table__retype_tmp\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"patient_id\" TEXT, \"heart_rate\" REAL NOT NULL, \"device_note\" TEXT, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR\" TEXT);";
-            db << "INSERT INTO \"patient_vitals_table__retype_tmp\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"heart_rate\", \"device_note\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\") SELECT CAST(\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" AS INTEGER), CAST(\"patient_id\" AS TEXT), CAST(\"heart_rate\" AS REAL), CAST(\"device_note\" AS TEXT), CAST(\"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" AS TEXT), CAST(\"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" AS TEXT), CAST(\"ORIGINATOR\" AS TEXT) FROM \"patient_vitals_table\";";
+            db << "CREATE TABLE \"patient_vitals_table__retype_tmp\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"patient_id\" TEXT, \"heart_rate\" TEXT NOT NULL, \"device_note\" TEXT, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR\" TEXT);";
+            db << "INSERT INTO \"patient_vitals_table__retype_tmp\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"heart_rate\", \"device_note\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\") SELECT CAST(\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" AS INTEGER), CAST(\"patient_id\" AS TEXT), CAST(\"heart_rate\" AS TEXT), CAST(\"device_note\" AS TEXT), CAST(\"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" AS TEXT), CAST(\"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" AS TEXT), CAST(\"ORIGINATOR\" AS TEXT) FROM \"patient_vitals_table\";";
             db << "DROP TABLE \"patient_vitals_table\";";
             db << "ALTER TABLE \"patient_vitals_table__retype_tmp\" RENAME TO \"patient_vitals_table\";";
         }
