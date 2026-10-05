@@ -87,16 +87,8 @@ def test_dialect_comes_from_the_backend(gen, msgs):
         importlib.import_module(users.__module__).__file__).read()
 
 
-# patient_vitals' phi `heart_rate` is a float column: the shared DDL keeps it
-# DOUBLE PRECISION, which can't hold the enc:v1: text phi encryption stores
-# (py-crypto-phi task 4). Same DDL + same bound text in C++ -> a C++ finding,
-# logged in Initiatives/python-target/NEXT_SESSION.md; strict so a fix shows.
-_PHI_NUMERIC_ON_PG = pytest.mark.xfail(
-    strict=True, reason="C++ FINDING: numeric phi column keeps its numeric PG type")
-
-
 @pytest.mark.parametrize("name", ["users", "beacon_log", "crew",
-                                  pytest.param("patient_vitals", marks=_PHI_NUMERIC_ON_PG),
+                                  "patient_vitals",
                                   "journey", "top_users", "outpost",
                                   "data", "telemetry", "shipment"])
 def test_round_trip_on_postgres(name, msgs, conn):
