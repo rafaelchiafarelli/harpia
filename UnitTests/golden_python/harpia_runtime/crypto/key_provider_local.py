@@ -19,6 +19,12 @@ explicitly acknowledged the local fallback
 (:attr:`LocalKeyProviderConfig.acknowledged`, for example from
 :func:`local_key_provider_acknowledged`).
 
+**File modes:** on POSIX the store and the sidecar are written owner-only
+(``0600``) whatever the umask -- ``os.open(..., 0o600)`` + ``fchmod`` before
+any byte. An existing store or sidecar with any group/other bit raises
+:class:`LocalKeyStoreInsecure` (refused, never tightened silently), exactly
+as C++. Windows has no POSIX modes; the check is skipped there.
+
 Still the placeholder XOR cipher of
 :mod:`harpia_runtime.crypto.key_provider`; this module adds persistence and
 the gate, not a crypto primitive.
@@ -60,6 +66,38 @@ class LocalKeyProviderRefused(RuntimeError):
             "HARPIA_ACK_LOCAL_KEY_PROVIDER after making a KMS-vs-local decision)")
 
 
+class LocalKeyStoreInsecure(RuntimeError):
+    """The KEK store or its ``.shred`` sidecar is group/other accessible."""
+
+    def __init__(self, path: str, mode: int) -> None:
+        super().__init__(
+            f"LocalKeyProvider refused: key store file {path} has mode "
+            f"{mode & 0o777:04o}; it must be 0600 (owner-only). Its key "
+            "material may have been exposed: rotate, then chmod 0600")
+
+
+def _refuse_if_loose(path: str) -> None:
+    if os.name == "nt":
+        return
+    try:
+        mode = os.stat(path).st_mode
+    except FileNotFoundError:
+        return
+    if mode & 0o077:
+        raise LocalKeyStoreInsecure(path, mode)
+
+
+def _write_private(path: str, text: str, append: bool) -> None:
+    """Owner-only write: opened 0600 and fchmod'ed before any byte lands, so
+    a rewrite of an existing file never holds key material with wider bits."""
+    flags = os.O_WRONLY | os.O_CREAT | (os.O_APPEND if append else os.O_TRUNC)
+    fd = os.open(path, flags, 0o600)
+    if os.name != "nt":
+        os.fchmod(fd, 0o600)
+    with os.fdopen(fd, "w", encoding="ascii") as f:
+        f.write(text)
+
+
 @dataclass(frozen=True)
 class LocalKeyProviderConfig:
     """How to construct a :class:`LocalKeyProvider`."""
@@ -95,6 +133,8 @@ class LocalKeyProvider(KeyProvider):
         self._audit = audit_sink or default_audit_sink()
         self._lock = threading.Lock()
         self._path = cfg.storage_path
+        _refuse_if_loose(self._path)
+        _refuse_if_loose(self._path + ".shred")
         self._active = 1
         self._keks: dict[int, bytearray] = {}
         self._shredded: set[builtins.bytes] = set()
@@ -127,9 +167,9 @@ class LocalKeyProvider(KeyProvider):
         return True
 
     def _persist(self) -> None:
-        with open(self._path, "w", encoding="ascii") as f:
-            for version in sorted(self._keks):
-                f.write(f"{version} {self._keks[version].hex()}\n")
+        _write_private(self._path, "".join(
+            f"{version} {self._keks[version].hex()}\n"
+            for version in sorted(self._keks)), append=False)
 
     def _load_shreds(self) -> None:
         try:
@@ -183,8 +223,8 @@ class LocalKeyProvider(KeyProvider):
             key = shred_key(w)
             if key not in self._shredded:
                 self._shredded.add(key)
-                with open(self.shred_path, "a", encoding="ascii") as f:
-                    f.write(f"{w.kek_version} {w.bytes.hex()}\n")
+                _write_private(self.shred_path,
+                               f"{w.kek_version} {w.bytes.hex()}\n", append=True)
             self._audit.record(OP_SHRED, f"kek:{w.kek_version}")
 
     def close(self) -> None:
