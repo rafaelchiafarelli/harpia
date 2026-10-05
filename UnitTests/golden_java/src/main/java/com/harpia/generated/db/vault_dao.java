@@ -82,7 +82,7 @@ public final class vault_dao {
     }
 
     public boolean list(List<vault> out) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"secret_code\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"vault_table\"");
+        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"secret_code\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"vault_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 vault.Builder builder = vault.newBuilder();

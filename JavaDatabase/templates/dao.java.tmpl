@@ -71,7 +71,7 @@ public final class {name}_dao {{
     }}
 
     public boolean list(List<{name}> out) throws SQLException {{
-        try (PreparedStatement ps = conn.prepareStatement("{select_all_sql}");
+        try (PreparedStatement ps = conn.prepareStatement("{select_list_sql}");
              ResultSet rs = ps.executeQuery()) {{
             while (rs.next()) {{
                 {name}.Builder builder = {name}.newBuilder();

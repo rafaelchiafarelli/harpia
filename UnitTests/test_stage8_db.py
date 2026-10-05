@@ -1844,3 +1844,37 @@ def test_phi_columns_are_text_in_ddl(dialect, tmp_path):
         m = re.search(r'"{}" ([A-Z ]+?),?\n'.format(col), sql)
         assert m, sql
         assert m.group(1) == ("TEXT NOT NULL" if required else "TEXT"), (stem, col, m.group(1))
+
+
+def test_sqlite_list_pages_are_stable(generated, tmp_path):
+    """cpp-dao-list-order-DEFECT regression on SQLite: list() and
+    list(offset, limit) return primary-key order after UPDATEs, every row
+    exactly once across pages (PostgreSQL twin in test_stage8_pg.py)."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    src = (
+        '#include "db/users_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <vector>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    ::harpia::db::users_dao dao(db); if (!dao.create_table()) return 1;\n"
+        "    const int n = 50;\n"
+        "    for (int i = n; i >= 1; --i) {{ ::users u; u.set_id_{h}(i); u.set_name(\"u\");\n"
+        "      if (!dao.create(u)) return 2; }}\n"
+        "    for (int i = 1; i <= n; i += 2) {{ ::users u; u.set_id_{h}(i); u.set_name(\"moved\");\n"
+        "      if (!dao.update(u)) return 3; }}\n"
+        "    std::vector<::users> all; if (!dao.list(&all) || (int)all.size() != n) return 4;\n"
+        "    for (int i = 0; i < n; ++i) if (all[i].id_{h}() != i + 1) return 5;\n"
+        "    std::vector<::users> paged;\n"
+        "    for (long long off = 0; off < n; off += 7) {{ std::vector<::users> page;\n"
+        "      if (!dao.list(&page, off, 7)) return 6;\n"
+        "      paged.insert(paged.end(), page.begin(), page.end()); }}\n"
+        "    if ((int)paged.size() != n) return 7;\n"
+        "    for (int i = 0; i < n; ++i) if (paged[i].id_{h}() != i + 1) return 8;\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+    _compile_run(tmp_path, cpp_root, "sqlite_list_order", src,
+                 [os.path.join(cpp_root, "protofiles", "users_{}.pb.cc".format(HASH))])

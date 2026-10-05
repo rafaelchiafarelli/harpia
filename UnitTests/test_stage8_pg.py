@@ -371,3 +371,50 @@ def test_pg_migrate_retypes_legacy_phi_column(pg_generated, tmp_path):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=60)
     assert run.returncode == 0, "PG phi migration failed at check #{}\n{}".format(
         run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_list_pages_are_stable(pg_generated, tmp_path):
+    """cpp-dao-list-order-DEFECT: list() and list(offset, limit) return rows
+    in primary-key order on PostgreSQL even after UPDATEs moved tuples to the
+    heap's end -- so paging visits every row exactly once."""
+    cpp_root = pg_generated
+    prog = tmp_path / "pg_list_order.cpp"
+    prog.write_text(
+        '#include "db/users_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n#include <string>\n#include <vector>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    ::harpia::db::users_dao dao(db); dao.drop_table();\n"
+        "    if (!dao.create_table()) return 1;\n"
+        "    const int n = 50;\n"
+        "    for (int i = 1; i <= n; ++i) {{ ::users u; u.set_id_{h}(i); u.set_name(\"u\");\n"
+        "      if (!dao.create(u)) return 2; }}\n"
+        "    for (int i = 1; i <= n; i += 2) {{ ::users u; u.set_id_{h}(i); u.set_name(\"moved\");\n"
+        "      if (!dao.update(u)) return 3; }}\n"
+        "    std::vector<::users> all; if (!dao.list(&all) || (int)all.size() != n) return 4;\n"
+        "    for (int i = 0; i < n; ++i) if (all[i].id_{h}() != i + 1) return 5;\n"
+        "    std::vector<::users> paged;\n"
+        "    for (long long off = 0; off < n; off += 7) {{ std::vector<::users> page;\n"
+        "      if (!dao.list(&page, off, 7)) return 6;\n"
+        "      paged.insert(paged.end(), page.begin(), page.end()); }}\n"
+        "    if ((int)paged.size() != n) return 7;\n"
+        "    for (int i = 0; i < n; ++i) if (paged[i].id_{h}() != i + 1) return 8;\n"
+        "    dao.drop_table();\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    pb_cc = os.path.join(cpp_root, "protofiles", "users_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "pg_list_order")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG list-order program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0, "PG list order failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
