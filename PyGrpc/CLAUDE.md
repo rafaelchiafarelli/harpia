@@ -33,7 +33,9 @@ checks `x-user` / `x-pswd` metadata (`UNAUTHENTICATED "unauthorized"`);
   `port`, `start()`, `stop(grace=None)`; `SERVICES`; same
   `HARDENING_REQUIRED` / `EMIT_TLS` / `CLIENT_CERT_REQUIRED` baking as the
   HTTP bring-up (`harpia_runtime.tls.grpc_server_credentials`, secure port
-  when TLS, `SecurityRefused` on incomplete files).
+  when TLS, `SecurityRefused` on incomplete files). With `rootHash`
+  (py-versioning task 1) it also registers
+  `harpia_generated.capability.capabilities_<roothash>_grpc` (ungated).
 
 ## Key facts / gotchas
 - The servicer subclasses the typed runtime class, not protoc's untyped

@@ -7,6 +7,18 @@ harpia_generated
 .. automodule:: harpia_generated
    :members:
 
+harpia_generated.capability
+---------------------------
+
+.. automodule:: harpia_generated.capability
+   :members:
+
+harpia_generated.capability.capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+------------------------------------------------------------------------------
+
+.. automodule:: harpia_generated.capability.capabilities_3ac5d8b36fc7dcfb70888145147ddfb7_grpc
+   :members:
+
 harpia_generated.db
 -------------------
 
@@ -719,6 +731,24 @@ harpia_runtime
 --------------
 
 .. automodule:: harpia_runtime
+   :members:
+
+harpia_runtime.capability
+-------------------------
+
+.. automodule:: harpia_runtime.capability
+   :members:
+
+harpia_runtime.capability.dispatch
+----------------------------------
+
+.. automodule:: harpia_runtime.capability.dispatch
+   :members:
+
+harpia_runtime.capability.grpc
+------------------------------
+
+.. automodule:: harpia_runtime.capability.grpc
    :members:
 
 harpia_runtime.compliance
