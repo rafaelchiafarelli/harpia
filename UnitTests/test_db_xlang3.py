@@ -30,10 +30,9 @@ three languages:
   NULL there and ``JdbcBind.extract`` NPEs on a NULL string (JAVA FINDING,
   NEXT_SESSION item 44);
 - **PostgreSQL** (opt-in ``HARPIA_PG_DSN``, run by ``Docker/run_pg_tests.sh``):
-  the same matrix and migration, every slot a throwaway DATABASE (migration
-  introspection is not schema-qualified, NEXT_SESSION item 19).
-  ``patient_vitals`` is a strict xfail there (item 26: its numeric phi
-  column keeps a numeric PG type).
+  the same matrix and migration, every slot a throwaway DATABASE.
+  ``patient_vitals`` (numeric phi column, now TEXT in the DDL --
+  cpp-phi-numeric-column-type-DEFECT) runs as its own regression test.
 
 C++ and Java run as batch probes (one process per language per phase,
 tab-separated requests on stdin); Python runs in-process. Gated on g++ +
@@ -598,8 +597,8 @@ def _migration(side, case, migrator, slot, store, old_row_readers=("cpp", "pytho
 
 # -- PostgreSQL (opt-in) ---------------------------------------------------
 
-# patient_vitals' phi heart_rate keeps DOUBLE PRECISION in the shared DDL and
-# can't hold enc:v1: text (NEXT_SESSION item 26) -- strict so a fix shows.
+# patient_vitals' phi heart_rate (a float) is TEXT in the DDL, holding enc:v1:
+# text: its own regression test (cpp-phi-numeric-column-type-DEFECT).
 _PHI_NUMERIC_ON_PG = "patient_vitals"
 
 
@@ -612,8 +611,6 @@ def test_pg_cross_read_write(writer, pg_side, pg_databases, tmp_path):
 
 
 @pg_only
-@pytest.mark.xfail(strict=True,
-                   reason="C++ FINDING (item 26): numeric phi column keeps its numeric PG type")
 @pytest.mark.parametrize("writer", ("cpp", "python"))
 def test_pg_phi_numeric_column(writer, pg_side, pg_databases, tmp_path):
     _matrix(pg_side, writer, _slot_factory(pg_side, tmp_path, pg_databases),
