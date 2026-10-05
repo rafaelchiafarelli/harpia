@@ -17,8 +17,9 @@ match the C++ runtimes byte-for-byte (XML/YAML/redacted) or by cross-parse
   returns ``{full_name: class}``; ``populate(msg)`` fills a message
   reflectively with deterministic values that stress escaping (one entry
   per map: C++ map iteration order is unspecified, so multi-entry maps
-  can't be byte-compared; and non-negative integer map keys, see the known
-  differences in ``harpia_runtime.yaml``).
+  can't be byte-compared). Integer map keys can be negative (``-5: ...``
+  reads back as a map entry in both runtimes since
+  cpp-yaml-negative-map-keys-DEFECT).
 """
 import concurrent.futures
 import functools
@@ -110,8 +111,6 @@ def populate(msg, depth=0, seen=()):
         if is_map:
             kf, vf = f.message_type.fields_by_name["key"], f.message_type.fields_by_name["value"]
             key = _scalar(kf, n)
-            if isinstance(key, int) and not isinstance(key, bool) and key < 0:
-                key = -key  # a '-' key line reads back as a YAML sequence item
             container = getattr(msg, f.name)
             if vf.cpp_type == FD.CPPTYPE_MESSAGE:
                 populate(container[key], depth + 1, seen)
