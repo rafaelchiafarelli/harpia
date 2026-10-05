@@ -109,6 +109,31 @@ def test_crudl_dao_notes_deferred_columns(tmp_path):
     assert "JdbcBind.bind(ps" not in text.split("Deferred columns")[1].split("\n")[0]
 
 
+
+def test_deferred_header_names_child_tables(tmp_path):
+    """java-jdbc-null-text-DEFECT task 2: the DAO header names every map/
+    repeated child table the Java DAO never reads or writes (it used to say
+    nothing about them -- telemetry's header read "none")."""
+    out = generate(tmp_path, lang="java")
+    db = os.path.join(out, "java", "src", "main", "java", "com", "harpia", "generated", "db")
+    expected = {
+        "telemetry": ["telemetry_table__gauges", "telemetry_table__flags",
+                      "telemetry_table__samples", "telemetry_table__notes",
+                      "telemetry_table__traces"],
+        "shipment": ["shipment_table__cargo"],
+        "data": ["table_data__val_a", "table_data__val_b", "table_data__val_c",
+                 "table_data__tags", "table_data__val_scores"],
+        "users": [],
+    }
+    for name, children in expected.items():
+        head = open(os.path.join(db, name + "_dao.java")).read().split("package ")[0]
+        line = next((l for l in head.splitlines() if "Child tables" in l), None)
+        assert line is not None, head
+        if children:
+            assert all(c in line for c in children), (name, line)
+        else:
+            assert line.rstrip().endswith(": none"), (name, line)
+
 # -- integration: a real gradle+JDK build --------------------------------
 
 @pytest.mark.skipif(not _HAS_JAVA_TOOLCHAIN, reason=SKIP_REASON)
