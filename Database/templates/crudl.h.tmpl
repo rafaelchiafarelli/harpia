@@ -70,7 +70,7 @@ public:
 
     bool list(std::vector<::{cls}>* out) {{
         try {{
-{extract_locals}            ::soci::statement st = (db_.prepare << "SELECT {select_cols} FROM \"{table}\""{extract_into});
+{extract_locals}            ::soci::statement st = (db_.prepare << "SELECT {select_cols} FROM \"{table}\" ORDER BY \"{id_col}\""{extract_into});
             st.execute();
             while (st.fetch()) {{
                 ::{cls} row;
@@ -82,9 +82,12 @@ public:
     }}
 
     // Paginated list: LIMIT/OFFSET applied server-side. offset is 0-based.
+    // Both lists ORDER BY the primary key: SQL guarantees no row order
+    // otherwise, and PostgreSQL's heap order shifts after an UPDATE, so
+    // pages could skip or repeat rows (cpp-dao-list-order-DEFECT).
     bool list(std::vector<::{cls}>* out, long long offset, long long limit) {{
         try {{
-{extract_locals}            ::soci::statement st = (db_.prepare << "SELECT {select_cols} FROM \"{table}\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset){extract_into});
+{extract_locals}            ::soci::statement st = (db_.prepare << "SELECT {select_cols} FROM \"{table}\" ORDER BY \"{id_col}\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset){extract_into});
             st.execute();
             while (st.fetch()) {{
                 ::{cls} row;

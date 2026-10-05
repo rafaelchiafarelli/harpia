@@ -88,7 +88,7 @@ public final class alarm_event_dao {
     }
 
     public boolean list(List<alarm_event> out) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"alarm_type\", \"severity\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"alarm_event_table\"");
+        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"alarm_type\", \"severity\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"alarm_event_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 alarm_event.Builder builder = alarm_event.newBuilder();

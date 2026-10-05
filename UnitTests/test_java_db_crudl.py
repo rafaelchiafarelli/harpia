@@ -302,3 +302,45 @@ def test_sqlite_round_trip_survives_process_restart(tmp_path):
                           capture_output=True, text=True, timeout=60)
     assert read.returncode == 0, "read process failed:\n" + read.stdout + read.stderr
     assert "READ_OK" in read.stdout
+
+
+# cpp-dao-list-order-DEFECT (Java): list() returns primary-key order even
+# after UPDATEs. Arg: a JDBC URL (PostgreSQL) or an SQLite file path.
+_LIST_ORDER_PROBE = (
+    "package smoke;\n"
+    "import com.harpia.generated.users;\n"
+    "import com.harpia.generated.db.users_dao;\n"
+    "import com.google.protobuf.Descriptors.FieldDescriptor;\n"
+    "import java.sql.*;\n"
+    "import java.util.*;\n"
+    "public class ListOrder {{\n"
+    "    public static void main(String[] args) throws Exception {{\n"
+    "        Connection conn = args[0].startsWith(\"jdbc:\")\n"
+    "            ? DriverManager.getConnection(args[0]) : UsersCrudlHelper.open(args[0]);\n"
+    "        users_dao dao = new users_dao(conn);\n"
+    "        dao.dropTable(); if (!dao.createTable()) System.exit(1);\n"
+    "        int n = 50;\n"
+    "        for (int i = n; i >= 1; --i)\n"
+    "            if (!dao.create(UsersCrudlHelper.withId(users.newBuilder().setName(\"u\"), i))) System.exit(2);\n"
+    "        for (int i = 1; i <= n; i += 2)\n"
+    "            if (!dao.update(UsersCrudlHelper.withId(users.newBuilder().setName(\"moved\"), i))) System.exit(3);\n"
+    "        List<users> all = new ArrayList<>();\n"
+    "        if (!dao.list(all) || all.size() != n) System.exit(4);\n"
+    "        FieldDescriptor fd = users.getDescriptor().findFieldByName(UsersCrudlHelper.PK_FIELD);\n"
+    "        for (int i = 0; i < n; ++i)\n"
+    "            if (((Number) all.get(i).getField(fd)).intValue() != i + 1) System.exit(5);\n"
+    "        dao.dropTable(); conn.close();\n"
+    "        System.out.println(\"OK\");\n"
+    "    }}\n"
+    "}}\n").format()
+
+
+@pytest.mark.skipif(not _HAS_JAVA_TOOLCHAIN, reason=SKIP_REASON)
+def test_java_sqlite_list_in_pk_order(tmp_path):
+    out = generate(tmp_path / "out", lang="java")
+    classpath = build_and_classpath(os.path.join(out, "java"), {
+        "smoke/UsersCrudlHelper.java": _USERS_CRUDL_HELPER,
+        "smoke/ListOrder.java": _LIST_ORDER_PROBE})
+    run = subprocess.run(["java", "-cp", classpath, "smoke.ListOrder", str(tmp_path / "o.db")],
+                         capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0 and "OK" in run.stdout, run.stdout + run.stderr
