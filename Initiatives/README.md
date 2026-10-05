@@ -47,18 +47,7 @@ Every DEFECT task follows the same three steps, written into each task file:
 3. **Unit test stays.** The red test is now green and is kept as the
    regression test; strict xfails pinning the defect are un-marked.
 
-Run order (one chain per clone, so one at a time; worst impact first,
-golden-moving tasks never in parallel):
-
-1. `cpp-pg-introspection-schema-DEFECT` — data loss on shared PG databases.
-2. `cpp-key-store-permissions-DEFECT` — KEK world-readable.
-3. `cpp-phi-numeric-column-type-DEFECT` — numeric phi unusable on PG.
-4. `cpp-dao-list-order-DEFECT` — PG pages skip/duplicate rows.
-5. `java-jdbc-null-text-DEFECT` — Java can't read migrated rows.
-6. `cpp-zmq-header-odr-DEFECT` — two ZMQ types in one TU don't compile.
-7. `cpp-yaml-empty-mapping-DEFECT`, then `cpp-yaml-negative-map-keys-DEFECT`
-   (same file, `harpia_yaml.h`).
-8. `java-xml-byte-parity-DEFECT` — byte parity only, no wrong data.
+Open DEFECT initiatives: see the `*-DEFECT` rows of the index below.
 
 ## Index
 
@@ -68,16 +57,8 @@ golden-moving tasks never in parallel):
 | [feature-examples/](feature-examples/README.md) | **Partly shipped.** Fixture cleanup shipped 2026-08-24. The `worked-examples` epic (one small runnable example per generated feature + an index) — not started. |
 | [doxygen-generation.md](doxygen-generation/doxygen-generation.md) | Foundation F6 + Ground Rule 6 plumbing **shipped** 2026-08-23. The `doc-comment-coverage` epic (real per-template doc-comments) — **not started**, after `multi-system-reference`. |
 | [ci-pipeline/](ci-pipeline/README.md) | **Scoped, not started.** GitHub Actions running the existing `Docker/run.sh pytest UnitTests/` suite on push/PR, plus image-layer caching. 2 tasks, both written. Highest leverage-per-effort of the open initiatives — no CI today means nothing independently re-verifies any "N passed" claim. |
-| [python-target/](python-target/README.md) | **Shipped to `dev` 2026-10-05** (not yet on `main`): all 14 epics / 54 tasks, full Docker suite green. Language #3: full C++ compliance parity (DDS + CURVE/ZAP included), generation-time codegen under `<dest>/python/`, C++/Java/Python interop tests (`test_*_xlang3.py`, `test_dds_xlang.py`). Decisions + findings for review: [NEXT_SESSION.md](python-target/NEXT_SESSION.md) (items 1-48); the findings are the `*-DEFECT` rows below. |
-| [cpp-yaml-empty-mapping-DEFECT/](cpp-yaml-empty-mapping-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). C++ `from_yaml("{}")` returns false, contrary to its own contract; all-default messages don't round-trip. 1 task, no golden move. |
-| [cpp-yaml-negative-map-keys-DEFECT/](cpp-yaml-negative-map-keys-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). Negative int map keys (`-5:`) are misread as YAML sequence items, in C++ and the Python port alike. 2 tasks (C++, then Python mirror). |
-| [cpp-dao-list-order-DEFECT/](cpp-dao-list-order-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). C++ DAO `list`/paginated `list` have no `ORDER BY` → unstable/overlapping pages on PostgreSQL. Moves goldens. 2 tasks (C++, Java check). |
-| [cpp-pg-introspection-schema-DEFECT/](cpp-pg-introspection-schema-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). PG migration introspection ignores `table_schema` → same-named tables in other schemas leak into the diff (data-loss risk on shared DBs). Moves goldens. 1 task + 1 planning decision. |
-| [cpp-key-store-permissions-DEFECT/](cpp-key-store-permissions-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). `LocalKeyProvider` writes the KEK store and `.shred` sidecar with umask bits (world-readable under `022`), in C++ and the Python port alike. 2 tasks (C++, then Python), no `golden/` move. |
-| [cpp-phi-numeric-column-type-DEFECT/](cpp-phi-numeric-column-type-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). A numeric `phi` column keeps its numeric SQL type but stores `enc:v1:` text → rejected on PostgreSQL in every language. Moves goldens. 2 tasks (DDL, migration). |
-| [cpp-zmq-header-odr-DEFECT/](cpp-zmq-header-odr-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). Every `zmq/*_zmq.h` defines `runtime_origin_id()` → two ZMQ message types can't be used in one C++ TU. Moves goldens. 1 task + 1 planning decision. |
-| [java-jdbc-null-text-DEFECT/](java-jdbc-null-text-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). `JdbcBind.extract` NPEs on a NULL text column, so Java can't read rows that predate a C++/Python migration; DAO header omits child tables. Moves `golden_java/`. 2 tasks. |
-| [java-xml-byte-parity-DEFECT/](java-xml-byte-parity-DEFECT/README.md) | **Defect, not started** (found by python-target 2026-10-04). Java XML differs from C++/Python bytes in 3 pinned ways (`<x/>`, unescaped quotes, float text); JSON only in whitespace (kept). Moves `golden_java/`. 1 task. |
+| [python-target/](python-target/README.md) | **Shipped in V3 (2026-10-05)**: all 14 epics / 54 tasks, full Docker suite green. Language #3: full C++ compliance parity (DDS + CURVE/ZAP included), generation-time codegen under `<dest>/python/`, C++/Java/Python interop tests (`test_*_xlang3.py`, `test_dds_xlang.py`). Decisions + findings for review: [NEXT_SESSION.md](python-target/NEXT_SESSION.md) (items 1-48), pending Rafael's review — the folder stays only for that log. Its nine C++/Java findings were fixed in V3 (see below). |
+| [cpp-phi-unencrypted-field-shapes-DEFECT/](cpp-phi-unencrypted-field-shapes-DEFECT/README.md) | **Defect, not started** (found 2026-10-05 while fixing the numeric-phi defect). `phi` on an enum field, an embedded sub-field, a repeated or a map field is stored in plaintext by the C++ and Python DAOs, with no audit. 3 tasks; task 1 is a refuse-vs-encrypt decision. |
 | [go-target/](go-target/README.md) | **Scoped, not started.** Language #4 (resequenced behind python-target 2026-10-03), full compliance parity except DDS + ZMQ-CURVE/ZAP (pure-Go constraint). Depends on python-target's `lang-backend-seam` epic; its interop epic adds Go as the 4th peer to python-target's harness. No task files yet. |
 
 Finished plans are removed from this index once done — the shipped behavior is
@@ -92,6 +73,16 @@ hardening modifiers) shipped 2026-09-19 — see `USAGE.md` §8.1,
 initiative (N-peer ZMQ PUB/SUB fan-out + PUSH/PULL load-balance, C++ and
 C++↔Java) shipped 2026-09-26 — see `HarpiaTest/app_example/fanout/README.md`
 and `UnitTests/test_zmq_*fanout*.py` / `test_zmq_*pushpull*.py`.
+The nine **python-target findings** (`*-DEFECT` initiatives, fixed
+2026-10-05, shipped in **V3**): PG migration introspection limited to
+`current_schema()`, `LocalKeyProvider` store `0600` + loose-store refusal
+(C++ + Python), phi scalar columns TEXT in the DDL, DAO `list` ordered by the
+primary key (C++ + Java), `JdbcBind` NULL reads + Java DAO child-table
+disclosure, ZMQ `runtime_origin_id()` guard, C++ `from_yaml("{}")`, negative
+YAML map keys (C++ + Python), Java XML byte parity — see `Database/CLAUDE.md`,
+`Crypto/CLAUDE.md`, `JavaDatabase/CLAUDE.md`, `ZmqAdapter/CLAUDE.md`,
+`YamlAdapter/CLAUDE.md`, `PySerialization/CLAUDE.md`,
+`JavaXmlAdapter/CLAUDE.md`. Each has its regression test.
 Earlier removed-on-completion plans: Postgres backend
 (`Database/CLAUDE.md`), crash/interrupt recovery (`Util/CLAUDE.md`),
 message-versioning (`Message/CLAUDE.md`, `Capability/CLAUDE.md`),
