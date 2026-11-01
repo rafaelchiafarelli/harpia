@@ -17,6 +17,13 @@ a stage of `LangBackend/python.py`'s `run_python`.
   accessor derivation). Integers, `bool` and enums bind as `int`, floats as
   `float`, strings as `str`; `NULL` reads back as the field default (like
   the C++ indicator check). Message/repeated fields raise `TypeError`.
+  **`optional` presence (db-optional-presence-DEFECT task 2, the C++ rule):**
+  a field with `has_presence` (read via `bind.has_presence` — the pinned
+  `types-protobuf` stubs lack the attribute) binds `None` when unset, and a
+  `NULL` leaves it unset (`dao.set_column` skips it before materializing an
+  embed owner, like C++'s guarded set); `PhiDao` binds an unset phi optional
+  as `NULL` without encrypting. Repeated-composed elements (`to_db`/`from_db`)
+  are out of scope, as in C++.
 
 - `runtime/dao.py` → `harpia_runtime.db.dao` (task 2a): the CRUDL engine.
   `Dao[M]` implements `create_table` / `drop_table` / `create(msg) -> bool` /

@@ -65,7 +65,7 @@ Java's own docs (`GradleAdapter/CLAUDE.md`) explicitly deferred designing a
 real language-plugin abstraction "until a second language exists". The
 `LangBackend` registry (`main.py` dispatches through it for every target;
 Java retrofitted with **zero output change**) was planned here as epic 0,
-then **moved to `Initiatives/python-target/epics/lang-backend-seam/`** when
+then **moved to `bb7a6be:Initiatives/python-target/epics/lang-backend-seam/`** when
 Python was resequenced first. Go registers into it in `go-foundation`; it
 does not rebuild it.
 

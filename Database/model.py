@@ -38,7 +38,8 @@ class Column:
     def __init__(self, name, sql_type, pk=False, required=False, unique=False,
                  bindable=False, kind=None, fk_target=None, enum_type=None,
                  fk_table=False, embed=None, child_accessor=None,
-                 renamed_from=None, is_phi=False, backend=None) -> None:
+                 renamed_from=None, is_phi=False, optional=False,
+                 backend=None) -> None:
         self.name = name
         self.sql_type = sql_type
         self.pk = pk
@@ -63,6 +64,11 @@ class Column:
         self.is_phi = is_phi          # Foundation F2 field.is_phi -- Track A
                                       # encrypts this column's value on write
                                       # (envelope-sealed via a KeyProvider)
+        self.optional = optional      # an `optional` scalar/enum (explicit
+                                      # presence): unset <-> SQL NULL <->
+                                      # absent after read (db-optional-
+                                      # presence-DEFECT); top-level and
+                                      # embedded flat columns only
         self._backend = backend or get_backend()  # dialect for sql_def()
 
     @property
@@ -349,6 +355,7 @@ def _flatten(name_prefix, child_msg, types, backend, embed_path=None, prefix=Tru
                                       kind="enum", enum_type=v.type[1],
                                       embed=(embed_path if prefix else None),
                                       child_accessor=v.name.lower(),
+                                      optional=prefix and "OPTIONAL" in mods,
                                       backend=backend))
                 continue
             if kind == "message":
@@ -384,6 +391,7 @@ def _flatten(name_prefix, child_msg, types, backend, embed_path=None, prefix=Tru
         columns.append(Column(col_name, sql_type, bindable=False, kind=kind,
                               embed=(embed_path if prefix else None),
                               child_accessor=v.name.lower(),
+                              optional=prefix and "OPTIONAL" in mods,
                               backend=backend))
     return columns, notes
 
@@ -436,6 +444,7 @@ def analyze(msg, types=None, backend=None):
             if kind == "enum":
                 columns.append(Column(v.name, backend.int_type, bindable=True,
                                       kind="enum", enum_type=target,
+                                      optional="OPTIONAL" in mods,
                                       backend=backend))
                 continue
             if kind == "table":
@@ -476,6 +485,7 @@ def analyze(msg, types=None, backend=None):
                               bindable=True, kind=kind,
                               renamed_from=getattr(v, "renamedFrom", None),
                               is_phi=getattr(v, "is_phi", False),
+                              optional="OPTIONAL" in mods,
                               backend=backend))
     return columns, notes
 
