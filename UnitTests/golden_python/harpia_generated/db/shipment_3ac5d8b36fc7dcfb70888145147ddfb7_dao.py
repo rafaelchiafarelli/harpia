@@ -17,13 +17,13 @@ class shipment_dao(Dao[shipment]):
 
     MESSAGE = shipment
     TABLE = 'shipment_table'
-    PK = 'ID_3ac5d8b36fc7dcfb70888145147ddfb7'
+    PK = 'HARPIA_ID'
     COLUMNS = (
-        Column('ID_3ac5d8b36fc7dcfb70888145147ddfb7', ('ID_3ac5d8b36fc7dcfb70888145147ddfb7',)),
+        Column('HARPIA_ID', ('HARPIA_ID',)),
         Column('tag', ('tag',)),
-        Column('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7', ('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ORIGINATOR', ('ORIGINATOR',)),
+        Column('HARPIA_STATUS', ('HARPIA_STATUS',)),
+        Column('HARPIA_ERROR', ('HARPIA_ERROR',)),
+        Column('HARPIA_ORIGINATOR', ('HARPIA_ORIGINATOR',)),
     )
     CHILDREN = (
         ChildTable(
@@ -33,16 +33,16 @@ class shipment_dao(Dao[shipment]):
             'DELETE FROM "shipment_table__cargo" WHERE "owner" = ?', columns=(Column('label', ('label',)), Column('weight', ('weight',)),)),
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "shipment_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "tag" TEXT, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "shipment_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "tag" TEXT, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
         'CREATE TABLE IF NOT EXISTS "shipment_table__cargo" ("owner" INTEGER, "ordinal" INTEGER, "label" TEXT, "weight" INTEGER, PRIMARY KEY("owner", "ordinal"));',
     )
     DROP_TABLE_SQL = (
         'DROP TABLE IF EXISTS "shipment_table__cargo";',
         'DROP TABLE IF EXISTS "shipment_table";',
     )
-    INSERT_SQL = 'INSERT INTO "shipment_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7", "tag", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR") VALUES (?, ?, ?, ?, ?)'
-    SELECT_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "tag", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR" FROM "shipment_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    UPDATE_SQL = 'UPDATE "shipment_table" SET "tag" = ?, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ORIGINATOR" = ? WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    DELETE_SQL = 'DELETE FROM "shipment_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    LIST_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "tag", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR" FROM "shipment_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7"'
-    LIST_PAGE_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "tag", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR" FROM "shipment_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7" LIMIT ? OFFSET ?'
+    INSERT_SQL = 'INSERT INTO "shipment_table" ("HARPIA_ID", "tag", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR") VALUES (?, ?, ?, ?, ?)'
+    SELECT_SQL = 'SELECT "HARPIA_ID", "tag", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "shipment_table" WHERE "HARPIA_ID" = ?'
+    UPDATE_SQL = 'UPDATE "shipment_table" SET "tag" = ?, "HARPIA_STATUS" = ?, "HARPIA_ERROR" = ?, "HARPIA_ORIGINATOR" = ? WHERE "HARPIA_ID" = ?'
+    DELETE_SQL = 'DELETE FROM "shipment_table" WHERE "HARPIA_ID" = ?'
+    LIST_SQL = 'SELECT "HARPIA_ID", "tag", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "shipment_table" ORDER BY "HARPIA_ID"'
+    LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "tag", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "shipment_table" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'

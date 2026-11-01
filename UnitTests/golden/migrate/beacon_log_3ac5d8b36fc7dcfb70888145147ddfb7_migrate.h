@@ -108,14 +108,14 @@ inline bool migrate_beacon_log(::soci::session& db,
         if (!have.count("strength")) {
             db << "ALTER TABLE \"beacon_log_table\" ADD COLUMN \"strength\" INTEGER;";
         }
-        if (!have.count("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7")) {
-            db << "ALTER TABLE \"beacon_log_table\" ADD COLUMN \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT;";
+        if (!have.count("HARPIA_STATUS")) {
+            db << "ALTER TABLE \"beacon_log_table\" ADD COLUMN \"HARPIA_STATUS\" TEXT;";
         }
-        if (!have.count("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7")) {
-            db << "ALTER TABLE \"beacon_log_table\" ADD COLUMN \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT;";
+        if (!have.count("HARPIA_ERROR")) {
+            db << "ALTER TABLE \"beacon_log_table\" ADD COLUMN \"HARPIA_ERROR\" TEXT;";
         }
-        if (!have.count("ORIGINATOR")) {
-            db << "ALTER TABLE \"beacon_log_table\" ADD COLUMN \"ORIGINATOR\" TEXT;";
+        if (!have.count("HARPIA_ORIGINATOR")) {
+            db << "ALTER TABLE \"beacon_log_table\" ADD COLUMN \"HARPIA_ORIGINATOR\" TEXT;";
         }
         // caller-supplied cross-version data transform (see the header
         // comment above for why this runs here: after add, before drop).
@@ -124,7 +124,7 @@ inline bool migrate_beacon_log(::soci::session& db,
         // non-additive: drop any live column the current schema no longer
         // declares (see the header comment above for the implicit-diff caveat)
         {
-            static const std::set<std::string> _current = { "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "label", "strength", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR" };
+            static const std::set<std::string> _current = { "HARPIA_ID", "label", "strength", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" };
             for (auto _hit = have.begin(); _hit != have.end(); ) {
                 if (!_current.count(*_hit)) {
                     const std::string& _dc = *_hit;
@@ -153,15 +153,15 @@ inline bool migrate_beacon_log(::soci::session& db,
         // current schema to the current type (see the header comment above)
         {
         bool _needs_retype = false;
-            if (have_types.count("ID_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["ID_3ac5d8b36fc7dcfb70888145147ddfb7"] != "INTEGER") _needs_retype = true;
+            if (have_types.count("HARPIA_ID") && have_types["HARPIA_ID"] != "INTEGER") _needs_retype = true;
             if (have_types.count("label") && have_types["label"] != "TEXT") _needs_retype = true;
             if (have_types.count("strength") && have_types["strength"] != "INTEGER") _needs_retype = true;
-            if (have_types.count("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["STATUS_3ac5d8b36fc7dcfb70888145147ddfb7"] != "TEXT") _needs_retype = true;
-            if (have_types.count("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["ERROR_3ac5d8b36fc7dcfb70888145147ddfb7"] != "TEXT") _needs_retype = true;
-            if (have_types.count("ORIGINATOR") && have_types["ORIGINATOR"] != "TEXT") _needs_retype = true;
+            if (have_types.count("HARPIA_STATUS") && have_types["HARPIA_STATUS"] != "TEXT") _needs_retype = true;
+            if (have_types.count("HARPIA_ERROR") && have_types["HARPIA_ERROR"] != "TEXT") _needs_retype = true;
+            if (have_types.count("HARPIA_ORIGINATOR") && have_types["HARPIA_ORIGINATOR"] != "TEXT") _needs_retype = true;
         if (_needs_retype) {
-            db << "CREATE TABLE \"beacon_log_table__retype_tmp\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"label\" TEXT, \"strength\" INTEGER, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR\" TEXT);";
-            db << "INSERT INTO \"beacon_log_table__retype_tmp\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"label\", \"strength\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\") SELECT CAST(\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" AS INTEGER), CAST(\"label\" AS TEXT), CAST(\"strength\" AS INTEGER), CAST(\"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" AS TEXT), CAST(\"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" AS TEXT), CAST(\"ORIGINATOR\" AS TEXT) FROM \"beacon_log_table\";";
+            db << "CREATE TABLE \"beacon_log_table__retype_tmp\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"label\" TEXT, \"strength\" INTEGER, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
+            db << "INSERT INTO \"beacon_log_table__retype_tmp\" (\"HARPIA_ID\", \"label\", \"strength\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") SELECT CAST(\"HARPIA_ID\" AS INTEGER), CAST(\"label\" AS TEXT), CAST(\"strength\" AS INTEGER), CAST(\"HARPIA_STATUS\" AS TEXT), CAST(\"HARPIA_ERROR\" AS TEXT), CAST(\"HARPIA_ORIGINATOR\" AS TEXT) FROM \"beacon_log_table\";";
             db << "DROP TABLE \"beacon_log_table\";";
             db << "ALTER TABLE \"beacon_log_table__retype_tmp\" RENAME TO \"beacon_log_table\";";
         }

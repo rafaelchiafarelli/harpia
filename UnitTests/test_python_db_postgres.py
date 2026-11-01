@@ -28,7 +28,7 @@ from UnitTests._java_gradle_helpers import generate  # noqa: E402
 
 PG_DSN = os.environ.get("HARPIA_PG_DSN")
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 
 pytestmark = pytest.mark.skipif(
     not PG_DSN or not P.HAVE_PY or not P._importable("psycopg"),
@@ -227,8 +227,8 @@ def test_py_migrate_retypes_legacy_phi_column(msgs, conn, tmp_path):
                                                           LocalKeyProviderConfig)
     conn.execute('CREATE TABLE "patient_vitals_table" ("{pk}" INTEGER PRIMARY KEY, '
                  '"patient_id" TEXT, "heart_rate" DOUBLE PRECISION NOT NULL, '
-                 '"device_note" TEXT, "STATUS_{h}" TEXT, "ERROR_{h}" TEXT, '
-                 '"ORIGINATOR" TEXT)'.format(pk=PK, h=HASH))
+                 '"device_note" TEXT, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, '
+                 '"HARPIA_ORIGINATOR" TEXT)'.format(pk=PK, h=HASH))
     conn.execute("INSERT INTO \"patient_vitals_table\" (\"{}\", \"patient_id\", \"heart_rate\") "
                  "VALUES (1, 'legacy', 61.5)".format(PK))
     conn.commit()

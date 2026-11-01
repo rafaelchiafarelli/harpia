@@ -36,7 +36,7 @@ from UnitTests import _py_cpp_parity as P  # noqa: E402
 pytestmark = pytest.mark.skipif(not P.HAVE_PY, reason=P.SKIP_PY)
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 PHI_DAOS = {"patient_vitals", "alarm_event"}
 
 
@@ -176,7 +176,7 @@ int main(int, char** argv) {
     std::string mode = argv[3];
     if (mode == "write") {
         dao.create_table();
-        ::patient_vitals m; m.set_id_%(h)s(3); m.set_patient_id("cpp-patient");
+        ::patient_vitals m; m.set_harpia_id(3); m.set_patient_id("cpp-patient");
         m.set_heart_rate(61.25f); m.set_device_note("from c++");
         return dao.create(m) ? 0 : 3;
     }
@@ -233,7 +233,7 @@ def test_cpp_writes_python_reads_and_back(gen, cpp_vitals, tmp_path):
 
 _LEGACY_VITALS = ('CREATE TABLE "patient_vitals_table" ("{pk}" INTEGER PRIMARY KEY, '
                   '"patient_id" TEXT, "heart_rate" REAL NOT NULL, "device_note" TEXT, '
-                  '"STATUS_{h}" TEXT, "ERROR_{h}" TEXT, "ORIGINATOR" TEXT)').format(pk=PK, h=HASH)
+                  '"HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT)').format(pk=PK, h=HASH)
 
 _CPP_MIG = r'''
 #include <soci/soci.h>

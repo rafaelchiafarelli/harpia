@@ -135,9 +135,7 @@ def test_critical_message_emits_clean_proto(tmp_path):
 
 def test_critical_and_plain_message_emit_identical_proto_shape(tmp_path):
     # A `critical` message and a plain one with the same body must produce the
-    # same field lines. (Hidden ID_/STATUS_/ERROR_ fields are hash-suffixed off
-    # the differing source text -- see Message/CLAUDE.md -- so compare only the
-    # user field's own line.)
+    # same field lines.
     plain = _run(tmp_path, "message m {\nint a;\n};\n")
     tagged = _run(tmp_path, "critical message m {\nint a;\n};\n")
     assert plain["error"] is None and tagged["error"] is None

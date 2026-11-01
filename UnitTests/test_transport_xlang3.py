@@ -76,7 +76,7 @@ from UnitTests._java_grpc_server_helpers import HAS_TOOLCHAIN  # noqa: E402
 from UnitTests.test_py_rest import generate_low_risk  # noqa: E402
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 THIRD = os.path.join(REPO_ROOT, "third_party")
 PROVISION = os.path.join(REPO_ROOT, "Assets", "cmake", "mtls_provision.sh")
 FLAT = {"x-user": "users", "x-pswd": HASH}
@@ -191,7 +191,7 @@ static bool seed(::soci::session& db) {
     harpia::db::users_dao dao(db);
     if (!dao.create_table()) return false;
     if (!harpia::db::reception_desk_dao(db).create_table()) return false;
-    ::users u; u.set_id_@H@(1); u.set_name("neo");
+    ::users u; u.set_harpia_id(1); u.set_name("neo");
     return dao.create(u);
 }
 
@@ -214,7 +214,7 @@ static std::string do_grpc(const std::vector<std::string>& p) {
     ::grpc::Status st;
     if (p[6] == "create") {
         ::frameworkProtos::users_Message m;
-        m.mutable_msg()->set_id_@H@(std::stoi(p[7]));
+        m.mutable_msg()->set_harpia_id(std::stoi(p[7]));
         m.mutable_msg()->set_name("from-cpp");
         ::frameworkProtos::errorCode out;
         st = stub->push(&c, m, &out);
@@ -457,7 +457,7 @@ public class TransportProbe {
             int id = Integer.parseInt(p[8]);
             if (p[7].equals("create")) {
                 users.Builder u = users.newBuilder();
-                u.setField(users.getDescriptor().findFieldByName("ID_@H@"), id);
+                u.setField(users.getDescriptor().findFieldByName("HARPIA_ID"), id);
                 u.setField(users.getDescriptor().findFieldByName("name"), "from-java");
                 stub.push(users_Message.newBuilder().setMsg(u).build());
             } else {

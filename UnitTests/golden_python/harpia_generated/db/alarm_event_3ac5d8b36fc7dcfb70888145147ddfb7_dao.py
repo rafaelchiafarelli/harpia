@@ -25,31 +25,31 @@ class alarm_event_dao(PhiDao[alarm_event]):
 
     MESSAGE = alarm_event
     TABLE = 'alarm_event_table'
-    PK = 'ID_3ac5d8b36fc7dcfb70888145147ddfb7'
+    PK = 'HARPIA_ID'
     PHI_FIELDS = ('patient_id',)
     COLUMNS = (
-        Column('ID_3ac5d8b36fc7dcfb70888145147ddfb7', ('ID_3ac5d8b36fc7dcfb70888145147ddfb7',)),
+        Column('HARPIA_ID', ('HARPIA_ID',)),
         Column('patient_id', ('patient_id',), phi=True),
         Column('alarm_type', ('alarm_type',)),
         Column('severity', ('severity',)),
-        Column('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7', ('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
+        Column('HARPIA_STATUS', ('HARPIA_STATUS',)),
+        Column('HARPIA_ERROR', ('HARPIA_ERROR',)),
+        Column('HARPIA_ORIGINATOR', ('HARPIA_ORIGINATOR',)),
     )
     CHILDREN = (
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "alarm_event_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "patient_id" TEXT, "alarm_type" TEXT, "severity" INTEGER, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "alarm_event_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "patient_id" TEXT, "alarm_type" TEXT, "severity" INTEGER, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
     )
     DROP_TABLE_SQL = (
         'DROP TABLE IF EXISTS "alarm_event_table";',
     )
-    INSERT_SQL = 'INSERT INTO "alarm_event_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7", "patient_id", "alarm_type", "severity", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7") VALUES (?, ?, ?, ?, ?, ?, ?)'
-    SELECT_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "patient_id", "alarm_type", "severity", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "alarm_event_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    UPDATE_SQL = 'UPDATE "alarm_event_table" SET "patient_id" = ?, "alarm_type" = ?, "severity" = ?, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" = ? WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    DELETE_SQL = 'DELETE FROM "alarm_event_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    LIST_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "patient_id", "alarm_type", "severity", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "alarm_event_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7"'
-    LIST_PAGE_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "patient_id", "alarm_type", "severity", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "alarm_event_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7" LIMIT ? OFFSET ?'
+    INSERT_SQL = 'INSERT INTO "alarm_event_table" ("HARPIA_ID", "patient_id", "alarm_type", "severity", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR") VALUES (?, ?, ?, ?, ?, ?, ?)'
+    SELECT_SQL = 'SELECT "HARPIA_ID", "patient_id", "alarm_type", "severity", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "alarm_event_table" WHERE "HARPIA_ID" = ?'
+    UPDATE_SQL = 'UPDATE "alarm_event_table" SET "patient_id" = ?, "alarm_type" = ?, "severity" = ?, "HARPIA_STATUS" = ?, "HARPIA_ERROR" = ?, "HARPIA_ORIGINATOR" = ? WHERE "HARPIA_ID" = ?'
+    DELETE_SQL = 'DELETE FROM "alarm_event_table" WHERE "HARPIA_ID" = ?'
+    LIST_SQL = 'SELECT "HARPIA_ID", "patient_id", "alarm_type", "severity", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "alarm_event_table" ORDER BY "HARPIA_ID"'
+    LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "patient_id", "alarm_type", "severity", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "alarm_event_table" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'
 
     def _on_change(self, msg: alarm_event) -> None:
         """OnChange: publish the written row to ``alarm_event_channel()``

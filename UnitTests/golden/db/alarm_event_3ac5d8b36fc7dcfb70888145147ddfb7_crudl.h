@@ -30,7 +30,7 @@ public:
 
     bool create_table() {
         try {
-            db_ << "CREATE TABLE IF NOT EXISTS \"alarm_event_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"patient_id\" TEXT, \"alarm_type\" TEXT, \"severity\" INTEGER, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT);";
+            db_ << "CREATE TABLE IF NOT EXISTS \"alarm_event_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"patient_id\" TEXT, \"alarm_type\" TEXT, \"severity\" INTEGER, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -43,14 +43,14 @@ public:
 
     bool create(const ::alarm_event& msg) {
         try {
-            int c0 = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+            int c0 = msg.harpia_id();
             std::string c1 = ::harpia::crypto::encrypt_field(kp_, msg.patient_id());
             std::string c2 = msg.alarm_type();
             int c3 = msg.severity();
-            std::string c4 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c5 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c6 = msg.originator_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "INSERT INTO \"alarm_event_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"alarm_type\", \"severity\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6)",
+            std::string c4 = msg.harpia_status();
+            std::string c5 = msg.harpia_error();
+            std::string c6 = msg.harpia_originator();
+            db_ << "INSERT INTO \"alarm_event_table\" (\"HARPIA_ID\", \"patient_id\", \"alarm_type\", \"severity\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6)",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6);
             audit_.record("phi_create", "alarm_event_table", "patient_id");
             ::harpia::events::alarm_event_channel().publish(msg);
@@ -68,16 +68,16 @@ public:
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
             std::string l6; ::soci::indicator n6;
-            db_ << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"alarm_type\", \"severity\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"alarm_event_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id),
+            db_ << "SELECT \"HARPIA_ID\", \"patient_id\", \"alarm_type\", \"severity\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"alarm_event_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6);
             if (!db_.got_data()) return false;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_patient_id(::harpia::crypto::decrypt_field(kp_, n1 == ::soci::i_ok ? l1 : std::string()));
                 msg->set_alarm_type(n2 == ::soci::i_ok ? l2 : std::string());
                 msg->set_severity(n3 == ::soci::i_ok ? l3 : 0);
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
-                msg->set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(n6 == ::soci::i_ok ? l6 : std::string());
+                msg->set_harpia_status(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_error(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_originator(n6 == ::soci::i_ok ? l6 : std::string());
             audit_.record("phi_read", "alarm_event_table", "patient_id");
             return true;
         } catch (const std::exception&) { return false; }
@@ -88,11 +88,11 @@ public:
             std::string c0 = ::harpia::crypto::encrypt_field(kp_, msg.patient_id());
             std::string c1 = msg.alarm_type();
             int c2 = msg.severity();
-            std::string c3 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c4 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c5 = msg.originator_3ac5d8b36fc7dcfb70888145147ddfb7();
-            long long cid = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "UPDATE \"alarm_event_table\" SET \"patient_id\" = :c0, \"alarm_type\" = :c1, \"severity\" = :c2, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c3, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c4, \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c5 WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :cid",
+            std::string c3 = msg.harpia_status();
+            std::string c4 = msg.harpia_error();
+            std::string c5 = msg.harpia_originator();
+            long long cid = msg.harpia_id();
+            db_ << "UPDATE \"alarm_event_table\" SET \"patient_id\" = :c0, \"alarm_type\" = :c1, \"severity\" = :c2, \"HARPIA_STATUS\" = :c3, \"HARPIA_ERROR\" = :c4, \"HARPIA_ORIGINATOR\" = :c5 WHERE \"HARPIA_ID\" = :cid",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(cid);
             audit_.record("phi_update", "alarm_event_table", "patient_id");
             ::harpia::events::alarm_event_channel().publish(msg);
@@ -103,7 +103,7 @@ public:
 
     bool remove(std::int64_t id) {
         try {
-            db_ << "DELETE FROM \"alarm_event_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id);
+            db_ << "DELETE FROM \"alarm_event_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id);
             audit_.record("phi_delete", "alarm_event_table", "patient_id");
             return true;
         } catch (const std::exception&) { return false; }
@@ -118,19 +118,19 @@ public:
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
             std::string l6; ::soci::indicator n6;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"alarm_type\", \"severity\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"alarm_event_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"",
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"patient_id\", \"alarm_type\", \"severity\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"alarm_event_table\" ORDER BY \"HARPIA_ID\"",
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6));
             st.execute();
             while (st.fetch()) {
                 ::alarm_event row;
                 ::alarm_event* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_patient_id(::harpia::crypto::decrypt_field(kp_, n1 == ::soci::i_ok ? l1 : std::string()));
                 msg->set_alarm_type(n2 == ::soci::i_ok ? l2 : std::string());
                 msg->set_severity(n3 == ::soci::i_ok ? l3 : 0);
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
-                msg->set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(n6 == ::soci::i_ok ? l6 : std::string());
+                msg->set_harpia_status(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_error(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_originator(n6 == ::soci::i_ok ? l6 : std::string());
                 out->push_back(row);
             }
             audit_.record("phi_list", "alarm_event_table", "patient_id");
@@ -151,19 +151,19 @@ public:
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
             std::string l6; ::soci::indicator n6;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"alarm_type\", \"severity\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"alarm_event_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"patient_id\", \"alarm_type\", \"severity\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"alarm_event_table\" ORDER BY \"HARPIA_ID\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6));
             st.execute();
             while (st.fetch()) {
                 ::alarm_event row;
                 ::alarm_event* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_patient_id(::harpia::crypto::decrypt_field(kp_, n1 == ::soci::i_ok ? l1 : std::string()));
                 msg->set_alarm_type(n2 == ::soci::i_ok ? l2 : std::string());
                 msg->set_severity(n3 == ::soci::i_ok ? l3 : 0);
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
-                msg->set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(n6 == ::soci::i_ok ? l6 : std::string());
+                msg->set_harpia_status(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_error(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_originator(n6 == ::soci::i_ok ? l6 : std::string());
                 out->push_back(row);
             }
             audit_.record("phi_list", "alarm_event_table", "patient_id");

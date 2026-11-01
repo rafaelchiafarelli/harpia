@@ -110,7 +110,7 @@ public class SessionProbe {
 
     static users_Message msg(long idValue) {
         users.Builder u = users.newBuilder();
-        FieldDescriptor id = users.getDescriptor().findFieldByName("ID_{h}");
+        FieldDescriptor id = users.getDescriptor().findFieldByName("HARPIA_ID");
         u.setField(id, id.getJavaType() == FieldDescriptor.JavaType.LONG
                        ? (Object) idValue : (Object) (int) idValue);
         u.setField(users.getDescriptor().findFieldByName("name"), "neo");

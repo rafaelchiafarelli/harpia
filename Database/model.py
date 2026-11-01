@@ -247,7 +247,7 @@ class RepeatedComposedField:
 
 # field names the front-end injects into every message; meaningless when a
 # message is embedded inside another, so flattening skips them.
-_HIDDEN_PREFIXES = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
+_HIDDEN_PREFIXES = ("HARPIA_",)
 
 
 def _is_hidden(name):
@@ -458,7 +458,7 @@ def analyze(msg, types=None, backend=None):
             # column type rejects it on PostgreSQL. The bind kind stays the
             # field's own; the DAOs bind phi as text already.
             sql_type = backend.sql_type("STRING")
-        columns.append(Column(v.name, sql_type, pk=v.name.startswith("ID_"),
+        columns.append(Column(v.name, sql_type, pk=v.name == "HARPIA_ID",
                               required="REQUIRED" in mods,
                               unique="UNIQUE" in mods,
                               bindable=True, kind=kind,

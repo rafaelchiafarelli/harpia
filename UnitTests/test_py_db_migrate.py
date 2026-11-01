@@ -34,7 +34,7 @@ pytestmark = pytest.mark.skipif(not P.HAVE_PY, reason=P.SKIP_PY)
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
 T = "beacon_log_table"
-ID = "ID_" + HASH
+ID = "HARPIA_ID"
 
 # hand-built older states of beacon_log_table
 STARTS = {

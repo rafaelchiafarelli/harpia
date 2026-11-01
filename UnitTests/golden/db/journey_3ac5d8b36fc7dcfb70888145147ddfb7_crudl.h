@@ -28,7 +28,7 @@ public:
 
     bool create_table() {
         try {
-            db_ << "CREATE TABLE IF NOT EXISTS \"journey_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"path_start_city\" TEXT, \"path_start_elevation\" INTEGER, \"path_label\" TEXT, \"vessel\" TEXT, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR\" TEXT);";
+            db_ << "CREATE TABLE IF NOT EXISTS \"journey_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"path_start_city\" TEXT, \"path_start_elevation\" INTEGER, \"path_label\" TEXT, \"vessel\" TEXT, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -41,15 +41,15 @@ public:
 
     bool create(const ::journey& msg) {
         try {
-            int c0 = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+            int c0 = msg.harpia_id();
             std::string c1 = msg.path().start().city();
             int c2 = msg.path().start().elevation();
             std::string c3 = msg.path().label();
             std::string c4 = msg.vessel();
-            std::string c5 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c6 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c7 = msg.originator();
-            db_ << "INSERT INTO \"journey_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"path_start_city\", \"path_start_elevation\", \"path_label\", \"vessel\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6, :c7)",
+            std::string c5 = msg.harpia_status();
+            std::string c6 = msg.harpia_error();
+            std::string c7 = msg.harpia_originator();
+            db_ << "INSERT INTO \"journey_table\" (\"HARPIA_ID\", \"path_start_city\", \"path_start_elevation\", \"path_label\", \"vessel\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6, :c7)",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6), ::soci::use(c7);
             return true;
         } catch (const std::exception&) { return false; }
@@ -65,17 +65,17 @@ public:
             std::string l5; ::soci::indicator n5;
             std::string l6; ::soci::indicator n6;
             std::string l7; ::soci::indicator n7;
-            db_ << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"path_start_city\", \"path_start_elevation\", \"path_label\", \"vessel\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"journey_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id),
+            db_ << "SELECT \"HARPIA_ID\", \"path_start_city\", \"path_start_elevation\", \"path_label\", \"vessel\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"journey_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6), ::soci::into(l7, n7);
             if (!db_.got_data()) return false;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->mutable_path()->mutable_start()->set_city(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->mutable_path()->mutable_start()->set_elevation(n2 == ::soci::i_ok ? l2 : 0);
                 msg->mutable_path()->set_label(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_vessel(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n6 == ::soci::i_ok ? l6 : std::string());
-                msg->set_originator(n7 == ::soci::i_ok ? l7 : std::string());
+                msg->set_harpia_status(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_error(n6 == ::soci::i_ok ? l6 : std::string());
+                msg->set_harpia_originator(n7 == ::soci::i_ok ? l7 : std::string());
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -86,11 +86,11 @@ public:
             int c1 = msg.path().start().elevation();
             std::string c2 = msg.path().label();
             std::string c3 = msg.vessel();
-            std::string c4 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c5 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c6 = msg.originator();
-            long long cid = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "UPDATE \"journey_table\" SET \"path_start_city\" = :c0, \"path_start_elevation\" = :c1, \"path_label\" = :c2, \"vessel\" = :c3, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c4, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c5, \"ORIGINATOR\" = :c6 WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :cid",
+            std::string c4 = msg.harpia_status();
+            std::string c5 = msg.harpia_error();
+            std::string c6 = msg.harpia_originator();
+            long long cid = msg.harpia_id();
+            db_ << "UPDATE \"journey_table\" SET \"path_start_city\" = :c0, \"path_start_elevation\" = :c1, \"path_label\" = :c2, \"vessel\" = :c3, \"HARPIA_STATUS\" = :c4, \"HARPIA_ERROR\" = :c5, \"HARPIA_ORIGINATOR\" = :c6 WHERE \"HARPIA_ID\" = :cid",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6), ::soci::use(cid);
             return true;
         } catch (const std::exception&) { return false; }
@@ -98,7 +98,7 @@ public:
 
     bool remove(std::int64_t id) {
         try {
-            db_ << "DELETE FROM \"journey_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id);
+            db_ << "DELETE FROM \"journey_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id);
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -113,20 +113,20 @@ public:
             std::string l5; ::soci::indicator n5;
             std::string l6; ::soci::indicator n6;
             std::string l7; ::soci::indicator n7;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"path_start_city\", \"path_start_elevation\", \"path_label\", \"vessel\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"journey_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"",
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"path_start_city\", \"path_start_elevation\", \"path_label\", \"vessel\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"journey_table\" ORDER BY \"HARPIA_ID\"",
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6), ::soci::into(l7, n7));
             st.execute();
             while (st.fetch()) {
                 ::journey row;
                 ::journey* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->mutable_path()->mutable_start()->set_city(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->mutable_path()->mutable_start()->set_elevation(n2 == ::soci::i_ok ? l2 : 0);
                 msg->mutable_path()->set_label(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_vessel(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n6 == ::soci::i_ok ? l6 : std::string());
-                msg->set_originator(n7 == ::soci::i_ok ? l7 : std::string());
+                msg->set_harpia_status(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_error(n6 == ::soci::i_ok ? l6 : std::string());
+                msg->set_harpia_originator(n7 == ::soci::i_ok ? l7 : std::string());
                 out->push_back(row);
             }
             return true;
@@ -147,20 +147,20 @@ public:
             std::string l5; ::soci::indicator n5;
             std::string l6; ::soci::indicator n6;
             std::string l7; ::soci::indicator n7;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"path_start_city\", \"path_start_elevation\", \"path_label\", \"vessel\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"journey_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"path_start_city\", \"path_start_elevation\", \"path_label\", \"vessel\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"journey_table\" ORDER BY \"HARPIA_ID\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6), ::soci::into(l7, n7));
             st.execute();
             while (st.fetch()) {
                 ::journey row;
                 ::journey* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->mutable_path()->mutable_start()->set_city(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->mutable_path()->mutable_start()->set_elevation(n2 == ::soci::i_ok ? l2 : 0);
                 msg->mutable_path()->set_label(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_vessel(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n6 == ::soci::i_ok ? l6 : std::string());
-                msg->set_originator(n7 == ::soci::i_ok ? l7 : std::string());
+                msg->set_harpia_status(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_error(n6 == ::soci::i_ok ? l6 : std::string());
+                msg->set_harpia_originator(n7 == ::soci::i_ok ? l7 : std::string());
                 out->push_back(row);
             }
             return true;

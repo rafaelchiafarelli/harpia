@@ -36,7 +36,7 @@ from UnitTests.test_py_db_dao import _unique_ids  # noqa: E402
 pytestmark = pytest.mark.skipif(not P.HAVE_PY, reason=P.SKIP_PY)
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 TINYXML2 = os.path.join(REPO_ROOT, "third_party", "tinyxml2")
 NAMES = ("users", "journey", "top_users", "outpost", "data", "telemetry", "shipment")
 # every message a NAMES DAO reaches through an FK (the C++ program links them)

@@ -29,7 +29,7 @@ public:
 
     bool create_table() {
         try {
-            db_ << "CREATE TABLE IF NOT EXISTS \"table_data\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"i\" INTEGER, \"j\" INTEGER, \"val_vari\" INTEGER, \"val_var\" INTEGER, \"val_val\" INTEGER, \"car\" INTEGER, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT);";
+            db_ << "CREATE TABLE IF NOT EXISTS \"table_data\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"i\" INTEGER, \"j\" INTEGER, \"val_vari\" INTEGER, \"val_var\" INTEGER, \"val_val\" INTEGER, \"car\" INTEGER, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
             db_ << "CREATE TABLE IF NOT EXISTS \"table_data__val_a\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));";
             db_ << "CREATE TABLE IF NOT EXISTS \"table_data__val_b\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"key\"));";
             db_ << "CREATE TABLE IF NOT EXISTS \"table_data__val_c\" (\"owner\" INTEGER, \"key\" INTEGER, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));";
@@ -52,20 +52,20 @@ public:
 
     bool create(const ::data& msg) {
         try {
-            int c0 = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+            int c0 = msg.harpia_id();
             int c1 = msg.i();
             int c2 = msg.j();
             int c3 = msg.val().vari();
             int c4 = msg.val().var();
             int c5 = msg.val().val();
             int c6 = static_cast<int>(msg.car());
-            std::string c7 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c8 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c9 = msg.originator_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "INSERT INTO \"table_data\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6, :c7, :c8, :c9)",
+            std::string c7 = msg.harpia_status();
+            std::string c8 = msg.harpia_error();
+            std::string c9 = msg.harpia_originator();
+            db_ << "INSERT INTO \"table_data\" (\"HARPIA_ID\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6, :c7, :c8, :c9)",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6), ::soci::use(c7), ::soci::use(c8), ::soci::use(c9);
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 for (const auto& kv : msg.val().a()) {
                     std::string _k = kv.first;
                     std::string _v = kv.second;
@@ -73,7 +73,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 for (const auto& kv : msg.val().b()) {
                     std::string _k = kv.first;
                     int _v = kv.second;
@@ -81,7 +81,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 for (const auto& kv : msg.val().c()) {
                     int _k = kv.first;
                     std::string _v = kv.second;
@@ -89,7 +89,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 long long _ord = 0;
                 for (const auto& rv : msg.tags()) {
                     int _v = rv;
@@ -98,7 +98,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 long long _ord = 0;
                 for (const auto& rv : msg.val().scores()) {
                     int _v = rv;
@@ -123,23 +123,23 @@ public:
             std::string l7; ::soci::indicator n7;
             std::string l8; ::soci::indicator n8;
             std::string l9; ::soci::indicator n9;
-            db_ << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"table_data\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id),
+            db_ << "SELECT \"HARPIA_ID\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"table_data\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6), ::soci::into(l7, n7), ::soci::into(l8, n8), ::soci::into(l9, n9);
             if (!db_.got_data()) return false;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_i(n1 == ::soci::i_ok ? l1 : 0);
                 msg->set_j(n2 == ::soci::i_ok ? l2 : 0);
                 msg->mutable_val()->set_vari(n3 == ::soci::i_ok ? l3 : 0);
                 msg->mutable_val()->set_var(n4 == ::soci::i_ok ? l4 : 0);
                 msg->mutable_val()->set_val(n5 == ::soci::i_ok ? l5 : 0);
                 msg->set_car(static_cast<::grower>(n6 == ::soci::i_ok ? l6 : 0));
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n7 == ::soci::i_ok ? l7 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n8 == ::soci::i_ok ? l8 : std::string());
-                msg->set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(n9 == ::soci::i_ok ? l9 : std::string());
+                msg->set_harpia_status(n7 == ::soci::i_ok ? l7 : std::string());
+                msg->set_harpia_error(n8 == ::soci::i_ok ? l8 : std::string());
+                msg->set_harpia_originator(n9 == ::soci::i_ok ? l9 : std::string());
                 {
                     std::string _k; std::string _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_a\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -149,7 +149,7 @@ public:
                 {
                     std::string _k; int _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_b\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -159,7 +159,7 @@ public:
                 {
                     int _k; std::string _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_c\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -168,7 +168,7 @@ public:
                 }
                 {
                     int _v = 0; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"table_data__tags\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -177,7 +177,7 @@ public:
                 }
                 {
                     int _v = 0; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"table_data__val_scores\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -196,14 +196,14 @@ public:
             int c3 = msg.val().var();
             int c4 = msg.val().val();
             int c5 = static_cast<int>(msg.car());
-            std::string c6 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c7 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c8 = msg.originator_3ac5d8b36fc7dcfb70888145147ddfb7();
-            long long cid = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "UPDATE \"table_data\" SET \"i\" = :c0, \"j\" = :c1, \"val_vari\" = :c2, \"val_var\" = :c3, \"val_val\" = :c4, \"car\" = :c5, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c6, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c7, \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c8 WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :cid",
+            std::string c6 = msg.harpia_status();
+            std::string c7 = msg.harpia_error();
+            std::string c8 = msg.harpia_originator();
+            long long cid = msg.harpia_id();
+            db_ << "UPDATE \"table_data\" SET \"i\" = :c0, \"j\" = :c1, \"val_vari\" = :c2, \"val_var\" = :c3, \"val_val\" = :c4, \"car\" = :c5, \"HARPIA_STATUS\" = :c6, \"HARPIA_ERROR\" = :c7, \"HARPIA_ORIGINATOR\" = :c8 WHERE \"HARPIA_ID\" = :cid",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6), ::soci::use(c7), ::soci::use(c8), ::soci::use(cid);
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 db_ << "DELETE FROM \"table_data__val_a\" WHERE \"owner\" = :o", ::soci::use(_owner);
                 for (const auto& kv : msg.val().a()) {
                     std::string _k = kv.first;
@@ -212,7 +212,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 db_ << "DELETE FROM \"table_data__val_b\" WHERE \"owner\" = :o", ::soci::use(_owner);
                 for (const auto& kv : msg.val().b()) {
                     std::string _k = kv.first;
@@ -221,7 +221,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 db_ << "DELETE FROM \"table_data__val_c\" WHERE \"owner\" = :o", ::soci::use(_owner);
                 for (const auto& kv : msg.val().c()) {
                     int _k = kv.first;
@@ -230,7 +230,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 db_ << "DELETE FROM \"table_data__tags\" WHERE \"owner\" = :o", ::soci::use(_owner);
                 long long _ord = 0;
                 for (const auto& rv : msg.tags()) {
@@ -240,7 +240,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 db_ << "DELETE FROM \"table_data__val_scores\" WHERE \"owner\" = :o", ::soci::use(_owner);
                 long long _ord = 0;
                 for (const auto& rv : msg.val().scores()) {
@@ -256,7 +256,7 @@ public:
 
     bool remove(std::int64_t id) {
         try {
-            db_ << "DELETE FROM \"table_data\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id);
+            db_ << "DELETE FROM \"table_data\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id);
             db_ << "DELETE FROM \"table_data__val_a\" WHERE \"owner\" = :o", ::soci::use(id);
             db_ << "DELETE FROM \"table_data__val_b\" WHERE \"owner\" = :o", ::soci::use(id);
             db_ << "DELETE FROM \"table_data__val_c\" WHERE \"owner\" = :o", ::soci::use(id);
@@ -278,26 +278,26 @@ public:
             std::string l7; ::soci::indicator n7;
             std::string l8; ::soci::indicator n8;
             std::string l9; ::soci::indicator n9;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"table_data\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"",
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"table_data\" ORDER BY \"HARPIA_ID\"",
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6), ::soci::into(l7, n7), ::soci::into(l8, n8), ::soci::into(l9, n9));
             st.execute();
             while (st.fetch()) {
                 ::data row;
                 ::data* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_i(n1 == ::soci::i_ok ? l1 : 0);
                 msg->set_j(n2 == ::soci::i_ok ? l2 : 0);
                 msg->mutable_val()->set_vari(n3 == ::soci::i_ok ? l3 : 0);
                 msg->mutable_val()->set_var(n4 == ::soci::i_ok ? l4 : 0);
                 msg->mutable_val()->set_val(n5 == ::soci::i_ok ? l5 : 0);
                 msg->set_car(static_cast<::grower>(n6 == ::soci::i_ok ? l6 : 0));
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n7 == ::soci::i_ok ? l7 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n8 == ::soci::i_ok ? l8 : std::string());
-                msg->set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(n9 == ::soci::i_ok ? l9 : std::string());
+                msg->set_harpia_status(n7 == ::soci::i_ok ? l7 : std::string());
+                msg->set_harpia_error(n8 == ::soci::i_ok ? l8 : std::string());
+                msg->set_harpia_originator(n9 == ::soci::i_ok ? l9 : std::string());
                 {
                     std::string _k; std::string _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_a\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -307,7 +307,7 @@ public:
                 {
                     std::string _k; int _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_b\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -317,7 +317,7 @@ public:
                 {
                     int _k; std::string _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_c\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -326,7 +326,7 @@ public:
                 }
                 {
                     int _v = 0; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"table_data__tags\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -335,7 +335,7 @@ public:
                 }
                 {
                     int _v = 0; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"table_data__val_scores\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -364,26 +364,26 @@ public:
             std::string l7; ::soci::indicator n7;
             std::string l8; ::soci::indicator n8;
             std::string l9; ::soci::indicator n9;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"table_data\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"table_data\" ORDER BY \"HARPIA_ID\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6), ::soci::into(l7, n7), ::soci::into(l8, n8), ::soci::into(l9, n9));
             st.execute();
             while (st.fetch()) {
                 ::data row;
                 ::data* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_i(n1 == ::soci::i_ok ? l1 : 0);
                 msg->set_j(n2 == ::soci::i_ok ? l2 : 0);
                 msg->mutable_val()->set_vari(n3 == ::soci::i_ok ? l3 : 0);
                 msg->mutable_val()->set_var(n4 == ::soci::i_ok ? l4 : 0);
                 msg->mutable_val()->set_val(n5 == ::soci::i_ok ? l5 : 0);
                 msg->set_car(static_cast<::grower>(n6 == ::soci::i_ok ? l6 : 0));
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n7 == ::soci::i_ok ? l7 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n8 == ::soci::i_ok ? l8 : std::string());
-                msg->set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(n9 == ::soci::i_ok ? l9 : std::string());
+                msg->set_harpia_status(n7 == ::soci::i_ok ? l7 : std::string());
+                msg->set_harpia_error(n8 == ::soci::i_ok ? l8 : std::string());
+                msg->set_harpia_originator(n9 == ::soci::i_ok ? l9 : std::string());
                 {
                     std::string _k; std::string _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_a\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -393,7 +393,7 @@ public:
                 {
                     std::string _k; int _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_b\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -403,7 +403,7 @@ public:
                 {
                     int _k; std::string _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"table_data__val_c\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -412,7 +412,7 @@ public:
                 }
                 {
                     int _v = 0; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"table_data__tags\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -421,7 +421,7 @@ public:
                 }
                 {
                     int _v = 0; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"table_data__val_scores\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
