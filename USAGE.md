@@ -97,7 +97,7 @@ stream pull push event message top_users {
 | `dds` | message | publish/subscribe onto an ASTM F2761 / OpenICE-class DDS bus (§14) |
 | `critical` | message | delivery guarantees — bounded rotating send queue + flush (§12), DDS RELIABLE/KEEP_ALL |
 | `optional` / `required` | field | presence (`has_<field>()`) / NOT NULL; mutually exclusive |
-| `autokey` | message | the database assigns `HARPIA_ID` (SQLite rowid, PostgreSQL identity): `create(msg)` refuses a caller-set key and writes the assigned one back into `msg` (C++ `create(T&)`, Python sets it, Java returns it); needs a table; an `autokey` message can't be the target of another table's composed (FK) field |
+| `autokey` | message | the database assigns `HARPIA_ID` (SQLite rowid, PostgreSQL identity): `create(msg)` refuses a caller-set key and writes the assigned one back into `msg` (C++ `create(T&)`, Python sets it, Java returns it); needs a table; in C++ an `autokey` message can't be the target of another table's composed (FK) field |
 | `unique` | field | UNIQUE column; the DAO gains `read_by_<field>(value, out)` (top-level, non-phi) |
 | `repeteable` | field | repeated field (ordinal child table, or `vector`/`list` if unbounded and table-less) |
 | `pagination[N]` | field | bounded-size hint; on a table message its `N` is the default GET-list page size |

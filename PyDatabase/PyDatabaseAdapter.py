@@ -134,9 +134,12 @@ class PyDatabaseAdapter:
         non_pk = [c.name for c in bound if not c.pk]
         sel = ", ".join(q(n) for n in names)
         table = q(msg.tableName)
+        autokey = bool(getattr(msg, "is_autokey", False))
+        ins = [n for n in names if not (autokey and n == pk.name)]
         sql = {
-            "insert_sql": "INSERT INTO {} ({}) VALUES ({})".format(
-                table, sel, ", ".join([ph] * len(names))),
+            "insert_sql": "INSERT INTO {} ({}) VALUES ({}){}".format(
+                table, ", ".join(q(n) for n in ins), ", ".join([ph] * len(ins)),
+                " RETURNING {}".format(q(pk.name)) if autokey else ""),
             "select_sql": "SELECT {} FROM {} WHERE {} = {}".format(
                 sel, table, q(pk.name), ph),
             "update_sql": "UPDATE {} SET {} WHERE {} = {}".format(
@@ -174,6 +177,7 @@ class PyDatabaseAdapter:
             event_import=self._event_import(msg),
             event_hook=self._event_hook(msg, phi),
             read_by=self._read_by(msg, scalar, sel, table, ph),
+            autokey="\n    AUTOKEY = True" if autokey else "",
             create_sql="".join("\n        {!r},".format(s) for s in create),
             drop_sql="".join("\n        {!r},".format(s) for s in drop),
             **{k: repr(v) for k, v in sql.items()})
@@ -232,6 +236,8 @@ class PyDatabaseAdapter:
             child_current=repr(tuple(child_table_names(msg, self.types, b))),
             drop_table_sql=repr(b.drop_table(name, if_exists=False)),
             child_plans=repr(child_plans),
+            identity=repr(next((b.identity_migration(table, c.name) for c in columns
+                                if c.pk and getattr(c, "identity", False)), None)),
             stamp_sql=repr(b.stamp_version(table, msg.md5Hash)))
 
     def _render_registry(self):
