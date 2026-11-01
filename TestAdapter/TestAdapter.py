@@ -176,7 +176,8 @@ class TestAdapter:
         # value _embed_getter/_embed_mutable can set/compare -- like the
         # repeated-FK case below, it's exercised by a dedicated host test
         # instead (test_embedded_fk_roundtrip).
-        embed_cols = [c for c in columns if c.embed and not c.fk_table]
+        embed_cols = [c for c in columns
+                      if c.embed and not c.fk_table and not c.presence_of]
         pk = next((c for c in bindable if c.pk), None)
         non_pk = [c for c in bindable if not c.pk]
         live_db = autokey_needs_live_db(msg, self.backend)

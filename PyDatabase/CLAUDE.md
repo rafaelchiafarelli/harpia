@@ -51,6 +51,13 @@ a stage of `LangBackend/python.py`'s `run_python`.
   `remove`, dropped before the main table. `bind.to_db` / `from_db` convert
   one element / map key / map value by descriptor.
 
+**Embed presence (embed-presence-DEFECT task 2, the C++ rule):** a
+`Column(..., presence=True)` is a hidden `HARPIA_HAS_<prefix>` column whose path
+ends at the embedded message field. `column_value` binds it `1`/`0` and a
+sub-field of an absent embed as `None`; `_load_row` skips everything under a
+`0`, and `1`/`NULL` (a pre-change row) marks the embed present.
+`_read_child` returns early on zero rows so it can't materialize an embed.
+
 ## Generated DAOs (`templates/dao.py.tmpl`)
 `harpia_generated/db/<name>_<hash>_dao.py` per table-bearing message: class
 `<name>_dao(Dao[<name>])` holding the table spec and the exact SQL. The DDL

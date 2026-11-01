@@ -2,6 +2,8 @@
 -- message journey -> table "journey_table" (PRIVATE)
 CREATE TABLE IF NOT EXISTS "journey_table" (
     "HARPIA_ID" INTEGER PRIMARY KEY,
+    "HARPIA_HAS_path" INTEGER,
+    "HARPIA_HAS_path_start" INTEGER,
     "path_start_city" TEXT,
     "path_start_elevation" INTEGER,
     "path_label" TEXT,

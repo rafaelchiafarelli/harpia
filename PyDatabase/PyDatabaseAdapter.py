@@ -119,7 +119,8 @@ class PyDatabaseAdapter:
     def _render(self, msg):
         columns, _notes = analyze(msg, self.types, self.backend)
         # C++ CrudlAdapter order: scalar/enum/embedded columns, then FKs
-        scalar = [c for c in columns if (c.bindable or c.embed) and not c.fk_table]
+        scalar = [c for c in columns
+                  if (c.bindable or c.embed or c.presence_of) and not c.fk_table]
         fks = [c for c in columns if c.fk_table]
         bound = scalar + fks
         pk = next((c for c in scalar if c.pk), None)
@@ -379,6 +380,8 @@ class PyDatabaseAdapter:
             fk = ", fk={!r}".format(self._dao_ref(col.fk_target))
         if getattr(col, "is_phi", False) and not col.fk_table:
             fk += ", phi=True"
+        if col.presence_of:
+            fk += ", presence=True"
         return "Column({!r}, {!r}{}),".format(col.name, path, fk)
 
     def _dao_ref(self, message_name):
@@ -390,6 +393,8 @@ class PyDatabaseAdapter:
         """The column's attribute path with the exact ``.proto`` field names
         (``Column.embed`` / ``child_accessor`` hold C++'s lowercased
         accessors)."""
+        if col.presence_of:
+            return self._walk(msg, list(col.presence_of))
         if col.embed:
             return self._walk(msg, list(col.embed) + [col.child_accessor])
         return [col.name]
