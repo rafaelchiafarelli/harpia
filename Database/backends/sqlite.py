@@ -58,10 +58,13 @@ class SqliteBackend(DbBackend):
         return "?"  # sqlite3 (DB-API paramstyle qmark)
 
     # -- columns & tables -----------------------------------------------------
-    def column_def(self, sql_type, *, pk=False, required=False, unique=False):
+    def column_def(self, sql_type, *, pk=False, required=False, unique=False,
+                   identity=False):
         # Caller-assigned PK -- a plain rowid alias, NOT AUTOINCREMENT. The id
         # (HARPIA_ID field) is set by the caller and bound on INSERT, so no
         # auto-generation is introduced (that would ignore the caller's id).
+        # An `autokey` table's PK is the same rowid alias: SQLite assigns it
+        # when the INSERT leaves it out (identity needs no extra DDL).
         if pk:
             return "{} PRIMARY KEY".format(sql_type)
         parts = [sql_type]

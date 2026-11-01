@@ -96,10 +96,19 @@ class DbBackend(ABC):
     # -- DDL: columns & tables ------------------------------------------------
     @abstractmethod
     def column_def(self, sql_type: str, *, pk: bool = False,
-                   required: bool = False, unique: bool = False) -> str:
+                   required: bool = False, unique: bool = False,
+                   identity: bool = False) -> str:
         """One column's type + constraints (replaces the old
         ``Column.sql_def()``). ``sql_type`` is already resolved (via
-        :meth:`sql_type` / :attr:`int_type`)."""
+        :meth:`sql_type` / :attr:`int_type`). ``identity`` (an `autokey`
+        message's primary key): the database assigns the value."""
+
+    def identity_migration(self, table: str, column: str):
+        """For an `autokey` table, how a migration makes an existing
+        caller-assigned key column database-assigned: ``None`` when nothing
+        is needed, else ``{"check_sql": <SELECT returning 'NO' when not yet
+        an identity>, "statements": [...]}``."""
+        return None
 
     @abstractmethod
     def create_table(self, table: str, columns, if_not_exists: bool = True) -> str:

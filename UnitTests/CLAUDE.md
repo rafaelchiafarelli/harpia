@@ -373,7 +373,10 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   optional` → NULL with no ciphertext, on its own temp schema —
   db-optional-presence-DEFECT task 1), `read_by_visitor_name` on the
   `unique` `reception_desk.visitor_name` (hit / miss / UNIQUE enforced —
-  dao-key-access read-by-unique task 1), DB↔JSON/XML. (cc + g++, some protoc)
+  dao-key-access read-by-unique task 1), `autokey` on its own temp schema
+  (`_gen_autokey`: assigned + written back, a caller-set key refused, migrate
+  idempotent; `AUTOKEY_WITHOUT_TABLE` — db-assigned-key task 2),
+  DB↔JSON/XML. (cc + g++, some protoc)
 - `test_db_segregation.py` — the db-segregation epic / Session db-segregation task 1: the public/private DB
   registry (`Database/DbRegistryAdapter.py` → `generated/cpp/db/harpia_db_registry.h`).
   Structural (pure Python, always run): the one project-wide header is
