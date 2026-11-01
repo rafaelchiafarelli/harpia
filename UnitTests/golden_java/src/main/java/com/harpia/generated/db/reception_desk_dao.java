@@ -19,7 +19,7 @@ public final class reception_desk_dao {
         this.conn = conn;
     }
 
-    public static final String CREATE_TABLE_SQL = "CREATE TABLE IF NOT EXISTS \"reception_desk_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"visitor_name\" TEXT, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
+    public static final String CREATE_TABLE_SQL = "CREATE TABLE IF NOT EXISTS \"reception_desk_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"visitor_name\" TEXT UNIQUE, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
     public static final String DROP_TABLE_SQL = "DROP TABLE IF EXISTS \"reception_desk_table\";";
 
     public boolean createTable() throws SQLException {

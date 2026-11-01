@@ -2,7 +2,7 @@
 -- message reception_desk -> table "reception_desk_table" (PRIVATE)
 CREATE TABLE IF NOT EXISTS "reception_desk_table" (
     "HARPIA_ID" INTEGER PRIMARY KEY,
-    "visitor_name" TEXT,
+    "visitor_name" TEXT UNIQUE,
     "HARPIA_STATUS" TEXT,
     "HARPIA_ERROR" TEXT,
     "HARPIA_ORIGINATOR" TEXT

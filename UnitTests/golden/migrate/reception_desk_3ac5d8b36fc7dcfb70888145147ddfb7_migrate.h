@@ -199,7 +199,7 @@ inline bool migrate_reception_desk(::soci::session& db,
             if (have_types.count("HARPIA_ERROR") && have_types["HARPIA_ERROR"] != "TEXT") _needs_retype = true;
             if (have_types.count("HARPIA_ORIGINATOR") && have_types["HARPIA_ORIGINATOR"] != "TEXT") _needs_retype = true;
         if (_needs_retype) {
-            db << "CREATE TABLE \"reception_desk_table__retype_tmp\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"visitor_name\" TEXT, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
+            db << "CREATE TABLE \"reception_desk_table__retype_tmp\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"visitor_name\" TEXT UNIQUE, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
             db << "INSERT INTO \"reception_desk_table__retype_tmp\" (\"HARPIA_ID\", \"visitor_name\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") SELECT CAST(\"HARPIA_ID\" AS INTEGER), CAST(\"visitor_name\" AS TEXT), CAST(\"HARPIA_STATUS\" AS TEXT), CAST(\"HARPIA_ERROR\" AS TEXT), CAST(\"HARPIA_ORIGINATOR\" AS TEXT) FROM \"reception_desk_table\";";
             db << "DROP TABLE \"reception_desk_table\";";
             db << "ALTER TABLE \"reception_desk_table__retype_tmp\" RENAME TO \"reception_desk_table\";";

@@ -84,10 +84,10 @@ See [USAGE.md §9](../../../USAGE.md#9-enabling-tls-on-restsoapgrpc) for the gRP
 equivalent (`grpc::SslServerCredentials`, no extra linking needed).
 
 ## Notes
-- Generated names are **md5-hash-qualified** (`users_<hash>_crudl.h`, accessor
-  `id_<hash>()`); the hash is derived from your `.harpia` input. This example is
-  pinned to HarpiaTest's hash — regenerate from your own input and update the
-  includes/accessors accordingly.
+- Generated file names are **md5-hash-qualified** (`users_<hash>_crudl.h`); the
+  hash is derived from your root `.harpia` file. This example is pinned to
+  HarpiaTest's hash — regenerate from your own input and update the includes
+  accordingly. The hidden key accessor is always `harpia_id()`.
 - To target **PostgreSQL**, generate with `HARPIA_DB_BACKEND=postgresql`, include
   `<soci/postgresql/soci-postgresql.h>`, open the session with
   `::soci::postgresql`, and link `soci_postgresql` instead of `soci_sqlite3`

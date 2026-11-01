@@ -519,3 +519,43 @@ def test_pg_optional_presence_round_trip(pg_generated, tmp_path):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, "PG presence round trip failed at check #{}\n{}".format(
         run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_read_by_unique(pg_generated, tmp_path):
+    """dao-key-access / read-by-unique task 1, PostgreSQL twin of
+    test_stage8_db.py::test_read_by_unique."""
+    cpp_root = pg_generated
+    prog = tmp_path / "pg_read_by.cpp"
+    prog.write_text(
+        '#include "db/reception_desk_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    ::harpia::db::reception_desk_dao dao(db);\n"
+        "    dao.drop_table();\n"
+        "    if (!dao.create_table()) return 2;\n"
+        '    ::reception_desk a; a.set_harpia_id(4); a.set_visitor_name("ana");\n'
+        "    if (!dao.create(a)) return 3;\n"
+        "    ::reception_desk got;\n"
+        '    if (!dao.read_by_visitor_name("ana", &got) || got.harpia_id() != 4) return 4;\n'
+        "    ::reception_desk none;\n"
+        '    if (dao.read_by_visitor_name("nobody", &none)) return 5;\n'
+        "    dao.drop_table();\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    pb_cc = os.path.join(cpp_root, "protofiles", "reception_desk_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "pg_read_by")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG read_by program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "PG read_by failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)

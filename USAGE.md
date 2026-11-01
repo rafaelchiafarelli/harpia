@@ -307,9 +307,10 @@ message `*.pb.cc` you use, adds header-only `third_party/crow` + `third_party/as
 builds `third_party/tinyxml2`, and links `soci_core` + a backend, protobuf,
 pthreads (and gRPC / libzmq / OpenSSL / cyclonedds as needed).
 
-Generated identifiers are **md5-hash-qualified** — `users_<hash>_crudl.h`,
-accessor `id_<hash>()` — the hash comes from your `.harpia` input and changes
-when your definitions do. Substitute your real hash for `<hash>` below.
+Generated **file names** are md5-hash-qualified — `users_<hash>_crudl.h` —
+the hash comes from your root `.harpia` file's text and changes when it does.
+Substitute your real hash for `<hash>` below. Field accessors are not: the
+hidden key is always `harpia_id()` / `set_harpia_id()`.
 
 ### 7.1 Database — CRUDL, FK, maps, repeated, pagination
 
@@ -323,13 +324,15 @@ harpia::db::users_dao dao(db);
 dao.create_table();                          // + child tables for maps / repeated / FK
 
 ::users u;
-u.set_id_<hash>(1);                          // ID is caller-assigned, set before create()
+u.set_harpia_id(1);                          // the key is caller-assigned, set before create()
 u.set_name("alice"); u.set_address("1 River Rd");
 dao.create(u);
 
 ::users got;
 dao.read(1, &got);                           // false if not found
 got.set_address("2 River Rd"); dao.update(got);
+// a `unique` field `x` also gets read_by_x(value, &out) -- false if not found
+// (top-level, non-phi fields; C++ read_by_x, Python read_by_x, Java readByX)
 
 std::vector<::users> all;
 dao.list(&all);                              // unbounded

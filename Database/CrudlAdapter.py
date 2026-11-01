@@ -245,8 +245,47 @@ class CrudlAdapter:
             map_update=(self._map_write(maps, id_col, "update")
                         + self._rep_write(reps, id_col, "update")),
             map_read=self._map_read(maps, id_col) + self._rep_read(reps, id_col),
+            read_by=self._read_by(msg, scalar, fk_cols, insert_all,
+                                  self._map_read(maps, id_col) + self._rep_read(reps, id_col),
+                                  _audit("read")),
             map_remove=self._child_remove(maps + reps),
         )
+
+    # -- read_by_<field> for `unique` fields (dao-key-access) ---------------
+    def _read_by(self, msg, scalar, fk_cols, insert_all, child_read, audit_read):
+        """``bool read_by_<field>(value, msg*)`` for every top-level, non-phi
+        `unique` scalar column (a phi value is sealed with a random nonce, so
+        SQL can't match it): read()'s SELECT keyed on that column; the same
+        hydration, child tables and audit as read()."""
+        out = []
+        for c in scalar:
+            if not c.unique or c.pk or c.embed or getattr(c, "is_phi", False):
+                continue
+            ptype = ("const std::string&" if c.kind == "text"
+                     else "::{}".format(c.enum_type) if c.kind == "enum"
+                     else _local_ctype(c.kind))
+            bound = ("static_cast<int>(value)" if c.kind == "enum" else "value")
+            out.append(
+                "\n    bool read_by_{acc}({pt} value, ::{cls}* msg) {{\n"
+                "        try {{\n"
+                "{locals}"
+                "            const auto _key = {bound};\n"
+                '            db_ << "SELECT {cols} FROM \\"{table}\\" WHERE \\"{col}\\" = :v", '
+                "::soci::use(_key){into};\n"
+                "            if (!db_.got_data()) return false;\n"
+                "{extract}{fk}{child}{audit}"
+                "            return true;\n"
+                "        }} catch (const std::exception&) {{ return false; }}\n"
+                "    }}\n".format(
+                    acc=c.accessor, pt=ptype, cls=msg.name, bound=bound,
+                    locals=self._extract_locals(scalar, fk_cols),
+                    cols=", ".join('\\"{}\\"'.format(x.name) for x in insert_all),
+                    table=msg.tableName, col=c.name,
+                    into=self._extract_into(len(insert_all)),
+                    extract=self._extract_set(scalar),
+                    fk=self._fk_extract(scalar, fk_cols),
+                    child=child_read, audit=audit_read))
+        return "".join(out)
 
     # -- INSERT locals / SELECT locals -------------------------------------
     def _create_locals(self, scalar, fk_cols):

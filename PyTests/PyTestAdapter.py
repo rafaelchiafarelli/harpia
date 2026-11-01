@@ -12,6 +12,7 @@ import os
 
 from Crypto.backend import transport_hardening_required
 from Database.auth_gate import effective_rbac
+from Database.model import analyze, type_registry
 from Logger.logger import logger
 from PyAdapter.runtime_copy import copy_runtime_module
 from TestAdapter.TestAdapter import TestAdapter
@@ -69,9 +70,18 @@ class PyTestAdapter:
         """The per-message gate choice (``Database.auth_gate.effective_rbac``)."""
         return effective_rbac(msg, transport_hardening_required(self.compliance))
 
+    def _distinct(self, msg):
+        """``, distinct=(...)`` for a second sampled row: the message's
+        top-level `unique` fields, which can't repeat the first row's value
+        (the C++ TestAdapter's variant "c"); ``""`` when it has none."""
+        columns, _ = analyze(msg, type_registry(self.messages))
+        names = tuple(c.name for c in columns if c.unique and not c.pk and not c.embed)
+        return ", distinct={!r}".format(names) if names else ""
+
     def _fills(self, msg):
         rbac = self._rbac(msg)
         return dict(
+            distinct=self._distinct(msg),
             name=msg.name, hash=msg.md5Hash, table=msg.tableName,
             name_lit=repr(msg.name), hash_lit=repr(msg.md5Hash),
             gate_doc=("RBAC -- the matrix, and an anonymous caller is fail-closed "
