@@ -610,3 +610,49 @@ def test_pg_db_assigned_key(tmp_path):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, "PG autokey failed at check #{}\n{}".format(
         run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_embed_presence_round_trip(pg_generated, tmp_path):
+    """embed-presence-DEFECT task 1, PostgreSQL twin of
+    test_stage8_db.py::test_embed_presence_round_trip."""
+    cpp_root = pg_generated
+    prog = tmp_path / "pg_embed_presence.cpp"
+    prog.write_text(
+        '#include "db/journey_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    ::harpia::db::journey_dao jd(db);\n"
+        "    jd.drop_table();\n"
+        "    if (!jd.create_table()) return 2;\n"
+        "    ::journey none; none.set_harpia_id(1);\n"
+        "    ::journey outer; outer.set_harpia_id(2); outer.mutable_path();\n"
+        "    ::journey both; both.set_harpia_id(3); both.mutable_path()->mutable_start();\n"
+        "    if (!jd.create(none) || !jd.create(outer) || !jd.create(both)) return 3;\n"
+        "    ::journey j1, j2, j3;\n"
+        "    if (!jd.read(1, &j1) || j1.has_path()) return 4;\n"
+        "    if (!jd.read(2, &j2) || !j2.has_path() || j2.path().has_start()) return 5;\n"
+        "    if (!jd.read(3, &j3) || !j3.has_path() || !j3.path().has_start()) return 6;\n"
+        '    db << "UPDATE \\"journey_table\\" SET \\"HARPIA_HAS_path\\" = NULL WHERE \\"HARPIA_ID\\" = 2";\n'
+        "    ::journey j4;\n"
+        "    if (!jd.read(2, &j4) || !j4.has_path()) return 7;   // a pre-change row\n"
+        "    jd.drop_table();\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    objs = [os.path.join(cpp_root, "protofiles", "{}_{}.pb.cc".format(m, HASH))
+            for m in ("journey", "route", "waypoint")]
+    binary = str(tmp_path / "pg_embed_presence")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog), *objs, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG embed presence program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "PG embed presence failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)

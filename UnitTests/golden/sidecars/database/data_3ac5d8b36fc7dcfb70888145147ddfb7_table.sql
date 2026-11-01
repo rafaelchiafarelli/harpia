@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS "table_data" (
     "HARPIA_ID" INTEGER PRIMARY KEY,
     "i" INTEGER,
     "j" INTEGER,
+    "HARPIA_HAS_val" INTEGER,
     "val_vari" INTEGER,
     "val_var" INTEGER,
     "val_val" INTEGER,

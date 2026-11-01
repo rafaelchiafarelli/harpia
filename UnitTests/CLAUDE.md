@@ -373,7 +373,9 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   optional` → NULL with no ciphertext, on its own temp schema —
   db-optional-presence-DEFECT task 1), `read_by_visitor_name` on the
   `unique` `reception_desk.visitor_name` (hit / miss / UNIQUE enforced —
-  dao-key-access read-by-unique task 1), `autokey` on its own temp schema
+  dao-key-access read-by-unique task 1), embed presence (`data.val`, nested `journey.path.start`: unset reads unset with
+  NULL sub-columns, all-default reads set, a NULL presence column reads present
+  — embed-presence-DEFECT task 1), `autokey` on its own temp schema
   (`_gen_autokey`: key 0 assigned + written back, a set key honoured, later keys
   past it, a const caller; `AUTOKEY_WITHOUT_TABLE` — db-assigned-key task 2),
   DB↔JSON/XML. (cc + g++, some protoc)

@@ -61,7 +61,7 @@ class data_dao(Dao[data]):
             'DELETE FROM "table_data__val_scores" WHERE "owner" = ?'),
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "table_data" ("HARPIA_ID" INTEGER PRIMARY KEY, "i" INTEGER, "j" INTEGER, "val_vari" INTEGER, "val_var" INTEGER, "val_val" INTEGER, "car" INTEGER, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "table_data" ("HARPIA_ID" INTEGER PRIMARY KEY, "i" INTEGER, "j" INTEGER, "HARPIA_HAS_val" INTEGER, "val_vari" INTEGER, "val_var" INTEGER, "val_val" INTEGER, "car" INTEGER, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
         'CREATE TABLE IF NOT EXISTS "table_data__val_a" ("owner" INTEGER, "key" TEXT, "value" TEXT, PRIMARY KEY("owner", "key"));',
         'CREATE TABLE IF NOT EXISTS "table_data__val_b" ("owner" INTEGER, "key" TEXT, "value" INTEGER, PRIMARY KEY("owner", "key"));',
         'CREATE TABLE IF NOT EXISTS "table_data__val_c" ("owner" INTEGER, "key" INTEGER, "value" TEXT, PRIMARY KEY("owner", "key"));',

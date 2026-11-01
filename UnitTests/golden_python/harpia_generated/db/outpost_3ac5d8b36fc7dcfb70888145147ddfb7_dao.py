@@ -30,7 +30,7 @@ class outpost_dao(Dao[outpost]):
     CHILDREN = (
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "outpost_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "commander" TEXT, "berth_label" TEXT, "berth_skipper" INTEGER, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "outpost_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "commander" TEXT, "HARPIA_HAS_berth" INTEGER, "berth_label" TEXT, "berth_skipper" INTEGER, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
     )
     DROP_TABLE_SQL = (
         'DROP TABLE IF EXISTS "outpost_table";',
