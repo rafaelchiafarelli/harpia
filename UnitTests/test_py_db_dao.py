@@ -338,6 +338,48 @@ def test_read_by_unique(gen, msgs, tmp_path):
     assert not hasattr(dao_class("users"), "read_by_name")
 
 
+def test_embed_presence_round_trip(gen, msgs, tmp_path):
+    """embed-presence-DEFECT task 2 (mirrors the C++ test): an unset embedded
+    message field reads back unset (HARPIA_HAS_<path> = 0, sub-columns NULL);
+    set, even all default, reads back set; levels are independent; a NULL
+    presence column (a pre-change row) reads present."""
+    conn = _fresh_db(gen, tmp_path / "db.sqlite")
+    data, journey = msgs["data"], msgs["journey"]
+    dd, jd = dao_class("data")(conn), dao_class("journey")(conn)
+    unset, empty = data(), data()
+    setattr(unset, PK, 1)
+    setattr(empty, PK, 2)
+    empty.val.SetInParent()
+    assert dd.create(unset) and dd.create(empty)
+    row = conn.execute('SELECT "HARPIA_HAS_val", "val_var" FROM "table_data" WHERE "{}" = 1'
+                       .format(PK)).fetchone()
+    assert row == (0, None)
+    g1, g2 = data(), data()
+    assert dd.read(1, g1) and not g1.HasField("val")
+    assert dd.read(2, g2) and g2.HasField("val")
+    conn.execute('UPDATE "table_data" SET "HARPIA_HAS_val" = NULL WHERE "{}" = 2'.format(PK))
+    conn.commit()
+    g3 = data()
+    assert dd.read(2, g3) and g3.HasField("val")  # a pre-change row
+    g2.ClearField("val")
+    assert dd.update(g2)
+    g4 = data()
+    assert dd.read(2, g4) and not g4.HasField("val")
+
+    none, outer, both = journey(), journey(), journey()
+    setattr(none, PK, 1)
+    setattr(outer, PK, 2)
+    outer.path.SetInParent()
+    setattr(both, PK, 3)
+    both.path.start.SetInParent()
+    assert jd.create(none) and jd.create(outer) and jd.create(both)
+    j1, j2, j3 = journey(), journey(), journey()
+    assert jd.read(1, j1) and not j1.HasField("path")
+    assert jd.read(2, j2) and j2.HasField("path") and not j2.path.HasField("start")
+    assert jd.read(3, j3) and j3.HasField("path") and j3.path.HasField("start")
+    assert [m == o for m, o in ((j1, none), (j2, outer), (j3, both))] == [True] * 3
+
+
 CHILD_TABLES = ("data", "telemetry", "shipment", "top_users")
 CROSS = ("journey", "top_users", "outpost", "data", "telemetry", "shipment")
 

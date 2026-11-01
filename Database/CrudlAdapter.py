@@ -89,11 +89,19 @@ def _local_ctype(kind):
     return _CTYPE[kind]
 
 
+def _is_presence(col):
+    """A hidden HARPIA_HAS_<prefix> column (embed-presence-DEFECT)."""
+    return bool(getattr(col, "presence_of", None))
+
+
 def _is_optional(col):
-    """An `optional` scalar/enum column: bound with a NULL indicator when the
-    field is unset, and left unset on read when the column is NULL
-    (db-optional-presence-DEFECT)."""
-    return getattr(col, "optional", False)
+    """A column bound with a NULL indicator: an `optional` scalar/enum, when
+    the field is unset, and left unset on read when the column is NULL
+    (db-optional-presence-DEFECT); any embedded scalar/enum, when its embedded
+    message is unset (embed-presence-DEFECT)."""
+    if _is_presence(col) or getattr(col, "fk_table", False):
+        return False
+    return bool(getattr(col, "optional", False) or col.embed)
 
 
 def _use_list(cols, base, indent):
@@ -172,7 +180,8 @@ class CrudlAdapter:
 
     def _render(self, msg):
         columns, _ = analyze(msg, self.types, self.backend)
-        scalar = [c for c in columns if (c.bindable or c.embed) and not c.fk_table]
+        scalar = [c for c in columns
+                  if (c.bindable or c.embed or c.presence_of) and not c.fk_table]
         fk_cols = [c for c in columns if c.fk_table]
         id_col = next((c for c in scalar if c.pk), None)
         non_id = [c for c in scalar if not c.pk]
@@ -351,10 +360,12 @@ class CrudlAdapter:
         use). ``src`` defaults to "msg"; a repeated-composed field's write
         loop passes its per-element loop variable instead. An optional
         column also gets ``<base>i<i>``, its NULL indicator."""
+        if _is_presence(col):
+            return "int {b}{i} = {h} ? 1 : 0;".format(b=base, i=i, h=col.has_expr(src))
         local = self._plain_value_local(base, i, col, src)
         if not _is_optional(col):
             return local
-        has = col.has_expr(src)
+        has = col.has_expr(src) if col.optional else col.present_expr(src)
         if getattr(col, "is_phi", False):
             # unset phi optional: NULL, nothing encrypted (decision 2026-10-31)
             local = local.replace(" = ::harpia::crypto::encrypt_field(",
@@ -433,7 +444,21 @@ class CrudlAdapter:
         # scalar/enum/embed columns are set directly from the into-locals
         # (indicator-guarded); FK columns are handled by _fk_extract.
         lines = []
+        # local index of each embed level's presence column: NULL (a pre-change
+        # row) or non-zero is present; 0 leaves that embed and all under it unset
+        presence = {tuple(c.presence_of): i for i, c in enumerate(scalar) if _is_presence(c)}
+
+        def present(path):
+            return " && ".join(
+                "(n{i} != ::soci::i_ok || l{i} != 0)".format(i=presence[tuple(path[:d + 1])])
+                for d in range(len(path)) if tuple(path[:d + 1]) in presence)
+
         for i, c in enumerate(scalar):
+            if _is_presence(c):
+                lines.append("                if ({}) {};".format(
+                    present(c.presence_of), c.mutable_ptr()))
+                continue
+            guard = present(c.embed) if c.embed else ""
             if getattr(c, "is_phi", False):
                 raw = "n{i} == ::soci::i_ok ? l{i} : std::string()".format(i=i)
                 if c.kind == "text":
@@ -456,11 +481,12 @@ class CrudlAdapter:
                        .format(et=c.enum_type, i=i))
             else:
                 val = "n{i} == ::soci::i_ok ? l{i} : 0".format(i=i)
-            if _is_optional(c):
+            if getattr(c, "optional", False):
                 # NULL -> leave the field unset (absent); i_ok -> set, even to
                 # its default (present)
-                lines.append("                if (n{i} == ::soci::i_ok) {s};".format(
-                    i=i, s=c.set_stmt(val)))
+                guard = " && ".join(filter(None, [guard, "n{} == ::soci::i_ok".format(i)]))
+            if guard:
+                lines.append("                if ({}) {};".format(guard, c.set_stmt(val)))
             else:
                 lines.append("                {};".format(c.set_stmt(val)))
         return "".join(l + "\n" for l in lines)
