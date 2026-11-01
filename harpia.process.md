@@ -50,7 +50,10 @@ consumer's guide ("I have a `.harpia` file, how do I use the output") see
 
 - reject non-UTF-8 bytes; check balanced parens / brackets / comments.
 - resolve `import "x.harpia";` against the include folders (every import must
-  end with `;` and resolve to a file present in an include folder).
+  end with `;` and resolve to a file present in an include folder), and
+  follow imports transitively (`pre_lex.resolve_imports`): every module the
+  root reaches, each once, dependencies before the module importing them; a
+  cycle is an `IMPORT_CYCLE` error.
 - create the output tree; compute the **md5 hash of the root file's text** —
   this hash qualifies every generated filename, so two same-named messages
   from different roots never collide. It does **not** reach field or column
