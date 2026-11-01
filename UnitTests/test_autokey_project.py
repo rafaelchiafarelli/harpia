@@ -22,7 +22,7 @@ SCHEMA = "autokey message ticket {\n    required string title;\n    int points;\
 TOOLCHAIN = all(shutil.which(t) for t in ("cmake", "protoc", "g++", "pkg-config"))
 
 
-def _generate(tmp_path, schema=SCHEMA, lang=None):
+def _generate(tmp_path, schema=SCHEMA, lang=None, backend=None):
     (tmp_path / "Include").mkdir(exist_ok=True)
     (tmp_path / "Include" / "mod.harpia").write_text(schema)
     root = tmp_path / "root.harpia"
@@ -36,6 +36,8 @@ def _generate(tmp_path, schema=SCHEMA, lang=None):
     env.pop("HARPIA_GEN_LANG", None)
     if lang:
         env["HARPIA_GEN_LANG"] = lang
+    if backend:
+        env["HARPIA_DB_BACKEND"] = backend
     r = subprocess.run([sys.executable, "main.py"], cwd=REPO_ROOT, env=env,
                        capture_output=True, text=True, timeout=600)
     return r, out, hashlib.md5(root.read_bytes()).hexdigest()
@@ -71,6 +73,27 @@ def test_generated_cpp_suite_and_const_callers(tmp_path):
                         *flags, str(tu)],
                        capture_output=True, text=True, timeout=300)
     assert c.returncode == 0, c.stderr[-4000:]
+
+
+@pytest.mark.skipif(not TOOLCHAIN, reason="needs cmake + protoc + g++ (harpia Docker image)")
+def test_generated_cpp_suite_on_postgres_backend(tmp_path):
+    """The generated tests run on in-memory SQLite whatever the backend, where
+    an autokey table's PostgreSQL DDL isn't valid: their database checks are
+    skipped (with the reason in the source), the suite stays green."""
+    r, out, h = _generate(tmp_path, backend="postgresql")
+    assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
+    src = (out / "tests" / "ticket_{}_test.cpp".format(h)).read_text()
+    assert "skipped: this `autokey` table" in src
+    build = str(tmp_path / "build")
+    cfg = subprocess.run(["cmake", "-S", str(out), "-B", build, "-DHARPIA_BUILD_TESTS=ON"],
+                         capture_output=True, text=True, timeout=300)
+    assert cfg.returncode == 0, cfg.stdout + cfg.stderr
+    b = subprocess.run(["cmake", "--build", build, "-j", "4", "--target", "ticket_test"],
+                       capture_output=True, text=True, timeout=900)
+    assert b.returncode == 0, b.stdout[-4000:] + b.stderr[-4000:]
+    t = subprocess.run(["ctest", "--output-on-failure", "-R", "ticket_test"], cwd=build,
+                       capture_output=True, text=True, timeout=180)
+    assert t.returncode == 0, t.stdout + t.stderr
 
 
 @pytest.mark.skipif(not TOOLCHAIN, reason="needs the Python target toolchain (harpia Docker image)")
