@@ -211,12 +211,13 @@ int rest_api() {
         if (gx.body.find("visitor_name_a") == std::string::npos) { code = 96; break; }
         ::reception_desk ax = a;
         ax.set_harpia_id(2);
+        ax.set_visitor_name("visitor_name_c");
         const std::string axml = ::harpia::xml::to_xml(ax);
         auto xpost = cli.Post("/api/v1/reception_desk", axml, "application/xml", cred);
         if (!xpost || xpost.status != 201) { code = 97; break; }
         auto gx2 = cli.Get("/api/v1/reception_desk/2", credx);
         if (!gx2 || gx2.status != 200) { code = 98; break; }
-        if (gx2.body.find("visitor_name_a") == std::string::npos) { code = 99; break; }
+        if (gx2.body.find("visitor_name_c") == std::string::npos) { code = 99; break; }
         ::reception_desk b = a;
         b.set_visitor_name("visitor_name_u");
         std::string bb;

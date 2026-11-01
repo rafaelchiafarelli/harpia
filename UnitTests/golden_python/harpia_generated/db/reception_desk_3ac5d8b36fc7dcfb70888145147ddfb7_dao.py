@@ -28,7 +28,7 @@ class reception_desk_dao(Dao[reception_desk]):
     CHILDREN = (
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "reception_desk_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "visitor_name" TEXT, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "reception_desk_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "visitor_name" TEXT UNIQUE, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
     )
     DROP_TABLE_SQL = (
         'DROP TABLE IF EXISTS "reception_desk_table";',
@@ -39,3 +39,13 @@ class reception_desk_dao(Dao[reception_desk]):
     DELETE_SQL = 'DELETE FROM "reception_desk_table" WHERE "HARPIA_ID" = ?'
     LIST_SQL = 'SELECT "HARPIA_ID", "visitor_name", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "reception_desk_table" ORDER BY "HARPIA_ID"'
     LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "visitor_name", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "reception_desk_table" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'
+    READ_BY_SQL = {'visitor_name': 'SELECT "HARPIA_ID", "visitor_name", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "reception_desk_table" WHERE "visitor_name" = ?'}
+
+    def read_by_visitor_name(self, value: str, out: reception_desk) -> bool:
+        """Load the row whose ``visitor_name`` (a ``unique`` field) is
+        ``value`` into ``out``.
+
+        Returns:
+            ``False`` when no such row exists (``out`` is untouched).
+        """
+        return self._read_by('visitor_name', value, out)
