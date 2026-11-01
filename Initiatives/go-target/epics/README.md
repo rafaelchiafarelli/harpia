@@ -40,12 +40,12 @@ whichever is clearest to implement once 1/2/4 exist.
 ## Task-level planning status
 
 **No epic here has task files.** Write them when Go is picked up, adapting
-`Initiatives/python-target/epics/*/tasks/` (same epic shapes, minus DDS and
+`bb7a6be:Initiatives/python-target/epics/*/tasks/` (removed 2026-11-01; read with `git show`) (same epic shapes, minus DDS and
 CURVE/ZAP, pure-Go dependency rules instead of Python's).
 
 ## Definition of done (every epic)
 
-Source of truth: `Initiatives/python-target/epics/README.md`'s "Definition
+Source of truth: `bb7a6be:Initiatives/python-target/epics/README.md`'s "Definition
 of done (every epic)" — moved there 2026-10-03 because Python ships first.
 Apply it with `golden_go/` for `golden_python/`, `go vet` + `staticcheck`
 for `mypy --strict` + `ruff`, and Doxygen/godoc comments for Sphinx

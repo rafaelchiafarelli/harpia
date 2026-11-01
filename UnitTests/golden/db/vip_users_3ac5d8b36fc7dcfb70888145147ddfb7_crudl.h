@@ -43,13 +43,13 @@ public:
     bool create(const ::vip_users& msg) {
         try {
             int c0 = msg.harpia_id();
-            std::string c1 = msg.name();
+            std::string c1 = msg.name(); ::soci::indicator ci1 = msg.has_name() ? ::soci::i_ok : ::soci::i_null;
             std::string c2 = msg.family();
             std::string c3 = msg.harpia_status();
             std::string c4 = msg.harpia_error();
             std::string c5 = msg.harpia_originator();
             db_ << "INSERT INTO \"table_vip_users\" (\"HARPIA_ID\", \"name\", \"family\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5)",
-                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5);
+                ::soci::use(c0), ::soci::use(c1, ci1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5);
             ::harpia::events::vip_users_channel().publish(msg);
             return true;
         } catch (const std::exception&) { return false; }
@@ -67,7 +67,7 @@ public:
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5);
             if (!db_.got_data()) return false;
                 msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
-                msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
+                if (n1 == ::soci::i_ok) msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->set_family(n2 == ::soci::i_ok ? l2 : std::string());
                 msg->set_harpia_status(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_harpia_error(n4 == ::soci::i_ok ? l4 : std::string());
@@ -78,14 +78,14 @@ public:
 
     bool update(const ::vip_users& msg) {
         try {
-            std::string c0 = msg.name();
+            std::string c0 = msg.name(); ::soci::indicator ci0 = msg.has_name() ? ::soci::i_ok : ::soci::i_null;
             std::string c1 = msg.family();
             std::string c2 = msg.harpia_status();
             std::string c3 = msg.harpia_error();
             std::string c4 = msg.harpia_originator();
             long long cid = msg.harpia_id();
             db_ << "UPDATE \"table_vip_users\" SET \"name\" = :c0, \"family\" = :c1, \"HARPIA_STATUS\" = :c2, \"HARPIA_ERROR\" = :c3, \"HARPIA_ORIGINATOR\" = :c4 WHERE \"HARPIA_ID\" = :cid",
-                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(cid);
+                ::soci::use(c0, ci0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(cid);
             ::harpia::events::vip_users_channel().publish(msg);
             return true;
         } catch (const std::exception&) { return false; }
@@ -113,7 +113,7 @@ public:
                 ::vip_users row;
                 ::vip_users* msg = &row;
                 msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
-                msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
+                if (n1 == ::soci::i_ok) msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->set_family(n2 == ::soci::i_ok ? l2 : std::string());
                 msg->set_harpia_status(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_harpia_error(n4 == ::soci::i_ok ? l4 : std::string());
@@ -143,7 +143,7 @@ public:
                 ::vip_users row;
                 ::vip_users* msg = &row;
                 msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
-                msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
+                if (n1 == ::soci::i_ok) msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->set_family(n2 == ::soci::i_ok ? l2 : std::string());
                 msg->set_harpia_status(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_harpia_error(n4 == ::soci::i_ok ? l4 : std::string());

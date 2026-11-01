@@ -596,6 +596,54 @@ def _migration(side, case, migrator, slot, store, old_row_readers=("cpp", "pytho
 
 # -- PostgreSQL (opt-in) ---------------------------------------------------
 
+
+# -- optional presence (db-optional-presence-DEFECT task 4) -----------------
+
+# (message, optional field): vip_users is in Java's scope, patient_vitals
+# (phi) is C++ / Python only.
+_PRESENCE = (("vip_users", "name"), ("patient_vitals", "device_note"))
+
+
+def _presence(side, writer, new_slot, store):
+    """Rows written by ``writer`` with the optional field unset (key 1, NULL
+    stored) and set to "" (key 2): every reader sees it absent / present."""
+    side.activate()
+    for name, field in _PRESENCE:
+        if writer == "java" and name not in side.java_scope:
+            continue
+        slot = new_slot(name)
+        creator = "cpp" if writer == "java" else writer
+        _ok(side.batch(creator, [("create", t, slot, "") for t in _fk_closure(side, name)],
+                       store), creator + " create_table")
+        cls = side.msgs[name]
+        unset, empty = cls(), cls()
+        setattr(unset, PK, 1)
+        setattr(empty, PK, 2)
+        setattr(empty, field, "")
+        _ok(side.batch(writer, [("write", name, slot, m.SerializeToString().hex())
+                                for m in (unset, empty)], store), writer + " write")
+        conn = side.connect(slot)
+        stored = conn.execute('SELECT "{}" FROM "{}" ORDER BY "{}"'.format(
+            field, side.dao(name).TABLE, PK)).fetchall()
+        conn.close()
+        assert [r[0] for r in stored] == [None, ""], (name, writer, stored)
+        for reader in LANGS:
+            if reader == "java" and name not in side.java_scope:
+                continue
+            res = side.batch(reader, [("read", name, slot, k) for k in ("1", "2")], store)
+            _ok(res, "{} reads {}'s rows".format(reader, writer))
+            got = [cls.FromString(bytes.fromhex(p)) for _, p in res]
+            assert not got[0].HasField(field), (name, writer, reader)
+            assert got[1].HasField(field) and getattr(got[1], field) == "", \
+                (name, writer, reader)
+
+
+@pytest.mark.parametrize("writer", LANGS)
+def test_sqlite_optional_presence(writer, sqlite_side, tmp_path):
+    _presence(sqlite_side, writer, _slot_factory(sqlite_side, tmp_path, None),
+              str(tmp_path / "keks"))
+
+
 # patient_vitals' phi heart_rate (a float) is TEXT in the DDL, holding enc:v1:
 # text: its own regression test (cpp-phi-numeric-column-type-DEFECT).
 _PHI_NUMERIC_ON_PG = "patient_vitals"
@@ -628,3 +676,10 @@ def test_pg_migration_then_cross_read(case, migrator, pg_side, pg_databases, tmp
 def test_pg_java_reads_pre_migration_row(migrator, pg_side, pg_databases, tmp_path):
     _migration(pg_side, "rename_drop_add", migrator, pg_databases(), str(tmp_path / "keks"),
                old_row_readers=LANGS)
+
+
+@pg_only
+@pytest.mark.parametrize("writer", LANGS)
+def test_pg_optional_presence(writer, pg_side, pg_databases, tmp_path):
+    _presence(pg_side, writer, _slot_factory(pg_side, tmp_path, pg_databases),
+              str(tmp_path / "keks"))

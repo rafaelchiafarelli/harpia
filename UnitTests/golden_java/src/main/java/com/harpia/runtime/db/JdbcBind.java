@@ -18,15 +18,22 @@ import com.google.protobuf.MessageOrBuilder;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 
 public final class JdbcBind {
     private JdbcBind() {}
 
     // Bind field `fieldName` of `msg` into `ps` at 1-based `index`,
-    // dispatching on the field's own protobuf type.
+    // dispatching on the field's own protobuf type. An unset `optional`
+    // field (explicit presence) binds SQL NULL, as the C++ and Python DAOs
+    // do (db-optional-presence-DEFECT).
     public static void bind(PreparedStatement ps, int index, Message msg, String fieldName)
             throws SQLException {
         FieldDescriptor fd = fieldFor(msg, fieldName);
+        if (fd.hasPresence() && !msg.hasField(fd)) {
+            ps.setNull(index, sqlType(fd));
+            return;
+        }
         Object value = msg.getField(fd);
         switch (fd.getJavaType()) {
             case INT:
@@ -59,6 +66,8 @@ public final class JdbcBind {
     // pre-existing row) sets the field's default value -- ""/0/the first
     // enum value -- exactly as the C++ (indicator-guarded) and Python DAOs
     // do; setField(fd, null) used to throw (java-jdbc-null-text-DEFECT).
+    // An `optional` field is left as it is instead (unset on a fresh
+    // builder), so presence survives (db-optional-presence-DEFECT).
     public static void extract(ResultSet rs, String columnLabel, Message.Builder builder,
                                String fieldName) throws SQLException {
         FieldDescriptor fd = fieldFor(builder, fieldName);
@@ -99,9 +108,32 @@ public final class JdbcBind {
                     + " for field " + fieldName);
         }
         if (rs.wasNull()) {
+            if (fd.hasPresence()) {
+                return;
+            }
             value = fd.getDefaultValue();
         }
         builder.setField(fd, value);
+    }
+
+    private static int sqlType(FieldDescriptor fd) {
+        switch (fd.getJavaType()) {
+            case INT:
+            case ENUM:
+                return Types.INTEGER;
+            case LONG:
+                return Types.BIGINT;
+            case FLOAT:
+                return Types.REAL;
+            case DOUBLE:
+                return Types.DOUBLE;
+            case STRING:
+                return Types.VARCHAR;
+            default:
+                throw new IllegalArgumentException(
+                    "JdbcBind.bind: unsupported field type " + fd.getJavaType()
+                    + " for field " + fd.getName());
+        }
     }
 
     private static FieldDescriptor fieldFor(MessageOrBuilder msgOrBuilder, String fieldName) {

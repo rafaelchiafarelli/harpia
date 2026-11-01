@@ -45,12 +45,12 @@ public:
             int c0 = msg.harpia_id();
             std::string c1 = ::harpia::crypto::encrypt_field(kp_, msg.patient_id());
             std::string c2 = ::harpia::crypto::encrypt_field(kp_, std::to_string(msg.heart_rate()));
-            std::string c3 = msg.device_note();
+            std::string c3 = msg.device_note(); ::soci::indicator ci3 = msg.has_device_note() ? ::soci::i_ok : ::soci::i_null;
             std::string c4 = msg.harpia_status();
             std::string c5 = msg.harpia_error();
             std::string c6 = msg.harpia_originator();
             db_ << "INSERT INTO \"patient_vitals_table\" (\"HARPIA_ID\", \"patient_id\", \"heart_rate\", \"device_note\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6)",
-                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6);
+                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3, ci3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6);
             audit_.record("phi_create", "patient_vitals_table", "patient_id,heart_rate");
             return true;
         } catch (const std::exception&) { return false; }
@@ -71,7 +71,7 @@ public:
                 msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_patient_id(::harpia::crypto::decrypt_field(kp_, n1 == ::soci::i_ok ? l1 : std::string()));
                 msg->set_heart_rate(::harpia::crypto::decrypt_field_double(kp_, n2 == ::soci::i_ok ? l2 : std::string()));
-                msg->set_device_note(n3 == ::soci::i_ok ? l3 : std::string());
+                if (n3 == ::soci::i_ok) msg->set_device_note(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_harpia_status(n4 == ::soci::i_ok ? l4 : std::string());
                 msg->set_harpia_error(n5 == ::soci::i_ok ? l5 : std::string());
                 msg->set_harpia_originator(n6 == ::soci::i_ok ? l6 : std::string());
@@ -84,13 +84,13 @@ public:
         try {
             std::string c0 = ::harpia::crypto::encrypt_field(kp_, msg.patient_id());
             std::string c1 = ::harpia::crypto::encrypt_field(kp_, std::to_string(msg.heart_rate()));
-            std::string c2 = msg.device_note();
+            std::string c2 = msg.device_note(); ::soci::indicator ci2 = msg.has_device_note() ? ::soci::i_ok : ::soci::i_null;
             std::string c3 = msg.harpia_status();
             std::string c4 = msg.harpia_error();
             std::string c5 = msg.harpia_originator();
             long long cid = msg.harpia_id();
             db_ << "UPDATE \"patient_vitals_table\" SET \"patient_id\" = :c0, \"heart_rate\" = :c1, \"device_note\" = :c2, \"HARPIA_STATUS\" = :c3, \"HARPIA_ERROR\" = :c4, \"HARPIA_ORIGINATOR\" = :c5 WHERE \"HARPIA_ID\" = :cid",
-                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(cid);
+                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2, ci2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(cid);
             audit_.record("phi_update", "patient_vitals_table", "patient_id,heart_rate");
             return true;
         } catch (const std::exception&) { return false; }
@@ -122,7 +122,7 @@ public:
                 msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_patient_id(::harpia::crypto::decrypt_field(kp_, n1 == ::soci::i_ok ? l1 : std::string()));
                 msg->set_heart_rate(::harpia::crypto::decrypt_field_double(kp_, n2 == ::soci::i_ok ? l2 : std::string()));
-                msg->set_device_note(n3 == ::soci::i_ok ? l3 : std::string());
+                if (n3 == ::soci::i_ok) msg->set_device_note(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_harpia_status(n4 == ::soci::i_ok ? l4 : std::string());
                 msg->set_harpia_error(n5 == ::soci::i_ok ? l5 : std::string());
                 msg->set_harpia_originator(n6 == ::soci::i_ok ? l6 : std::string());
@@ -155,7 +155,7 @@ public:
                 msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_patient_id(::harpia::crypto::decrypt_field(kp_, n1 == ::soci::i_ok ? l1 : std::string()));
                 msg->set_heart_rate(::harpia::crypto::decrypt_field_double(kp_, n2 == ::soci::i_ok ? l2 : std::string()));
-                msg->set_device_note(n3 == ::soci::i_ok ? l3 : std::string());
+                if (n3 == ::soci::i_ok) msg->set_device_note(n3 == ::soci::i_ok ? l3 : std::string());
                 msg->set_harpia_status(n4 == ::soci::i_ok ? l4 : std::string());
                 msg->set_harpia_error(n5 == ::soci::i_ok ? l5 : std::string());
                 msg->set_harpia_originator(n6 == ::soci::i_ok ? l6 : std::string());

@@ -276,6 +276,46 @@ def test_unset_fk_stays_absent(name, gen, msgs, tmp_path):
             assert not rt._has_child(got, col), col.name
 
 
+def test_optional_presence_round_trip(gen, msgs, tmp_path):
+    """db-optional-presence-DEFECT task 2 (mirrors the C++ test): unset
+    `optional` -> NULL -> absent, set to its default -> present; top level
+    (data.j, patient_vitals.device_note) and embedded flat (data.val.val);
+    an update clearing a field writes NULL; an all-NULL embed stays unset."""
+    conn = _fresh_db(gen, tmp_path / "db.sqlite")
+    data, pv = msgs["data"], msgs["patient_vitals"]
+    dd, pd = dao_class("data")(conn), dao_class("patient_vitals")(conn)
+    d1 = data(i=4)
+    d1.val.var = 1
+    setattr(d1, PK, 1)
+    d2 = data(j=0)
+    d2.val.val = 0
+    setattr(d2, PK, 2)
+    assert dd.create(d1) and dd.create(d2)
+    row = conn.execute('SELECT "j", "val_val" FROM "table_data" WHERE "{}" = 1'
+                       .format(PK)).fetchone()
+    assert row == (None, None)
+    g1, g2 = data(), data()
+    assert dd.read(1, g1) and dd.read(2, g2)
+    assert not g1.HasField("j") and not g1.val.HasField("val") and g1.val.var == 1
+    assert g2.HasField("j") and g2.j == 0 and g2.val.HasField("val")
+    g2.ClearField("j")
+    assert dd.update(g2)
+    g3 = data()
+    assert dd.read(2, g3) and not g3.HasField("j")
+
+    a = pv(patient_id="p1")
+    setattr(a, PK, 1)
+    b = pv(patient_id="p2", device_note="")
+    setattr(b, PK, 2)
+    assert pd.create(a) and pd.create(b)
+    assert conn.execute('SELECT "device_note" FROM "patient_vitals_table" ORDER BY 1'
+                        ).fetchall() == [(None,), ("",)]
+    ga, gb = pv(), pv()
+    assert pd.read(1, ga) and pd.read(2, gb)
+    assert not ga.HasField("device_note")
+    assert gb.HasField("device_note") and gb.device_note == ""
+
+
 CHILD_TABLES = ("data", "telemetry", "shipment", "top_users")
 CROSS = ("journey", "top_users", "outpost", "data", "telemetry", "shipment")
 

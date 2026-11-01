@@ -87,6 +87,49 @@ def test_every_kind_round_trips(env, kinds):
         assert getattr(back, name) == m.DESCRIPTOR.fields_by_name[name].default_value
 
 
+def test_unset_optional_is_null_and_absent(env, kinds):
+    """db-optional-presence-DEFECT task 2 (the C++ rule): an unset `optional`
+    binds as None (SQL NULL); a NULL read into an `optional` leaves it unset;
+    one set to 0 binds 0 and reads back present. A non-optional proto3
+    scalar still binds its default and reads NULL as the default."""
+    bind, _ = env
+    assert bind.bind_value(kinds(), "oi") is None
+    assert bind.bind_value(kinds(oi=0), "oi") == 0
+    back = kinds()
+    bind.extract_value(None, back, "oi")
+    assert not back.HasField("oi")
+    bind.extract_value(0, back, "oi")
+    assert back.HasField("oi") and back.oi == 0
+    assert bind.bind_value(kinds(), "i32") == 0
+    plain = kinds()
+    bind.extract_value(None, plain, "i32")
+    assert plain.i32 == 0
+
+
+def test_unset_phi_optional_is_null(env, kinds):
+    """db-optional-presence-DEFECT task 2 (decision 2026-10-31): a PhiDao
+    binds an unset `phi optional` as None -- nothing encrypted -- and a NULL
+    leaves it unset; a set one is sealed and reads back present."""
+    import importlib
+    dao_rt = importlib.import_module("harpia_runtime.db.dao")
+    phi_rt = importlib.import_module("harpia_runtime.db.phi")
+
+    class Probe(phi_rt.PhiDao):
+        MESSAGE = kinds
+        PHI_FIELDS = ("oi",)
+
+    col = dao_rt.Column("oi", ("oi",), phi=True)
+    dao = Probe(sqlite3.connect(":memory:"))
+    assert dao._bind(kinds(), col) is None
+    sealed = dao._bind(kinds(oi=0), col)
+    assert isinstance(sealed, str) and sealed.startswith("enc:v1:")
+    back = kinds()
+    dao._load(back, col, None)
+    assert not back.HasField("oi")
+    dao._load(back, col, sealed)
+    assert back.HasField("oi") and back.oi == 0
+
+
 def test_enum_and_bool_bind_as_int(env, kinds):
     bind, _ = env
     m = kinds(e=2, b=True)
