@@ -135,11 +135,9 @@ class PyDatabaseAdapter:
         sel = ", ".join(q(n) for n in names)
         table = q(msg.tableName)
         autokey = bool(getattr(msg, "is_autokey", False))
-        ins = [n for n in names if not (autokey and n == pk.name)]
         sql = {
-            "insert_sql": "INSERT INTO {} ({}) VALUES ({}){}".format(
-                table, ", ".join(q(n) for n in ins), ", ".join([ph] * len(ins)),
-                " RETURNING {}".format(q(pk.name)) if autokey else ""),
+            "insert_sql": "INSERT INTO {} ({}) VALUES ({})".format(
+                table, sel, ", ".join([ph] * len(names))),
             "select_sql": "SELECT {} FROM {} WHERE {} = {}".format(
                 sel, table, q(pk.name), ph),
             "update_sql": "UPDATE {} SET {} WHERE {} = {}".format(
@@ -177,7 +175,7 @@ class PyDatabaseAdapter:
             event_import=self._event_import(msg),
             event_hook=self._event_hook(msg, phi),
             read_by=self._read_by(msg, scalar, sel, table, ph),
-            autokey="\n    AUTOKEY = True" if autokey else "",
+            autokey=self._autokey(msg, pk, names, table, ph) if autokey else "",
             create_sql="".join("\n        {!r},".format(s) for s in create),
             drop_sql="".join("\n        {!r},".format(s) for s in drop),
             **{k: repr(v) for k, v in sql.items()})
@@ -312,6 +310,19 @@ class PyDatabaseAdapter:
             return ""
         return ("from harpia_generated.events.{0}_{1}_events import (\n"
                 "    {0}_channel,\n)\n").format(msg.name, msg.md5Hash)
+
+    def _autokey(self, msg, pk, names, table, ph):
+        """An `autokey` table's extra INSERT (key 0: the database assigns it)
+        and the dialect's identity advance after an explicit key."""
+        keyless = [n for n in names if n != pk.name]
+        out = '\n    INSERT_AUTO_SQL = {!r}'.format(
+            'INSERT INTO {} ({}) VALUES ({}) RETURNING "{}"'.format(
+                table, ", ".join('"{}"'.format(n) for n in keyless),
+                ", ".join([ph] * len(keyless)), pk.name))
+        advance = self.backend.identity_advance_sql(msg.tableName, pk.name)
+        if advance:
+            out += "\n    IDENTITY_ADVANCE_SQL = {!r}".format(advance)
+        return out
 
     @staticmethod
     def _read_by(msg, scalar, sel, table, ph):

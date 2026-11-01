@@ -2105,8 +2105,9 @@ def _gen_autokey(tmp_path, backend=None):
                     reason="autokey round-trip needs protoc + protobuf")
 def test_db_assigned_key(tmp_path):
     """dao-key-access / db-assigned-key task 2: an `autokey` table's
-    create(msg&) leaves HARPIA_ID to the database, writes the assigned key
-    back into msg, refuses a caller-set key; the row reads back by it."""
+    create(msg&) with key 0 leaves HARPIA_ID to the database and writes the
+    assigned key back into msg; a set key is inserted as given, and later
+    assigned keys continue past it; a const caller compiles (no write-back)."""
     cpp_root, h = _gen_autokey(tmp_path)
     _compile_run(tmp_path, cpp_root, "autokey", (
         '#include "db/ticket_{h}_crudl.h"\n'
@@ -2124,10 +2125,12 @@ def test_db_assigned_key(tmp_path):
         "    ::ticket got;\n"
         '    if (!dao.read(b.harpia_id(), &got) || got.title() != "second") return 5;\n'
         '    ::ticket preset; preset.set_harpia_id(99); preset.set_title("x");\n'
-        "    if (dao.create(preset)) return 6;   // a caller-set key is refused\n"
+        "    if (!dao.create(preset) || preset.harpia_id() != 99) return 6;  // honoured\n"
         "    if (!::harpia::db::migrate_ticket(db)) return 7;\n"
         '    ::ticket c; c.set_title("third");\n'
-        "    if (!dao.create(c) || c.harpia_id() <= b.harpia_id()) return 8;\n"
+        "    if (!dao.create(c) || c.harpia_id() <= 99) return 8;\n"
+        '    ::ticket d; d.set_title("const"); const ::ticket& cd = d;\n'
+        "    if (!dao.create(cd)) return 9;   // through a copy, as gRPC push\n"
         "    return 0;\n"
         "}}\n").format(h=h),
         [os.path.join(cpp_root, "protofiles", "ticket_{}.pb.cc".format(h))])

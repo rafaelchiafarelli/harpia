@@ -103,6 +103,12 @@ class DbBackend(ABC):
         :meth:`sql_type` / :attr:`int_type`). ``identity`` (an `autokey`
         message's primary key): the database assigns the value."""
 
+    def identity_advance_sql(self, table: str, column: str):
+        """For an `autokey` table, SQL run after inserting an explicit key so
+        later assigned keys don't collide with it; ``None`` when the database
+        does that itself (SQLite's rowid)."""
+        return None
+
     def identity_migration(self, table: str, column: str):
         """For an `autokey` table, how a migration makes an existing
         caller-assigned key column database-assigned: ``None`` when nothing

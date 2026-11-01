@@ -108,11 +108,12 @@ def _use_list(cols, base, indent):
     return ",\n{}{}".format(indent, uses)
 
 
-# `autokey` create(): one source of truth for the key -- a caller-set one is
-# refused; the database's is written back into the caller's message.
-_AUTOKEY_GUARD = ("        // autokey: the database assigns the key; a caller-set one is refused\n"
-                  "        if (msg.{pk}() != 0) return false;\n")
-_AUTOKEY_SET_KEY = "            msg.set_{pk}(static_cast<decltype(msg.{pk}())>(_key));\n"
+# `autokey` create(): key 0 -> the database assigns it and it is written back;
+# non-zero -> inserted as given. A const caller (gRPC push) goes through a copy.
+_AUTOKEY_OVERLOAD = ("    bool create(const ::{cls}& msg) {{\n"
+                     "        ::{cls} _copy(msg);\n"
+                     "        return create(_copy);\n"
+                     "    }}\n\n")
 
 
 class CrudlAdapter:
@@ -178,9 +179,7 @@ class CrudlAdapter:
 
         # column order for INSERT/SELECT: scalar/enum/embed first, then FK.
         insert_all = scalar + fk_cols
-        # an `autokey` table: the INSERT leaves the key out, RETURNING it
         autokey = bool(getattr(msg, "is_autokey", False)) and id_col is not None
-        insert_new = [c for c in insert_all if not (autokey and c.pk)]
         update_all = non_id + fk_cols
 
         maps = map_fields(msg, self.types, self.backend)
@@ -232,20 +231,13 @@ class CrudlAdapter:
             table=msg.tableName,
             create_table_sql=create_table_sql(
                 msg, types=self.types, backend=self.backend).replace('"', '\\"'),
-            insert_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_new),
-            insert_ph=", ".join(":c{}".format(i) for i in range(len(insert_new))),
             create_param=("::{}&".format(msg.name) if autokey
                           else "const ::{}&".format(msg.name)),
-            create_guard=(_AUTOKEY_GUARD.format(pk=id_col.accessor) if autokey else ""),
-            insert_returning=(' RETURNING \\"{}\\"'.format(id_col.name) if autokey else ""),
-            create_set_key=(_AUTOKEY_SET_KEY.format(pk=id_col.accessor) if autokey else ""),
+            create_overload=(_AUTOKEY_OVERLOAD.format(cls=msg.name) if autokey else ""),
+            create_insert=self._create_insert(msg, insert_all, id_col, autokey),
             select_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
             id_col=id_col.name if id_col else "rowid",
-            create_locals=self._create_locals(
-                [c for c in scalar if not (autokey and c.pk)], fk_cols)
-                + ("            long long _key = 0;\n" if autokey else ""),
-            create_use=(_use_list(insert_new, "c", " " * 16)
-                        + (", ::soci::into(_key)" if autokey else "")),
+            create_locals=self._create_locals(scalar, fk_cols),
             update_locals=self._update_locals(non_id, fk_cols, id_col),
             update_set=", ".join('\\"{}\\" = :c{}'.format(c.name, i)
                                  for i, c in enumerate(update_all)),
@@ -268,6 +260,41 @@ class CrudlAdapter:
                                   _audit("read")),
             map_remove=self._child_remove(maps + reps),
         )
+
+    def _create_insert(self, msg, insert_all, id_col, autokey):
+        """create()'s INSERT. An `autokey` table has two: key 0 leaves the key
+        out, RETURNING it into the message; a set key is inserted as given
+        (then the dialect advances its identity, if it needs that)."""
+        def insert(indexed, indent, extra=""):
+            cols = ", ".join('\\"{}\\"'.format(c.name) for _, c in indexed)
+            ph = ", ".join(":c{}".format(i) for i, _ in indexed)
+            uses = ", ".join(
+                "::soci::use(c{i}, ci{i})".format(i=i) if _is_optional(c)
+                else "::soci::use(c{})".format(i)
+                for i, c in indexed)
+            ret = ' RETURNING \\"{}\\"'.format(id_col.name) if extra else ""
+            return ('{ind}db_ << "INSERT INTO \\"{t}\\" ({cols}) VALUES ({ph}){ret}"{sep}'
+                    "{uses}{extra};").format(
+                        ind=indent, t=msg.tableName, cols=cols, ph=ph, ret=ret, uses=uses,
+                        extra=extra, sep=",\n{}".format(" " * 16) if uses else "")
+        everything = list(enumerate(insert_all))
+        if not autokey:
+            return insert(everything, " " * 12)
+        keyless = [(i, c) for i, c in everything if not c.pk]
+        advance = self.backend.identity_advance_sql(msg.tableName, id_col.name)
+        return ("            if (msg.{pk}() == 0) {{\n"
+                "                long long _key = 0;\n"
+                "{auto}\n"
+                "                msg.set_{pk}(static_cast<decltype(msg.{pk}())>(_key));\n"
+                "            }} else {{\n"
+                "{explicit}\n"
+                "{adv}"
+                "            }}").format(
+                    pk=id_col.accessor,
+                    auto=insert(keyless, " " * 16, ", ::soci::into(_key)"),
+                    explicit=insert(everything, " " * 16),
+                    adv=('                db_ << "{}";\n'.format(advance.replace('"', '\\"'))
+                         if advance else ""))
 
     # -- read_by_<field> for `unique` fields (dao-key-access) ---------------
     def _read_by(self, msg, scalar, fk_cols, insert_all, child_read, audit_read):
