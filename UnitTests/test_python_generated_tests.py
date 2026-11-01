@@ -115,5 +115,5 @@ def test_sample_fills_every_field(gen):
             elif f.message_type is not None:
                 assert a.HasField(f.name), (name, f.name)
             else:
-                assert value != f.default_value or f.name.startswith("ID_"), (name, f.name)
+                assert value != f.default_value or f.name == "HARPIA_ID", (name, f.name)
         assert a != b

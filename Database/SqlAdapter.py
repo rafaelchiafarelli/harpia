@@ -4,7 +4,7 @@ Replaces the placeholder database/<name>_<hash>_table.sql stub with a real
 CREATE TABLE derived from the message:
 
   - one column per scalar field, with a SQLite type
-  - the hidden id field (ID_<hash>) becomes INTEGER PRIMARY KEY
+  - the hidden id field (HARPIA_ID) becomes INTEGER PRIMARY KEY
   - `required` -> NOT NULL, `unique` -> UNIQUE
 
 Composed (message-typed) fields: an enum becomes an INTEGER column, a singular

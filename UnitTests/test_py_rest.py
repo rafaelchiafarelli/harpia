@@ -38,7 +38,7 @@ from UnitTests import _py_cpp_parity as P  # noqa: E402
 pytestmark = pytest.mark.skipif(not P.HAVE_PY, reason=P.SKIP_PY)
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 CRED = {"X-User": "users", "X-Pswd": HASH}
 
 

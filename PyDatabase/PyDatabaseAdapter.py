@@ -124,7 +124,7 @@ class PyDatabaseAdapter:
         bound = scalar + fks
         pk = next((c for c in scalar if c.pk), None)
         if pk is None:
-            self.log.print("{}: no ID_ primary key, no Python DAO".format(msg.name))
+            self.log.print("{}: no HARPIA_ID primary key, no Python DAO".format(msg.name))
             return None
         deferred = self._deferred(msg, columns)
         phi = [c for c in scalar if getattr(c, "is_phi", False)]

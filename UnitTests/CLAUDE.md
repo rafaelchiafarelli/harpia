@@ -104,7 +104,7 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   hard `CONFLICTING_HARDENING_MODIFIERS` error, not a flag. Integration: the
   emitted `.proto` for a `protected`/`open` message contains no trace of the
   modifier and is line-for-line identical to the same message without it, and
-  neither modifier flips `isOneToMany` (no `ORIGINATOR_<hash>` field) — flag
+  the `.proto` is identical to a plain and a `pull` message's (every message has the same `HARPIA_ORIGINATOR` field) — flag
   only, the REST/SOAP/gRPC auth-gate wiring is epic task 3. Pure Python.
 - `test_message_hardening_gate.py` — message-level-hardening initiative,
   protected-open-modifiers epic task 3: per-message REST/SOAP/gRPC gating.
@@ -425,8 +425,16 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   driven directly (no lexer) — first-generation freeze, reorder/insert
   stability, delete-retires-number, rename-keeps-number, unresolvable-rename
   falls back (mirrors `Database/MigrationAdapter`'s conditional RENAME),
-  hidden-field (`ID_`/`STATUS_`/`ERROR_`/`ORIGINATOR`) stability across an
-  md5 hash change, reserved-number-reuse hard error, sidecar path shape.
+  hidden-field stability across an md5 hash change (legacy `ID_<md5>`
+  names) and across the switch to the fixed `HARPIA_*` names (a legacy
+  sidecar's numbers are inherited), reserved-number-reuse hard error, sidecar path shape.
+  Pure Python.
+- `test_hidden_names.py` — stable-hidden-names-DEFECT task 1: one Include
+  module generated under two roots that differ by an extra `import` has
+  identical `.proto` field and SQL column names (`HARPIA_ID` /
+  `HARPIA_STATUS` / `HARPIA_ERROR` / `HARPIA_ORIGINATOR`, no hash suffix);
+  a user field named `harpia_id`, `HARPIA_STATUS`, `harpiaerror`,
+  `harpia_originator` or `Harpia_note` is `RESERVED_HIDDEN_FIELD_NAME`.
   Pure Python.
 - `test_fieldmap_frontend.py` — the same §3 reorder/delete properties but
   through the real front-end pipeline (`run_frontend.py`, fresh subprocess

@@ -102,14 +102,14 @@ inline bool migrate_crew(::soci::session& db,
         if (!have.count("name")) {
             db << "ALTER TABLE \"crew_table\" ADD COLUMN \"name\" TEXT;";
         }
-        if (!have.count("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7")) {
-            db << "ALTER TABLE \"crew_table\" ADD COLUMN \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT;";
+        if (!have.count("HARPIA_STATUS")) {
+            db << "ALTER TABLE \"crew_table\" ADD COLUMN \"HARPIA_STATUS\" TEXT;";
         }
-        if (!have.count("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7")) {
-            db << "ALTER TABLE \"crew_table\" ADD COLUMN \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT;";
+        if (!have.count("HARPIA_ERROR")) {
+            db << "ALTER TABLE \"crew_table\" ADD COLUMN \"HARPIA_ERROR\" TEXT;";
         }
-        if (!have.count("ORIGINATOR")) {
-            db << "ALTER TABLE \"crew_table\" ADD COLUMN \"ORIGINATOR\" TEXT;";
+        if (!have.count("HARPIA_ORIGINATOR")) {
+            db << "ALTER TABLE \"crew_table\" ADD COLUMN \"HARPIA_ORIGINATOR\" TEXT;";
         }
         // caller-supplied cross-version data transform (see the header
         // comment above for why this runs here: after add, before drop).
@@ -118,7 +118,7 @@ inline bool migrate_crew(::soci::session& db,
         // non-additive: drop any live column the current schema no longer
         // declares (see the header comment above for the implicit-diff caveat)
         {
-            static const std::set<std::string> _current = { "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "name", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR" };
+            static const std::set<std::string> _current = { "HARPIA_ID", "name", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" };
             for (auto _hit = have.begin(); _hit != have.end(); ) {
                 if (!_current.count(*_hit)) {
                     const std::string& _dc = *_hit;
@@ -147,14 +147,14 @@ inline bool migrate_crew(::soci::session& db,
         // current schema to the current type (see the header comment above)
         {
         bool _needs_retype = false;
-            if (have_types.count("ID_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["ID_3ac5d8b36fc7dcfb70888145147ddfb7"] != "INTEGER") _needs_retype = true;
+            if (have_types.count("HARPIA_ID") && have_types["HARPIA_ID"] != "INTEGER") _needs_retype = true;
             if (have_types.count("name") && have_types["name"] != "TEXT") _needs_retype = true;
-            if (have_types.count("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["STATUS_3ac5d8b36fc7dcfb70888145147ddfb7"] != "TEXT") _needs_retype = true;
-            if (have_types.count("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["ERROR_3ac5d8b36fc7dcfb70888145147ddfb7"] != "TEXT") _needs_retype = true;
-            if (have_types.count("ORIGINATOR") && have_types["ORIGINATOR"] != "TEXT") _needs_retype = true;
+            if (have_types.count("HARPIA_STATUS") && have_types["HARPIA_STATUS"] != "TEXT") _needs_retype = true;
+            if (have_types.count("HARPIA_ERROR") && have_types["HARPIA_ERROR"] != "TEXT") _needs_retype = true;
+            if (have_types.count("HARPIA_ORIGINATOR") && have_types["HARPIA_ORIGINATOR"] != "TEXT") _needs_retype = true;
         if (_needs_retype) {
-            db << "CREATE TABLE \"crew_table__retype_tmp\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"name\" TEXT, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR\" TEXT);";
-            db << "INSERT INTO \"crew_table__retype_tmp\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\") SELECT CAST(\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" AS INTEGER), CAST(\"name\" AS TEXT), CAST(\"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" AS TEXT), CAST(\"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" AS TEXT), CAST(\"ORIGINATOR\" AS TEXT) FROM \"crew_table\";";
+            db << "CREATE TABLE \"crew_table__retype_tmp\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"name\" TEXT, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
+            db << "INSERT INTO \"crew_table__retype_tmp\" (\"HARPIA_ID\", \"name\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") SELECT CAST(\"HARPIA_ID\" AS INTEGER), CAST(\"name\" AS TEXT), CAST(\"HARPIA_STATUS\" AS TEXT), CAST(\"HARPIA_ERROR\" AS TEXT), CAST(\"HARPIA_ORIGINATOR\" AS TEXT) FROM \"crew_table\";";
             db << "DROP TABLE \"crew_table\";";
             db << "ALTER TABLE \"crew_table__retype_tmp\" RENAME TO \"crew_table\";";
         }

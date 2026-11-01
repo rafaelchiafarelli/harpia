@@ -78,19 +78,19 @@ def test_pg_crudl_roundtrip(pg_generated, tmp_path):
         '    ::soci::session sql(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
         "    {{ harpia::db::users_dao dao(sql); dao.drop_table();\n"
         "      if (!dao.create_table()) return 1;\n"
-        "      ::users a; a.set_id_{h}(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
+        "      ::users a; a.set_harpia_id(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
         "      if (!dao.create(a)) return 2;\n"
         "      ::users got; if (!dao.read(1, &got)) return 3;\n"
         '      if (got.name() != "neo" || got.address() != "matrix") return 4;\n'
         "      ::users b = a; b.set_name(\"trinity\"); if (!dao.update(b)) return 5;\n"
         "      ::users g2; dao.read(1, &g2); if (g2.name() != \"trinity\") return 6;\n"
-        "      ::users c; c.set_id_{h}(2); c.set_name(\"m\"); dao.create(c);\n"
+        "      ::users c; c.set_harpia_id(2); c.set_name(\"m\"); dao.create(c);\n"
         "      std::vector<::users> all; if (!dao.list(&all) || all.size() != 2) return 7;\n"
         "      if (!dao.remove(1)) return 8; ::users gone; if (dao.read(1, &gone)) return 9;\n"
         "      dao.drop_table(); }}\n"
         "    {{ harpia::db::data_dao dao(sql); dao.drop_table();\n"
         "      if (!dao.create_table()) return 20;\n"
-        "      ::data d; d.set_id_{h}(1); d.set_i(7);\n"
+        "      ::data d; d.set_harpia_id(1); d.set_i(7);\n"
         "      d.mutable_val()->set_var(3); d.set_car(static_cast<::grower>(2));\n"
         '      (*d.mutable_val()->mutable_a())["k1"] = "v1";\n'
         "      d.add_tags(11); d.add_tags(22); d.mutable_val()->add_scores(100);\n"
@@ -102,10 +102,10 @@ def test_pg_crudl_roundtrip(pg_generated, tmp_path):
         "    {{ harpia::db::vip_users_dao v(sql); harpia::db::top_users_dao dao(sql);\n"
         "      dao.drop_table(); v.drop_table();\n"
         "      if (!v.create_table() || !dao.create_table()) return 40;\n"
-        "      ::top_users t; t.set_id_{h}(1); t.set_name(\"boss\");\n"
-        "      t.mutable_myusers()->set_id_{h}(10); t.mutable_myusers()->set_family(\"smith\");\n"
-        "      auto* m1 = t.add_members(); m1->set_id_{h}(20); m1->set_family(\"a\");\n"
-        "      auto* m2 = t.add_members(); m2->set_id_{h}(21); m2->set_family(\"b\");\n"
+        "      ::top_users t; t.set_harpia_id(1); t.set_name(\"boss\");\n"
+        "      t.mutable_myusers()->set_harpia_id(10); t.mutable_myusers()->set_family(\"smith\");\n"
+        "      auto* m1 = t.add_members(); m1->set_harpia_id(20); m1->set_family(\"a\");\n"
+        "      auto* m2 = t.add_members(); m2->set_harpia_id(21); m2->set_family(\"b\");\n"
         "      if (!dao.create(t)) return 42; ::top_users got; if (!dao.read(1, &got)) return 43;\n"
         '      if (got.name() != "boss" || got.myusers().family() != "smith") return 44;\n'
         "      if (got.members_size() != 2) return 45;\n"
@@ -152,9 +152,9 @@ def test_pg_migration_retype(pg_generated, tmp_path):
         "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
         '    exec("DROP TABLE IF EXISTS \\"beacon_log_table\\";");\n'
         "    // an older generated version: strength stored as TEXT, not INTEGER\n"
-        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY, '
         '\\"label\\" TEXT, \\"strength\\" TEXT);")) return 2;\n'
-        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"ID_{h}\\\", \\\"label\\\", "
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"HARPIA_ID\\\", \\\"label\\\", "
         "\\\"strength\\\") VALUES (1, 'north', '7');\")) return 3;\n"
         "    if (!::harpia::db::migrate_beacon_log(db)) return 4;\n"
         "    // the column's declared type is now integer\n"
@@ -234,7 +234,7 @@ def test_pg_migration_ignores_other_schemas(pg_generated, tmp_path):
         "            ::soci::into(kids, ki);\n"
         '      for (const auto& k : kids) exec("DROP TABLE IF EXISTS \\"" + k + "\\" CASCADE;"); }}\n'
         '    if (!exec("CREATE SCHEMA \\"decoy\\";")) return 2;\n'
-        '    if (!exec("CREATE TABLE \\"decoy\\".\\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '    if (!exec("CREATE TABLE \\"decoy\\".\\"beacon_log_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY, '
         '\\"label\\" TEXT, \\"strength\\" TEXT, \\"decoy_only\\" TEXT);")) return 3;\n'
         '    if (!exec("CREATE TABLE \\"decoy\\".\\"telemetry_table__decoy_child\\" (\\"owner\\" INTEGER);")) return 4;\n'
         "    // public: the current shape, built by the migration itself\n"
@@ -288,7 +288,7 @@ def test_pg_phi_numeric_roundtrip(pg_generated, tmp_path):
         "    ::harpia::crypto::LocalKeyProvider kp(cfg);\n"
         "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
         "    dao.drop_table(); if (!dao.create_table()) return 1;\n"
-        "    ::patient_vitals v; v.set_id_{h}(1); v.set_patient_id(\"p-7\");\n"
+        "    ::patient_vitals v; v.set_harpia_id(1); v.set_patient_id(\"p-7\");\n"
         "    v.set_heart_rate(72.5f); v.set_device_note(\"n\");\n"
         "    if (!dao.create(v)) return 2;\n"
         "    ::patient_vitals got; if (!dao.read(1, &got)) return 3;\n"
@@ -334,10 +334,10 @@ def test_pg_migrate_retypes_legacy_phi_column(pg_generated, tmp_path):
         '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
         "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
         '    exec("DROP TABLE IF EXISTS \\"patient_vitals_table\\";");\n'
-        '    if (!exec("CREATE TABLE \\"patient_vitals_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '    if (!exec("CREATE TABLE \\"patient_vitals_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY, '
         '\\"patient_id\\" TEXT, \\"heart_rate\\" DOUBLE PRECISION NOT NULL, \\"device_note\\" TEXT, '
-        '\\"STATUS_{h}\\" TEXT, \\"ERROR_{h}\\" TEXT, \\"ORIGINATOR\\" TEXT);")) return 2;\n'
-        "    if (!exec(\"INSERT INTO \\\"patient_vitals_table\\\" (\\\"ID_{h}\\\", \\\"patient_id\\\", "
+        '\\"HARPIA_STATUS\\" TEXT, \\"HARPIA_ERROR\\" TEXT, \\"ORIGINATOR\\" TEXT);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"patient_vitals_table\\\" (\\\"HARPIA_ID\\\", \\\"patient_id\\\", "
         "\\\"heart_rate\\\") VALUES (1, 'legacy', 61.5);\")) return 3;\n"
         "    if (!::harpia::db::migrate_patient_vitals(db)) return 4;\n"
         "    std::string t, n; ::soci::indicator ti, ni;\n"
@@ -350,7 +350,7 @@ def test_pg_migrate_retypes_legacy_phi_column(pg_generated, tmp_path):
         "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
         "    ::patient_vitals got; if (!dao.read(1, &got)) return 6;\n"
         '    if (got.heart_rate() != 61.5f) return 7;\n'
-        "    ::patient_vitals v; v.set_id_{h}(2); v.set_patient_id(\"p\"); v.set_heart_rate(70.25f);\n"
+        "    ::patient_vitals v; v.set_harpia_id(2); v.set_patient_id(\"p\"); v.set_heart_rate(70.25f);\n"
         "    if (!dao.create(v)) return 8;\n"
         "    ::patient_vitals g2; if (!dao.read(2, &g2) || g2.heart_rate() != 70.25f) return 9;\n"
         "    if (!::harpia::db::migrate_patient_vitals(db)) return 10;   // idempotent\n"
@@ -389,18 +389,18 @@ def test_pg_list_pages_are_stable(pg_generated, tmp_path):
         "    ::harpia::db::users_dao dao(db); dao.drop_table();\n"
         "    if (!dao.create_table()) return 1;\n"
         "    const int n = 50;\n"
-        "    for (int i = 1; i <= n; ++i) {{ ::users u; u.set_id_{h}(i); u.set_name(\"u\");\n"
+        "    for (int i = 1; i <= n; ++i) {{ ::users u; u.set_harpia_id(i); u.set_name(\"u\");\n"
         "      if (!dao.create(u)) return 2; }}\n"
-        "    for (int i = 1; i <= n; i += 2) {{ ::users u; u.set_id_{h}(i); u.set_name(\"moved\");\n"
+        "    for (int i = 1; i <= n; i += 2) {{ ::users u; u.set_harpia_id(i); u.set_name(\"moved\");\n"
         "      if (!dao.update(u)) return 3; }}\n"
         "    std::vector<::users> all; if (!dao.list(&all) || (int)all.size() != n) return 4;\n"
-        "    for (int i = 0; i < n; ++i) if (all[i].id_{h}() != i + 1) return 5;\n"
+        "    for (int i = 0; i < n; ++i) if (all[i].harpia_id() != i + 1) return 5;\n"
         "    std::vector<::users> paged;\n"
         "    for (long long off = 0; off < n; off += 7) {{ std::vector<::users> page;\n"
         "      if (!dao.list(&page, off, 7)) return 6;\n"
         "      paged.insert(paged.end(), page.begin(), page.end()); }}\n"
         "    if ((int)paged.size() != n) return 7;\n"
-        "    for (int i = 0; i < n; ++i) if (paged[i].id_{h}() != i + 1) return 8;\n"
+        "    for (int i = 0; i < n; ++i) if (paged[i].harpia_id() != i + 1) return 8;\n"
         "    dao.drop_table();\n"
         "    return 0;\n"
         "}}\n".format(h=HASH))

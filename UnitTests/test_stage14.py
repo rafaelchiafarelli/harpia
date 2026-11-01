@@ -159,13 +159,13 @@ def test_every_generated_test_compiles_and_runs(generated, messages_lib,
 
 
 def test_schema_reflects_access_modifiers(generated):
-    """14.4 (structural): a REQUIRED field becomes NOT NULL and the ID_ column is
+    """14.4 (structural): a REQUIRED field becomes NOT NULL and the HARPIA_ID column is
     a PRIMARY KEY in the generated schema -- the access modifiers reach the DB."""
     schema_dir = os.path.join(generated, "database")
     top = glob.glob(os.path.join(schema_dir, "top_users_*_table.sql"))
     assert top, "top_users schema missing"
     sql = open(top[0]).read()
-    assert "PRIMARY KEY" in sql, "ID_ column should be a PRIMARY KEY"
+    assert "PRIMARY KEY" in sql, "HARPIA_ID column should be a PRIMARY KEY"
     # top_users declares `required name` -> the column must be NOT NULL
     assert '"name" TEXT NOT NULL' in sql, "REQUIRED field should be NOT NULL"
 

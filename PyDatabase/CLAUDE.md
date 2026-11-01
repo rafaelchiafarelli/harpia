@@ -185,7 +185,7 @@ UnitTests/test_python_db_postgres.py`.
   `sqlite3`, `%s` for `psycopg`. Additive on the shared backend; C++ (SOCI
   `:name`) and Java (JDBC `?`) never call it, so their goldens are unchanged.
 - A `composed` (repeated table-less message) element stores only its
-  flattened scalar/enum columns: the element's hidden `ID_`/`STATUS_`/...
+  flattened scalar/enum columns: the element's hidden `HARPIA_*`
   fields don't round-trip (same as C++).
 - The HarpiaTest fixture has no `bool`/`int64` fields (the DSL has no
   `bool`), so the bind test also compiles a small probe `.proto` with every

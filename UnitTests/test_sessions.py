@@ -431,8 +431,8 @@ def test_rest_and_soap_sessions_over_mtls(generated):
             '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
             "    harpia::db::users_dao dao(db);\n"
             "    if (!dao.create_table()) return 2;\n"
-            "    ::users s1; s1.set_id_{h}(1); s1.set_name(\"neo\");\n"
-            "    ::users s2; s2.set_id_{h}(2); s2.set_name(\"trin\");\n"
+            "    ::users s1; s1.set_harpia_id(1); s1.set_name(\"neo\");\n"
+            "    ::users s2; s2.set_harpia_id(2); s2.set_name(\"trin\");\n"
             "    if (!dao.create(s1) || !dao.create(s2)) return 3;\n"
             '    harpia::http_transport::HttpServer server(db, "/v1", "/soap", mtls);\n'
             '    server.app().bindaddr("127.0.0.1").port(port).multithreaded();\n'
@@ -637,7 +637,7 @@ def test_grpc_sessions_over_mtls(generated):
             "static ::grpc::StatusCode push_as(Stub* stub, int id,\n"
             "        const std::string& bearer) {{\n"
             "    ::frameworkProtos::users_Message req;\n"
-            "    req.mutable_msg()->set_id_{h}(id);\n"
+            "    req.mutable_msg()->set_harpia_id(id);\n"
             '    req.mutable_msg()->set_name("n");\n'
             "    ::grpc::ClientContext c;\n"
             "    if (!bearer.empty()) c.AddMetadata(\"authorization\", \"Bearer \" + bearer);\n"

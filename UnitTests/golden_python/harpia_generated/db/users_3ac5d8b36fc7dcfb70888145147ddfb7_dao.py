@@ -20,29 +20,29 @@ class users_dao(Dao[users]):
 
     MESSAGE = users
     TABLE = 'user_table'
-    PK = 'ID_3ac5d8b36fc7dcfb70888145147ddfb7'
+    PK = 'HARPIA_ID'
     COLUMNS = (
-        Column('ID_3ac5d8b36fc7dcfb70888145147ddfb7', ('ID_3ac5d8b36fc7dcfb70888145147ddfb7',)),
+        Column('HARPIA_ID', ('HARPIA_ID',)),
         Column('address', ('address',)),
         Column('name', ('name',)),
-        Column('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7', ('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
+        Column('HARPIA_STATUS', ('HARPIA_STATUS',)),
+        Column('HARPIA_ERROR', ('HARPIA_ERROR',)),
+        Column('HARPIA_ORIGINATOR', ('HARPIA_ORIGINATOR',)),
     )
     CHILDREN = (
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "user_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "address" TEXT, "name" TEXT, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "user_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "address" TEXT, "name" TEXT, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
     )
     DROP_TABLE_SQL = (
         'DROP TABLE IF EXISTS "user_table";',
     )
-    INSERT_SQL = 'INSERT INTO "user_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7", "address", "name", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7") VALUES (?, ?, ?, ?, ?, ?)'
-    SELECT_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "address", "name", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "user_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    UPDATE_SQL = 'UPDATE "user_table" SET "address" = ?, "name" = ?, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" = ? WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    DELETE_SQL = 'DELETE FROM "user_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    LIST_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "address", "name", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "user_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7"'
-    LIST_PAGE_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "address", "name", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "user_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7" LIMIT ? OFFSET ?'
+    INSERT_SQL = 'INSERT INTO "user_table" ("HARPIA_ID", "address", "name", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR") VALUES (?, ?, ?, ?, ?, ?)'
+    SELECT_SQL = 'SELECT "HARPIA_ID", "address", "name", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "user_table" WHERE "HARPIA_ID" = ?'
+    UPDATE_SQL = 'UPDATE "user_table" SET "address" = ?, "name" = ?, "HARPIA_STATUS" = ?, "HARPIA_ERROR" = ?, "HARPIA_ORIGINATOR" = ? WHERE "HARPIA_ID" = ?'
+    DELETE_SQL = 'DELETE FROM "user_table" WHERE "HARPIA_ID" = ?'
+    LIST_SQL = 'SELECT "HARPIA_ID", "address", "name", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "user_table" ORDER BY "HARPIA_ID"'
+    LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "address", "name", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "user_table" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'
 
     def _on_change(self, msg: users) -> None:
         """OnChange: publish the written row to ``users_channel()``

@@ -86,7 +86,7 @@ def test_rest_created_row_is_visible_through_the_db_layer_directly(tmp_path):
             "    public static void main(String[] args) throws Exception {{\n"
             "        String base = \"http://127.0.0.1:\" + args[0];\n"
             "        HttpClient client = HttpClient.newHttpClient();\n"
-            "        String createJson = \"{{\\\"ID{h}\\\":1,\\\"address\\\":\\\"wonderland\\\",\\\"name\\\":\\\"alice\\\"}}\";\n"
+            "        String createJson = \"{{\\\"HARPIAID\\\":1,\\\"address\\\":\\\"wonderland\\\",\\\"name\\\":\\\"alice\\\"}}\";\n"
             "        HttpResponse<String> created = client.send(\n"
             "            HttpRequest.newBuilder(URI.create(base + \"/users\"))\n"
             "                .header(\"X-User\", \"users\").header(\"X-Pswd\", \"{h}\")\n"

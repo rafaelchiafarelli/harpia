@@ -20,18 +20,18 @@ class data_dao(Dao[data]):
 
     MESSAGE = data
     TABLE = 'table_data'
-    PK = 'ID_3ac5d8b36fc7dcfb70888145147ddfb7'
+    PK = 'HARPIA_ID'
     COLUMNS = (
-        Column('ID_3ac5d8b36fc7dcfb70888145147ddfb7', ('ID_3ac5d8b36fc7dcfb70888145147ddfb7',)),
+        Column('HARPIA_ID', ('HARPIA_ID',)),
         Column('i', ('i',)),
         Column('j', ('j',)),
         Column('val_vari', ('val', 'vari')),
         Column('val_var', ('val', 'var')),
         Column('val_val', ('val', 'val')),
         Column('car', ('car',)),
-        Column('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7', ('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
+        Column('HARPIA_STATUS', ('HARPIA_STATUS',)),
+        Column('HARPIA_ERROR', ('HARPIA_ERROR',)),
+        Column('HARPIA_ORIGINATOR', ('HARPIA_ORIGINATOR',)),
     )
     CHILDREN = (
         ChildTable(
@@ -61,7 +61,7 @@ class data_dao(Dao[data]):
             'DELETE FROM "table_data__val_scores" WHERE "owner" = ?'),
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "table_data" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "i" INTEGER, "j" INTEGER, "val_vari" INTEGER, "val_var" INTEGER, "val_val" INTEGER, "car" INTEGER, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "table_data" ("HARPIA_ID" INTEGER PRIMARY KEY, "i" INTEGER, "j" INTEGER, "val_vari" INTEGER, "val_var" INTEGER, "val_val" INTEGER, "car" INTEGER, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
         'CREATE TABLE IF NOT EXISTS "table_data__val_a" ("owner" INTEGER, "key" TEXT, "value" TEXT, PRIMARY KEY("owner", "key"));',
         'CREATE TABLE IF NOT EXISTS "table_data__val_b" ("owner" INTEGER, "key" TEXT, "value" INTEGER, PRIMARY KEY("owner", "key"));',
         'CREATE TABLE IF NOT EXISTS "table_data__val_c" ("owner" INTEGER, "key" INTEGER, "value" TEXT, PRIMARY KEY("owner", "key"));',
@@ -76,12 +76,12 @@ class data_dao(Dao[data]):
         'DROP TABLE IF EXISTS "table_data__val_scores";',
         'DROP TABLE IF EXISTS "table_data";',
     )
-    INSERT_SQL = 'INSERT INTO "table_data" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7", "i", "j", "val_vari", "val_var", "val_val", "car", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    SELECT_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "i", "j", "val_vari", "val_var", "val_val", "car", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "table_data" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    UPDATE_SQL = 'UPDATE "table_data" SET "i" = ?, "j" = ?, "val_vari" = ?, "val_var" = ?, "val_val" = ?, "car" = ?, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" = ? WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    DELETE_SQL = 'DELETE FROM "table_data" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    LIST_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "i", "j", "val_vari", "val_var", "val_val", "car", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "table_data" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7"'
-    LIST_PAGE_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "i", "j", "val_vari", "val_var", "val_val", "car", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" FROM "table_data" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7" LIMIT ? OFFSET ?'
+    INSERT_SQL = 'INSERT INTO "table_data" ("HARPIA_ID", "i", "j", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    SELECT_SQL = 'SELECT "HARPIA_ID", "i", "j", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "table_data" WHERE "HARPIA_ID" = ?'
+    UPDATE_SQL = 'UPDATE "table_data" SET "i" = ?, "j" = ?, "val_vari" = ?, "val_var" = ?, "val_val" = ?, "car" = ?, "HARPIA_STATUS" = ?, "HARPIA_ERROR" = ?, "HARPIA_ORIGINATOR" = ? WHERE "HARPIA_ID" = ?'
+    DELETE_SQL = 'DELETE FROM "table_data" WHERE "HARPIA_ID" = ?'
+    LIST_SQL = 'SELECT "HARPIA_ID", "i", "j", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "table_data" ORDER BY "HARPIA_ID"'
+    LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "i", "j", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "table_data" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'
 
     def _on_change(self, msg: data) -> None:
         """OnChange: publish the written row to ``data_channel()``

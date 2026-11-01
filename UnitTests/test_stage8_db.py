@@ -103,7 +103,7 @@ def test_crudl_roundtrip(generated, sqlite_obj, tmp_path):
         '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
         "    harpia::db::users_dao dao(db);\n"
         "    if (!dao.create_table()) return 2;\n"
-        "    ::users a; a.set_id_{h}(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
+        "    ::users a; a.set_harpia_id(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
         "    if (!dao.create(a)) return 3;\n"
         "    ::users got;\n"
         "    if (!dao.read(1, &got)) return 4;\n"
@@ -112,7 +112,7 @@ def test_crudl_roundtrip(generated, sqlite_obj, tmp_path):
         "    if (!dao.update(b)) return 6;\n"
         "    ::users got2; dao.read(1, &got2);\n"
         '    if (got2.name() != "trinity") return 7;\n'
-        "    ::users a2; a2.set_id_{h}(2); a2.set_name(\"morpheus\");\n"
+        "    ::users a2; a2.set_harpia_id(2); a2.set_name(\"morpheus\");\n"
         "    if (!dao.create(a2)) return 8;\n"
         "    std::vector<::users> all;\n"
         "    if (!dao.list(&all) || all.size() != 2) return 9;\n"
@@ -156,7 +156,7 @@ def test_crudl_pagination(generated, sqlite_obj, tmp_path):
         "    harpia::db::users_dao dao(db);\n"
         "    if (!dao.create_table()) return 2;\n"
         "    for (int i = 1; i <= 5; ++i) {{\n"
-        "        ::users u; u.set_id_{h}(i); u.set_name(\"n\" + std::to_string(i));\n"
+        "        ::users u; u.set_harpia_id(i); u.set_name(\"n\" + std::to_string(i));\n"
         "        if (!dao.create(u)) return 3;\n"
         "    }}\n"
         "    std::vector<::users> page;\n"
@@ -203,12 +203,12 @@ def test_migration_additive(generated, sqlite_obj, tmp_path):
         '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
         "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
         "    // an older generated version: only the PK + one column, with a row\n"
-        '    if (!exec("CREATE TABLE \\"user_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, \\"address\\" TEXT);")) return 2;\n'
-        "    if (!exec(\"INSERT INTO \\\"user_table\\\" (\\\"ID_{h}\\\", \\\"address\\\") VALUES (1, 'matrix');\")) return 3;\n"
+        '    if (!exec("CREATE TABLE \\"user_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY, \\"address\\" TEXT);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"user_table\\\" (\\\"HARPIA_ID\\\", \\\"address\\\") VALUES (1, 'matrix');\")) return 3;\n"
         "    if (!::harpia::db::migrate_users(db)) return 4;\n"
         "    ::harpia::db::users_dao dao(db);\n"
         "    // the added columns now exist: a full row round-trips\n"
-        '    ::users a; a.set_id_{h}(2); a.set_address("zion"); a.set_name("neo");\n'
+        '    ::users a; a.set_harpia_id(2); a.set_address("zion"); a.set_name("neo");\n'
         "    if (!dao.create(a)) return 5;\n"
         "    ::users got; if (!dao.read(2, &got)) return 6;\n"
         '    if (got.name() != "neo" || got.address() != "zion") return 7;\n'
@@ -260,9 +260,9 @@ def test_migration_drop_and_rename(generated, sqlite_obj, tmp_path):
         "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
         "    // an older generated version: the field under its old name, plus\n"
         "    // a stray column the current schema no longer declares\n"
-        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY, '
         '\\"handle\\" TEXT, \\"strength\\" INTEGER, \\"legacy_note\\" TEXT);")) return 2;\n'
-        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"ID_{h}\\\", \\\"handle\\\", "
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"HARPIA_ID\\\", \\\"handle\\\", "
         "\\\"strength\\\", \\\"legacy_note\\\") VALUES (1, 'north', 5, 'obsolete');\")) return 3;\n"
         "    if (!::harpia::db::migrate_beacon_log(db)) return 4;\n"
         "    ::harpia::db::beacon_log_dao dao(db);\n"
@@ -325,9 +325,9 @@ def test_migration_data_transform(generated, sqlite_obj, tmp_path):
         "    // an older generated version: the data lives under a column\n"
         "    // (\"full_label\") the current schema doesn't declare at all --\n"
         "    // no renamed_from marker applies here, only a value derivation.\n"
-        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY, '
         '\\"full_label\\" TEXT, \\"strength\\" INTEGER);")) return 2;\n'
-        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"ID_{h}\\\", \\\"full_label\\\", "
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"HARPIA_ID\\\", \\\"full_label\\\", "
         "\\\"strength\\\") VALUES (1, 'north-station', 5);\")) return 3;\n"
         "    // the hook: copy the old column into the new one. Guarded so a\n"
         "    // second run is a no-op -- callers are responsible for their own\n"
@@ -353,7 +353,7 @@ def test_migration_data_transform(generated, sqlite_obj, tmp_path):
         "    // the hook is genuinely optional: a second row, migrated with NO\n"
         "    // hook argument at all, must not crash (std::bad_function_call on\n"
         "    // an empty std::function) and must leave that row untouched\n"
-        '    ::beacon_log b; b.set_id_{h}(2); b.set_label("untouched"); b.set_strength(9);\n'
+        '    ::beacon_log b; b.set_harpia_id(2); b.set_label("untouched"); b.set_strength(9);\n'
         "    if (!dao.create(b)) return 9;\n"
         "    if (!::harpia::db::migrate_beacon_log(db)) return 10;\n"
         "    ::beacon_log got2;\n"
@@ -407,9 +407,9 @@ def test_migration_retype_column(generated, sqlite_obj, tmp_path):
         '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
         "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
         "    // an older generated version: strength stored as TEXT, not INTEGER\n"
-        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY, '
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY, '
         '\\"label\\" TEXT, \\"strength\\" TEXT);")) return 2;\n'
-        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"ID_{h}\\\", \\\"label\\\", "
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" (\\\"HARPIA_ID\\\", \\\"label\\\", "
         "\\\"strength\\\") VALUES (1, 'north', '7');\")) return 3;\n"
         "    if (!::harpia::db::migrate_beacon_log(db)) return 4;\n"
         "    // the column's declared type is now INTEGER\n"
@@ -504,7 +504,7 @@ def test_migration_child_scalar_add(generated, sqlite_obj, tmp_path):
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_child_add", _TELEMETRY_HEAD.format(h=HASH) + (
         "    // an older version: parent + the 'notes' child table only, no 'samples'\n"
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
         '    if (!exec("CREATE TABLE \\"telemetry_table__notes\\" (\\"owner\\" INTEGER,'
         ' \\"ordinal\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"ordinal\\"));"))'
@@ -513,7 +513,7 @@ def test_migration_child_scalar_add(generated, sqlite_obj, tmp_path):
         "    if (!::harpia::db::migrate_telemetry(db)) return 5;\n"
         "    if (!has_table(\"telemetry_table__samples\")) return 6;\n"
         "    ::harpia::db::telemetry_dao dao(db);\n"
-        '    ::telemetry t; t.set_id_{h}(1); t.set_label("dev");\n'
+        '    ::telemetry t; t.set_harpia_id(1); t.set_label("dev");\n'
         "    t.add_samples(11); t.add_samples(22); t.add_samples(33);\n"
         "    if (!dao.create(t)) return 7;\n"
         "    ::telemetry got;\n"
@@ -535,9 +535,9 @@ def test_migration_child_scalar_rename(generated, sqlite_obj, tmp_path):
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_child_rename", _TELEMETRY_HEAD.format(h=HASH) + (
         "    // an older version: the repeated child table under its old name\n"
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
-        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"HARPIA_ID\\", \\"label\\")'
         " VALUES (1, 'dev');\")) return 3;\n"
         '    if (!exec("CREATE TABLE \\"telemetry_table__old_notes\\" (\\"owner\\" INTEGER,'
         ' \\"ordinal\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"ordinal\\"));"))'
@@ -570,7 +570,7 @@ def test_migration_child_scalar_drop(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_child_drop", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
         "    // a child table for a repeated field that no longer exists\n"
         '    if (!exec("CREATE TABLE \\"telemetry_table__ghost\\" (\\"owner\\" INTEGER,'
@@ -598,9 +598,9 @@ def test_migration_child_scalar_retype(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_child_retype", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
-        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"HARPIA_ID\\", \\"label\\")'
         " VALUES (1, 'dev');\")) return 3;\n"
         "    // older child table: value typed TEXT, not INTEGER\n"
         '    if (!exec("CREATE TABLE \\"telemetry_table__samples\\" (\\"owner\\" INTEGER,'
@@ -638,9 +638,9 @@ def test_migration_child_scalar_roundtrip(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_child_roundtrip", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
-        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"HARPIA_ID\\", \\"label\\")'
         " VALUES (1, 'unit-7');\")) return 3;\n"
         '    if (!exec("CREATE TABLE \\"telemetry_table__old_notes\\" (\\"owner\\" INTEGER,'
         ' \\"ordinal\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"ordinal\\"));"))'
@@ -692,13 +692,13 @@ def test_migration_map_child_add(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_map_add", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
         "    if (has_table(\"telemetry_table__gauges\")) return 3;\n"
         "    if (!::harpia::db::migrate_telemetry(db)) return 4;\n"
         "    if (!has_table(\"telemetry_table__gauges\")) return 5;\n"
         "    ::harpia::db::telemetry_dao dao(db);\n"
-        '    ::telemetry t; t.set_id_{h}(1); t.set_label("dev");\n'
+        '    ::telemetry t; t.set_harpia_id(1); t.set_label("dev");\n'
         '    (*t.mutable_gauges())["cpu"] = 5; (*t.mutable_gauges())["mem"] = 8;\n'
         "    if (!dao.create(t)) return 6;\n"
         "    ::telemetry got;\n"
@@ -718,9 +718,9 @@ def test_migration_map_child_rename(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_map_rename", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
-        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"HARPIA_ID\\", \\"label\\")'
         " VALUES (1, 'dev');\")) return 3;\n"
         "    // the map child table under its old name (map<int,string>)\n"
         '    if (!exec("CREATE TABLE \\"telemetry_table__old_flags\\" (\\"owner\\" INTEGER,'
@@ -752,7 +752,7 @@ def test_migration_map_child_drop(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_map_drop", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
         '    if (!exec("CREATE TABLE \\"telemetry_table__phantom\\" (\\"owner\\" INTEGER,'
         ' \\"key\\" TEXT, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
@@ -779,9 +779,9 @@ def test_migration_map_child_retype(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_map_retype", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
-        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"HARPIA_ID\\", \\"label\\")'
         " VALUES (1, 'dev');\")) return 3;\n"
         "    // older child table: key INTEGER / value TEXT, now TEXT / INTEGER\n"
         '    if (!exec("CREATE TABLE \\"telemetry_table__gauges\\" (\\"owner\\" INTEGER,'
@@ -820,9 +820,9 @@ def test_migration_map_child_roundtrip(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_map_roundtrip", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
-        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"HARPIA_ID\\", \\"label\\")'
         " VALUES (1, 'unit-9');\")) return 3;\n"
         '    if (!exec("CREATE TABLE \\"telemetry_table__old_flags\\" (\\"owner\\" INTEGER,'
         ' \\"key\\" INTEGER, \\"value\\" TEXT, PRIMARY KEY(\\"owner\\", \\"key\\"));"))'
@@ -875,13 +875,13 @@ def test_migration_composed_child_add(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_comp_add", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
         "    if (has_table(\"telemetry_table__traces\")) return 3;\n"
         "    if (!::harpia::db::migrate_telemetry(db)) return 4;\n"
         "    if (!has_table(\"telemetry_table__traces\")) return 5;\n"
         "    ::harpia::db::telemetry_dao dao(db);\n"
-        '    ::telemetry t; t.set_id_{h}(1); t.set_label("dev");\n'
+        '    ::telemetry t; t.set_harpia_id(1); t.set_label("dev");\n'
         '    auto* r = t.add_traces(); r->set_kind("boot"); r->set_weight(3);\n'
         "    if (!dao.create(t)) return 6;\n"
         "    ::telemetry got;\n"
@@ -902,9 +902,9 @@ def test_migration_composed_child_rename(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_comp_rename", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
-        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"HARPIA_ID\\", \\"label\\")'
         " VALUES (1, 'dev');\")) return 3;\n"
         '    if (!exec("CREATE TABLE \\"telemetry_table__old_traces\\" (\\"owner\\" INTEGER,'
         ' \\"ordinal\\" INTEGER, \\"kind\\" TEXT, \\"weight\\" INTEGER,'
@@ -935,7 +935,7 @@ def test_migration_composed_child_drop(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_comp_drop", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
         '    if (!exec("CREATE TABLE \\"telemetry_table__spans\\" (\\"owner\\" INTEGER,'
         ' \\"ordinal\\" INTEGER, \\"name\\" TEXT, \\"dur\\" INTEGER,'
@@ -961,9 +961,9 @@ def test_migration_composed_child_retype(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_comp_retype", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
-        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"HARPIA_ID\\", \\"label\\")'
         " VALUES (1, 'dev');\")) return 3;\n"
         "    // older shape: kind INTEGER, stray note, no weight\n"
         '    if (!exec("CREATE TABLE \\"telemetry_table__traces\\" (\\"owner\\" INTEGER,'
@@ -1004,9 +1004,9 @@ def test_migration_composed_child_roundtrip(generated, sqlite_obj, tmp_path):
     assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
     cpp_root = os.path.join(generated, "generated", "cpp")
     _compile_run(tmp_path, cpp_root, "mig_comp_roundtrip", _TELEMETRY_HEAD.format(h=HASH) + (
-        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"ID_{h}\\" INTEGER PRIMARY KEY,'
+        '    if (!exec("CREATE TABLE \\"telemetry_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY,'
         ' \\"label\\" TEXT);")) return 2;\n'
-        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"ID_{h}\\", \\"label\\")'
+        '    if (!exec("INSERT INTO \\"telemetry_table\\" (\\"HARPIA_ID\\", \\"label\\")'
         " VALUES (1, 'unit-3');\")) return 3;\n"
         '    if (!exec("CREATE TABLE \\"telemetry_table__old_traces\\" (\\"owner\\" INTEGER,'
         ' \\"ordinal\\" INTEGER, \\"kind\\" INTEGER, \\"note\\" TEXT,'
@@ -1122,21 +1122,21 @@ def test_a1_phi_persisted_as_ciphertext(generated, sqlite_obj, tmp_path):
         '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
         "    ::harpia::db::patient_vitals_dao dao(db);\n"
         "    if (!dao.create_table()) return 2;\n"
-        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        "    ::patient_vitals a; a.set_harpia_id(1);\n"
         '    a.set_patient_id("mrn-90210"); a.set_heart_rate(72.5f);\n'
         '    a.set_device_note("sensor B");\n'
         "    if (!dao.create(a)) return 3;\n"
         "    // raw read, bypassing the DAO\n"
         "    std::string pid, note; double hr = 0; ::soci::indicator i0, i1, i2;\n"
         '    db << "SELECT \\"patient_id\\", \\"heart_rate\\", \\"device_note\\" '
-        'FROM \\"patient_vitals_table\\" WHERE \\"ID_{h}\\" = 1",\n'
+        'FROM \\"patient_vitals_table\\" WHERE \\"HARPIA_ID\\" = 1",\n'
         "        ::soci::into(pid, i0), ::soci::into(hr, i1), ::soci::into(note, i2);\n"
         '    if (pid.rfind("enc:v1:", 0) != 0) return 4;   // phi string is ciphertext\n'
         '    if (pid.find("mrn-90210") != std::string::npos) return 5;\n'
         "    // heart_rate column holds the marker text, not 72.5\n"
         "    std::string hr_txt; ::soci::indicator i3;\n"
         '    db << "SELECT CAST(\\"heart_rate\\" AS TEXT) FROM \\"patient_vitals_table\\" '
-        'WHERE \\"ID_{h}\\" = 1", ::soci::into(hr_txt, i3);\n'
+        'WHERE \\"HARPIA_ID\\" = 1", ::soci::into(hr_txt, i3);\n'
         '    if (hr_txt.rfind("enc:v1:", 0) != 0) return 6;\n'
         '    if (note != "sensor B") return 7;            // non-phi untouched\n'
         "    // DAO read decrypts\n"
@@ -1150,7 +1150,7 @@ def test_a1_phi_persisted_as_ciphertext(generated, sqlite_obj, tmp_path):
         "    if (!dao.update(got)) return 12;\n"
         "    std::string pid2; ::soci::indicator i4;\n"
         '    db << "SELECT \\"patient_id\\" FROM \\"patient_vitals_table\\" '
-        'WHERE \\"ID_{h}\\" = 1", ::soci::into(pid2, i4);\n'
+        'WHERE \\"HARPIA_ID\\" = 1", ::soci::into(pid2, i4);\n'
         '    if (pid2.rfind("enc:v1:", 0) != 0 || pid2.find("mrn-00001") != std::string::npos) return 13;\n'
         "    ::patient_vitals got2; dao.read(1, &got2);\n"
         '    if (got2.patient_id() != "mrn-00001") return 14;\n'
@@ -1228,7 +1228,7 @@ def test_a2_persist_restart_decrypt(generated, sqlite_obj, tmp_path):
         '    ::harpia::crypto::LocalKeyProvider kp({{"{keks}"}});\n'
         "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
         "    if (!dao.create_table()) return 2;\n"
-        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        "    ::patient_vitals a; a.set_harpia_id(1);\n"
         '    a.set_patient_id("mrn-55"); a.set_heart_rate(66.25f);\n'
         '    a.set_device_note("bay 3");\n'
         "    if (!dao.create(a)) return 3;\n"
@@ -1315,7 +1315,7 @@ def test_a3_phi_crudl_ops_audited(generated, sqlite_obj, tmp_path):
         "        db, ::harpia::crypto::default_key_provider(), sink);\n"
         "    if (!dao.create_table()) return 2;\n"
         "    if (!sink.calls.empty()) return 3;   // create_table is not a phi op\n"
-        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        "    ::patient_vitals a; a.set_harpia_id(1);\n"
         '    a.set_patient_id("mrn-secret"); a.set_heart_rate(60.0f);\n'
         "    if (!dao.create(a)) return 4;\n"
         '    if (int e = expect(sink, "phi_create")) return 10 + e;\n'
@@ -1401,7 +1401,7 @@ def test_a4_kek_rotation_roundtrip(generated, sqlite_obj, tmp_path):
         "static std::string raw_pid(::soci::session& db) {{\n"
         "    std::string v; ::soci::indicator i;\n"
         '    db << "SELECT \\"patient_id\\" FROM \\"patient_vitals_table\\" '
-        'WHERE \\"ID_{h}\\" = 1", ::soci::into(v, i);\n'
+        'WHERE \\"HARPIA_ID\\" = 1", ::soci::into(v, i);\n'
         "    return v;\n"
         "}}\n"
         "int main() {{\n"
@@ -1409,7 +1409,7 @@ def test_a4_kek_rotation_roundtrip(generated, sqlite_obj, tmp_path):
         '    ::harpia::crypto::LocalKeyProvider kp({{"{keks}"}});\n'
         "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
         "    if (!dao.create_table()) return 2;\n"
-        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        "    ::patient_vitals a; a.set_harpia_id(1);\n"
         '    a.set_patient_id("pre-rotate"); a.set_heart_rate(50.0f);\n'
         "    if (!dao.create(a)) return 3;\n"
         "    std::string blob_before = raw_pid(db);\n"
@@ -1419,7 +1419,7 @@ def test_a4_kek_rotation_roundtrip(generated, sqlite_obj, tmp_path):
         "    std::uint64_t v1 = kp.rotate();\n"
         "    if (v1 <= v0) return 5;\n"
         "    // a row written AFTER rotation uses the new active KEK\n"
-        "    ::patient_vitals b; b.set_id_{h}(2);\n"
+        "    ::patient_vitals b; b.set_harpia_id(2);\n"
         '    b.set_patient_id("post-rotate"); b.set_heart_rate(51.0f);\n'
         "    if (!dao.create(b)) return 6;\n"
         "    // the pre-rotation row's stored ciphertext did not change\n"
@@ -1467,12 +1467,12 @@ def test_a4_keyprovider_backend_swap(generated, sqlite_obj, tmp_path):
         '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
         "    ::harpia::db::patient_vitals_dao dao(db, kp);\n"
         "    if (!dao.create_table()) return 1;\n"
-        "    ::patient_vitals a; a.set_id_{h}(1);\n"
+        "    ::patient_vitals a; a.set_harpia_id(1);\n"
         '    a.set_patient_id("swap-me"); a.set_heart_rate(42.0f);\n'
         "    if (!dao.create(a)) return 2;\n"
         "    std::string raw; ::soci::indicator ind;\n"
         '    db << "SELECT \\"patient_id\\" FROM \\"patient_vitals_table\\" '
-        'WHERE \\"ID_{h}\\" = 1", ::soci::into(raw, ind);\n'
+        'WHERE \\"HARPIA_ID\\" = 1", ::soci::into(raw, ind);\n'
         '    if (raw.rfind("enc:v1:", 0) != 0 || raw.find("swap-me") != std::string::npos) return 3;\n'
         "    ::patient_vitals got;\n"
         "    if (!dao.read(1, &got)) return 4;\n"
@@ -1521,14 +1521,14 @@ def test_fk_roundtrip(generated, sqlite_obj, tmp_path):
         "    harpia::db::top_users_dao pdao(db);\n"
         "    harpia::db::vip_users_dao cdao(db);\n"
         "    if (!pdao.create_table() || !cdao.create_table()) return 2;\n"
-        "    ::top_users t; t.set_id_{h}(1); t.set_name(\"boss\");\n"
-        "    auto* u = t.mutable_myusers(); u->set_id_{h}(7);\n"
+        "    ::top_users t; t.set_harpia_id(1); t.set_name(\"boss\");\n"
+        "    auto* u = t.mutable_myusers(); u->set_harpia_id(7);\n"
         "    u->set_name(\"vippy\"); u->set_family(\"fam\");\n"
         "    if (!pdao.create(t)) return 3;\n"            # creates child + parent
         "    ::top_users got;\n"
         "    if (!pdao.read(1, &got)) return 4;\n"
         "    if (!got.has_myusers()) return 5;\n"
-        "    if (got.myusers().id_{h}() != 7) return 6;\n"
+        "    if (got.myusers().harpia_id() != 7) return 6;\n"
         "    if (got.myusers().name() != \"vippy\") return 7;\n"
         "    if (got.myusers().family() != \"fam\") return 8;\n"
         "    // the child row is independently present in its own table\n"
@@ -1572,10 +1572,10 @@ def test_repeated_fk_roundtrip(generated, sqlite_obj, tmp_path):
         "    harpia::db::top_users_dao pdao(db);\n"
         "    harpia::db::vip_users_dao cdao(db);\n"
         "    if (!pdao.create_table() || !cdao.create_table()) return 2;\n"
-        '    ::top_users t; t.set_id_{h}(1); t.set_name("boss");\n'
-        "    auto* m1 = t.add_members(); m1->set_id_{h}(11);\n"
+        '    ::top_users t; t.set_harpia_id(1); t.set_name("boss");\n'
+        "    auto* m1 = t.add_members(); m1->set_harpia_id(11);\n"
         '    m1->set_name("neo"); m1->set_family("anderson");\n'
-        "    auto* m2 = t.add_members(); m2->set_id_{h}(22);\n"
+        "    auto* m2 = t.add_members(); m2->set_harpia_id(22);\n"
         '    m2->set_name("trinity"); m2->set_family("moss");\n'
         "    if (!pdao.create(t)) return 3;\n"
         "    ::top_users got;\n"
@@ -1625,7 +1625,7 @@ def test_repeated_composed_roundtrip(generated, sqlite_obj, tmp_path):
         '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
         "    harpia::db::shipment_dao dao(db);\n"
         "    if (!dao.create_table()) return 2;\n"
-        '    ::shipment s; s.set_id_{h}(1); s.set_tag("crate");\n'
+        '    ::shipment s; s.set_harpia_id(1); s.set_tag("crate");\n'
         "    auto* p1 = s.add_cargo();\n"
         '    p1->set_label("books"); p1->set_weight(3);\n'
         "    auto* p2 = s.add_cargo();\n"
@@ -1683,7 +1683,7 @@ def test_nested_embed_roundtrip(generated, sqlite_obj, tmp_path):
         '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
         "    harpia::db::journey_dao dao(db);\n"
         "    if (!dao.create_table()) return 2;\n"
-        '    ::journey j; j.set_id_{h}(1); j.set_vessel("kon-tiki");\n'
+        '    ::journey j; j.set_harpia_id(1); j.set_vessel("kon-tiki");\n'
         "    auto* path = j.mutable_path();\n"
         '    path->set_label("pacific");\n'
         "    auto* start = path->mutable_start();\n"
@@ -1735,17 +1735,17 @@ def test_embedded_fk_roundtrip(generated, sqlite_obj, tmp_path):
         "    harpia::db::outpost_dao pdao(db);\n"
         "    harpia::db::crew_dao cdao(db);\n"
         "    if (!pdao.create_table() || !cdao.create_table()) return 2;\n"
-        '    ::outpost o; o.set_id_{h}(1); o.set_commander("shepard");\n'
+        '    ::outpost o; o.set_harpia_id(1); o.set_commander("shepard");\n'
         "    auto* berth = o.mutable_berth();\n"
         '    berth->set_label("bay 3");\n'
         "    auto* skipper = berth->mutable_skipper();\n"
-        '    skipper->set_id_{h}(9); skipper->set_name("anderson");\n'
+        '    skipper->set_harpia_id(9); skipper->set_name("anderson");\n'
         "    if (!pdao.create(o)) return 3;\n"          # creates child + parent
         "    ::outpost got;\n"
         "    if (!pdao.read(1, &got)) return 4;\n"
         '    if (got.berth().label() != "bay 3") return 5;\n'
         "    if (!got.berth().has_skipper()) return 6;\n"
-        "    if (got.berth().skipper().id_{h}() != 9) return 7;\n"
+        "    if (got.berth().skipper().harpia_id() != 9) return 7;\n"
         '    if (got.berth().skipper().name() != "anderson") return 8;\n'
         "    // the child row is independently present in its own table\n"
         '    ::crew c; if (!cdao.read(9, &c) || c.name() != "anderson") return 9;\n'
@@ -1786,8 +1786,8 @@ def test_dbio_roundtrip(generated, sqlite_obj, tmp_path):
         '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
         "    harpia::db::users_dao dao(db);\n"
         "    if (!dao.create_table()) return 1;\n"
-        "    ::users a; a.set_id_{h}(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
-        "    ::users b; b.set_id_{h}(2); b.set_name(\"trinity\");\n"
+        "    ::users a; a.set_harpia_id(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
+        "    ::users b; b.set_harpia_id(2); b.set_name(\"trinity\");\n"
         "    if (!dao.create(a) || !dao.create(b)) return 2;\n"
         "    // JSON export -> import into a fresh DB\n"
         "    std::string js; if (!harpia::dbio::export_json(dao, &js)) return 3;\n"
@@ -1862,18 +1862,18 @@ def test_sqlite_list_pages_are_stable(generated, tmp_path):
         '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
         "    ::harpia::db::users_dao dao(db); if (!dao.create_table()) return 1;\n"
         "    const int n = 50;\n"
-        "    for (int i = n; i >= 1; --i) {{ ::users u; u.set_id_{h}(i); u.set_name(\"u\");\n"
+        "    for (int i = n; i >= 1; --i) {{ ::users u; u.set_harpia_id(i); u.set_name(\"u\");\n"
         "      if (!dao.create(u)) return 2; }}\n"
-        "    for (int i = 1; i <= n; i += 2) {{ ::users u; u.set_id_{h}(i); u.set_name(\"moved\");\n"
+        "    for (int i = 1; i <= n; i += 2) {{ ::users u; u.set_harpia_id(i); u.set_name(\"moved\");\n"
         "      if (!dao.update(u)) return 3; }}\n"
         "    std::vector<::users> all; if (!dao.list(&all) || (int)all.size() != n) return 4;\n"
-        "    for (int i = 0; i < n; ++i) if (all[i].id_{h}() != i + 1) return 5;\n"
+        "    for (int i = 0; i < n; ++i) if (all[i].harpia_id() != i + 1) return 5;\n"
         "    std::vector<::users> paged;\n"
         "    for (long long off = 0; off < n; off += 7) {{ std::vector<::users> page;\n"
         "      if (!dao.list(&page, off, 7)) return 6;\n"
         "      paged.insert(paged.end(), page.begin(), page.end()); }}\n"
         "    if ((int)paged.size() != n) return 7;\n"
-        "    for (int i = 0; i < n; ++i) if (paged[i].id_{h}() != i + 1) return 8;\n"
+        "    for (int i = 0; i < n; ++i) if (paged[i].harpia_id() != i + 1) return 8;\n"
         "    return 0;\n"
         "}}\n".format(h=HASH))
     _compile_run(tmp_path, cpp_root, "sqlite_list_order", src,

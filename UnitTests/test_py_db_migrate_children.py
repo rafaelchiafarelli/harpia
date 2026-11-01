@@ -38,7 +38,7 @@ pytestmark = pytest.mark.skipif(not P.HAVE_PY, reason=P.SKIP_PY)
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
 T = "telemetry_table"
-ID = "ID_" + HASH
+ID = "HARPIA_ID"
 
 _MAIN = [
     'CREATE TABLE "{t}" ("{id}" INTEGER PRIMARY KEY, "label" TEXT);',

@@ -28,7 +28,7 @@ public:
 
     bool create_table() {
         try {
-            db_ << "CREATE TABLE IF NOT EXISTS \"vault_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"secret_code\" TEXT, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR\" TEXT);";
+            db_ << "CREATE TABLE IF NOT EXISTS \"vault_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"secret_code\" TEXT, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -41,12 +41,12 @@ public:
 
     bool create(const ::vault& msg) {
         try {
-            int c0 = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+            int c0 = msg.harpia_id();
             std::string c1 = msg.secret_code();
-            std::string c2 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c3 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c4 = msg.originator();
-            db_ << "INSERT INTO \"vault_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"secret_code\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4)",
+            std::string c2 = msg.harpia_status();
+            std::string c3 = msg.harpia_error();
+            std::string c4 = msg.harpia_originator();
+            db_ << "INSERT INTO \"vault_table\" (\"HARPIA_ID\", \"secret_code\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4)",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4);
             return true;
         } catch (const std::exception&) { return false; }
@@ -59,14 +59,14 @@ public:
             std::string l2; ::soci::indicator n2;
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
-            db_ << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"secret_code\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"vault_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id),
+            db_ << "SELECT \"HARPIA_ID\", \"secret_code\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"vault_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4);
             if (!db_.got_data()) return false;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_secret_code(n1 == ::soci::i_ok ? l1 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_originator(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_status(n2 == ::soci::i_ok ? l2 : std::string());
+                msg->set_harpia_error(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_originator(n4 == ::soci::i_ok ? l4 : std::string());
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -74,11 +74,11 @@ public:
     bool update(const ::vault& msg) {
         try {
             std::string c0 = msg.secret_code();
-            std::string c1 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c2 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c3 = msg.originator();
-            long long cid = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "UPDATE \"vault_table\" SET \"secret_code\" = :c0, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c1, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c2, \"ORIGINATOR\" = :c3 WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :cid",
+            std::string c1 = msg.harpia_status();
+            std::string c2 = msg.harpia_error();
+            std::string c3 = msg.harpia_originator();
+            long long cid = msg.harpia_id();
+            db_ << "UPDATE \"vault_table\" SET \"secret_code\" = :c0, \"HARPIA_STATUS\" = :c1, \"HARPIA_ERROR\" = :c2, \"HARPIA_ORIGINATOR\" = :c3 WHERE \"HARPIA_ID\" = :cid",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(cid);
             return true;
         } catch (const std::exception&) { return false; }
@@ -86,7 +86,7 @@ public:
 
     bool remove(std::int64_t id) {
         try {
-            db_ << "DELETE FROM \"vault_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id);
+            db_ << "DELETE FROM \"vault_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id);
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -98,17 +98,17 @@ public:
             std::string l2; ::soci::indicator n2;
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"secret_code\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"vault_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"",
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"secret_code\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"vault_table\" ORDER BY \"HARPIA_ID\"",
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4));
             st.execute();
             while (st.fetch()) {
                 ::vault row;
                 ::vault* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_secret_code(n1 == ::soci::i_ok ? l1 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_originator(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_status(n2 == ::soci::i_ok ? l2 : std::string());
+                msg->set_harpia_error(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_originator(n4 == ::soci::i_ok ? l4 : std::string());
                 out->push_back(row);
             }
             return true;
@@ -126,17 +126,17 @@ public:
             std::string l2; ::soci::indicator n2;
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"secret_code\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"vault_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"secret_code\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"vault_table\" ORDER BY \"HARPIA_ID\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4));
             st.execute();
             while (st.fetch()) {
                 ::vault row;
                 ::vault* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_secret_code(n1 == ::soci::i_ok ? l1 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_originator(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_status(n2 == ::soci::i_ok ? l2 : std::string());
+                msg->set_harpia_error(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_originator(n4 == ::soci::i_ok ? l4 : std::string());
                 out->push_back(row);
             }
             return true;

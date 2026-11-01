@@ -183,10 +183,9 @@ def test_protected_and_open_together_errors_regardless_of_order(tmp_path):
 
 # -- integration: Stages 0-6 produce a clean, unaffected .proto -----------
 
-# md5 suffix on hidden field names (ID_/STATUS_/ERROR_/ORIGINATOR_) is taken
-# over the whole source text (Message/CLAUDE.md), which the `protected `/
-# `open ` prefix changes -- normalise it away so two protos can be compared
-# directly.
+# Hidden field names are fixed (HARPIA_*, stable-hidden-names-DEFECT); the
+# normalisation stays as a guard against any hash-suffixed name reappearing
+# in a way that would differ between two sources.
 _HASH_SUFFIX = re.compile(r"_[0-9a-fA-F]{16,}")
 
 
@@ -232,9 +231,9 @@ def test_open_and_plain_message_emit_identical_proto(tmp_path):
 
 
 def test_hardening_modifiers_do_not_imply_one_to_many_originator(tmp_path):
-    # pull/event/stream set isOneToMany -> the ORIGINATOR hidden field gets an
-    # md5-suffixed name (ORIGINATOR_<hash>) instead of the bare `ORIGINATOR`.
-    # `protected`/`open` must NOT, on their own, flip isOneToMany.
+    # Every message carries the same HARPIA_ORIGINATOR hidden field (before
+    # stable-hidden-names-DEFECT pull/event/stream got ORIGINATOR_<hash>);
+    # `protected`/`open` change nothing in the .proto.
     plain = _run(tmp_path, "message m {\nint a;\n};\n")
     protected = _run(tmp_path, "protected message m {\nint a;\n};\n")
     open_ = _run(tmp_path, "open message m {\nint a;\n};\n")
@@ -243,6 +242,5 @@ def test_hardening_modifiers_do_not_imply_one_to_many_originator(tmp_path):
     assert one_to_many["error"] is None
     assert _normalised(protected["proto"]) == _normalised(plain["proto"])
     assert _normalised(open_["proto"]) == _normalised(plain["proto"])
-    assert re.search(r"ORIGINATOR_[0-9a-fA-F]{16,}", one_to_many["proto"])
-    assert not re.search(r"ORIGINATOR_[0-9a-fA-F]{16,}", protected["proto"])
-    assert not re.search(r"ORIGINATOR_[0-9a-fA-F]{16,}", open_["proto"])
+    assert protected["proto"] == open_["proto"] == plain["proto"] == one_to_many["proto"]
+    assert "string HARPIA_ORIGINATOR = " in protected["proto"]

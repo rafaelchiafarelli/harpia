@@ -17,25 +17,25 @@ class vault_dao(Dao[vault]):
 
     MESSAGE = vault
     TABLE = 'vault_table'
-    PK = 'ID_3ac5d8b36fc7dcfb70888145147ddfb7'
+    PK = 'HARPIA_ID'
     COLUMNS = (
-        Column('ID_3ac5d8b36fc7dcfb70888145147ddfb7', ('ID_3ac5d8b36fc7dcfb70888145147ddfb7',)),
+        Column('HARPIA_ID', ('HARPIA_ID',)),
         Column('secret_code', ('secret_code',)),
-        Column('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7', ('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ORIGINATOR', ('ORIGINATOR',)),
+        Column('HARPIA_STATUS', ('HARPIA_STATUS',)),
+        Column('HARPIA_ERROR', ('HARPIA_ERROR',)),
+        Column('HARPIA_ORIGINATOR', ('HARPIA_ORIGINATOR',)),
     )
     CHILDREN = (
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "vault_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "secret_code" TEXT, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "vault_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "secret_code" TEXT, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
     )
     DROP_TABLE_SQL = (
         'DROP TABLE IF EXISTS "vault_table";',
     )
-    INSERT_SQL = 'INSERT INTO "vault_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7", "secret_code", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR") VALUES (?, ?, ?, ?, ?)'
-    SELECT_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "secret_code", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR" FROM "vault_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    UPDATE_SQL = 'UPDATE "vault_table" SET "secret_code" = ?, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ORIGINATOR" = ? WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    DELETE_SQL = 'DELETE FROM "vault_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    LIST_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "secret_code", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR" FROM "vault_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7"'
-    LIST_PAGE_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "secret_code", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR" FROM "vault_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7" LIMIT ? OFFSET ?'
+    INSERT_SQL = 'INSERT INTO "vault_table" ("HARPIA_ID", "secret_code", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR") VALUES (?, ?, ?, ?, ?)'
+    SELECT_SQL = 'SELECT "HARPIA_ID", "secret_code", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "vault_table" WHERE "HARPIA_ID" = ?'
+    UPDATE_SQL = 'UPDATE "vault_table" SET "secret_code" = ?, "HARPIA_STATUS" = ?, "HARPIA_ERROR" = ?, "HARPIA_ORIGINATOR" = ? WHERE "HARPIA_ID" = ?'
+    DELETE_SQL = 'DELETE FROM "vault_table" WHERE "HARPIA_ID" = ?'
+    LIST_SQL = 'SELECT "HARPIA_ID", "secret_code", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "vault_table" ORDER BY "HARPIA_ID"'
+    LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "secret_code", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "vault_table" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'
