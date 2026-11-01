@@ -971,6 +971,12 @@ Docker/run.sh python3 main.py    # the pipeline with in-repo defaults
 - Exactly one root `.harpia` per input folder (imports under `Include/`).
 - Message ids (the `HARPIA_ID` primary key; C++ `set_harpia_id()`) are
   **caller-assigned** — set them before `create()`.
+- An `optional` field keeps its presence through the database in every
+  language: unset is stored as `NULL` and reads back unset (`has_x()` false);
+  set to `0` / `""` is stored and reads back set. This holds for an `optional`
+  sub-field of an embedded message too (C++ / Python; Java doesn't persist
+  embedded fields). Rows written before this change hold `0` / `""` and keep
+  reading as set.
 - Every message carries four hidden fields the generator adds: `HARPIA_ID`,
   `HARPIA_STATUS`, `HARPIA_ERROR`, `HARPIA_ORIGINATOR` (fixed names; before
   stable-hidden-names-DEFECT they were `ID_<hash>`, `STATUS_<hash>`,

@@ -436,3 +436,48 @@ def test_java_reads_null_columns(tmp_path):
                          capture_output=True, text=True, timeout=60)
     assert run.returncode == 0 and "OK" in run.stdout, \
         "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)
+
+
+@pytest.mark.skipif(not _HAS_JAVA_TOOLCHAIN, reason=SKIP_REASON)
+def test_java_optional_presence(tmp_path):
+    """db-optional-presence-DEFECT task 3 (the C++ rule): the nullable_row
+    fixture's `optional` fields -- unset -> NULL stored, read back
+    !hasField; set to 0 / "" -> stored, read back present."""
+    harpia_file, include_folder = _write_fixture(tmp_path / "src", _NULLABLE_HARPIA)
+    out = generate(tmp_path / "out", lang="java", harpia_file=harpia_file,
+                   include_folder=include_folder)
+    classpath = build_and_classpath(os.path.join(out, "java"), {
+        "smoke/Presence.java":
+            "package smoke;\n"
+            "import com.harpia.generated.nullable_row;\n"
+            "import com.harpia.generated.db.nullable_row_dao;\n"
+            "import java.sql.*;\n"
+            "public class Presence {\n"
+            "    public static void main(String[] args) throws Exception {\n"
+            "        Class.forName(\"org.sqlite.JDBC\");\n"
+            "        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n"
+            "            nullable_row_dao dao = new nullable_row_dao(conn);\n"
+            "            if (!dao.createTable()) System.exit(1);\n"
+            "            nullable_row unset = nullable_row.newBuilder().setHARPIAID(1).setS(\"a\").build();\n"
+            "            nullable_row zero = nullable_row.newBuilder().setHARPIAID(2).setOs(\"\").setOi(0).build();\n"
+            "            if (!dao.create(unset) || !dao.create(zero)) System.exit(2);\n"
+            "            try (Statement st = conn.createStatement();\n"
+            "                 ResultSet rs = st.executeQuery(\"SELECT count(*) FROM \\\"nullable_row_table\\\" \"\n"
+            "                     + \"WHERE \\\"os\\\" IS NULL AND \\\"oi\\\" IS NULL\")) {\n"
+            "                if (!rs.next() || rs.getInt(1) != 1) System.exit(3);\n"
+            "            }\n"
+            "            nullable_row.Builder b1 = nullable_row.newBuilder();\n"
+            "            if (!dao.read(1, b1)) System.exit(4);\n"
+            "            if (b1.hasOs() || b1.hasOi()) System.exit(5);\n"
+            "            nullable_row.Builder b2 = nullable_row.newBuilder();\n"
+            "            if (!dao.read(2, b2)) System.exit(6);\n"
+            "            if (!b2.hasOs() || !b2.hasOi() || b2.getOi() != 0) System.exit(7);\n"
+            "        }\n"
+            "        System.out.println(\"OK\");\n"
+            "    }\n"
+            "}\n",
+    })
+    run = subprocess.run(["java", "-cp", classpath, "smoke.Presence"],
+                         capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0 and "OK" in run.stdout, \
+        "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)

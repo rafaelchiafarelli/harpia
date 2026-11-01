@@ -40,6 +40,7 @@ from harpia_runtime.crypto.encrypted_column import (
     encrypt_field,
 )
 from harpia_runtime.crypto.key_provider import KeyProvider
+from harpia_runtime.db.bind import has_presence, is_unset_optional
 from harpia_runtime.db.dao import (
     Column,
     Connection,
@@ -97,6 +98,8 @@ class PhiDao(Dao[M]):
         if not col.phi:
             return column_value(msg, col)
         owner, field = _descriptor(msg, col, False)
+        if is_unset_optional(owner, field):
+            return None  # unset phi optional: NULL, nothing encrypted
         return encrypt_field(self.key_provider,
                              plaintext(getattr(owner, field.name), field))
 
@@ -104,6 +107,8 @@ class PhiDao(Dao[M]):
         if not col.phi:
             set_column(msg, col, value)
             return
+        if value is None and has_presence(_descriptor(msg, col, False)[1]):
+            return  # NULL phi optional: left unset
         owner, field = _descriptor(msg, col, True)
         stored = "" if value is None else str(value)
         kp = self.key_provider
