@@ -13,6 +13,7 @@ came from ``DbBackend`` alone: ``%s`` placeholders, PostgreSQL DDL.
 """
 import importlib
 import os
+import subprocess
 import sys
 import uuid
 
@@ -285,3 +286,61 @@ def test_read_by_unique_on_postgres(msgs, conn):
     got = cls()
     assert dao.read_by_visitor_name("ana", got) and getattr(got, PK) == 4
     assert not dao.read_by_visitor_name("nobody", cls())
+
+
+_PG_AUTOKEY_CHECK = r'''
+import sys, uuid, psycopg
+from harpia_generated.db.ticket_{h}_dao import ticket, ticket_dao
+from harpia_generated.migrate.ticket_{h}_migrate import migrate_ticket
+conn = psycopg.connect(sys.argv[1])
+schema = "harpia_ak_" + uuid.uuid4().hex[:10]
+conn.execute('CREATE SCHEMA "{{}}"'.format(schema))
+conn.execute('SET search_path TO "{{}}"'.format(schema))
+conn.commit()
+try:
+    # an older caller-assigned table with a row at key 40
+    conn.execute('CREATE TABLE "ticket_table" ("HARPIA_ID" INTEGER PRIMARY KEY, '
+                 '"title" TEXT NOT NULL, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, '
+                 '"HARPIA_ORIGINATOR" TEXT)')
+    conn.execute("INSERT INTO \"ticket_table\" (\"HARPIA_ID\", \"title\") VALUES (40, 'old')")
+    conn.commit()
+    assert migrate_ticket(conn) and migrate_ticket(conn)
+    dao = ticket_dao(conn)
+    a = ticket(title="new")
+    assert dao.create(a) and a.HARPIA_ID > 40, a
+    got = ticket()
+    assert dao.read(a.HARPIA_ID, got) and got.title == "new"
+    preset = ticket(HARPIA_ID=500, title="x")
+    assert dao.create(preset) and preset.HARPIA_ID == 500
+    after = ticket(title="y")
+    assert dao.create(after) and after.HARPIA_ID > 500, after
+    print("OK")
+finally:
+    conn.rollback()
+    conn.execute('DROP SCHEMA "{{}}" CASCADE'.format(schema))
+    conn.commit()
+'''
+
+
+def test_db_assigned_key_on_postgres(tmp_path):
+    """dao-key-access / db-assigned-key task 3 on PostgreSQL: identity key
+    set on the message; an existing caller-assigned table is migrated to an
+    identity continuing past its largest key; own schema, in a subprocess."""
+    import hashlib
+    (tmp_path / "Include").mkdir()
+    (tmp_path / "Include" / "ticket.harpia").write_text(
+        "autokey message ticket {\n    required string title;\n} ticket_table;\n")
+    root = tmp_path / "root.harpia"
+    root.write_text('import "ticket.harpia";\n')
+    out = tmp_path / "gen"
+    env = dict(os.environ, HARPIA_OUTPUT_DIR=str(out), HARPIA_INPUT_FILE=str(root),
+               HARPIA_INCLUDE_FOLDER=str(tmp_path / "Include"), HARPIA_GEN_LANG="python",
+               HARPIA_DB_BACKEND="postgresql")
+    r = subprocess.run([sys.executable, "main.py"], cwd=REPO_ROOT, env=env,
+                       capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
+    h = hashlib.md5(root.read_bytes()).hexdigest()
+    run = subprocess.run([sys.executable, "-c", _PG_AUTOKEY_CHECK.format(h=h), PG_DSN],
+                         env=dict(os.environ, PYTHONPATH=str(out / "python")),
+                         capture_output=True, text=True, timeout=120)
+    assert run.returncode == 0 and "OK" in run.stdout, run.stdout + run.stderr

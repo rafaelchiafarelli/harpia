@@ -97,7 +97,8 @@ stream pull push event message top_users {
 | `dds` | message | publish/subscribe onto an ASTM F2761 / OpenICE-class DDS bus (§14) |
 | `critical` | message | delivery guarantees — bounded rotating send queue + flush (§12), DDS RELIABLE/KEEP_ALL |
 | `optional` / `required` | field | presence (`has_<field>()`) / NOT NULL; mutually exclusive |
-| `unique` | field | UNIQUE column |
+| `autokey` | message | the database assigns `HARPIA_ID` (SQLite rowid, PostgreSQL identity) when `create(msg)` gets key 0, and writes it back (C++ `create(T&)`, Python sets it, Java `createReturningKey`); a non-zero key is inserted as given; needs a table; can't be the target of a composed field (generation error) |
+| `unique` | field | UNIQUE column; the DAO gains `read_by_<field>(value, out)` (top-level, non-phi) |
 | `repeteable` | field | repeated field (ordinal child table, or `vector`/`list` if unbounded and table-less) |
 | `pagination[N]` | field | bounded-size hint; on a table message its `N` is the default GET-list page size |
 | `renamed_from[old]` | field | this field replaces `old` — `migrate_<name>` renames the live column instead of drop+add |

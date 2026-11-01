@@ -39,9 +39,9 @@ public:
         }} catch (const std::exception&) {{ return false; }}
     }}
 
-    bool create(const ::{cls}& msg) {{
+{create_overload}    bool create({create_param} msg) {{
         try {{
-{fk_precreate}{create_locals}            db_ << "INSERT INTO \"{table}\" ({insert_cols}) VALUES ({insert_ph})"{create_use};
+{fk_precreate}{create_locals}{create_insert}
 {map_create}{audit_create}{event_publish_create}{event_audit_create}            return true;
         }} catch (const std::exception&) {{ return false; }}
     }}

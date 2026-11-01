@@ -3,6 +3,7 @@ import os
 from LexicalAnalizer.LexicalAnalyzer import LexicalAnalyzer
 from Logger.logger import logger
 from LexicalAnalizer.pre_lex import pre_lex, resolve_imports
+from Message.Message import autokey_fk_error
 
 from LexicalAnalizer.MessageCreator import MessageCreator,Message
 from ProtoFile.ProtoFileProcessor import ProtoFileProcessor
@@ -122,6 +123,10 @@ if __name__ == '__main__':
     messagesErrors = msgFactory.CreateMessages(beginToken=0)
     if messagesErrors != None:
         log.print(messagesErrors.__str__())
+        exit(-1)
+    autokeyError = autokey_fk_error(msgFactory.messages)
+    if autokeyError is not None:
+        log.print(autokeyError.__str__())
         exit(-1)
     imports = []
 
