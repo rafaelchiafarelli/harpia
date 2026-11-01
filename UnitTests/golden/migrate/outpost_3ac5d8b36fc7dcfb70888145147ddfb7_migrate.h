@@ -148,6 +148,9 @@ inline bool migrate_outpost(::soci::session& db,
         if (!have.count("commander")) {
             db << "ALTER TABLE \"outpost_table\" ADD COLUMN \"commander\" TEXT;";
         }
+        if (!have.count("HARPIA_HAS_berth")) {
+            db << "ALTER TABLE \"outpost_table\" ADD COLUMN \"HARPIA_HAS_berth\" INTEGER;";
+        }
         if (!have.count("berth_label")) {
             db << "ALTER TABLE \"outpost_table\" ADD COLUMN \"berth_label\" TEXT;";
         }
@@ -170,7 +173,7 @@ inline bool migrate_outpost(::soci::session& db,
         // non-additive: drop any live column the current schema no longer
         // declares (see the header comment above for the implicit-diff caveat)
         {
-            static const std::set<std::string> _current = { "HARPIA_ID", "commander", "berth_label", "berth_skipper", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" };
+            static const std::set<std::string> _current = { "HARPIA_ID", "commander", "HARPIA_HAS_berth", "berth_label", "berth_skipper", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" };
             for (auto _hit = have.begin(); _hit != have.end(); ) {
                 if (!_current.count(*_hit)) {
                     const std::string& _dc = *_hit;
@@ -201,14 +204,15 @@ inline bool migrate_outpost(::soci::session& db,
         bool _needs_retype = false;
             if (have_types.count("HARPIA_ID") && have_types["HARPIA_ID"] != "INTEGER") _needs_retype = true;
             if (have_types.count("commander") && have_types["commander"] != "TEXT") _needs_retype = true;
+            if (have_types.count("HARPIA_HAS_berth") && have_types["HARPIA_HAS_berth"] != "INTEGER") _needs_retype = true;
             if (have_types.count("berth_label") && have_types["berth_label"] != "TEXT") _needs_retype = true;
             if (have_types.count("berth_skipper") && have_types["berth_skipper"] != "INTEGER") _needs_retype = true;
             if (have_types.count("HARPIA_STATUS") && have_types["HARPIA_STATUS"] != "TEXT") _needs_retype = true;
             if (have_types.count("HARPIA_ERROR") && have_types["HARPIA_ERROR"] != "TEXT") _needs_retype = true;
             if (have_types.count("HARPIA_ORIGINATOR") && have_types["HARPIA_ORIGINATOR"] != "TEXT") _needs_retype = true;
         if (_needs_retype) {
-            db << "CREATE TABLE \"outpost_table__retype_tmp\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"commander\" TEXT, \"berth_label\" TEXT, \"berth_skipper\" INTEGER, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
-            db << "INSERT INTO \"outpost_table__retype_tmp\" (\"HARPIA_ID\", \"commander\", \"berth_label\", \"berth_skipper\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") SELECT CAST(\"HARPIA_ID\" AS INTEGER), CAST(\"commander\" AS TEXT), CAST(\"berth_label\" AS TEXT), CAST(\"berth_skipper\" AS INTEGER), CAST(\"HARPIA_STATUS\" AS TEXT), CAST(\"HARPIA_ERROR\" AS TEXT), CAST(\"HARPIA_ORIGINATOR\" AS TEXT) FROM \"outpost_table\";";
+            db << "CREATE TABLE \"outpost_table__retype_tmp\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"commander\" TEXT, \"HARPIA_HAS_berth\" INTEGER, \"berth_label\" TEXT, \"berth_skipper\" INTEGER, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
+            db << "INSERT INTO \"outpost_table__retype_tmp\" (\"HARPIA_ID\", \"commander\", \"HARPIA_HAS_berth\", \"berth_label\", \"berth_skipper\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") SELECT CAST(\"HARPIA_ID\" AS INTEGER), CAST(\"commander\" AS TEXT), CAST(\"HARPIA_HAS_berth\" AS INTEGER), CAST(\"berth_label\" AS TEXT), CAST(\"berth_skipper\" AS INTEGER), CAST(\"HARPIA_STATUS\" AS TEXT), CAST(\"HARPIA_ERROR\" AS TEXT), CAST(\"HARPIA_ORIGINATOR\" AS TEXT) FROM \"outpost_table\";";
             db << "DROP TABLE \"outpost_table\";";
             db << "ALTER TABLE \"outpost_table__retype_tmp\" RENAME TO \"outpost_table\";";
         }

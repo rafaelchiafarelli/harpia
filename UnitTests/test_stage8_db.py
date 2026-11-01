@@ -2143,3 +2143,56 @@ def test_autokey_without_table_is_refused(tmp_path):
                         str(tmp_path / "out")], cwd=REPO_ROOT, capture_output=True,
                        text=True, timeout=120)
     assert "RESULT MSG AUTOKEY_WITHOUT_TABLE" in r.stdout, r.stdout[-2000:]
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="embed presence round-trip needs protoc + protobuf")
+def test_embed_presence_round_trip(generated, sqlite_obj, tmp_path):
+    """embed-presence-DEFECT task 1: an unset embedded message field reads
+    back unset (HARPIA_HAS_<path> = 0, sub-columns NULL); set, even all
+    default, reads back set; levels are independent (journey.path.start); a
+    NULL presence column (a pre-change row) reads present."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    pb = [os.path.join(cpp_root, "protofiles", "{}_{}.pb.cc".format(n, HASH))
+          for n in ("data", "prince", "grower", "journey", "route", "waypoint")]
+    _compile_run(tmp_path, cpp_root, "embed_presence", (
+        '#include "db/data_{h}_crudl.h"\n'
+        '#include "db/journey_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    ::harpia::db::data_dao dd(db);\n"
+        "    if (!dd.create_table()) return 2;\n"
+        "    ::data unset; unset.set_harpia_id(1);\n"
+        "    ::data empty; empty.set_harpia_id(2); empty.mutable_val();\n"
+        "    if (!dd.create(unset) || !dd.create(empty)) return 3;\n"
+        "    int has = -1, nulls = -1; ::soci::indicator hi, ni;\n"
+        '    db << "SELECT \\"HARPIA_HAS_val\\" FROM \\"table_data\\" WHERE \\"HARPIA_ID\\" = 1", ::soci::into(has, hi);\n'
+        "    if (has != 0) return 4;\n"
+        '    db << "SELECT count(*) FROM \\"table_data\\" WHERE \\"HARPIA_ID\\" = 1 AND \\"val_var\\" IS NULL", ::soci::into(nulls, ni);\n'
+        "    if (nulls != 1) return 5;\n"
+        "    ::data g1, g2;\n"
+        "    if (!dd.read(1, &g1) || g1.has_val()) return 6;\n"
+        "    if (!dd.read(2, &g2) || !g2.has_val()) return 7;\n"
+        '    db << "UPDATE \\"table_data\\" SET \\"HARPIA_HAS_val\\" = NULL WHERE \\"HARPIA_ID\\" = 2";\n'
+        "    ::data g3;\n"
+        "    if (!dd.read(2, &g3) || !g3.has_val()) return 8;   // a pre-change row\n"
+        "    g2.clear_val();\n"
+        "    if (!dd.update(g2)) return 9;\n"
+        "    ::data g4;\n"
+        "    if (!dd.read(2, &g4) || g4.has_val()) return 10;\n"
+        "    ::harpia::db::journey_dao jd(db);\n"
+        "    if (!jd.create_table()) return 11;\n"
+        "    ::journey none; none.set_harpia_id(1);\n"
+        "    ::journey outer; outer.set_harpia_id(2); outer.mutable_path();\n"
+        "    ::journey both; both.set_harpia_id(3); both.mutable_path()->mutable_start();\n"
+        "    if (!jd.create(none) || !jd.create(outer) || !jd.create(both)) return 12;\n"
+        "    ::journey j1, j2, j3;\n"
+        "    if (!jd.read(1, &j1) || j1.has_path()) return 13;\n"
+        "    if (!jd.read(2, &j2) || !j2.has_path() || j2.path().has_start()) return 14;\n"
+        "    if (!jd.read(3, &j3) || !j3.has_path() || !j3.path().has_start()) return 15;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), pb)
