@@ -167,7 +167,7 @@ int main(int, char** argv) {{
             auto cli = client(port);
             for (int i = 0; i < 25; ++i) {{
                 const int id = 1 + t * 1000 + i;
-                ::users u; u.set_id_{h}(id); u.set_name("r" + std::to_string(id));
+                ::users u; u.set_harpia_id(id); u.set_name("r" + std::to_string(id));
                 std::string body; ::harpia::json::to_json(u, &body);
                 auto p = cli.Post("/api/users", body, "application/json");
                 if (!p || p.status != 201) {{ ++bad; continue; }}
@@ -183,7 +183,7 @@ int main(int, char** argv) {{
             harpia_test::Client cli("127.0.0.1", port);
             for (int i = 0; i < 25; ++i) {{
                 const int id = 50000 + t * 1000 + i;
-                ::users u; u.set_id_{h}(id); u.set_name("s" + std::to_string(id));
+                ::users u; u.set_harpia_id(id); u.set_name("s" + std::to_string(id));
                 auto s = cli.Post("/soap/users", soap_set(u), "text/xml");
                 if (!s || s.status != 200 || s.body.find("<ok>true</ok>") == std::string::npos) {{ ++bad; continue; }}
                 auto g = cli.Post("/soap/users", soap_get(id), "text/xml");

@@ -37,20 +37,20 @@ namespace {
 
 int simple_access() {
     ::data m;
-    m.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    m.set_harpia_id(1);
     m.set_i(1);
     m.set_j(1);
     m.set_car(static_cast<::grower>(1));
-    m.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    m.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    m.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7("originator_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    if (m.id_3ac5d8b36fc7dcfb70888145147ddfb7() != 1) return 10;
+    m.set_harpia_status("harpia_status_a");
+    m.set_harpia_error("harpia_error_a");
+    m.set_harpia_originator("harpia_originator_a");
+    if (m.harpia_id() != 1) return 10;
     if (m.i() != 1) return 11;
     if (m.j() != 1) return 12;
     if (m.car() != static_cast<::grower>(1)) return 13;
-    if (m.status_3ac5d8b36fc7dcfb70888145147ddfb7() != "status_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 14;
-    if (m.error_3ac5d8b36fc7dcfb70888145147ddfb7() != "error_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 15;
-    if (m.originator_3ac5d8b36fc7dcfb70888145147ddfb7() != "originator_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 16;
+    if (m.harpia_status() != "harpia_status_a") return 14;
+    if (m.harpia_error() != "harpia_error_a") return 15;
+    if (m.harpia_originator() != "harpia_originator_a") return 16;
     return 0;
 }
 
@@ -61,13 +61,13 @@ int database_roundtrip() {
 
     // create + read back row 1
     ::data a;
-    a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    a.set_harpia_id(1);
     a.set_i(1);
     a.set_j(1);
     a.set_car(static_cast<::grower>(1));
-    a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7("originator_3ac5d8b36fc7dcfb70888145147ddfb7_a");
+    a.set_harpia_status("harpia_status_a");
+    a.set_harpia_error("harpia_error_a");
+    a.set_harpia_originator("harpia_originator_a");
     a.mutable_val()->set_vari(1);
     a.mutable_val()->set_var(1);
     a.mutable_val()->set_val(1);
@@ -87,9 +87,9 @@ int database_roundtrip() {
     if (got.i() != 1) return 24;
     if (got.j() != 1) return 24;
     if (got.car() != static_cast<::grower>(1)) return 24;
-    if (got.status_3ac5d8b36fc7dcfb70888145147ddfb7() != "status_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 24;
-    if (got.error_3ac5d8b36fc7dcfb70888145147ddfb7() != "error_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 24;
-    if (got.originator_3ac5d8b36fc7dcfb70888145147ddfb7() != "originator_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 24;
+    if (got.harpia_status() != "harpia_status_a") return 24;
+    if (got.harpia_error() != "harpia_error_a") return 24;
+    if (got.harpia_originator() != "harpia_originator_a") return 24;
     if (got.val().vari() != 1) return 32;
     if (got.val().var() != 1) return 32;
     if (got.val().val() != 1) return 32;
@@ -108,21 +108,21 @@ int database_roundtrip() {
 
     // update an existing row
     ::data upd = a;
-    upd.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_u");
+    upd.set_harpia_status("harpia_status_u");
     if (!dao.update(upd)) return 25;
     ::data got2;
     if (!dao.read(1, &got2)) return 26;
-    if (got2.status_3ac5d8b36fc7dcfb70888145147ddfb7() != "status_3ac5d8b36fc7dcfb70888145147ddfb7_u") return 27;
+    if (got2.harpia_status() != "harpia_status_u") return 27;
 
     // a second row, then list + delete
     ::data b;
-    b.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(2);
+    b.set_harpia_id(2);
     b.set_i(1);
     b.set_j(1);
     b.set_car(static_cast<::grower>(1));
-    b.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_b");
-    b.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_b");
-    b.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7("originator_3ac5d8b36fc7dcfb70888145147ddfb7_b");
+    b.set_harpia_status("harpia_status_b");
+    b.set_harpia_error("harpia_error_b");
+    b.set_harpia_originator("harpia_originator_b");
     if (!dao.create(b)) return 28;
     std::vector<::data> all;
     if (!dao.list(&all) || all.size() != 2) return 29;
@@ -153,47 +153,47 @@ int access_modifiers() {
     harpia::db::data_dao dao(db);
     if (!dao.create_table()) return 41;
     ::data a;
-    a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    a.set_harpia_id(1);
     a.set_i(1);
     a.set_j(1);
     a.set_car(static_cast<::grower>(1));
-    a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7("originator_3ac5d8b36fc7dcfb70888145147ddfb7_a");
+    a.set_harpia_status("harpia_status_a");
+    a.set_harpia_error("harpia_error_a");
+    a.set_harpia_originator("harpia_originator_a");
     if (!dao.create(a)) return 42;
     // PRIMARY KEY is unique: a duplicate key must be rejected
     ::data dup;
-    dup.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    dup.set_harpia_id(1);
     dup.set_i(1);
     dup.set_j(1);
     dup.set_car(static_cast<::grower>(1));
-    dup.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_b");
-    dup.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_b");
-    dup.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7("originator_3ac5d8b36fc7dcfb70888145147ddfb7_b");
+    dup.set_harpia_status("harpia_status_b");
+    dup.set_harpia_error("harpia_error_b");
+    dup.set_harpia_originator("harpia_originator_b");
     if (dao.create(dup)) return 43;
     return 0;
 }
 
 int json_parser() {
     ::data a;
-    a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    a.set_harpia_id(1);
     a.set_i(1);
     a.set_j(1);
     a.set_car(static_cast<::grower>(1));
-    a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7("originator_3ac5d8b36fc7dcfb70888145147ddfb7_a");
+    a.set_harpia_status("harpia_status_a");
+    a.set_harpia_error("harpia_error_a");
+    a.set_harpia_originator("harpia_originator_a");
     std::string js;
     if (!harpia::json::to_json(a, &js)) return 60;
     ::data b;
     if (!harpia::json::from_json(js, &b)) return 61;
-    if (b.id_3ac5d8b36fc7dcfb70888145147ddfb7() != 1) return 62;
+    if (b.harpia_id() != 1) return 62;
     if (b.i() != 1) return 62;
     if (b.j() != 1) return 62;
     if (b.car() != static_cast<::grower>(1)) return 62;
-    if (b.status_3ac5d8b36fc7dcfb70888145147ddfb7() != "status_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 62;
-    if (b.error_3ac5d8b36fc7dcfb70888145147ddfb7() != "error_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 62;
-    if (b.originator_3ac5d8b36fc7dcfb70888145147ddfb7() != "originator_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 62;
+    if (b.harpia_status() != "harpia_status_a") return 62;
+    if (b.harpia_error() != "harpia_error_a") return 62;
+    if (b.harpia_originator() != "harpia_originator_a") return 62;
     if (!harpia::json::is_valid_json(js)) return 63;
     if (harpia::json::is_valid_json("this is not json")) return 64;
     return 0;
@@ -201,24 +201,24 @@ int json_parser() {
 
 int xml_parser() {
     ::data a;
-    a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    a.set_harpia_id(1);
     a.set_i(1);
     a.set_j(1);
     a.set_car(static_cast<::grower>(1));
-    a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7("originator_3ac5d8b36fc7dcfb70888145147ddfb7_a");
+    a.set_harpia_status("harpia_status_a");
+    a.set_harpia_error("harpia_error_a");
+    a.set_harpia_originator("harpia_originator_a");
     const std::string xs = ::harpia::xml::to_xml(a);
     if (xs.empty()) return 70;
     ::data b;
     if (!::harpia::xml::from_xml(xs, &b)) return 71;
-    if (b.id_3ac5d8b36fc7dcfb70888145147ddfb7() != 1) return 72;
+    if (b.harpia_id() != 1) return 72;
     if (b.i() != 1) return 72;
     if (b.j() != 1) return 72;
     if (b.car() != static_cast<::grower>(1)) return 72;
-    if (b.status_3ac5d8b36fc7dcfb70888145147ddfb7() != "status_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 72;
-    if (b.error_3ac5d8b36fc7dcfb70888145147ddfb7() != "error_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 72;
-    if (b.originator_3ac5d8b36fc7dcfb70888145147ddfb7() != "originator_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 72;
+    if (b.harpia_status() != "harpia_status_a") return 72;
+    if (b.harpia_error() != "harpia_error_a") return 72;
+    if (b.harpia_originator() != "harpia_originator_a") return 72;
     ::data c;
     if (::harpia::xml::from_xml("not xml at all", &c)) return 73;
     return 0;

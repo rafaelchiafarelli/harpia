@@ -286,7 +286,7 @@ def test_live_tls_roundtrip_requires_client_cert(built):
             "        auto chan = ::grpc::CreateChannel(addr, creds);\n"
             "        auto stub = ::frameworkProtos::users_Service::NewStub(chan);\n"
             "        ::frameworkProtos::users_Message req;\n"
-            "        req.mutable_msg()->set_id_{h}(1);\n"
+            "        req.mutable_msg()->set_harpia_id(1);\n"
             '        req.mutable_msg()->set_name("neo");\n'
             "        ::grpc::ClientContext c;\n"
             '        c.AddMetadata("x-user", "users");\n'

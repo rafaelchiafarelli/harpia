@@ -364,7 +364,7 @@ int main(int, char** argv) {{
             {{   // users: create through RBAC(admin via token) + pool
                 ::grpc::ClientContext c; ctx(c, admin);
                 ::frameworkProtos::users_Message req;
-                req.mutable_msg()->set_id_{h}(id);
+                req.mutable_msg()->set_harpia_id(id);
                 req.mutable_msg()->set_name("n" + std::to_string(id));
                 ::frameworkProtos::errorCode ec;
                 ::grpc::Status st = users->push(&c, req, &ec);
@@ -376,7 +376,7 @@ int main(int, char** argv) {{
             if (i % 4 == 0) {{   // phi path: encrypt + audit on create, decrypt on read
                 ::grpc::ClientContext c; ctx(c, admin);
                 ::frameworkProtos::patient_vitals_Message req;
-                req.mutable_msg()->set_id_{h}(id);
+                req.mutable_msg()->set_harpia_id(id);
                 req.mutable_msg()->set_patient_id("p" + std::to_string(id));
                 req.mutable_msg()->set_heart_rate(60.0f + (i % 40));
                 ::frameworkProtos::errorCode ec;
@@ -393,7 +393,7 @@ int main(int, char** argv) {{
             if (i % 10 == 0) {{   // RBAC deny path: guest may not create
                 ::grpc::ClientContext c; ctx(c, guest);
                 ::frameworkProtos::users_Message req;
-                req.mutable_msg()->set_id_{h}(900000 + id);
+                req.mutable_msg()->set_harpia_id(900000 + id);
                 ::frameworkProtos::errorCode ec;
                 if (users->push(&c, req, &ec).error_code() != ::grpc::StatusCode::PERMISSION_DENIED) ++bad;
             }}

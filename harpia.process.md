@@ -52,8 +52,11 @@ consumer's guide ("I have a `.harpia` file, how do I use the output") see
 - resolve `import "x.harpia";` against the include folders (every import must
   end with `;` and resolve to a file present in an include folder).
 - create the output tree; compute the **md5 hash of the root file's text** —
-  this hash qualifies every generated filename and the hidden-field names, so
-  two same-named messages from different roots never collide.
+  this hash qualifies every generated filename, so two same-named messages
+  from different roots never collide. It does **not** reach field or column
+  names: the hidden fields are fixed (`HARPIA_ID` / `HARPIA_STATUS` /
+  `HARPIA_ERROR` / `HARPIA_ORIGINATOR`), so editing the root never renames a
+  table's columns.
 
 ## Stage 1 — tokenize + build messages (`LexicalAnalyzer`, `MessageCreator`)
 
@@ -152,7 +155,7 @@ schema, DAO SQL, migration and WSDL never drift.
   (`<table>__<field>`, owner+key+value), per repeated scalar (owner+ordinal+
   value), per repeated composed→table message (link table storing the child
   PK), and per repeated composed→table-less message (one column per the
-  target's flattened fields). `ID_*` → INTEGER PRIMARY KEY; `required` → NOT
+  target's flattened fields). `HARPIA_ID` → INTEGER PRIMARY KEY; `required` → NOT
   NULL; `unique` → UNIQUE.
 - **CRUDL DAO** (`CrudlAdapter`) → `generated/cpp/db/<name>_<hash>_crudl.h`,
   `harpia::db::<name>_dao` over SOCI: `create` / `read` / `update` / `remove` /

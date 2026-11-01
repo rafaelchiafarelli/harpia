@@ -102,7 +102,7 @@ public:
     const std::string& origin() const { return origin_; }
     bool send(const ::users& msg) {
         ::users stamped = msg;
-        stamped.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(origin_);
+        stamped.set_harpia_originator(origin_);
         std::string bytes;
         if (!stamped.SerializeToString(&bytes)) return false;
         ::zmq::message_t frame(bytes.size());
@@ -167,7 +167,7 @@ public:
     const std::string& origin() const { return origin_; }
     bool publish(const ::users& msg) {
         ::users stamped = msg;
-        stamped.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(origin_);
+        stamped.set_harpia_originator(origin_);
         std::string bytes;
         if (!stamped.SerializeToString(&bytes)) return false;
         ::zmq::message_t frame(bytes.size());

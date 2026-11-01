@@ -163,7 +163,7 @@ _ROUNDTRIP = r'''
 using harpia::serialize::Format;
 int main() {
     ::users u; u.set_name("neo"); u.set_address("zion : 1");
-    u.set_id___HASH__(42);
+    u.set_harpia_id(42);
     ::shipment s; s.set_tag("SHP-1");
     auto* p = s.add_cargo(); p->set_label("box <a>"); p->set_weight(3);
     auto* q = s.add_cargo(); q->set_label("b\"c"); q->set_weight(7);

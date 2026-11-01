@@ -114,13 +114,11 @@ public final class HarpiaZmq {
         }
     }
 
-    // The message's ORIGINATOR field (name may carry a hash suffix -- see
-    // Message/FieldMap.py's front-end injection), or null if it declares
-    // none. Found by name prefix, same rule ZmqAdapter.py's C++ generator
-    // already uses (`v.name.startswith("ORIGINATOR")`).
+    // The message's front-end-injected HARPIA_ORIGINATOR field, or null if
+    // it declares none -- same rule ZmqAdapter.py's C++ generator uses.
     private static FieldDescriptor originatorField(Message prototype) {
         for (FieldDescriptor fd : prototype.getDescriptorForType().getFields()) {
-            if (fd.getName().startsWith("ORIGINATOR")) {
+            if (fd.getName().equals("HARPIA_ORIGINATOR")) {
                 return fd;
             }
         }

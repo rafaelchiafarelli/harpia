@@ -48,11 +48,11 @@ int main() {
     if (!dao.create_table()) { std::cerr << "create_table failed\n"; return 1; }
 
     ::users alice;
-    alice.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);   // ID_<hash> is caller-assigned
+    alice.set_harpia_id(1);   // HARPIA_ID is caller-assigned
     alice.set_name("alice");
     alice.set_address("wonderland");
     ::users bob;
-    bob.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(2);
+    bob.set_harpia_id(2);
     bob.set_name("bob");
     bob.set_address("builder");
     if (!dao.create(alice) || !dao.create(bob)) { std::cerr << "create failed\n"; return 2; }
@@ -61,7 +61,7 @@ int main() {
     dao.list(&everyone);
     std::cout << "rows in the table: " << everyone.size() << "\n";
     for (const auto& u : everyone)
-        std::cout << "  #" << u.id_3ac5d8b36fc7dcfb70888145147ddfb7()
+        std::cout << "  #" << u.harpia_id()
                   << "  " << u.name() << " (" << u.address() << ")\n";
 
     // 3) Serialize a row with the generated JSON adapter.

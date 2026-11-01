@@ -62,7 +62,7 @@ from UnitTests.test_py_db_dao import _populated, persisted_view  # noqa: E402
 from UnitTests.test_py_db_migrate import STARTS  # noqa: E402
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 LANGS = ("cpp", "python", "java")
 # the messages Java's DAOs fully persist (no embed/FK, no child table, no phi)
 JAVA_SCOPE = {"beacon_log", "crew", "reception_desk", "users", "vault", "vip_users"}
@@ -586,7 +586,7 @@ def _migration(side, case, migrator, slot, store, old_row_readers=("cpp", "pytho
     for pk, lang in ((2, "cpp"), (3, "python"), (4, "java")):
         m = cls(label="{}-row".format(lang), strength=pk * 10)
         setattr(m, PK, pk)
-        setattr(m, "STATUS_" + HASH, "ok")
+        setattr(m, "HARPIA_STATUS", "ok")
         rows[pk] = m
         _ok(side.batch(lang, [("write", "beacon_log", slot, m.SerializeToString().hex())],
                        store), lang + " write after migration")

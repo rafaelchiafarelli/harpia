@@ -12,7 +12,7 @@ Wire format, identical to C++: **one frame holding the message's
 ``SerializeToString()``**, no envelope, so C++ and Python peers interoperate.
 
 - :class:`Sender` -- PUSH (``connect``) or PUB (``bind``). Each send copies
-  the message, stamps its ``ORIGINATOR*`` field (found by name prefix) with
+  the message, stamps its ``HARPIA_ORIGINATOR`` field with
   the sender's origin id, and sends it.
 - :class:`Receiver` -- PULL (``bind``) or SUB (``connect`` + subscribe to
   everything). Parses one frame into a fresh message.
@@ -99,7 +99,7 @@ def _apply_client(sock: zmq.Socket[bytes], curve: CurveClientKeys | None) -> Non
 
 def _origin_field(descriptor: Any) -> str | None:
     for field in descriptor.fields:
-        if field.name.startswith("ORIGINATOR"):
+        if field.name == "HARPIA_ORIGINATOR":
             return str(field.name)
     return None
 
@@ -127,7 +127,7 @@ class Sender(Generic[M]):
 
     @property
     def origin(self) -> str:
-        """The id stamped into every sent message's ``ORIGINATOR*`` field."""
+        """The id stamped into every sent message's ``HARPIA_ORIGINATOR`` field."""
         return self._origin
 
     @property

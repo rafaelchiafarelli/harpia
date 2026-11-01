@@ -40,7 +40,7 @@ from UnitTests import _py_cpp_parity as P  # noqa: E402
 pytestmark = pytest.mark.skipif(not P.HAVE_PY, reason=P.SKIP_PY)
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 ALL_SCALAR = ("users", "beacon_log", "crew", "patient_vitals")
 
 
@@ -143,8 +143,8 @@ def test_cpp_written_row_reads_in_python(gen, msgs, tmp_path):
         "    ::soci::session db(::soci::sqlite3, argv[1]);\n"
         "    harpia::db::users_dao dao(db);\n"
         "    if (!dao.create_table()) return 2;\n"
-        "    ::users a; a.set_id_{h}(7); a.set_name(\"n\\xc3\\xa9o 'q'\");\n"
-        "    a.set_address(\"matrix\"); a.set_status_{h}(\"ok\");\n"
+        "    ::users a; a.set_harpia_id(7); a.set_name(\"n\\xc3\\xa9o 'q'\");\n"
+        "    a.set_address(\"matrix\"); a.set_harpia_status(\"ok\");\n"
         "    return dao.create(a) ? 0 : 3;\n"
         "}}\n".format(h=HASH))
     flags = subprocess.run(["pkg-config", "--cflags", "--libs", "protobuf"],
@@ -162,7 +162,7 @@ def test_cpp_written_row_reads_in_python(gen, msgs, tmp_path):
     assert dao_class("users")(sqlite3.connect(str(db_file))).read(7, got)
     want = msgs["users"](name="néo 'q'", address="matrix")
     setattr(want, PK, 7)
-    setattr(want, "STATUS_" + HASH, "ok")
+    setattr(want, "HARPIA_STATUS", "ok")
     assert got == want
 
 
@@ -201,7 +201,7 @@ def persisted_view(dao_cls, msg):
 
 
 def _unique_ids(msg, counter):
-    """Give every nested message's ID_<hash> a distinct value (populate()
+    """Give every nested message's HARPIA_ID a distinct value (populate()
     repeats the same one, which collides once children are rows)."""
     for f in msg.DESCRIPTOR.fields:
         if f.name == PK:
@@ -340,7 +340,7 @@ def test_child_tables_round_trip(name, gen, msgs, tmp_path):
             assert dict(a) == dict(b), child.path
         elif child.kind == "composed":
             # only the element's flattened columns are stored (hidden
-            # ID_/STATUS_/... fields are not, same as C++)
+            # HARPIA_* hidden fields are not, same as C++)
             view = [[rt.column_value(e, c) for c in child.columns] for e in a]
             assert view == [[rt.column_value(e, c) for c in child.columns] for e in b]
         else:

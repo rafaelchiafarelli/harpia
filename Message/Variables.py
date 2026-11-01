@@ -4,6 +4,21 @@ import re
 from Errors.Error import Error, Types, Classes
 from Logger.logger import logger
 import uuid
+# Front-end-injected fields (AddHiddenVariables / __init__). Fixed names, not
+# derived from the root file's hash, so editing the root never renames a
+# table's columns (stable-hidden-names-DEFECT). Every hidden-field recogniser
+# keys off the HARPIA_ prefix, so a user field may not take it.
+HIDDEN_FIELD_PREFIX = "HARPIA_"
+_HIDDEN_JSON_NAMES = {"harpiaid", "harpiastatus", "harpiaerror", "harpiaoriginator"}
+
+
+def is_reserved_hidden_name(name):
+    """A user field name that collides with a hidden field: the HARPIA_ prefix
+    (any case), or protoc's JSON-name rule (lower-case, '_' removed)."""
+    return (name.upper().startswith(HIDDEN_FIELD_PREFIX)
+            or name.replace("_", "").lower() in _HIDDEN_JSON_NAMES)
+
+
 class variable():
     index = -1
     name = ""
@@ -45,7 +60,7 @@ class Variables():
         self.dependencies = []
         ID = variable()
         ID.index = 1
-        ID.name = 'ID_{}'.format(md5Hash)
+        ID.name = 'HARPIA_ID'
         ID.type = ('INT32','int','0','0')
         ID.regex = self.RegexForInt
         self.variables.append(ID)
@@ -145,6 +160,12 @@ class Variables():
                     if t[0] == 'PCOMMA':
                         var.name = currVarName[1]
                         var.index = len(self.variables)+1
+                        if is_reserved_hidden_name(var.name):
+                            return Error(errCl=Classes.VARTYPES,
+                                         errTp=Types.RESERVED_HIDDEN_FIELD_NAME,
+                                         FileName=self.file,
+                                         FileLine=t[2],
+                                         CharacterNumber=t[3])
                         
                     currVarName = t
                     
@@ -199,14 +220,14 @@ class Variables():
         lastIndex+=1
         status = variable()
         status.index = lastIndex
-        status.name = 'STATUS_{}'.format(str(self.md5Hash))
+        status.name = 'HARPIA_STATUS'
         status.type = ('STRING','string ','0','0')
         status.regex = self.RegexForString
         self.variables.append(status)
         lastIndex+=1
         error = variable()
         error.index = lastIndex
-        error.name = "ERROR_{}".format(str(self.md5Hash))
+        error.name = 'HARPIA_ERROR'
         error.type = ('STRING','string ','0','0')
         error.regex = self.RegexForString
         self.variables.append(error)
@@ -214,10 +235,7 @@ class Variables():
         lastIndex+=1
         originator = variable()
         originator.index = lastIndex
-        if self.isOneToMany is not None and self.isOneToMany == True:            
-            originator.name = "ORIGINATOR_{}".format(self.md5Hash)
-        else:
-            originator.name = "ORIGINATOR"
+        originator.name = 'HARPIA_ORIGINATOR'
         originator.type = ('STRING','string','0','0')
         originator.regex = self.RegexForString
         originator.constant = {originator:str(self.md5Hash), uuid: str(uuid.uuid4())}

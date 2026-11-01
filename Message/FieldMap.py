@@ -20,20 +20,22 @@ FIELDMAP_EXT = ".fieldmap"
 _FIELD_LINE = re.compile(r'^([A-Za-z_]\w*):(\d+)$')
 _RESERVED_LINE = re.compile(r'^#\s*reserved:\s*(.*)$')
 
-# Front-end-injected fields (Variables.py: ID_<md5>, STATUS_<md5>, ERROR_<md5>,
-# ORIGINATOR[_<md5>]) carry the whole file's md5 in their own name, which
-# changes on ANY edit to the .harpia file -- same convention Database/model.py
-# keys off of (_HIDDEN_PREFIXES) for the same reason, duplicated here rather
-# than imported since front-end code must not depend on the back-end. Freezing
-# by literal name would treat every edit as "the old hidden field was deleted,
-# a new one appeared", churning their wire numbers on every regeneration. They
-# key by role instead (stable across hash changes); user fields key by their
-# own (author-chosen, hash-free) name.
-_HIDDEN_PREFIXES = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
+# Front-end-injected fields (Variables.py: HARPIA_ID, HARPIA_STATUS,
+# HARPIA_ERROR, HARPIA_ORIGINATOR) key by role, not literal name. Before
+# stable-hidden-names-DEFECT they were ID_<md5>, STATUS_<md5>, ERROR_<md5> and
+# ORIGINATOR[_<md5>] (the root file's md5), so a sidecar written by an older
+# generation still names them that way; both spellings map to the same role,
+# keeping their wire numbers. User fields key by their own name (a user field
+# can't take the HARPIA_ prefix -- Variables.is_reserved_hidden_name).
+_HIDDEN_PREFIXES = ("HARPIA_ID", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR")
+_LEGACY_HIDDEN_PREFIXES = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
 
 
 def _identity(name):
     for prefix in _HIDDEN_PREFIXES:
+        if name == prefix:
+            return prefix[len("HARPIA_"):]
+    for prefix in _LEGACY_HIDDEN_PREFIXES:
         if name.startswith(prefix):
             return prefix.rstrip("_")
     return name

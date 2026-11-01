@@ -20,14 +20,14 @@ class top_users_dao(Dao[top_users]):
 
     MESSAGE = top_users
     TABLE = 'user_table'
-    PK = 'ID_3ac5d8b36fc7dcfb70888145147ddfb7'
+    PK = 'HARPIA_ID'
     COLUMNS = (
-        Column('ID_3ac5d8b36fc7dcfb70888145147ddfb7', ('ID_3ac5d8b36fc7dcfb70888145147ddfb7',)),
+        Column('HARPIA_ID', ('HARPIA_ID',)),
         Column('sponsor', ('sponsor',)),
         Column('name', ('name',)),
-        Column('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7', ('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
+        Column('HARPIA_STATUS', ('HARPIA_STATUS',)),
+        Column('HARPIA_ERROR', ('HARPIA_ERROR',)),
+        Column('HARPIA_ORIGINATOR', ('HARPIA_ORIGINATOR',)),
         Column('myUsers', ('myUsers',), fk='harpia_generated.db.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_dao:vip_users_dao'),
     )
     CHILDREN = (
@@ -38,19 +38,19 @@ class top_users_dao(Dao[top_users]):
             'DELETE FROM "user_table__members" WHERE "owner" = ?', fk='harpia_generated.db.vip_users_3ac5d8b36fc7dcfb70888145147ddfb7_dao:vip_users_dao'),
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "user_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "sponsor" TEXT, "name" TEXT NOT NULL, "myUsers" INTEGER, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "user_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "sponsor" TEXT, "name" TEXT NOT NULL, "myUsers" INTEGER, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
         'CREATE TABLE IF NOT EXISTS "user_table__members" ("owner" INTEGER, "ordinal" INTEGER, "value" INTEGER, PRIMARY KEY("owner", "ordinal"));',
     )
     DROP_TABLE_SQL = (
         'DROP TABLE IF EXISTS "user_table__members";',
         'DROP TABLE IF EXISTS "user_table";',
     )
-    INSERT_SQL = 'INSERT INTO "user_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7", "sponsor", "name", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7", "myUsers") VALUES (?, ?, ?, ?, ?, ?, ?)'
-    SELECT_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "sponsor", "name", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7", "myUsers" FROM "user_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    UPDATE_SQL = 'UPDATE "user_table" SET "sponsor" = ?, "name" = ?, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "myUsers" = ? WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    DELETE_SQL = 'DELETE FROM "user_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    LIST_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "sponsor", "name", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7", "myUsers" FROM "user_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7"'
-    LIST_PAGE_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "sponsor", "name", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7", "myUsers" FROM "user_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7" LIMIT ? OFFSET ?'
+    INSERT_SQL = 'INSERT INTO "user_table" ("HARPIA_ID", "sponsor", "name", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR", "myUsers") VALUES (?, ?, ?, ?, ?, ?, ?)'
+    SELECT_SQL = 'SELECT "HARPIA_ID", "sponsor", "name", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR", "myUsers" FROM "user_table" WHERE "HARPIA_ID" = ?'
+    UPDATE_SQL = 'UPDATE "user_table" SET "sponsor" = ?, "name" = ?, "HARPIA_STATUS" = ?, "HARPIA_ERROR" = ?, "HARPIA_ORIGINATOR" = ?, "myUsers" = ? WHERE "HARPIA_ID" = ?'
+    DELETE_SQL = 'DELETE FROM "user_table" WHERE "HARPIA_ID" = ?'
+    LIST_SQL = 'SELECT "HARPIA_ID", "sponsor", "name", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR", "myUsers" FROM "user_table" ORDER BY "HARPIA_ID"'
+    LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "sponsor", "name", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR", "myUsers" FROM "user_table" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'
 
     def _on_change(self, msg: top_users) -> None:
         """OnChange: publish the written row to ``top_users_channel()``

@@ -9,7 +9,7 @@ module turns that into ``create_table`` / ``drop_table`` / ``create`` /
 
 Conventions, matching the C++ DAO (``Database/CrudlAdapter.py``):
 
-- The primary key is caller-assigned: the message's ``ID_<hash>`` field is
+- The primary key is caller-assigned: the message's ``HARPIA_ID`` field is
   bound explicitly on insert.
 - A SQL ``NULL`` reads back as the field's default.
 - ``read`` sets the stored fields on the message it is given (it does not
@@ -376,7 +376,7 @@ class Dao(Generic[M]):
 
     # -- CRUDL ----------------------------------------------------------------
     def create(self, msg: M) -> bool:
-        """Insert ``msg`` as a new row (its ``ID_<hash>`` is the key).
+        """Insert ``msg`` as a new row (its ``HARPIA_ID`` is the key).
 
         Returns:
             ``True``. A database error (for example a duplicate key) raises.
@@ -395,7 +395,7 @@ class Dao(Generic[M]):
             return self._read_into(cur, pk, out)
 
     def update(self, msg: M) -> bool:
-        """Overwrite the row whose key is ``msg``'s ``ID_<hash>``.
+        """Overwrite the row whose key is ``msg``'s ``HARPIA_ID``.
 
         Returns:
             ``False`` when no row has that key.

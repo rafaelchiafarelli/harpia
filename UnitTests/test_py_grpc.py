@@ -32,7 +32,7 @@ from UnitTests.test_py_rest import generate_low_risk  # noqa: E402
 pytestmark = pytest.mark.skipif(not P.HAVE_PY, reason=P.SKIP_PY)
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 MD = (("x-user", "users"), ("x-pswd", HASH))
 
 
@@ -172,7 +172,7 @@ int main(int, char** argv) {
     auto md = [](::grpc::ClientContext& c) {
         c.AddMetadata("x-user", "users"); c.AddMetadata("x-pswd", "%(h)s"); };
     { ::grpc::ClientContext c; md(c);
-      ::frameworkProtos::users_Message m; m.mutable_msg()->set_id_%(h)s(11);
+      ::frameworkProtos::users_Message m; m.mutable_msg()->set_harpia_id(11);
       m.mutable_msg()->set_name("from-cpp");
       ::frameworkProtos::errorCode r;
       auto s = stub->push(&c, m, &r);

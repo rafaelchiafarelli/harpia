@@ -44,7 +44,7 @@ def env(gen):
 def test_flat_shape(env):
     y, msgs = env
     s = y.to_yaml(msgs["users"](name='a"b\\c\nd\te', address="x"))
-    assert s.startswith("ID_")
+    assert s.startswith("HARPIA_ID")
     assert 'name: "a\\"b\\\\c\\nd\\te"\n' in s
     back = msgs["users"]()
     assert y.from_yaml(s, back) and back.name == 'a"b\\c\nd\te'
