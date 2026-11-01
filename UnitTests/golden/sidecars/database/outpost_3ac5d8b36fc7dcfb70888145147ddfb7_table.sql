@@ -3,6 +3,7 @@
 CREATE TABLE IF NOT EXISTS "outpost_table" (
     "HARPIA_ID" INTEGER PRIMARY KEY,
     "commander" TEXT,
+    "HARPIA_HAS_berth" INTEGER,
     "berth_label" TEXT,
     "berth_skipper" INTEGER,
     "HARPIA_STATUS" TEXT,
