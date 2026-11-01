@@ -1,6 +1,6 @@
 ## C++: database-assigned key
 
-- **Depends on:** task 1 (modifier + semantics), stable-hidden-names-DEFECT.
+- **Depends on:** task 1 (decided — `autokey`, error on a preset key, write back).
 - **Contract:** per task 1's decision — for an opted-in table, the C++ DAO's
   `create` omits `HARPIA_ID` on INSERT, reads the assigned key back
   (`last_insert_rowid` / `RETURNING`) into the message; SQL DDL + migration

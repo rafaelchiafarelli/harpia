@@ -14,15 +14,14 @@ read-by-unique                      db-assigned-key
 
 The two epics don't depend on each other.
 
-## Decisions for Rafael (planning, before code)
+## Decisions (Rafael, 2026-11-01)
 
-- **read-by-unique + phi:** a `phi` `unique` field is stored encrypted with a
-  random nonce, so it can't be matched in SQL. Recommended: no `read_by_` for
-  phi fields (documented); alternative is a blind-index column (separate
-  initiative).
-- **read-by-unique scope:** top-level scalar `unique` fields only
-  (recommended); embedded flat-column `unique` fields later if asked.
-- **db-assigned-key:** see `db-assigned-key/tasks/1-dsl-modifier-decision.md`.
+- **read-by-unique scope:** every top-level scalar `unique` field that is not
+  `phi` (a phi value is encrypted with a random nonce — SQL can't match it;
+  documented as unsupported). Embedded flat `unique` fields: not now.
+- **db-assigned-key:** see `db-assigned-key/tasks/1-dsl-modifier-decision-done.md`
+  — an `autokey` message modifier; `create()` with `HARPIA_ID` already set
+  is an error; the assigned key is written back.
 
 ## Definition of done
 

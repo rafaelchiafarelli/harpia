@@ -54,16 +54,16 @@ public:
         try {
             int c0 = msg.harpia_id();
             int c1 = msg.i();
-            int c2 = msg.j();
+            int c2 = msg.j(); ::soci::indicator ci2 = msg.has_j() ? ::soci::i_ok : ::soci::i_null;
             int c3 = msg.val().vari();
             int c4 = msg.val().var();
-            int c5 = msg.val().val();
+            int c5 = msg.val().val(); ::soci::indicator ci5 = msg.val().has_val() ? ::soci::i_ok : ::soci::i_null;
             int c6 = static_cast<int>(msg.car());
             std::string c7 = msg.harpia_status();
             std::string c8 = msg.harpia_error();
             std::string c9 = msg.harpia_originator();
             db_ << "INSERT INTO \"table_data\" (\"HARPIA_ID\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6, :c7, :c8, :c9)",
-                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6), ::soci::use(c7), ::soci::use(c8), ::soci::use(c9);
+                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2, ci2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5, ci5), ::soci::use(c6), ::soci::use(c7), ::soci::use(c8), ::soci::use(c9);
             {
                 int _owner = msg.harpia_id();
                 for (const auto& kv : msg.val().a()) {
@@ -128,10 +128,10 @@ public:
             if (!db_.got_data()) return false;
                 msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_i(n1 == ::soci::i_ok ? l1 : 0);
-                msg->set_j(n2 == ::soci::i_ok ? l2 : 0);
+                if (n2 == ::soci::i_ok) msg->set_j(n2 == ::soci::i_ok ? l2 : 0);
                 msg->mutable_val()->set_vari(n3 == ::soci::i_ok ? l3 : 0);
                 msg->mutable_val()->set_var(n4 == ::soci::i_ok ? l4 : 0);
-                msg->mutable_val()->set_val(n5 == ::soci::i_ok ? l5 : 0);
+                if (n5 == ::soci::i_ok) msg->mutable_val()->set_val(n5 == ::soci::i_ok ? l5 : 0);
                 msg->set_car(static_cast<::grower>(n6 == ::soci::i_ok ? l6 : 0));
                 msg->set_harpia_status(n7 == ::soci::i_ok ? l7 : std::string());
                 msg->set_harpia_error(n8 == ::soci::i_ok ? l8 : std::string());
@@ -191,17 +191,17 @@ public:
     bool update(const ::data& msg) {
         try {
             int c0 = msg.i();
-            int c1 = msg.j();
+            int c1 = msg.j(); ::soci::indicator ci1 = msg.has_j() ? ::soci::i_ok : ::soci::i_null;
             int c2 = msg.val().vari();
             int c3 = msg.val().var();
-            int c4 = msg.val().val();
+            int c4 = msg.val().val(); ::soci::indicator ci4 = msg.val().has_val() ? ::soci::i_ok : ::soci::i_null;
             int c5 = static_cast<int>(msg.car());
             std::string c6 = msg.harpia_status();
             std::string c7 = msg.harpia_error();
             std::string c8 = msg.harpia_originator();
             long long cid = msg.harpia_id();
             db_ << "UPDATE \"table_data\" SET \"i\" = :c0, \"j\" = :c1, \"val_vari\" = :c2, \"val_var\" = :c3, \"val_val\" = :c4, \"car\" = :c5, \"HARPIA_STATUS\" = :c6, \"HARPIA_ERROR\" = :c7, \"HARPIA_ORIGINATOR\" = :c8 WHERE \"HARPIA_ID\" = :cid",
-                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6), ::soci::use(c7), ::soci::use(c8), ::soci::use(cid);
+                ::soci::use(c0), ::soci::use(c1, ci1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4, ci4), ::soci::use(c5), ::soci::use(c6), ::soci::use(c7), ::soci::use(c8), ::soci::use(cid);
             {
                 int _owner = msg.harpia_id();
                 db_ << "DELETE FROM \"table_data__val_a\" WHERE \"owner\" = :o", ::soci::use(_owner);
@@ -286,10 +286,10 @@ public:
                 ::data* msg = &row;
                 msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_i(n1 == ::soci::i_ok ? l1 : 0);
-                msg->set_j(n2 == ::soci::i_ok ? l2 : 0);
+                if (n2 == ::soci::i_ok) msg->set_j(n2 == ::soci::i_ok ? l2 : 0);
                 msg->mutable_val()->set_vari(n3 == ::soci::i_ok ? l3 : 0);
                 msg->mutable_val()->set_var(n4 == ::soci::i_ok ? l4 : 0);
-                msg->mutable_val()->set_val(n5 == ::soci::i_ok ? l5 : 0);
+                if (n5 == ::soci::i_ok) msg->mutable_val()->set_val(n5 == ::soci::i_ok ? l5 : 0);
                 msg->set_car(static_cast<::grower>(n6 == ::soci::i_ok ? l6 : 0));
                 msg->set_harpia_status(n7 == ::soci::i_ok ? l7 : std::string());
                 msg->set_harpia_error(n8 == ::soci::i_ok ? l8 : std::string());
@@ -372,10 +372,10 @@ public:
                 ::data* msg = &row;
                 msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_i(n1 == ::soci::i_ok ? l1 : 0);
-                msg->set_j(n2 == ::soci::i_ok ? l2 : 0);
+                if (n2 == ::soci::i_ok) msg->set_j(n2 == ::soci::i_ok ? l2 : 0);
                 msg->mutable_val()->set_vari(n3 == ::soci::i_ok ? l3 : 0);
                 msg->mutable_val()->set_var(n4 == ::soci::i_ok ? l4 : 0);
-                msg->mutable_val()->set_val(n5 == ::soci::i_ok ? l5 : 0);
+                if (n5 == ::soci::i_ok) msg->mutable_val()->set_val(n5 == ::soci::i_ok ? l5 : 0);
                 msg->set_car(static_cast<::grower>(n6 == ::soci::i_ok ? l6 : 0));
                 msg->set_harpia_status(n7 == ::soci::i_ok ? l7 : std::string());
                 msg->set_harpia_error(n8 == ::soci::i_ok ? l8 : std::string());
