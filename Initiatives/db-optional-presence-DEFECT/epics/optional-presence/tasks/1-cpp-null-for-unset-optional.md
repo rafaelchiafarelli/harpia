@@ -14,3 +14,8 @@
   `test_stage8_pg.py`.
 - **Golden move:** `UnitTests/golden/db/` for messages with `optional`
   fields only.
+- **Embedded fields (decision 2026-10-31):** the same rule for the `optional`
+  fields of an embedded sub-message stored as flat columns; the red test adds
+  a row whose embedded optional is unset (NULL column, absent after read) and
+  one where it is set to its default (present). An unset phi `optional` binds
+  NULL without encrypting.

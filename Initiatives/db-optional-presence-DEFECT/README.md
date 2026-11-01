@@ -1,7 +1,9 @@
 # `optional` field presence is lost through the database, in every language — DEFECT
 
-**Status: scoped, not started.** Found 2026-10-05 while fixing
-java-jdbc-null-text-DEFECT (which made Java match C++/Python on NULL reads).
+**Status: scoped, decisions taken 2026-10-31, not started.** Found 2026-10-05
+while fixing java-jdbc-null-text-DEFECT (which made Java match C++/Python on
+NULL reads). Reported again 2026-10-31 by `mocap-contracts`
+(`harpia-handoff.md` item 2) — a blocker for their `v0.8.0`.
 
 ## What was found
 
