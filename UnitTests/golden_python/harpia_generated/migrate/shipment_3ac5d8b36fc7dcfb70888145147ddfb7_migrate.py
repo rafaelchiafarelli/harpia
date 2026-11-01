@@ -23,6 +23,7 @@ SPEC = MigrationSpec(
     list_child_tables_sql='SELECT "name" FROM sqlite_master WHERE type = \'table\' AND substr("name", 1, 16) = \'shipment_table__\';',
     child_renames=(),
     list_columns_sql='SELECT "name" FROM pragma_table_info(\'shipment_table\');',
+    hidden_renames=(('HARPIA_ID', 'ID_', False, 'ALTER TABLE "shipment_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ID";'), ('HARPIA_STATUS', 'STATUS_', False, 'ALTER TABLE "shipment_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_STATUS";'), ('HARPIA_ERROR', 'ERROR_', False, 'ALTER TABLE "shipment_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ERROR";'), ('HARPIA_ORIGINATOR', 'ORIGINATOR_', True, 'ALTER TABLE "shipment_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ORIGINATOR";')),
     renames=(),
     adds=(('tag', 'ALTER TABLE "shipment_table" ADD COLUMN "tag" TEXT;'), ('HARPIA_STATUS', 'ALTER TABLE "shipment_table" ADD COLUMN "HARPIA_STATUS" TEXT;'), ('HARPIA_ERROR', 'ALTER TABLE "shipment_table" ADD COLUMN "HARPIA_ERROR" TEXT;'), ('HARPIA_ORIGINATOR', 'ALTER TABLE "shipment_table" ADD COLUMN "HARPIA_ORIGINATOR" TEXT;')),
     current_columns=('HARPIA_ID', 'tag', 'HARPIA_STATUS', 'HARPIA_ERROR', 'HARPIA_ORIGINATOR'),

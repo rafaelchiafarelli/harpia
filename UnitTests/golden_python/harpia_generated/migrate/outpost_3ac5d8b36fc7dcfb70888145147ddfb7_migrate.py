@@ -23,6 +23,7 @@ SPEC = MigrationSpec(
     list_child_tables_sql='SELECT "name" FROM sqlite_master WHERE type = \'table\' AND substr("name", 1, 15) = \'outpost_table__\';',
     child_renames=(),
     list_columns_sql='SELECT "name" FROM pragma_table_info(\'outpost_table\');',
+    hidden_renames=(('HARPIA_ID', 'ID_', False, 'ALTER TABLE "outpost_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ID";'), ('HARPIA_STATUS', 'STATUS_', False, 'ALTER TABLE "outpost_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_STATUS";'), ('HARPIA_ERROR', 'ERROR_', False, 'ALTER TABLE "outpost_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ERROR";'), ('HARPIA_ORIGINATOR', 'ORIGINATOR_', True, 'ALTER TABLE "outpost_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ORIGINATOR";')),
     renames=(),
     adds=(('commander', 'ALTER TABLE "outpost_table" ADD COLUMN "commander" TEXT;'), ('berth_label', 'ALTER TABLE "outpost_table" ADD COLUMN "berth_label" TEXT;'), ('berth_skipper', 'ALTER TABLE "outpost_table" ADD COLUMN "berth_skipper" INTEGER;'), ('HARPIA_STATUS', 'ALTER TABLE "outpost_table" ADD COLUMN "HARPIA_STATUS" TEXT;'), ('HARPIA_ERROR', 'ALTER TABLE "outpost_table" ADD COLUMN "HARPIA_ERROR" TEXT;'), ('HARPIA_ORIGINATOR', 'ALTER TABLE "outpost_table" ADD COLUMN "HARPIA_ORIGINATOR" TEXT;')),
     current_columns=('HARPIA_ID', 'commander', 'berth_label', 'berth_skipper', 'HARPIA_STATUS', 'HARPIA_ERROR', 'HARPIA_ORIGINATOR'),

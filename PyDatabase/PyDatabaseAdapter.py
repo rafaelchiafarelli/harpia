@@ -20,7 +20,7 @@ from Crypto.key_provider_common import (PY_ENCRYPTED_COLUMN_MODULE,
                                         PY_KEY_PROVIDER_RUNTIME_SRC)
 from Database.DbRegistryAdapter import DbRegistryAdapter
 from Database.backends import get_backend
-from Database.model import (RepeatedComposedField, RepeatedField, analyze,
+from Database.model import (LEGACY_HIDDEN, RepeatedComposedField, RepeatedField, analyze,
                             child_table_names, create_table_sql, map_fields,
                             repeated_fields, type_registry)
 from Logger.logger import logger
@@ -215,6 +215,10 @@ class PyDatabaseAdapter:
             list_child_tables_sql=repr(b.list_tables_sql(table)),
             child_renames=repr(child_renames),
             list_columns_sql=repr(b.list_columns_sql(table)),
+            hidden_renames=repr(tuple(
+                (c.name, LEGACY_HIDDEN[c.name][0], LEGACY_HIDDEN[c.name][1],
+                 b.rename_column(table, name, c.name))
+                for c in columns if c.name in LEGACY_HIDDEN)),
             renames=repr(tuple((c.renamed_from, c.name,
                                 b.rename_column(table, c.renamed_from, c.name))
                                for c in columns if getattr(c, "renamed_from", None))),
