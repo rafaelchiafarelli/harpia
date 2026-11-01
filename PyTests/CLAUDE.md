@@ -12,7 +12,7 @@
 C++ `TestAdapter._value` rules (text `"<field>_<variant>"`, enum 1 (first
 value if 1 isn't one), floating 2.5/3.5, 64-bit 7/8, else 1/True); composed
 fields recursively (embed, FK, repeated children), repeated + maps 2 entries
-(`_map_key`/`_map_val` rules), nested `ID_` distinct from `id_base` (FK
+(`_map_key`/`_map_val` rules), nested `HARPIA_ID` distinct from `id_base` (FK
 children become distinct rows). `check_field_access(cls)`;
 `create_tables(conn, dao_cls)` (the DAO's table + the tables reachable by FK
 — **not** every table: `users` / `top_users` share `user_table` with

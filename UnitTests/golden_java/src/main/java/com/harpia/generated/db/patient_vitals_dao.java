@@ -19,7 +19,7 @@ public final class patient_vitals_dao {
         this.conn = conn;
     }
 
-    public static final String CREATE_TABLE_SQL = "CREATE TABLE IF NOT EXISTS \"patient_vitals_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"patient_id\" TEXT, \"heart_rate\" TEXT NOT NULL, \"device_note\" TEXT, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR\" TEXT);";
+    public static final String CREATE_TABLE_SQL = "CREATE TABLE IF NOT EXISTS \"patient_vitals_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"patient_id\" TEXT, \"heart_rate\" TEXT NOT NULL, \"device_note\" TEXT, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
     public static final String DROP_TABLE_SQL = "DROP TABLE IF EXISTS \"patient_vitals_table\";";
 
     public boolean createTable() throws SQLException {
@@ -37,69 +37,69 @@ public final class patient_vitals_dao {
     }
 
     public boolean create(patient_vitals msg) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO \"patient_vitals_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"heart_rate\", \"device_note\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\") VALUES (?, ?, ?, ?, ?, ?, ?)")) {
-        JdbcBind.bind(ps, 1, msg, "ID_3ac5d8b36fc7dcfb70888145147ddfb7");
+        try (PreparedStatement ps = conn.prepareStatement("INSERT INTO \"patient_vitals_table\" (\"HARPIA_ID\", \"patient_id\", \"heart_rate\", \"device_note\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+        JdbcBind.bind(ps, 1, msg, "HARPIA_ID");
         JdbcBind.bind(ps, 2, msg, "patient_id");
         JdbcBind.bind(ps, 3, msg, "heart_rate");
         JdbcBind.bind(ps, 4, msg, "device_note");
-        JdbcBind.bind(ps, 5, msg, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7");
-        JdbcBind.bind(ps, 6, msg, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7");
-        JdbcBind.bind(ps, 7, msg, "ORIGINATOR");
+        JdbcBind.bind(ps, 5, msg, "HARPIA_STATUS");
+        JdbcBind.bind(ps, 6, msg, "HARPIA_ERROR");
+        JdbcBind.bind(ps, 7, msg, "HARPIA_ORIGINATOR");
             return ps.executeUpdate() > 0;
         }
     }
 
     public boolean read(int id, patient_vitals.Builder builder) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"heart_rate\", \"device_note\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"patient_vitals_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = ?")) {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT \"HARPIA_ID\", \"patient_id\", \"heart_rate\", \"device_note\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"patient_vitals_table\" WHERE \"HARPIA_ID\" = ?")) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     return false;
                 }
-        JdbcBind.extract(rs, "ID_3ac5d8b36fc7dcfb70888145147ddfb7", builder, "ID_3ac5d8b36fc7dcfb70888145147ddfb7");
+        JdbcBind.extract(rs, "HARPIA_ID", builder, "HARPIA_ID");
         JdbcBind.extract(rs, "patient_id", builder, "patient_id");
         JdbcBind.extract(rs, "heart_rate", builder, "heart_rate");
         JdbcBind.extract(rs, "device_note", builder, "device_note");
-        JdbcBind.extract(rs, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", builder, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7");
-        JdbcBind.extract(rs, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", builder, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7");
-        JdbcBind.extract(rs, "ORIGINATOR", builder, "ORIGINATOR");
+        JdbcBind.extract(rs, "HARPIA_STATUS", builder, "HARPIA_STATUS");
+        JdbcBind.extract(rs, "HARPIA_ERROR", builder, "HARPIA_ERROR");
+        JdbcBind.extract(rs, "HARPIA_ORIGINATOR", builder, "HARPIA_ORIGINATOR");
                 return true;
             }
         }
     }
 
     public boolean update(patient_vitals msg) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("UPDATE \"patient_vitals_table\" SET \"patient_id\" = ?, \"heart_rate\" = ?, \"device_note\" = ?, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = ?, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = ?, \"ORIGINATOR\" = ? WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = ?")) {
+        try (PreparedStatement ps = conn.prepareStatement("UPDATE \"patient_vitals_table\" SET \"patient_id\" = ?, \"heart_rate\" = ?, \"device_note\" = ?, \"HARPIA_STATUS\" = ?, \"HARPIA_ERROR\" = ?, \"HARPIA_ORIGINATOR\" = ? WHERE \"HARPIA_ID\" = ?")) {
         JdbcBind.bind(ps, 1, msg, "patient_id");
         JdbcBind.bind(ps, 2, msg, "heart_rate");
         JdbcBind.bind(ps, 3, msg, "device_note");
-        JdbcBind.bind(ps, 4, msg, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7");
-        JdbcBind.bind(ps, 5, msg, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7");
-        JdbcBind.bind(ps, 6, msg, "ORIGINATOR");
-            JdbcBind.bind(ps, 7, msg, "ID_3ac5d8b36fc7dcfb70888145147ddfb7");
+        JdbcBind.bind(ps, 4, msg, "HARPIA_STATUS");
+        JdbcBind.bind(ps, 5, msg, "HARPIA_ERROR");
+        JdbcBind.bind(ps, 6, msg, "HARPIA_ORIGINATOR");
+            JdbcBind.bind(ps, 7, msg, "HARPIA_ID");
             return ps.executeUpdate() > 0;
         }
     }
 
     public boolean remove(int id) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM \"patient_vitals_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = ?")) {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM \"patient_vitals_table\" WHERE \"HARPIA_ID\" = ?")) {
             ps.setInt(1, id);
             return ps.executeUpdate() > 0;
         }
     }
 
     public boolean list(List<patient_vitals> out) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"heart_rate\", \"device_note\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"patient_vitals_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"");
+        try (PreparedStatement ps = conn.prepareStatement("SELECT \"HARPIA_ID\", \"patient_id\", \"heart_rate\", \"device_note\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"patient_vitals_table\" ORDER BY \"HARPIA_ID\"");
              ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 patient_vitals.Builder builder = patient_vitals.newBuilder();
-        JdbcBind.extract(rs, "ID_3ac5d8b36fc7dcfb70888145147ddfb7", builder, "ID_3ac5d8b36fc7dcfb70888145147ddfb7");
+        JdbcBind.extract(rs, "HARPIA_ID", builder, "HARPIA_ID");
         JdbcBind.extract(rs, "patient_id", builder, "patient_id");
         JdbcBind.extract(rs, "heart_rate", builder, "heart_rate");
         JdbcBind.extract(rs, "device_note", builder, "device_note");
-        JdbcBind.extract(rs, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", builder, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7");
-        JdbcBind.extract(rs, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", builder, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7");
-        JdbcBind.extract(rs, "ORIGINATOR", builder, "ORIGINATOR");
+        JdbcBind.extract(rs, "HARPIA_STATUS", builder, "HARPIA_STATUS");
+        JdbcBind.extract(rs, "HARPIA_ERROR", builder, "HARPIA_ERROR");
+        JdbcBind.extract(rs, "HARPIA_ORIGINATOR", builder, "HARPIA_ORIGINATOR");
                 out.add(builder.build());
             }
             return true;

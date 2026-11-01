@@ -91,7 +91,7 @@ def test_soap_http_roundtrip(built):
             "    app.wait_for_server_start();\n"
             '    harpia_test::Client cli("127.0.0.1", port);\n'
             "    auto run = [&]() -> int {{\n"
-            "        ::users a; a.set_id_{h}(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
+            "        ::users a; a.set_harpia_id(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
             "        const std::string mx = ::harpia::xml::to_xml(a);\n"
             "        // wrong credential: rejected with a Fault (401), no row created\n"
             '        const std::string badBody = "{env}{badhdr}<soap:Body><set>" + mx + "</set></soap:Body></soap:Envelope>";\n'

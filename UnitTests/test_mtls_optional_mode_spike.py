@@ -362,7 +362,7 @@ int main(int, char** argv) {{
         auto chan = ::grpc::CreateChannel(addr, ::grpc::SslCredentials(copts));
         auto stub = ::frameworkProtos::users_Service::NewStub(chan);
         ::frameworkProtos::users_Message req;
-        req.mutable_msg()->set_id_{h}(1);
+        req.mutable_msg()->set_harpia_id(1);
         req.mutable_msg()->set_name("neo");
         ::grpc::ClientContext c;
         c.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(8));

@@ -6,8 +6,9 @@
   `HARPIA_ERROR`, `HARPIA_ORIGINATOR`, independent of the root file's text.
   The hidden-field recogniser is one prefix, `HARPIA_`, everywhere it is
   matched today (`ID_` / `STATUS_` / `ERROR_` / `ORIGINATOR`). A user field
+  that takes the `HARPIA_` prefix (any case — the recognisers key off it), or
   whose name normalises (lower-case, `_` removed — protoc's JSON-name rule) to
-  a hidden name is a parse-time error.
+  a hidden name, is a parse-time error.
 - **1. Corroborate (red first):** `UnitTests/test_hidden_names.py` — generate
   the same Include module under two roots that differ only by an extra
   `import`; the `.proto` field names and the SQL column names of the shared

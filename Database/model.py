@@ -247,7 +247,19 @@ class RepeatedComposedField:
 
 # field names the front-end injects into every message; meaningless when a
 # message is embedded inside another, so flattening skips them.
-_HIDDEN_PREFIXES = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
+_HIDDEN_PREFIXES = ("HARPIA_",)
+
+
+# Legacy spellings of the hidden columns, written by generations before
+# stable-hidden-names-DEFECT: <prefix><32 hex digits of the root md5>, and
+# a bare ORIGINATOR for a non one-to-many message. The migrations rename a
+# live legacy column to its HARPIA_* name: {new: (legacy prefix, bare_ok)}.
+LEGACY_HIDDEN = {
+    "HARPIA_ID": ("ID_", False),
+    "HARPIA_STATUS": ("STATUS_", False),
+    "HARPIA_ERROR": ("ERROR_", False),
+    "HARPIA_ORIGINATOR": ("ORIGINATOR_", True),
+}
 
 
 def _is_hidden(name):
@@ -458,7 +470,7 @@ def analyze(msg, types=None, backend=None):
             # column type rejects it on PostgreSQL. The bind kind stays the
             # field's own; the DAOs bind phi as text already.
             sql_type = backend.sql_type("STRING")
-        columns.append(Column(v.name, sql_type, pk=v.name.startswith("ID_"),
+        columns.append(Column(v.name, sql_type, pk=v.name == "HARPIA_ID",
                               required="REQUIRED" in mods,
                               unique="UNIQUE" in mods,
                               bindable=True, kind=kind,

@@ -44,7 +44,7 @@ pytestmark = pytest.mark.skipif(not P.HAVE_PY or shutil.which("openssl") is None
                                 reason=P.SKIP_PY + " + openssl")
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 PROVISION = os.path.join(REPO_ROOT, "Assets", "cmake", "mtls_provision.sh")
 THIRD = os.path.join(REPO_ROOT, "third_party")
 IDS = ("admin", "main", "guest", "stranger")
@@ -390,8 +390,8 @@ int main(int, char** argv) {
     harpia::db::users_dao dao(db);
     if (!dao.create_table()) return 2;
     if (!harpia::db::reception_desk_dao(db).create_table()) return 2;
-    ::users s1; s1.set_id_%(h)s(1); s1.set_name("neo");
-    ::users s2; s2.set_id_%(h)s(2); s2.set_name("trin");
+    ::users s1; s1.set_harpia_id(1); s1.set_name("neo");
+    ::users s2; s2.set_harpia_id(2); s2.set_name("trin");
     if (!dao.create(s1) || !dao.create(s2)) return 3;
     harpia::http_transport::HttpServer server(db, "/v1", "/soap", mtls);
     server.app().bindaddr("127.0.0.1").port(port).multithreaded();

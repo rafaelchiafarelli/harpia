@@ -330,7 +330,7 @@ class TestAdapter:
         ])
 
     def _access_modifiers_body(self, msg, pk, non_pk):
-        # 14.4: modifiers that reach the schema are enforced at runtime. The ID_
+        # 14.4: modifiers that reach the schema are enforced at runtime. The HARPIA_ID
         # column is a PRIMARY KEY, so a second row with the same key is rejected.
         cls = msg.name
         if pk is None:

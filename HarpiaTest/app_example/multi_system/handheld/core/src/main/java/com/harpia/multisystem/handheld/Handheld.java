@@ -359,14 +359,14 @@ public final class Handheld {
         if (ec.getCode() != 0) throw new IllegalStateException(what + " refused: " + ec.getMessage());
     }
 
-    // ID_<hash>: the hidden primary-key field, hash-suffixed per project.
+    // HARPIA_ID: the hidden (front-end-injected) primary-key field.
     private static void setId(Message.Builder b, int id) {
         for (FieldDescriptor fd : b.getDescriptorForType().getFields()) {
-            if (fd.getName().startsWith("ID_")) {
+            if (fd.getName().equals("HARPIA_ID")) {
                 b.setField(fd, id);
                 return;
             }
         }
-        throw new IllegalStateException(b.getDescriptorForType().getName() + " has no ID_ field");
+        throw new IllegalStateException(b.getDescriptorForType().getName() + " has no HARPIA_ID field");
     }
 }

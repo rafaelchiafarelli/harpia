@@ -486,9 +486,9 @@ language, so C++, Java and Python peers mix freely on one endpoint. Which
 factories a message gets follows its modifiers: `push`/`pull` → sender
 (PUSH, connects) + receiver (PULL, binds); `event`/`stream` → publisher
 (PUB, binds) + subscriber (SUB, connects). Every sender stamps an origin
-id into the message: a compile-time `ORIGIN_ID` in `ORIGINATOR_<hash>` for a
-one-to-* type (it also has `pull`/`event`/`stream`), a per-sender runtime id
-in `ORIGINATOR` for a push-only (many-to-*) type.
+id into the message's `HARPIA_ORIGINATOR` field: a compile-time `ORIGIN_ID`
+for a one-to-* type (it also has `pull`/`event`/`stream`), a per-sender
+runtime id for a push-only (many-to-*) type.
 
 **Java** (`java/`, JeroMQ — `com.harpia.generated.zmq.<name>_zmq`, runtime
 `com.harpia.runtime.zmq.HarpiaZmq`):
@@ -813,6 +813,14 @@ harpia::db::migrate_users(db, [](::soci::session& db) {
 
 Make it idempotent (guard with `WHERE`) — it may run on every startup.
 
+**Editing the root `.harpia` file** (adding an `import`, a comment, …) changes
+its md5, which renames every generated *file* but no column: the hidden fields
+are always `HARPIA_ID` / `HARPIA_STATUS` / `HARPIA_ERROR` / `HARPIA_ORIGINATOR`,
+so an existing database keeps opening. A database made by a generation before
+that (columns `ID_<md5>`, `STATUS_<md5>`, `ERROR_<md5>`, `ORIGINATOR` or
+`ORIGINATOR_<md5>`) is renamed in place by the next `migrate_<name>`, rows and
+key values intact.
+
 ---
 
 ## 11. ZeroMQ CURVE encryption
@@ -961,8 +969,14 @@ Docker/run.sh python3 main.py    # the pipeline with in-repo defaults
   renamed/removed message has its old files pruned. **Never hand-edit generated
   files.**
 - Exactly one root `.harpia` per input folder (imports under `Include/`).
-- Message ids (`ID_*` primary key) are **caller-assigned** — set them before
-  `create()`.
+- Message ids (the `HARPIA_ID` primary key; C++ `set_harpia_id()`) are
+  **caller-assigned** — set them before `create()`.
+- Every message carries four hidden fields the generator adds: `HARPIA_ID`,
+  `HARPIA_STATUS`, `HARPIA_ERROR`, `HARPIA_ORIGINATOR` (fixed names; before
+  stable-hidden-names-DEFECT they were `ID_<hash>`, `STATUS_<hash>`,
+  `ERROR_<hash>`, `ORIGINATOR[_<hash>]`). A field of your own may not use
+  the `HARPIA_` prefix or a name protoc would treat as the same
+  (`harpia_id`, `harpiaid`, …) — that is a generation error.
 - The generator (`main.py`) runs only on Linux/Docker. The **generated C++
   project** builds natively on Windows (MSVC 2022 + vcpkg) — verified for the
   ZMQ demo (incl. `-DUSE_ZMQ_CURVE=ON`), the REST/JSON consumer

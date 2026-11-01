@@ -134,12 +134,12 @@ def test_xml_roundtrip_runs(built):
             "    ::users a;\n"
             '    a.set_name("neo");\n'
             '    a.set_address("matrix");\n'
-            "    a.set_id_{h}(42);\n"
+            "    a.set_harpia_id(42);\n"
             "    const std::string xml = harpia::xml::to_xml(a);\n"
             "    ::users b;\n"
             "    if (!harpia::xml::from_xml(xml, &b)) return 1;\n"
             '    if (b.name() != "neo" || b.address() != "matrix") return 2;\n'
-            "    if (b.id_{h}() != 42) return 3;\n"
+            "    if (b.harpia_id() != 42) return 3;\n"
             "    if (a.SerializeAsString() != b.SerializeAsString()) return 4;\n"
             "    ::users c;\n"
             '    if (harpia::xml::from_xml("not xml at all", &c)) return 5;\n'

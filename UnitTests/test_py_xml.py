@@ -62,7 +62,7 @@ def test_shape_and_escaping(env):
     assert s.startswith("<users>") and s.endswith("</users>")
     assert "<name>a&lt;b&gt;&amp;&quot;c&apos;</name>" in s
     # proto3 implicit-presence scalars are always emitted, even at default
-    assert "<STATUS_" in s
+    assert "<HARPIA_STATUS" in s
     back = msgs["users"]()
     assert x.from_xml(s, back) and back == u
 

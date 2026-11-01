@@ -1,6 +1,6 @@
 // Rendered by CMake from cmake/harpia_ms_client.h.in -- do not edit.
-// The generated header names and the hidden ID field carry the schema hash
-// (@HARPIA_MS_HASH@); this shim is the one place edge's source learns it.
+// The generated header names carry the schema hash (@HARPIA_MS_HASH@);
+// this shim is the one place edge's source learns it.
 // Deliberately no db/ or crudl header: edge links no database.
 #pragma once
 #include "grpc/harpia_grpc_mtls.h"
@@ -9,7 +9,7 @@
 #include "zmq/live_sample_@HARPIA_MS_HASH@_zmq.h"
 
 namespace harpia_ms {
-inline void set_id(::reading& m, int id) { m.set_id_@HARPIA_MS_HASH@(id); }
-inline void set_id(::field_note& m, int id) { m.set_id_@HARPIA_MS_HASH@(id); }
-inline int get_id(const ::field_note& m) { return m.id_@HARPIA_MS_HASH@(); }
+inline void set_id(::reading& m, int id) { m.set_harpia_id(id); }
+inline void set_id(::field_note& m, int id) { m.set_harpia_id(id); }
+inline int get_id(const ::field_note& m) { return m.harpia_id(); }
 }  // namespace harpia_ms

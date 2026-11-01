@@ -89,11 +89,11 @@ def test_crudl_dao_generated_for_all_scalar_table(tmp_path):
     assert "CREATE_TABLE_SQL" in text
     assert "JdbcBind.bind" in text
     assert "JdbcBind.extract" in text
-    # "address"/"name" are real columns; STATUS_/ERROR_/ORIGINATOR (front-end-
+    # "address"/"name" are real columns; HARPIA_STATUS/ERROR/ORIGINATOR (front-end-
     # injected, plain string columns, same as the C++ schema) ride along too.
     assert '"address"' in text
     assert '"name"' in text
-    assert "STATUS_{}".format(HASH) in text
+    assert "HARPIA_STATUS" in text
 
 
 def test_crudl_dao_notes_deferred_columns(tmp_path):
@@ -204,7 +204,7 @@ _USERS_CRUDL_HELPER = (
     "import com.google.protobuf.Descriptors.FieldDescriptor;\n"
     "import java.sql.*;\n"
     "public class UsersCrudlHelper {{\n"
-    "    static final String PK_FIELD = \"ID_{h}\";\n"
+    "    static final String PK_FIELD = \"HARPIA_ID\";\n"
     "    static users withId(users.Builder b, int id) {{\n"
     "        FieldDescriptor fd = b.getDescriptorForType().findFieldByName(PK_FIELD);\n"
     "        b.setField(fd, id);\n"
@@ -412,7 +412,7 @@ def test_java_reads_null_columns(tmp_path):
             "        Class.forName(\"org.sqlite.JDBC\");\n"
             "        String pk = null;\n"
             "        for (FieldDescriptor fd : nullable_row.getDescriptor().getFields())\n"
-            "            if (fd.getName().startsWith(\"ID_\")) pk = fd.getName();\n"
+            "            if (fd.getName().equals(\"HARPIA_ID\")) pk = fd.getName();\n"
             "        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n"
             "            nullable_row_dao dao = new nullable_row_dao(conn);\n"
             "            if (!dao.createTable()) System.exit(1);\n"

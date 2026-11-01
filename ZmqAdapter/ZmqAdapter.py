@@ -282,7 +282,7 @@ class ZmqAdapter:
         pb = "protofiles/{}_{}.pb.h".format(msg.name, msg.md5Hash)
         origin_id = _origin_id(msg.md5Hash, msg.name)
         origin_field = next((v.name for v in (msg.variables or [])
-                             if v.name.startswith("ORIGINATOR")), None)
+                             if v.name == "HARPIA_ORIGINATOR"), None)
         # protobuf C++ accessors lowercase the field name
         stamp = ("        stamped.set_{}(origin_);\n".format(origin_field.lower())
                  if origin_field else "")
