@@ -151,6 +151,9 @@ inline bool migrate_data(::soci::session& db,
         if (!have.count("j")) {
             db << "ALTER TABLE \"table_data\" ADD COLUMN \"j\" INTEGER;";
         }
+        if (!have.count("HARPIA_HAS_val")) {
+            db << "ALTER TABLE \"table_data\" ADD COLUMN \"HARPIA_HAS_val\" INTEGER;";
+        }
         if (!have.count("val_vari")) {
             db << "ALTER TABLE \"table_data\" ADD COLUMN \"val_vari\" INTEGER;";
         }
@@ -179,7 +182,7 @@ inline bool migrate_data(::soci::session& db,
         // non-additive: drop any live column the current schema no longer
         // declares (see the header comment above for the implicit-diff caveat)
         {
-            static const std::set<std::string> _current = { "HARPIA_ID", "i", "j", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" };
+            static const std::set<std::string> _current = { "HARPIA_ID", "i", "j", "HARPIA_HAS_val", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" };
             for (auto _hit = have.begin(); _hit != have.end(); ) {
                 if (!_current.count(*_hit)) {
                     const std::string& _dc = *_hit;
@@ -211,6 +214,7 @@ inline bool migrate_data(::soci::session& db,
             if (have_types.count("HARPIA_ID") && have_types["HARPIA_ID"] != "INTEGER") _needs_retype = true;
             if (have_types.count("i") && have_types["i"] != "INTEGER") _needs_retype = true;
             if (have_types.count("j") && have_types["j"] != "INTEGER") _needs_retype = true;
+            if (have_types.count("HARPIA_HAS_val") && have_types["HARPIA_HAS_val"] != "INTEGER") _needs_retype = true;
             if (have_types.count("val_vari") && have_types["val_vari"] != "INTEGER") _needs_retype = true;
             if (have_types.count("val_var") && have_types["val_var"] != "INTEGER") _needs_retype = true;
             if (have_types.count("val_val") && have_types["val_val"] != "INTEGER") _needs_retype = true;
@@ -219,8 +223,8 @@ inline bool migrate_data(::soci::session& db,
             if (have_types.count("HARPIA_ERROR") && have_types["HARPIA_ERROR"] != "TEXT") _needs_retype = true;
             if (have_types.count("HARPIA_ORIGINATOR") && have_types["HARPIA_ORIGINATOR"] != "TEXT") _needs_retype = true;
         if (_needs_retype) {
-            db << "CREATE TABLE \"table_data__retype_tmp\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"i\" INTEGER, \"j\" INTEGER, \"val_vari\" INTEGER, \"val_var\" INTEGER, \"val_val\" INTEGER, \"car\" INTEGER, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
-            db << "INSERT INTO \"table_data__retype_tmp\" (\"HARPIA_ID\", \"i\", \"j\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") SELECT CAST(\"HARPIA_ID\" AS INTEGER), CAST(\"i\" AS INTEGER), CAST(\"j\" AS INTEGER), CAST(\"val_vari\" AS INTEGER), CAST(\"val_var\" AS INTEGER), CAST(\"val_val\" AS INTEGER), CAST(\"car\" AS INTEGER), CAST(\"HARPIA_STATUS\" AS TEXT), CAST(\"HARPIA_ERROR\" AS TEXT), CAST(\"HARPIA_ORIGINATOR\" AS TEXT) FROM \"table_data\";";
+            db << "CREATE TABLE \"table_data__retype_tmp\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"i\" INTEGER, \"j\" INTEGER, \"HARPIA_HAS_val\" INTEGER, \"val_vari\" INTEGER, \"val_var\" INTEGER, \"val_val\" INTEGER, \"car\" INTEGER, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
+            db << "INSERT INTO \"table_data__retype_tmp\" (\"HARPIA_ID\", \"i\", \"j\", \"HARPIA_HAS_val\", \"val_vari\", \"val_var\", \"val_val\", \"car\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") SELECT CAST(\"HARPIA_ID\" AS INTEGER), CAST(\"i\" AS INTEGER), CAST(\"j\" AS INTEGER), CAST(\"HARPIA_HAS_val\" AS INTEGER), CAST(\"val_vari\" AS INTEGER), CAST(\"val_var\" AS INTEGER), CAST(\"val_val\" AS INTEGER), CAST(\"car\" AS INTEGER), CAST(\"HARPIA_STATUS\" AS TEXT), CAST(\"HARPIA_ERROR\" AS TEXT), CAST(\"HARPIA_ORIGINATOR\" AS TEXT) FROM \"table_data\";";
             db << "DROP TABLE \"table_data\";";
             db << "ALTER TABLE \"table_data__retype_tmp\" RENAME TO \"table_data\";";
         }

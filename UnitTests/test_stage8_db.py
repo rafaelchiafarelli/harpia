@@ -2045,3 +2045,154 @@ def test_sqlite_list_pages_are_stable(generated, tmp_path):
         "}}\n".format(h=HASH))
     _compile_run(tmp_path, cpp_root, "sqlite_list_order", src,
                  [os.path.join(cpp_root, "protofiles", "users_{}.pb.cc".format(HASH))])
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="read_by needs protoc + protobuf")
+def test_read_by_unique(generated, sqlite_obj, tmp_path):
+    """dao-key-access / read-by-unique task 1: a `unique` top-level non-phi
+    field gets read_by_<field>(value, out) -- hit fills the row, miss
+    returns false (reception_desk.visitor_name)."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "read_by_unique", (
+        '#include "db/reception_desk_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    ::harpia::db::reception_desk_dao dao(db);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        '    ::reception_desk a; a.set_harpia_id(4); a.set_visitor_name("ana");\n'
+        '    ::reception_desk b; b.set_harpia_id(9); b.set_visitor_name("bo");\n'
+        "    if (!dao.create(a) || !dao.create(b)) return 3;\n"
+        "    ::reception_desk got;\n"
+        '    if (!dao.read_by_visitor_name("bo", &got)) return 4;\n'
+        '    if (got.harpia_id() != 9 || got.visitor_name() != "bo") return 5;\n'
+        "    ::reception_desk none;\n"
+        '    if (dao.read_by_visitor_name("nobody", &none)) return 6;\n'
+        "    ::reception_desk dup; dup.set_harpia_id(10); dup.set_visitor_name(\"ana\");\n"
+        "    if (dao.create(dup)) return 7;   // UNIQUE enforced\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH),
+        [os.path.join(cpp_root, "protofiles", "reception_desk_{}.pb.cc".format(HASH))])
+
+
+_AUTOKEY_HARPIA = ("autokey message ticket {\n    required string title;\n} ticket_table;\n")
+
+
+def _gen_autokey(tmp_path, backend=None):
+    import hashlib
+    root = tmp_path / "root.harpia"
+    (tmp_path / "Include").mkdir(exist_ok=True)
+    (tmp_path / "Include" / "ticket.harpia").write_text(_AUTOKEY_HARPIA)
+    root.write_text('import "ticket.harpia";\n')
+    out = tmp_path / "gen"
+    env = dict(os.environ, HARPIA_OUTPUT_DIR=str(out), HARPIA_INPUT_FILE=str(root),
+               HARPIA_INCLUDE_FOLDER=str(tmp_path / "Include"))
+    env.pop("HARPIA_GEN_LANG", None)
+    if backend:
+        env["HARPIA_DB_BACKEND"] = backend
+    r = subprocess.run([sys.executable, "main.py"], cwd=REPO_ROOT, env=env,
+                       capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
+    return str(out / "generated" / "cpp"), hashlib.md5(root.read_bytes()).hexdigest()
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="autokey round-trip needs protoc + protobuf")
+def test_db_assigned_key(tmp_path):
+    """dao-key-access / db-assigned-key task 2: an `autokey` table's
+    create(msg&) with key 0 leaves HARPIA_ID to the database and writes the
+    assigned key back into msg; a set key is inserted as given, and later
+    assigned keys continue past it; a const caller compiles (no write-back)."""
+    cpp_root, h = _gen_autokey(tmp_path)
+    _compile_run(tmp_path, cpp_root, "autokey", (
+        '#include "db/ticket_{h}_crudl.h"\n'
+        '#include "migrate/ticket_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    ::harpia::db::ticket_dao dao(db);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        '    ::ticket a; a.set_title("first");\n'
+        '    ::ticket b; b.set_title("second");\n'
+        "    if (!dao.create(a) || !dao.create(b)) return 3;\n"
+        "    if (a.harpia_id() == 0 || b.harpia_id() == 0 || a.harpia_id() == b.harpia_id()) return 4;\n"
+        "    ::ticket got;\n"
+        '    if (!dao.read(b.harpia_id(), &got) || got.title() != "second") return 5;\n'
+        '    ::ticket preset; preset.set_harpia_id(99); preset.set_title("x");\n'
+        "    if (!dao.create(preset) || preset.harpia_id() != 99) return 6;  // honoured\n"
+        "    if (!::harpia::db::migrate_ticket(db)) return 7;\n"
+        '    ::ticket c; c.set_title("third");\n'
+        "    if (!dao.create(c) || c.harpia_id() <= 99) return 8;\n"
+        '    ::ticket d; d.set_title("const"); const ::ticket& cd = d;\n'
+        "    if (!dao.create(cd)) return 9;   // through a copy, as gRPC push\n"
+        "    return 0;\n"
+        "}}\n").format(h=h),
+        [os.path.join(cpp_root, "protofiles", "ticket_{}.pb.cc".format(h))])
+
+
+def test_autokey_without_table_is_refused(tmp_path):
+    f = tmp_path / "bad.harpia"
+    f.write_text("autokey message loose {\n    string s;\n};\n")
+    r = subprocess.run([sys.executable, os.path.join(HERE, "run_frontend.py"), str(f),
+                        str(tmp_path / "out")], cwd=REPO_ROOT, capture_output=True,
+                       text=True, timeout=120)
+    assert "RESULT MSG AUTOKEY_WITHOUT_TABLE" in r.stdout, r.stdout[-2000:]
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="embed presence round-trip needs protoc + protobuf")
+def test_embed_presence_round_trip(generated, sqlite_obj, tmp_path):
+    """embed-presence-DEFECT task 1: an unset embedded message field reads
+    back unset (HARPIA_HAS_<path> = 0, sub-columns NULL); set, even all
+    default, reads back set; levels are independent (journey.path.start); a
+    NULL presence column (a pre-change row) reads present."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    pb = [os.path.join(cpp_root, "protofiles", "{}_{}.pb.cc".format(n, HASH))
+          for n in ("data", "prince", "grower", "journey", "route", "waypoint")]
+    _compile_run(tmp_path, cpp_root, "embed_presence", (
+        '#include "db/data_{h}_crudl.h"\n'
+        '#include "db/journey_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    ::harpia::db::data_dao dd(db);\n"
+        "    if (!dd.create_table()) return 2;\n"
+        "    ::data unset; unset.set_harpia_id(1);\n"
+        "    ::data empty; empty.set_harpia_id(2); empty.mutable_val();\n"
+        "    if (!dd.create(unset) || !dd.create(empty)) return 3;\n"
+        "    int has = -1, nulls = -1; ::soci::indicator hi, ni;\n"
+        '    db << "SELECT \\"HARPIA_HAS_val\\" FROM \\"table_data\\" WHERE \\"HARPIA_ID\\" = 1", ::soci::into(has, hi);\n'
+        "    if (has != 0) return 4;\n"
+        '    db << "SELECT count(*) FROM \\"table_data\\" WHERE \\"HARPIA_ID\\" = 1 AND \\"val_var\\" IS NULL", ::soci::into(nulls, ni);\n'
+        "    if (nulls != 1) return 5;\n"
+        "    ::data g1, g2;\n"
+        "    if (!dd.read(1, &g1) || g1.has_val()) return 6;\n"
+        "    if (!dd.read(2, &g2) || !g2.has_val()) return 7;\n"
+        '    db << "UPDATE \\"table_data\\" SET \\"HARPIA_HAS_val\\" = NULL WHERE \\"HARPIA_ID\\" = 2";\n'
+        "    ::data g3;\n"
+        "    if (!dd.read(2, &g3) || !g3.has_val()) return 8;   // a pre-change row\n"
+        "    g2.clear_val();\n"
+        "    if (!dd.update(g2)) return 9;\n"
+        "    ::data g4;\n"
+        "    if (!dd.read(2, &g4) || g4.has_val()) return 10;\n"
+        "    ::harpia::db::journey_dao jd(db);\n"
+        "    if (!jd.create_table()) return 11;\n"
+        "    ::journey none; none.set_harpia_id(1);\n"
+        "    ::journey outer; outer.set_harpia_id(2); outer.mutable_path();\n"
+        "    ::journey both; both.set_harpia_id(3); both.mutable_path()->mutable_start();\n"
+        "    if (!jd.create(none) || !jd.create(outer) || !jd.create(both)) return 12;\n"
+        "    ::journey j1, j2, j3;\n"
+        "    if (!jd.read(1, &j1) || j1.has_path()) return 13;\n"
+        "    if (!jd.read(2, &j2) || !j2.has_path() || j2.path().has_start()) return 14;\n"
+        "    if (!jd.read(3, &j3) || !j3.has_path() || !j3.path().has_start()) return 15;\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH), pb)

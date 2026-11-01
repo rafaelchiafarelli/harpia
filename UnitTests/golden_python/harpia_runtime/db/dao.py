@@ -90,12 +90,16 @@ class Column:
             child's primary key; ``path`` ends at the composed field.
         phi: The field is tagged ``phi``: a ``PhiDao``
             (``harpia_runtime.db.phi``) stores it encrypted.
+        presence: A hidden ``HARPIA_HAS_<prefix>`` column; ``path`` ends at
+            the embedded message field whose presence it records: ``1`` /
+            ``0``, ``NULL`` on a pre-change row (reads present).
     """
 
     name: str
     path: tuple[str, ...]
     fk: str | None = None
     phi: bool = False
+    presence: bool = False
 
 
 @dataclass(frozen=True)
@@ -164,11 +168,25 @@ def _has_child(msg: Message, col: Column) -> bool:
     return bool(_owner(msg, col.path, False).HasField(col.path[-1]))
 
 
+def _embeds_set(msg: Message, path: tuple[str, ...]) -> bool:
+    """Every embedded message level above ``path``'s last step is set."""
+    for step in path[:-1]:
+        if not msg.HasField(step):
+            return False
+        msg = getattr(msg, step)
+    return True
+
+
 def column_value(msg: Message, col: Column) -> Any:
     """The DB-API parameter for ``col`` read from ``msg`` (an FK column binds
-    the child's primary key, ``0`` when the child is absent, like C++)."""
+    the child's primary key, ``0`` when the child is absent, like C++; a
+    presence column ``1`` / ``0``; a sub-field of an absent embed ``None``)."""
+    if col.presence:
+        return 1 if _has_child(msg, col) else 0
     if col.fk is not None:
         return bind_value(_child(msg, col), dao_class(col.fk).PK)
+    if not _embeds_set(msg, col.path):
+        return None
     return bind_value(_owner(msg, col.path, False), col.path[-1])
 
 
@@ -207,6 +225,15 @@ class Dao(Generic[M]):
     DELETE_SQL: ClassVar[str]
     LIST_SQL: ClassVar[str]
     LIST_PAGE_SQL: ClassVar[str]
+    #: an `autokey` table: the INSERT for key 0 -- leaves the key out and
+    #: returns it (dao-key-access / db-assigned-key); ``None`` otherwise
+    INSERT_AUTO_SQL: ClassVar[str | None] = None
+    #: run after inserting an explicit key on an `autokey` table, when the
+    #: dialect doesn't advance its identity by itself
+    IDENTITY_ADVANCE_SQL: ClassVar[str | None] = None
+    #: ``{field: SELECT .. WHERE field = ?}`` for each `unique` field's
+    #: generated ``read_by_<field>`` (dao-key-access)
+    READ_BY_SQL: ClassVar[dict[str, str]] = {}
 
     def __init__(self, conn: Connection) -> None:
         self.conn = conn
@@ -266,13 +293,23 @@ class Dao(Generic[M]):
         return bind_value(msg, self.PK)
 
     def _load_row(self, cur: Any, row: Sequence[Any], msg: M) -> None:
+        # a presence column of 0 leaves that embed and all under it unset;
+        # 1 or NULL (a pre-change row) marks it present, even with no set
+        # sub-field (embed-presence-DEFECT, the C++ rule)
+        absent = [c.path for c, v in zip(self.COLUMNS, row, strict=False)
+                  if c.presence and v == 0]
         for col, value in zip(self.COLUMNS, row, strict=False):
-            if col.fk is None:
+            if any(col.path[:len(p)] == p for p in absent):
+                continue
+            if col.presence:
+                sub: Message = getattr(_owner(msg, col.path, True), col.path[-1])
+                sub.SetInParent()
+            elif col.fk is None:
                 self._load(msg, col, value)
             elif value:
                 # a non-zero key: load the child through its own DAO; a zero
                 # key means the child was absent (no phantom child)
-                sub: Message = getattr(_owner(msg, col.path, True), col.path[-1])
+                sub = getattr(_owner(msg, col.path, True), col.path[-1])
                 sub.SetInParent()
                 dao_class(col.fk)(self.conn)._read_into(cur, value, sub)
         if self.CHILDREN:
@@ -319,6 +356,8 @@ class Dao(Generic[M]):
         f = self._field(msg, child)
         cur.execute(child.select_sql, [owner])
         rows = cur.fetchall()
+        if not rows:  # no rows must not materialize an embed owner (as C++)
+            return
         items = self._container(msg, child, True)
         if child.kind == "map":
             kf = f.message_type.fields_by_name["key"]
@@ -342,7 +381,14 @@ class Dao(Generic[M]):
         for col in self.COLUMNS:
             if col.fk is not None and _has_child(msg, col):
                 dao_class(col.fk)(self.conn)._create(cur, _child(msg, col))
-        cur.execute(self.INSERT_SQL, [self._bind(msg, c) for c in self.COLUMNS])
+        if self.INSERT_AUTO_SQL is not None and not self._pk_value(msg):
+            cur.execute(self.INSERT_AUTO_SQL, [self._bind(msg, c) for c in self.COLUMNS
+                                               if c.name != self.PK])
+            setattr(msg, self.PK, cur.fetchone()[0])
+        else:
+            cur.execute(self.INSERT_SQL, [self._bind(msg, c) for c in self.COLUMNS])
+            if self.IDENTITY_ADVANCE_SQL is not None:
+                cur.execute(self.IDENTITY_ADVANCE_SQL)
         if self.CHILDREN:
             owner = self._pk_value(msg)
             for child in self.CHILDREN:
@@ -358,6 +404,18 @@ class Dao(Generic[M]):
         self._load_row(cur, row, out)
         self._audit("read")
         return True
+
+    def _read_by(self, field: str, value: Any, out: M) -> bool:
+        """``read`` keyed on the `unique` column ``field`` (the generated
+        ``read_by_<field>`` methods call this)."""
+        with self._tx() as cur:
+            cur.execute(self.READ_BY_SQL[field], [value])
+            row = cur.fetchone()
+            if row is None:
+                return False
+            self._load_row(cur, row, out)
+            self._audit("read")
+            return True
 
     def _update(self, cur: Any, msg: M) -> bool:
         for col in self.COLUMNS:
@@ -390,7 +448,9 @@ class Dao(Generic[M]):
 
     # -- CRUDL ----------------------------------------------------------------
     def create(self, msg: M) -> bool:
-        """Insert ``msg`` as a new row (its ``HARPIA_ID`` is the key).
+        """Insert ``msg`` as a new row (its ``HARPIA_ID`` is the key; on an
+        `autokey` table a key of 0 is assigned by the database and set on
+        ``msg``).
 
         Returns:
             ``True``. A database error (for example a duplicate key) raises.

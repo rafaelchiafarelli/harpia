@@ -382,10 +382,11 @@ class Side:
 
 
 def java_eligible(dao_cls):
-    """Java's documented subset: every column top-level and not an FK, no
-    child table, no phi column."""
+    """Java's documented subset: every column top-level and not an FK or an
+    embed's presence column, no child table, no phi column."""
     return (not getattr(dao_cls, "PHI_FIELDS", ()) and not dao_cls.CHILDREN
-            and all(len(c.path) == 1 and c.fk is None for c in dao_cls.COLUMNS))
+            and all(len(c.path) == 1 and c.fk is None and not c.presence
+                    for c in dao_cls.COLUMNS))
 
 
 def _fk_closure(side, name, seen=None):
@@ -519,7 +520,9 @@ def test_java_scope_is_asserted(sqlite_side):
             assert a.execute(info).fetchall() == b.execute(info).fetchall(), n
             continue
         reasons = []
-        nested = [c.name for c in dao_cls.COLUMNS if len(c.path) > 1 or c.fk]
+        # an embed's hidden presence column goes with the embed: not listed
+        nested = [c.name for c in dao_cls.COLUMNS
+                  if (len(c.path) > 1 or c.fk) and not c.presence]
         if nested:
             assert all(c in deferred for c in nested), (n, nested, deferred)
             reasons.append("embed/fk")
@@ -638,6 +641,47 @@ def _presence(side, writer, new_slot, store):
                 (name, writer, reader)
 
 
+def _embed_presence(side, writer, new_slot, store):
+    """embed-presence-DEFECT task 3: rows written by C++ or Python with an
+    embed unset / set but empty, nested levels independent (journey.path.start,
+    data.val): the other language reads the same presence. Java persists no
+    embedded field."""
+    side.activate()
+    other = "python" if writer == "cpp" else "cpp"
+    for name, build, check in (
+        ("journey",
+         lambda m, k: (m.path.SetInParent() if k >= 2 else None,
+                       m.path.start.SetInParent() if k == 3 else None),
+         lambda m: (m.HasField("path"), m.path.HasField("start"))),
+        ("data",
+         lambda m, k: m.val.SetInParent() if k >= 2 else None,
+         lambda m: (m.HasField("val"),)),
+    ):
+        slot = new_slot(name)
+        _ok(side.batch(writer, [("create", t, slot, "") for t in _fk_closure(side, name)],
+                       store), writer + " create_table")
+        cls = side.msgs[name]
+        rows = {}
+        for k in (1, 2, 3):
+            rows[k] = cls()
+            setattr(rows[k], PK, k)
+            build(rows[k], k)
+        _ok(side.batch(writer, [("write", name, slot, m.SerializeToString().hex())
+                                for m in rows.values()], store), writer + " write")
+        for reader in (writer, other):
+            res = side.batch(reader, [("read", name, slot, str(k)) for k in rows], store)
+            _ok(res, "{} reads {}'s rows".format(reader, writer))
+            got = [cls.FromString(bytes.fromhex(p)) for _, p in res]
+            assert [check(m) for m in got] == [check(rows[k]) for k in rows], \
+                (name, writer, reader)
+
+
+@pytest.mark.parametrize("writer", ("cpp", "python"))
+def test_sqlite_embed_presence(writer, sqlite_side, tmp_path):
+    _embed_presence(sqlite_side, writer, _slot_factory(sqlite_side, tmp_path, None),
+                    str(tmp_path / "keks"))
+
+
 @pytest.mark.parametrize("writer", LANGS)
 def test_sqlite_optional_presence(writer, sqlite_side, tmp_path):
     _presence(sqlite_side, writer, _slot_factory(sqlite_side, tmp_path, None),
@@ -683,3 +727,10 @@ def test_pg_java_reads_pre_migration_row(migrator, pg_side, pg_databases, tmp_pa
 def test_pg_optional_presence(writer, pg_side, pg_databases, tmp_path):
     _presence(pg_side, writer, _slot_factory(pg_side, tmp_path, pg_databases),
               str(tmp_path / "keks"))
+
+
+@pg_only
+@pytest.mark.parametrize("writer", ("cpp", "python"))
+def test_pg_embed_presence(writer, pg_side, pg_databases, tmp_path):
+    _embed_presence(pg_side, writer, _slot_factory(pg_side, tmp_path, pg_databases),
+                    str(tmp_path / "keks"))

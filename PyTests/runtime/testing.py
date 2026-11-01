@@ -114,15 +114,35 @@ def _fill(msg: Message, variant: str, ids: list[int], seen: tuple[Descriptor, ..
             setattr(msg, f.name, _scalar(f, variant))
 
 
+def _distinct(f: FieldDescriptor) -> Any:
+    """A third value for a `unique` top-level field (the C++ ``_value``
+    variant "c"): differs from both the "a" and the "b" sample."""
+    t = f.cpp_type
+    if t == FieldDescriptor.CPPTYPE_STRING:
+        text = f"{f.name.lower()}_c"
+        return text.encode() if f.type == FieldDescriptor.TYPE_BYTES else text
+    if t == FieldDescriptor.CPPTYPE_ENUM:
+        return 0
+    if t in _FLOATS:
+        return 4.5
+    if t in _INT64S:
+        return 9
+    return 3
+
+
 def sample(cls: type[M], variant: str = "a", pk: int = 1,
-           id_base: int = 1000) -> M:
+           id_base: int = 1000, distinct: tuple[str, ...] = ()) -> M:
     """A ``cls`` with every field set (see the module docstring); its own
-    ``HARPIA_ID`` is ``pk``, nested ones count up from ``id_base``."""
+    ``HARPIA_ID`` is ``pk``, nested ones count up from ``id_base``. The
+    top-level fields named in ``distinct`` (the message's `unique` fields)
+    get a third value, so this row can sit next to the "a" and "b" ones."""
     msg = cls()
     _fill(msg, variant, [id_base], (), True)
     for f in msg.DESCRIPTOR.fields:
         if f.name == _ID_FIELD and f.cpp_type == _INT32:
             setattr(msg, f.name, pk)
+        elif f.name in distinct:
+            setattr(msg, f.name, _distinct(f))
     return msg
 
 

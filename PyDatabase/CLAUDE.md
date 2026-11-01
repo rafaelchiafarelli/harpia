@@ -51,6 +51,13 @@ a stage of `LangBackend/python.py`'s `run_python`.
   `remove`, dropped before the main table. `bind.to_db` / `from_db` convert
   one element / map key / map value by descriptor.
 
+**Embed presence (embed-presence-DEFECT task 2, the C++ rule):** a
+`Column(..., presence=True)` is a hidden `HARPIA_HAS_<prefix>` column whose path
+ends at the embedded message field. `column_value` binds it `1`/`0` and a
+sub-field of an absent embed as `None`; `_load_row` skips everything under a
+`0`, and `1`/`NULL` (a pre-change row) marks the embed present.
+`_read_child` returns early on zero rows so it can't materialize an embed.
+
 ## Generated DAOs (`templates/dao.py.tmpl`)
 `harpia_generated/db/<name>_<hash>_dao.py` per table-bearing message: class
 `<name>_dao(Dao[<name>])` holding the table spec and the exact SQL. The DDL
@@ -62,7 +69,15 @@ exact `.proto` names (resolved from the schema; `Database.model.Column.embed`
 holds C++'s lowercased accessors). The module
 docstring lists anything the C++ DAO persists that this DAO does not
 (`Deferred: ...`) — `none` for every fixture message since task 2c, asserted
-by `test_nothing_deferred`.
+by `test_nothing_deferred`. **`autokey` (dao-key-access db-assigned-key task 3):** the DAO
+declares `INSERT_AUTO_SQL` (no key, `RETURNING` it) and, on PostgreSQL,
+`IDENTITY_ADVANCE_SQL`; `Dao._create` with key 0 uses the first and sets the
+key on `msg`, with a set key inserts as given and runs the second.
+`MigrationSpec.identity` carries `DbBackend.identity_migration` (PG only).
+**`read_by_<field>` (dao-key-access read-by-unique
+task 2, the C++ rule):** every top-level, non-phi `unique` scalar field gets
+`READ_BY_SQL[field]` and a typed `read_by_<field>(value, out) -> bool`, which
+calls `Dao._read_by` (read()'s row load + audit, keyed on that column).
 
 ## Registry (task 4, `templates/registry.py.tmpl`)
 `harpia_generated/db/registry.py`: the port of `DbRegistryAdapter`'s

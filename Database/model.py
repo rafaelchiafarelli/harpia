@@ -39,7 +39,7 @@ class Column:
                  bindable=False, kind=None, fk_target=None, enum_type=None,
                  fk_table=False, embed=None, child_accessor=None,
                  renamed_from=None, is_phi=False, optional=False,
-                 backend=None) -> None:
+                 identity=False, presence_of=None, backend=None) -> None:
         self.name = name
         self.sql_type = sql_type
         self.pk = pk
@@ -69,6 +69,14 @@ class Column:
                                       # absent after read (db-optional-
                                       # presence-DEFECT); top-level and
                                       # embedded flat columns only
+        self.presence_of = list(presence_of) if presence_of else None
+                                      # hidden HARPIA_HAS_<prefix> column: the
+                                      # accessor chain of the embedded message
+                                      # field whose presence it records
+                                      # (1/0; NULL = a pre-change row, reads
+                                      # present) -- embed-presence-DEFECT
+        self.identity = identity      # an `autokey` message's primary key:
+                                      # the database assigns it
         self._backend = backend or get_backend()  # dialect for sql_def()
 
     @property
@@ -103,6 +111,15 @@ class Column:
             chain = "{}->mutable_{}()".format(chain, step)
         return "{}->mutable_{}()".format(chain, self.child_accessor or self.accessor)
 
+    def present_expr(self, src):
+        """C++ test: every embedded message level of this column is set on
+        ``src`` (the column's value is meaningful, else it is stored NULL)."""
+        tests, chain = [], src
+        for step in (self.embed or []):
+            tests.append("{}.has_{}()".format(chain, step))
+            chain = "{}.{}()".format(chain, step)
+        return " && ".join(tests)
+
     def has_expr(self, src):
         """C++ has_*() check for this composed field on ``src`` (chains
         through any embed levels; reading through an unset intermediate
@@ -113,6 +130,9 @@ class Column:
         return "{}.has_{}()".format(chain, self.child_accessor or self.accessor)
 
     def sql_def(self):
+        if self.identity:
+            return self._backend.column_def(self.sql_type, pk=self.pk, required=self.required,
+                                            unique=self.unique, identity=True)
         return self._backend.column_def(
             self.sql_type, pk=self.pk, required=self.required, unique=self.unique)
 
@@ -268,6 +288,15 @@ LEGACY_HIDDEN = {
 }
 
 
+def autokey_needs_live_db(msg, backend):
+    """The generated test suites run on in-memory SQLite whatever the DB
+    backend. An `autokey` table's identity DDL / key-advance SQL on another
+    dialect isn't valid there, so its database checks can't run in them."""
+    if backend is None or not getattr(msg, "is_autokey", False):
+        return False
+    return backend.identity_advance_sql(msg.tableName, "HARPIA_ID") is not None
+
+
 def _is_hidden(name):
     return name.startswith(_HIDDEN_PREFIXES)
 
@@ -331,6 +360,13 @@ def _flatten(name_prefix, child_msg, types, backend, embed_path=None, prefix=Tru
     if child_msg is None:
         return columns, notes
     embed_path = list(embed_path or [])
+    if prefix and embed_path:
+        # no column records the embed itself otherwise: its presence would be
+        # lost through the flat columns (embed-presence-DEFECT, option B)
+        columns.append(Column("HARPIA_HAS_{}".format(name_prefix), backend.int_type,
+                              kind="int", embed=embed_path[:-1] or None,
+                              child_accessor=embed_path[-1], presence_of=embed_path,
+                              backend=backend))
     for v in (child_msg.variables or []):
         if _is_hidden(v.name):
             continue
@@ -486,6 +522,8 @@ def analyze(msg, types=None, backend=None):
                               renamed_from=getattr(v, "renamedFrom", None),
                               is_phi=getattr(v, "is_phi", False),
                               optional="OPTIONAL" in mods,
+                              identity=(v.name == "HARPIA_ID"
+                                        and getattr(msg, "is_autokey", False)),
                               backend=backend))
     return columns, notes
 

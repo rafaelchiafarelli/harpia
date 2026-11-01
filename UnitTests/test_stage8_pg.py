@@ -519,3 +519,140 @@ def test_pg_optional_presence_round_trip(pg_generated, tmp_path):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, "PG presence round trip failed at check #{}\n{}".format(
         run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_read_by_unique(pg_generated, tmp_path):
+    """dao-key-access / read-by-unique task 1, PostgreSQL twin of
+    test_stage8_db.py::test_read_by_unique."""
+    cpp_root = pg_generated
+    prog = tmp_path / "pg_read_by.cpp"
+    prog.write_text(
+        '#include "db/reception_desk_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    ::harpia::db::reception_desk_dao dao(db);\n"
+        "    dao.drop_table();\n"
+        "    if (!dao.create_table()) return 2;\n"
+        '    ::reception_desk a; a.set_harpia_id(4); a.set_visitor_name("ana");\n'
+        "    if (!dao.create(a)) return 3;\n"
+        "    ::reception_desk got;\n"
+        '    if (!dao.read_by_visitor_name("ana", &got) || got.harpia_id() != 4) return 4;\n'
+        "    ::reception_desk none;\n"
+        '    if (dao.read_by_visitor_name("nobody", &none)) return 5;\n'
+        "    dao.drop_table();\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    pb_cc = os.path.join(cpp_root, "protofiles", "reception_desk_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "pg_read_by")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG read_by program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "PG read_by failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_db_assigned_key(tmp_path):
+    """dao-key-access / db-assigned-key task 2 on PostgreSQL: an identity
+    key, written back; an existing caller-assigned table (rows up to key 40)
+    is migrated to an identity that continues past 40; an explicit key is
+    honoured and the identity advances past it."""
+    from UnitTests.test_stage8_db import _gen_autokey
+    cpp_root, h = _gen_autokey(tmp_path, backend="postgresql")
+    prog = tmp_path / "pg_autokey.cpp"
+    prog.write_text(
+        '#include "db/ticket_{h}_crudl.h"\n'
+        '#include "migrate/ticket_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        '    db << "DROP TABLE IF EXISTS \\"ticket_table\\"";\n'
+        "    // an older caller-assigned version of the table\n"
+        '    db << "CREATE TABLE \\"ticket_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY, \\"title\\" TEXT NOT NULL, '
+        '\\"HARPIA_STATUS\\" TEXT, \\"HARPIA_ERROR\\" TEXT, \\"HARPIA_ORIGINATOR\\" TEXT)";\n'
+        "    db << \"INSERT INTO \\\"ticket_table\\\" (\\\"HARPIA_ID\\\", \\\"title\\\") VALUES (40, 'old')\";\n"
+        "    if (!::harpia::db::migrate_ticket(db)) return 2;\n"
+        "    if (!::harpia::db::migrate_ticket(db)) return 3;   // idempotent\n"
+        "    ::harpia::db::ticket_dao dao(db);\n"
+        '    ::ticket a; a.set_title("new");\n'
+        "    if (!dao.create(a) || a.harpia_id() <= 40) return 4;\n"
+        "    ::ticket got;\n"
+        '    if (!dao.read(a.harpia_id(), &got) || got.title() != "new") return 5;\n'
+        '    ::ticket preset; preset.set_harpia_id(500); preset.set_title("x");\n'
+        "    if (!dao.create(preset) || preset.harpia_id() != 500) return 6;\n"
+        '    ::ticket after; after.set_title("y");\n'
+        "    if (!dao.create(after) || after.harpia_id() <= 500) return 7;\n"
+        "    dao.drop_table();\n"
+        "    return 0;\n"
+        "}}\n".format(h=h))
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    binary = str(tmp_path / "pg_autokey")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog),
+         os.path.join(cpp_root, "protofiles", "ticket_{}.pb.cc".format(h)), "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG autokey program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "PG autokey failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_embed_presence_round_trip(pg_generated, tmp_path):
+    """embed-presence-DEFECT task 1, PostgreSQL twin of
+    test_stage8_db.py::test_embed_presence_round_trip."""
+    cpp_root = pg_generated
+    prog = tmp_path / "pg_embed_presence.cpp"
+    prog.write_text(
+        '#include "db/journey_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    ::harpia::db::journey_dao jd(db);\n"
+        "    jd.drop_table();\n"
+        "    if (!jd.create_table()) return 2;\n"
+        "    ::journey none; none.set_harpia_id(1);\n"
+        "    ::journey outer; outer.set_harpia_id(2); outer.mutable_path();\n"
+        "    ::journey both; both.set_harpia_id(3); both.mutable_path()->mutable_start();\n"
+        "    if (!jd.create(none) || !jd.create(outer) || !jd.create(both)) return 3;\n"
+        "    ::journey j1, j2, j3;\n"
+        "    if (!jd.read(1, &j1) || j1.has_path()) return 4;\n"
+        "    if (!jd.read(2, &j2) || !j2.has_path() || j2.path().has_start()) return 5;\n"
+        "    if (!jd.read(3, &j3) || !j3.has_path() || !j3.path().has_start()) return 6;\n"
+        '    db << "UPDATE \\"journey_table\\" SET \\"HARPIA_HAS_path\\" = NULL WHERE \\"HARPIA_ID\\" = 2";\n'
+        "    ::journey j4;\n"
+        "    if (!jd.read(2, &j4) || !j4.has_path()) return 7;   // a pre-change row\n"
+        "    jd.drop_table();\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    objs = [os.path.join(cpp_root, "protofiles", "{}_{}.pb.cc".format(m, HASH))
+            for m in ("journey", "route", "waypoint")]
+    binary = str(tmp_path / "pg_embed_presence")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog), *objs, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG embed presence program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "PG embed presence failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)

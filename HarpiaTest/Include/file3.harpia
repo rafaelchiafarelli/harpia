@@ -194,7 +194,7 @@ event[not-cached] message pump_tick{
 // here keeps the RBAC session gate unchanged. See
 // UnitTests/test_mixed_mode_fixture.py.
 open message reception_desk{
-    string visitor_name;
+    unique string visitor_name;
 }reception_desk_table;
 
 // exercises the protected message-level hardening modifier (message-level

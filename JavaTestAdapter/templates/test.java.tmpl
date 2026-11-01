@@ -65,7 +65,7 @@ class {name}_Test {{
         assertEquals(m, b.build());
     }}
 
-    @Test
+    {db_disabled}@Test
     void dbCrudlRoundTrip() throws Exception {{
         Class.forName("org.sqlite.JDBC");
         try (Connection conn = DriverManager.getConnection("jdbc:sqlite::memory:")) {{

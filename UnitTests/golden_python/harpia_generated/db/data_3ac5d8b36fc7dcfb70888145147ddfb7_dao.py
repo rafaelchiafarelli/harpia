@@ -25,6 +25,7 @@ class data_dao(Dao[data]):
         Column('HARPIA_ID', ('HARPIA_ID',)),
         Column('i', ('i',)),
         Column('j', ('j',)),
+        Column('HARPIA_HAS_val', ('val',), presence=True),
         Column('val_vari', ('val', 'vari')),
         Column('val_var', ('val', 'var')),
         Column('val_val', ('val', 'val')),
@@ -61,7 +62,7 @@ class data_dao(Dao[data]):
             'DELETE FROM "table_data__val_scores" WHERE "owner" = ?'),
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "table_data" ("HARPIA_ID" INTEGER PRIMARY KEY, "i" INTEGER, "j" INTEGER, "val_vari" INTEGER, "val_var" INTEGER, "val_val" INTEGER, "car" INTEGER, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "table_data" ("HARPIA_ID" INTEGER PRIMARY KEY, "i" INTEGER, "j" INTEGER, "HARPIA_HAS_val" INTEGER, "val_vari" INTEGER, "val_var" INTEGER, "val_val" INTEGER, "car" INTEGER, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
         'CREATE TABLE IF NOT EXISTS "table_data__val_a" ("owner" INTEGER, "key" TEXT, "value" TEXT, PRIMARY KEY("owner", "key"));',
         'CREATE TABLE IF NOT EXISTS "table_data__val_b" ("owner" INTEGER, "key" TEXT, "value" INTEGER, PRIMARY KEY("owner", "key"));',
         'CREATE TABLE IF NOT EXISTS "table_data__val_c" ("owner" INTEGER, "key" INTEGER, "value" TEXT, PRIMARY KEY("owner", "key"));',
@@ -76,12 +77,12 @@ class data_dao(Dao[data]):
         'DROP TABLE IF EXISTS "table_data__val_scores";',
         'DROP TABLE IF EXISTS "table_data";',
     )
-    INSERT_SQL = 'INSERT INTO "table_data" ("HARPIA_ID", "i", "j", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    SELECT_SQL = 'SELECT "HARPIA_ID", "i", "j", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "table_data" WHERE "HARPIA_ID" = ?'
-    UPDATE_SQL = 'UPDATE "table_data" SET "i" = ?, "j" = ?, "val_vari" = ?, "val_var" = ?, "val_val" = ?, "car" = ?, "HARPIA_STATUS" = ?, "HARPIA_ERROR" = ?, "HARPIA_ORIGINATOR" = ? WHERE "HARPIA_ID" = ?'
+    INSERT_SQL = 'INSERT INTO "table_data" ("HARPIA_ID", "i", "j", "HARPIA_HAS_val", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    SELECT_SQL = 'SELECT "HARPIA_ID", "i", "j", "HARPIA_HAS_val", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "table_data" WHERE "HARPIA_ID" = ?'
+    UPDATE_SQL = 'UPDATE "table_data" SET "i" = ?, "j" = ?, "HARPIA_HAS_val" = ?, "val_vari" = ?, "val_var" = ?, "val_val" = ?, "car" = ?, "HARPIA_STATUS" = ?, "HARPIA_ERROR" = ?, "HARPIA_ORIGINATOR" = ? WHERE "HARPIA_ID" = ?'
     DELETE_SQL = 'DELETE FROM "table_data" WHERE "HARPIA_ID" = ?'
-    LIST_SQL = 'SELECT "HARPIA_ID", "i", "j", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "table_data" ORDER BY "HARPIA_ID"'
-    LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "i", "j", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "table_data" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'
+    LIST_SQL = 'SELECT "HARPIA_ID", "i", "j", "HARPIA_HAS_val", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "table_data" ORDER BY "HARPIA_ID"'
+    LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "i", "j", "HARPIA_HAS_val", "val_vari", "val_var", "val_val", "car", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "table_data" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'
 
     def _on_change(self, msg: data) -> None:
         """OnChange: publish the written row to ``data_channel()``

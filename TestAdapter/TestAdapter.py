@@ -22,7 +22,7 @@ import shutil
 from Logger.logger import logger
 from Util.util import loadTemplate, write_if_different, copy_if_different
 from Database.model import (analyze, type_registry, map_fields, repeated_fields,
-                            RepeatedComposedField)
+                            RepeatedComposedField, autokey_needs_live_db)
 from Crypto.backend import transport_hardening_required
 from Database.auth_gate import effective_rbac
 
@@ -48,22 +48,36 @@ _VENDOR = (
 _VENDOR_TREES = ("asio",)                             # Crow's transport dependency
 
 
+# the body of a check that needs the database, for a table these SQLite-based
+# tests can't create (Database.model.autokey_needs_live_db)
+_LIVE_DB_SKIP = ("    // skipped: this `autokey` table's DDL is not valid on the test's\n"
+                 "    // in-memory SQLite; it needs the live database of this backend.\n"
+                 "    return 0;")
+
+
 def _value(col, variant):
     """A C++ literal for this column. ``variant`` distinguishes the two rows the
     DB round-trip inserts (and keeps text/64-bit fields unique across rows).
 
     ``int`` covers both INT32 and BOOL in the shared column model, so it stays at
     1 in both rows -- a truthy value that round-trips whether the field is an int
-    or a bool. Row uniqueness is carried by the primary key, set separately."""
+    or a bool. Row uniqueness is carried by the primary key, set separately --
+    except for a `unique` column, whose "b" / "c" values differ from "a" (a
+    second row with the same value would violate its UNIQUE constraint).
+    Variant "c" is a third value, for a copy of row "a" stored next to it."""
+    unique = getattr(col, "unique", False)
     if col.kind == "text":
         return '"{}_{}"'.format(col.accessor, variant)
     if col.kind == "enum":
-        # value 1 is a valid enumerator for the test schema's enums
-        return "static_cast<::{}>(1)".format(col.enum_type)
+        # value 1 is a valid enumerator for the test schema's enums; 0 always is
+        return "static_cast<::{}>({})".format(
+            col.enum_type, 0 if unique and variant != "a" else 1)
     if col.kind == "double":
-        return "2.5" if variant == "a" else "3.5"
+        return {"a": "2.5", "b": "3.5"}.get(variant, "4.5")
     if col.kind == "int64":
-        return "7" if variant == "a" else "8"
+        return {"a": "7", "b": "8"}.get(variant, "9")
+    if unique:
+        return {"a": "1", "b": "2"}.get(variant, "3")
     return "1"
 
 
@@ -103,8 +117,9 @@ def _map_val(kind, i):
 
 
 class TestAdapter:
-    def __init__(self, messages, dest, compliance=None) -> None:
+    def __init__(self, messages, dest, compliance=None, backend=None) -> None:
         self.compliance = compliance
+        self.backend = backend
         # transport-authn task 4: under a hardened profile the generated
         # transport gate is the three-role RBAC check, not the flat
         # X-User/X-Pswd / <credentials> credential -- so the access / REST / SOAP
@@ -161,9 +176,11 @@ class TestAdapter:
         # value _embed_getter/_embed_mutable can set/compare -- like the
         # repeated-FK case below, it's exercised by a dedicated host test
         # instead (test_embedded_fk_roundtrip).
-        embed_cols = [c for c in columns if c.embed and not c.fk_table]
+        embed_cols = [c for c in columns
+                      if c.embed and not c.fk_table and not c.presence_of]
         pk = next((c for c in bindable if c.pk), None)
         non_pk = [c for c in bindable if not c.pk]
+        live_db = autokey_needs_live_db(msg, self.backend)
 
         return _TEST.format(
             cls=msg.name,
@@ -173,15 +190,15 @@ class TestAdapter:
             xml_header="{}_{}_xml.h".format(msg.name, msg.md5Hash),
             rest_header="{}_{}_rest.h".format(msg.name, msg.md5Hash),
             simple_body=self._simple_body(msg, bindable),
-            db_body=self._db_body(msg, pk, non_pk, embed_cols,
-                                  map_fields(msg, self.types),
-                                  repeated_fields(msg, self.types)),
+            db_body=_LIVE_DB_SKIP if live_db else self._db_body(
+                msg, pk, non_pk, embed_cols,
+                map_fields(msg, self.types), repeated_fields(msg, self.types)),
             ar_body=self._access_rights_body(msg),
-            am_body=self._access_modifiers_body(msg, pk, non_pk),
+            am_body=_LIVE_DB_SKIP if live_db else self._access_modifiers_body(msg, pk, non_pk),
             json_body=self._json_body(msg, bindable),
             xml_body=self._xml_body(msg, bindable),
-            rest_body=self._rest_body(msg, pk, non_pk),
-            soap_body=self._soap_body(msg, pk, non_pk),
+            rest_body=_LIVE_DB_SKIP if live_db else self._rest_body(msg, pk, non_pk),
+            soap_body=_LIVE_DB_SKIP if live_db else self._soap_body(msg, pk, non_pk),
         )
 
     def _simple_body(self, msg, bindable):
@@ -522,6 +539,11 @@ class TestAdapter:
         L += [
             "        ::" + cls + " ax = a;",
             "        ax.set_" + pk.accessor + "(2);",
+        ]
+        # a `unique` column can't repeat row "a"'s value in the second row
+        L += ["        ax.set_" + c.accessor + "(" + _value(c, "c") + ");"
+              for c in non_pk if getattr(c, "unique", False)]
+        L += [
             "        const std::string axml = ::harpia::xml::to_xml(ax);",
             '        auto xpost = cli.Post("/api/v1/' + cls + '", axml, "application/xml", cred);',
             "        if (!xpost || xpost.status != 201) { code = 97; break; }",
@@ -529,7 +551,8 @@ class TestAdapter:
             "        if (!gx2 || gx2.status != 200) { code = 98; break; }",
         ]
         if probe is not None:
-            L.append('        if (gx2.body.find("' + probe.accessor + '_a") == '
+            L.append('        if (gx2.body.find("' + probe.accessor
+                     + ('_c' if getattr(probe, "unique", False) else '_a') + '") == '
                      "std::string::npos) { code = 99; break; }")
         if probe is not None:
             L += [
@@ -686,6 +709,7 @@ class TestAdapter:
         non_pk = [c for c in bindable if not c.pk]
         probe = next((c for c in non_pk if c.kind == "text"), None)
         h = msg.md5Hash
+        live_db = autokey_needs_live_db(msg, self.backend)
         return _APP.format(
             cls=msg.name,
             crudl_header="{}_{}_crudl.h".format(msg.name, h),
@@ -693,10 +717,10 @@ class TestAdapter:
             json_header="{}_{}_json.h".format(msg.name, h),
             xml_header="{}_{}_xml.h".format(msg.name, h),
             rest_header="{}_{}_rest.h".format(msg.name, h),
-            all_good=self._app_all_good(msg, pk, non_pk, probe),
-            crash=self._app_crash(msg, pk, probe),
+            all_good=_LIVE_DB_SKIP if live_db else self._app_all_good(msg, pk, non_pk, probe),
+            crash=_LIVE_DB_SKIP if live_db else self._app_crash(msg, pk, probe),
             slower=self._app_slower(),
-            non_parseable=self._app_non_parseable(msg),
+            non_parseable=_LIVE_DB_SKIP if live_db else self._app_non_parseable(msg),
         )
 
     def _credential(self, msg):

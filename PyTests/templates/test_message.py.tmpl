@@ -80,7 +80,7 @@ def test_crudl_round_trip(tmp_path: Path) -> None:
         testing.create_tables(conn, {name}_dao)
         dao = {name}_dao(conn)
         first = testing.sample({name}, "a", pk=1, id_base=1000)
-        second = testing.sample({name}, "a", pk=2, id_base=2000)
+        second = testing.sample({name}, "a", pk=2, id_base=2000{distinct})
         assert dao.create(first) and dao.create(second)
         got = {name}()
         assert dao.read(1, got)
