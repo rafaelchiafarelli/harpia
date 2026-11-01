@@ -47,7 +47,15 @@ STARTS = {
         "INSERT INTO \"{t}\" VALUES (1, 'east', '42');",
     ],
     "fresh": [],
+    # written before stable-hidden-names-DEFECT: hash-suffixed hidden columns
+    # (any 32 hex digits) and a bare ORIGINATOR
+    "legacy_hidden": [
+        'CREATE TABLE "{t}" ("ID_{l}" INTEGER PRIMARY KEY, "label" TEXT, "strength" INTEGER, '
+        '"STATUS_{l}" TEXT, "ERROR_{l}" TEXT, "ORIGINATOR" TEXT);',
+        "INSERT INTO \"{t}\" VALUES (7, 'north', 5, 'st', 'er', 'or');",
+    ],
 }
+LEGACY = "cb110dd8cf55c19c22ff64a9cdf4d22e"
 
 
 @pytest.fixture(scope="module")
@@ -64,7 +72,7 @@ def _mig():
 def _start(path, case):
     conn = sqlite3.connect(str(path))
     for sql in STARTS[case]:
-        conn.execute(sql.format(t=T, id=ID))
+        conn.execute(sql.format(t=T, id=ID, l=LEGACY))
     conn.commit()
     return conn
 
@@ -87,6 +95,24 @@ def test_rename_drop_add_and_idempotent(gen, tmp_path):
     got = dao.beacon_log()
     assert dao.beacon_log_dao(conn).read(1, got) and got.label == "north"
     assert m.migrate_beacon_log(conn)  # idempotent
+    assert _state(conn) == (cols, rows, ver)
+
+
+def test_migrate_renames_legacy_hidden_columns(gen, tmp_path):
+    """stable-hidden-names-DEFECT task 3 (the harpia-handoff.md case): the
+    legacy ID_/STATUS_/ERROR_<md5> + ORIGINATOR columns become HARPIA_*, the
+    row and its key survive, a second run is a no-op."""
+    conn = _start(tmp_path / "l.sqlite", "legacy_hidden")
+    m = _mig()
+    assert m.migrate_beacon_log(conn)
+    cols, rows, ver = _state(conn)
+    assert [c for c, _ in cols] == list(m.SPEC.current_columns)
+    dao = importlib.import_module("harpia_generated.db.beacon_log_{}_dao".format(HASH))
+    got = dao.beacon_log()
+    assert dao.beacon_log_dao(conn).read(7, got)
+    assert (got.label, got.strength) == ("north", 5)
+    assert (got.HARPIA_STATUS, got.HARPIA_ERROR, got.HARPIA_ORIGINATOR) == ("st", "er", "or")
+    assert m.migrate_beacon_log(conn)
     assert _state(conn) == (cols, rows, ver)
 
 

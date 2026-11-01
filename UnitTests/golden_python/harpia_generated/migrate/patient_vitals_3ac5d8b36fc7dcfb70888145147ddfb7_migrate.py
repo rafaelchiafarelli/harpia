@@ -23,6 +23,7 @@ SPEC = MigrationSpec(
     list_child_tables_sql='SELECT "name" FROM sqlite_master WHERE type = \'table\' AND substr("name", 1, 22) = \'patient_vitals_table__\';',
     child_renames=(),
     list_columns_sql='SELECT "name" FROM pragma_table_info(\'patient_vitals_table\');',
+    hidden_renames=(('HARPIA_ID', 'ID_', False, 'ALTER TABLE "patient_vitals_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ID";'), ('HARPIA_STATUS', 'STATUS_', False, 'ALTER TABLE "patient_vitals_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_STATUS";'), ('HARPIA_ERROR', 'ERROR_', False, 'ALTER TABLE "patient_vitals_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ERROR";'), ('HARPIA_ORIGINATOR', 'ORIGINATOR_', True, 'ALTER TABLE "patient_vitals_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ORIGINATOR";')),
     renames=(),
     adds=(('patient_id', 'ALTER TABLE "patient_vitals_table" ADD COLUMN "patient_id" TEXT;'), ('heart_rate', 'ALTER TABLE "patient_vitals_table" ADD COLUMN "heart_rate" TEXT;'), ('device_note', 'ALTER TABLE "patient_vitals_table" ADD COLUMN "device_note" TEXT;'), ('HARPIA_STATUS', 'ALTER TABLE "patient_vitals_table" ADD COLUMN "HARPIA_STATUS" TEXT;'), ('HARPIA_ERROR', 'ALTER TABLE "patient_vitals_table" ADD COLUMN "HARPIA_ERROR" TEXT;'), ('HARPIA_ORIGINATOR', 'ALTER TABLE "patient_vitals_table" ADD COLUMN "HARPIA_ORIGINATOR" TEXT;')),
     current_columns=('HARPIA_ID', 'patient_id', 'heart_rate', 'device_note', 'HARPIA_STATUS', 'HARPIA_ERROR', 'HARPIA_ORIGINATOR'),

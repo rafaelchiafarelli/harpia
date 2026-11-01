@@ -23,6 +23,7 @@ SPEC = MigrationSpec(
     list_child_tables_sql='SELECT "name" FROM sqlite_master WHERE type = \'table\' AND substr("name", 1, 15) = \'journey_table__\';',
     child_renames=(),
     list_columns_sql='SELECT "name" FROM pragma_table_info(\'journey_table\');',
+    hidden_renames=(('HARPIA_ID', 'ID_', False, 'ALTER TABLE "journey_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ID";'), ('HARPIA_STATUS', 'STATUS_', False, 'ALTER TABLE "journey_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_STATUS";'), ('HARPIA_ERROR', 'ERROR_', False, 'ALTER TABLE "journey_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ERROR";'), ('HARPIA_ORIGINATOR', 'ORIGINATOR_', True, 'ALTER TABLE "journey_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ORIGINATOR";')),
     renames=(),
     adds=(('path_start_city', 'ALTER TABLE "journey_table" ADD COLUMN "path_start_city" TEXT;'), ('path_start_elevation', 'ALTER TABLE "journey_table" ADD COLUMN "path_start_elevation" INTEGER;'), ('path_label', 'ALTER TABLE "journey_table" ADD COLUMN "path_label" TEXT;'), ('vessel', 'ALTER TABLE "journey_table" ADD COLUMN "vessel" TEXT;'), ('HARPIA_STATUS', 'ALTER TABLE "journey_table" ADD COLUMN "HARPIA_STATUS" TEXT;'), ('HARPIA_ERROR', 'ALTER TABLE "journey_table" ADD COLUMN "HARPIA_ERROR" TEXT;'), ('HARPIA_ORIGINATOR', 'ALTER TABLE "journey_table" ADD COLUMN "HARPIA_ORIGINATOR" TEXT;')),
     current_columns=('HARPIA_ID', 'path_start_city', 'path_start_elevation', 'path_label', 'vessel', 'HARPIA_STATUS', 'HARPIA_ERROR', 'HARPIA_ORIGINATOR'),

@@ -23,6 +23,7 @@ SPEC = MigrationSpec(
     list_child_tables_sql='SELECT "name" FROM sqlite_master WHERE type = \'table\' AND substr("name", 1, 18) = \'beacon_log_table__\';',
     child_renames=(),
     list_columns_sql='SELECT "name" FROM pragma_table_info(\'beacon_log_table\');',
+    hidden_renames=(('HARPIA_ID', 'ID_', False, 'ALTER TABLE "beacon_log_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ID";'), ('HARPIA_STATUS', 'STATUS_', False, 'ALTER TABLE "beacon_log_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_STATUS";'), ('HARPIA_ERROR', 'ERROR_', False, 'ALTER TABLE "beacon_log_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ERROR";'), ('HARPIA_ORIGINATOR', 'ORIGINATOR_', True, 'ALTER TABLE "beacon_log_table" RENAME COLUMN "<<NAME>>" TO "HARPIA_ORIGINATOR";')),
     renames=(('handle', 'label', 'ALTER TABLE "beacon_log_table" RENAME COLUMN "handle" TO "label";'),),
     adds=(('label', 'ALTER TABLE "beacon_log_table" ADD COLUMN "label" TEXT;'), ('strength', 'ALTER TABLE "beacon_log_table" ADD COLUMN "strength" INTEGER;'), ('HARPIA_STATUS', 'ALTER TABLE "beacon_log_table" ADD COLUMN "HARPIA_STATUS" TEXT;'), ('HARPIA_ERROR', 'ALTER TABLE "beacon_log_table" ADD COLUMN "HARPIA_ERROR" TEXT;'), ('HARPIA_ORIGINATOR', 'ALTER TABLE "beacon_log_table" ADD COLUMN "HARPIA_ORIGINATOR" TEXT;')),
     current_columns=('HARPIA_ID', 'label', 'strength', 'HARPIA_STATUS', 'HARPIA_ERROR', 'HARPIA_ORIGINATOR'),

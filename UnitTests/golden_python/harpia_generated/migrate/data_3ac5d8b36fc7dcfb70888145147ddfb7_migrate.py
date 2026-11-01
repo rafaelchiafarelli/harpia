@@ -23,6 +23,7 @@ SPEC = MigrationSpec(
     list_child_tables_sql='SELECT "name" FROM sqlite_master WHERE type = \'table\' AND substr("name", 1, 12) = \'table_data__\';',
     child_renames=(),
     list_columns_sql='SELECT "name" FROM pragma_table_info(\'table_data\');',
+    hidden_renames=(('HARPIA_ID', 'ID_', False, 'ALTER TABLE "table_data" RENAME COLUMN "<<NAME>>" TO "HARPIA_ID";'), ('HARPIA_STATUS', 'STATUS_', False, 'ALTER TABLE "table_data" RENAME COLUMN "<<NAME>>" TO "HARPIA_STATUS";'), ('HARPIA_ERROR', 'ERROR_', False, 'ALTER TABLE "table_data" RENAME COLUMN "<<NAME>>" TO "HARPIA_ERROR";'), ('HARPIA_ORIGINATOR', 'ORIGINATOR_', True, 'ALTER TABLE "table_data" RENAME COLUMN "<<NAME>>" TO "HARPIA_ORIGINATOR";')),
     renames=(),
     adds=(('i', 'ALTER TABLE "table_data" ADD COLUMN "i" INTEGER;'), ('j', 'ALTER TABLE "table_data" ADD COLUMN "j" INTEGER;'), ('val_vari', 'ALTER TABLE "table_data" ADD COLUMN "val_vari" INTEGER;'), ('val_var', 'ALTER TABLE "table_data" ADD COLUMN "val_var" INTEGER;'), ('val_val', 'ALTER TABLE "table_data" ADD COLUMN "val_val" INTEGER;'), ('car', 'ALTER TABLE "table_data" ADD COLUMN "car" INTEGER;'), ('HARPIA_STATUS', 'ALTER TABLE "table_data" ADD COLUMN "HARPIA_STATUS" TEXT;'), ('HARPIA_ERROR', 'ALTER TABLE "table_data" ADD COLUMN "HARPIA_ERROR" TEXT;'), ('HARPIA_ORIGINATOR', 'ALTER TABLE "table_data" ADD COLUMN "HARPIA_ORIGINATOR" TEXT;')),
     current_columns=('HARPIA_ID', 'i', 'j', 'val_vari', 'val_var', 'val_val', 'car', 'HARPIA_STATUS', 'HARPIA_ERROR', 'HARPIA_ORIGINATOR'),

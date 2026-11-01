@@ -135,6 +135,29 @@ def test_migrate_on_postgres(msgs, conn):
     assert conn.execute('SELECT "version" FROM "_harpia_schema_version"').fetchall() == [(HASH,)]
 
 
+def test_migrate_renames_legacy_hidden_columns_on_postgres(msgs, conn):
+    """stable-hidden-names-DEFECT task 3 on PostgreSQL: the legacy
+    ID_/STATUS_/ERROR_/ORIGINATOR_<md5> columns are renamed to HARPIA_* with
+    the row and its key intact, idempotent."""
+    table, legacy = "beacon_log_table", "cb110dd8cf55c19c22ff64a9cdf4d22e"
+    conn.execute('CREATE TABLE "{t}" ("ID_{l}" INTEGER PRIMARY KEY, "label" TEXT, '
+                 '"strength" INTEGER, "STATUS_{l}" TEXT, "ERROR_{l}" TEXT, '
+                 '"ORIGINATOR_{l}" TEXT)'.format(t=table, l=legacy))
+    conn.execute("INSERT INTO \"{t}\" VALUES (7, 'north', 5, 'st', 'er', 'or')".format(t=table))
+    conn.commit()
+    mig = importlib.import_module("harpia_generated.migrate.beacon_log_{}_migrate".format(HASH))
+    assert mig.migrate_beacon_log(conn)
+    assert mig.migrate_beacon_log(conn)
+    cols = {r[0] for r in conn.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_schema = current_schema() AND table_name = %s", [table]).fetchall()}
+    assert cols == set(mig.SPEC.current_columns)
+    got = msgs["beacon_log"]()
+    assert _dao("beacon_log")(conn).read(7, got)
+    assert (got.label, got.strength, got.HARPIA_STATUS, got.HARPIA_ERROR,
+            got.HARPIA_ORIGINATOR) == ("north", 5, "st", "er", "or")
+
+
 def test_migrate_child_tables_on_postgres(msgs, conn):
     """task 5b on PostgreSQL: child-table renames keep their rows, an orphan
     child table is reaped, the map key/value and the repeated-composed shape
