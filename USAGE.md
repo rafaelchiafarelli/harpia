@@ -813,6 +813,14 @@ harpia::db::migrate_users(db, [](::soci::session& db) {
 
 Make it idempotent (guard with `WHERE`) — it may run on every startup.
 
+**Editing the root `.harpia` file** (adding an `import`, a comment, …) changes
+its md5, which renames every generated *file* but no column: the hidden fields
+are always `HARPIA_ID` / `HARPIA_STATUS` / `HARPIA_ERROR` / `HARPIA_ORIGINATOR`,
+so an existing database keeps opening. A database made by a generation before
+that (columns `ID_<md5>`, `STATUS_<md5>`, `ERROR_<md5>`, `ORIGINATOR` or
+`ORIGINATOR_<md5>`) is renamed in place by the next `migrate_<name>`, rows and
+key values intact.
+
 ---
 
 ## 11. ZeroMQ CURVE encryption

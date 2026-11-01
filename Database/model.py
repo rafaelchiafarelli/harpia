@@ -250,6 +250,18 @@ class RepeatedComposedField:
 _HIDDEN_PREFIXES = ("HARPIA_",)
 
 
+# Legacy spellings of the hidden columns, written by generations before
+# stable-hidden-names-DEFECT: <prefix><32 hex digits of the root md5>, and
+# a bare ORIGINATOR for a non one-to-many message. The migrations rename a
+# live legacy column to its HARPIA_* name: {new: (legacy prefix, bare_ok)}.
+LEGACY_HIDDEN = {
+    "HARPIA_ID": ("ID_", False),
+    "HARPIA_STATUS": ("STATUS_", False),
+    "HARPIA_ERROR": ("ERROR_", False),
+    "HARPIA_ORIGINATOR": ("ORIGINATOR_", True),
+}
+
+
 def _is_hidden(name):
     return name.startswith(_HIDDEN_PREFIXES)
 

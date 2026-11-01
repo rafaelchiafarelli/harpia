@@ -298,6 +298,66 @@ def test_migration_drop_and_rename(generated, sqlite_obj, tmp_path):
         run.returncode)
 
 
+# a table written by a generation before stable-hidden-names-DEFECT: the
+# hidden columns carry that generation's root-file md5 (any 32 hex digits).
+_LEGACY = "cb110dd8cf55c19c22ff64a9cdf4d22e"
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="migration round-trip needs protoc + protobuf")
+def test_migrate_renames_legacy_hidden_columns(generated, sqlite_obj, tmp_path):
+    """stable-hidden-names-DEFECT task 2: migrate_<name> renames the legacy
+    ID_/STATUS_/ERROR_<md5> and ORIGINATOR_<md5> columns to HARPIA_*; the row
+    and its key survive, a second call is a no-op."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+
+    prog = tmp_path / "migrate_legacy_hidden.cpp"
+    prog.write_text(
+        '#include "migrate/beacon_log_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{l}\\" INTEGER PRIMARY KEY, '
+        '\\"label\\" TEXT, \\"strength\\" INTEGER, \\"STATUS_{l}\\" TEXT, \\"ERROR_{l}\\" TEXT, '
+        '\\"ORIGINATOR_{l}\\" TEXT);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" VALUES "
+        "(7, 'north', 5, 'st', 'er', 'or');\")) return 3;\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 4;\n"
+        "    ::harpia::db::beacon_log_dao dao(db);\n"
+        "    ::beacon_log got;\n"
+        "    if (!dao.read(7, &got)) return 5;\n"
+        '    if (got.label() != "north" || got.strength() != 5) return 6;\n'
+        '    if (got.harpia_status() != "st" || got.harpia_error() != "er") return 7;\n'
+        '    if (got.harpia_originator() != "or") return 8;\n'
+        "    int legacy = 0; ::soci::indicator li;\n"
+        "    db << \"SELECT count(*) FROM pragma_table_info('beacon_log_table') "
+        "WHERE name LIKE '%{l}'\", ::soci::into(legacy, li);\n"
+        "    if (legacy != 0) return 9;\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 10;\n"
+        "    ::beacon_log got2;\n"
+        "    if (!dao.read(7, &got2) || got2.label() != \"north\") return 11;\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH, l=_LEGACY))
+
+    pb_cc = os.path.join(cpp_root, "protofiles", "beacon_log_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "migrate_legacy_hidden")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_sqlite3",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=120)
+    assert c.returncode == 0, "legacy-hidden migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=15)
+    assert run.returncode == 0, "legacy-hidden migration failed at check #{}".format(
+        run.returncode)
+
+
 @pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
                     reason="migration round-trip needs protoc + protobuf")
 def test_migration_data_transform(generated, sqlite_obj, tmp_path):

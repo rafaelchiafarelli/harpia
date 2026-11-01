@@ -192,6 +192,59 @@ def test_pg_migration_retype(pg_generated, tmp_path):
         run.returncode, run.stdout + run.stderr)
 
 
+def test_pg_migrate_renames_legacy_hidden_columns(pg_generated, tmp_path):
+    """stable-hidden-names-DEFECT task 2, PostgreSQL twin of
+    test_stage8_db.py::test_migrate_renames_legacy_hidden_columns (here with
+    the bare legacy ORIGINATOR): the legacy ID_/STATUS_/ERROR_<md5> columns
+    are renamed to HARPIA_*, the row and its key survive, idempotent."""
+    legacy = "cb110dd8cf55c19c22ff64a9cdf4d22e"
+    cpp_root = pg_generated
+    prog = tmp_path / "pg_migrate_legacy_hidden.cpp"
+    prog.write_text(
+        '#include "migrate/beacon_log_{h}_migrate.h"\n'
+        '#include "db/beacon_log_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    auto exec = [&db](const char* s) {{ try {{ db << s; return true; }} catch (...) {{ return false; }} }};\n"
+        '    exec("DROP TABLE IF EXISTS \\"beacon_log_table\\";");\n'
+        '    if (!exec("CREATE TABLE \\"beacon_log_table\\" (\\"ID_{l}\\" INTEGER PRIMARY KEY, '
+        '\\"label\\" TEXT, \\"strength\\" INTEGER, \\"STATUS_{l}\\" TEXT, \\"ERROR_{l}\\" TEXT, '
+        '\\"ORIGINATOR\\" TEXT);")) return 2;\n'
+        "    if (!exec(\"INSERT INTO \\\"beacon_log_table\\\" VALUES "
+        "(7, 'north', 5, 'st', 'er', 'or');\")) return 3;\n"
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 4;\n"
+        "    ::harpia::db::beacon_log_dao dao(db);\n"
+        "    ::beacon_log got;\n"
+        "    if (!dao.read(7, &got)) return 5;\n"
+        '    if (got.label() != "north" || got.strength() != 5) return 6;\n'
+        '    if (got.harpia_status() != "st" || got.harpia_error() != "er") return 7;\n'
+        '    if (got.harpia_originator() != "or") return 8;\n'
+        "    if (!::harpia::db::migrate_beacon_log(db)) return 9;\n"
+        "    ::beacon_log got2;\n"
+        '    if (!dao.read(7, &got2) || got2.label() != "north") return 10;\n'
+        "    exec(\"DROP TABLE IF EXISTS \\\"beacon_log_table\\\";\");\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH, l=legacy))
+
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    pb_cc = os.path.join(cpp_root, "protofiles", "beacon_log_{}.pb.cc".format(HASH))
+    binary = str(tmp_path / "pg_migrate_legacy_hidden")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog), pb_cc, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG legacy-hidden migration program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "PG legacy-hidden migration failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)
+
+
 def test_pg_migration_ignores_other_schemas(pg_generated, tmp_path):
     """Migration introspection only sees the current schema
     (cpp-pg-introspection-schema-DEFECT). A "decoy" schema holds a same-named
