@@ -20,8 +20,9 @@ The two epics don't depend on each other.
   `phi` (a phi value is encrypted with a random nonce — SQL can't match it;
   documented as unsupported). Embedded flat `unique` fields: not now.
 - **db-assigned-key:** see `db-assigned-key/tasks/1-dsl-modifier-decision-done.md`
-  — an `autokey` message modifier; `create()` with `HARPIA_ID` already set
-  is an error; the assigned key is written back.
+  — an `autokey` message modifier; key 0 is assigned by the database and
+  written back, a set key is inserted as given; a composed field targeting an
+  autokey message is refused.
 
 ## Definition of done
 

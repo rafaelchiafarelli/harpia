@@ -559,3 +559,54 @@ def test_pg_read_by_unique(pg_generated, tmp_path):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
     assert run.returncode == 0, "PG read_by failed at check #{}\n{}".format(
         run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_db_assigned_key(tmp_path):
+    """dao-key-access / db-assigned-key task 2 on PostgreSQL: an identity
+    key, written back; an existing caller-assigned table (rows up to key 40)
+    is migrated to an identity that continues past 40; an explicit key is
+    honoured and the identity advances past it."""
+    from UnitTests.test_stage8_db import _gen_autokey
+    cpp_root, h = _gen_autokey(tmp_path, backend="postgresql")
+    prog = tmp_path / "pg_autokey.cpp"
+    prog.write_text(
+        '#include "db/ticket_{h}_crudl.h"\n'
+        '#include "migrate/ticket_{h}_migrate.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        '    db << "DROP TABLE IF EXISTS \\"ticket_table\\"";\n'
+        "    // an older caller-assigned version of the table\n"
+        '    db << "CREATE TABLE \\"ticket_table\\" (\\"HARPIA_ID\\" INTEGER PRIMARY KEY, \\"title\\" TEXT NOT NULL, '
+        '\\"HARPIA_STATUS\\" TEXT, \\"HARPIA_ERROR\\" TEXT, \\"HARPIA_ORIGINATOR\\" TEXT)";\n'
+        "    db << \"INSERT INTO \\\"ticket_table\\\" (\\\"HARPIA_ID\\\", \\\"title\\\") VALUES (40, 'old')\";\n"
+        "    if (!::harpia::db::migrate_ticket(db)) return 2;\n"
+        "    if (!::harpia::db::migrate_ticket(db)) return 3;   // idempotent\n"
+        "    ::harpia::db::ticket_dao dao(db);\n"
+        '    ::ticket a; a.set_title("new");\n'
+        "    if (!dao.create(a) || a.harpia_id() <= 40) return 4;\n"
+        "    ::ticket got;\n"
+        '    if (!dao.read(a.harpia_id(), &got) || got.title() != "new") return 5;\n'
+        '    ::ticket preset; preset.set_harpia_id(500); preset.set_title("x");\n'
+        "    if (!dao.create(preset) || preset.harpia_id() != 500) return 6;\n"
+        '    ::ticket after; after.set_title("y");\n'
+        "    if (!dao.create(after) || after.harpia_id() <= 500) return 7;\n"
+        "    dao.drop_table();\n"
+        "    return 0;\n"
+        "}}\n".format(h=h))
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    binary = str(tmp_path / "pg_autokey")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog),
+         os.path.join(cpp_root, "protofiles", "ticket_{}.pb.cc".format(h)), "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG autokey program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "PG autokey failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)

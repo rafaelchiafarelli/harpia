@@ -39,7 +39,7 @@ class Column:
                  bindable=False, kind=None, fk_target=None, enum_type=None,
                  fk_table=False, embed=None, child_accessor=None,
                  renamed_from=None, is_phi=False, optional=False,
-                 backend=None) -> None:
+                 identity=False, backend=None) -> None:
         self.name = name
         self.sql_type = sql_type
         self.pk = pk
@@ -69,6 +69,8 @@ class Column:
                                       # absent after read (db-optional-
                                       # presence-DEFECT); top-level and
                                       # embedded flat columns only
+        self.identity = identity      # an `autokey` message's primary key:
+                                      # the database assigns it
         self._backend = backend or get_backend()  # dialect for sql_def()
 
     @property
@@ -113,6 +115,9 @@ class Column:
         return "{}.has_{}()".format(chain, self.child_accessor or self.accessor)
 
     def sql_def(self):
+        if self.identity:
+            return self._backend.column_def(self.sql_type, pk=self.pk, required=self.required,
+                                            unique=self.unique, identity=True)
         return self._backend.column_def(
             self.sql_type, pk=self.pk, required=self.required, unique=self.unique)
 
@@ -266,6 +271,15 @@ LEGACY_HIDDEN = {
     "HARPIA_ERROR": ("ERROR_", False),
     "HARPIA_ORIGINATOR": ("ORIGINATOR_", True),
 }
+
+
+def autokey_needs_live_db(msg, backend):
+    """The generated test suites run on in-memory SQLite whatever the DB
+    backend. An `autokey` table's identity DDL / key-advance SQL on another
+    dialect isn't valid there, so its database checks can't run in them."""
+    if backend is None or not getattr(msg, "is_autokey", False):
+        return False
+    return backend.identity_advance_sql(msg.tableName, "HARPIA_ID") is not None
 
 
 def _is_hidden(name):
@@ -486,6 +500,8 @@ def analyze(msg, types=None, backend=None):
                               renamed_from=getattr(v, "renamedFrom", None),
                               is_phi=getattr(v, "is_phi", False),
                               optional="OPTIONAL" in mods,
+                              identity=(v.name == "HARPIA_ID"
+                                        and getattr(msg, "is_autokey", False)),
                               backend=backend))
     return columns, notes
 

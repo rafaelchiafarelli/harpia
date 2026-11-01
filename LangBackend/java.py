@@ -76,5 +76,5 @@ class JavaBackend(CppBackend):
         # 14 (java tests). Generated JUnit 5 tests -- field access, JSON/XML
         # round trip, DB CRUDL round trip.
         from JavaTestAdapter.JavaTestAdapter import JavaTestAdapter
-        ctx.report(JavaTestAdapter(messages=messages, dest=dest,
-                                   compliance=compliance).Process())
+        ctx.report(JavaTestAdapter(messages=messages, dest=dest, compliance=compliance,
+                                   backend=ctx.db_backend).Process())
