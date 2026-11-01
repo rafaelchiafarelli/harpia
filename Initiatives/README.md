@@ -60,7 +60,6 @@ Open DEFECT initiatives: see the `*-DEFECT` rows of the index below.
 | [python-target/](python-target/README.md) | **Shipped in V3 (2026-10-05)**: all 14 epics / 54 tasks, full Docker suite green. Language #3: full C++ compliance parity (DDS + CURVE/ZAP included), generation-time codegen under `<dest>/python/`, C++/Java/Python interop tests (`test_*_xlang3.py`, `test_dds_xlang.py`). Decisions + findings for review: [NEXT_SESSION.md](python-target/NEXT_SESSION.md) (items 1-48), pending Rafael's review — the folder stays only for that log. Its nine C++/Java findings were fixed in V3 (see below). |
 | [cpp-phi-unencrypted-field-shapes-DEFECT/](cpp-phi-unencrypted-field-shapes-DEFECT/README.md) | **Defect, not started** (found 2026-10-05 while fixing the numeric-phi defect). `phi` on an enum field, an embedded sub-field, a repeated or a map field is stored in plaintext by the C++ and Python DAOs, with no audit. 3 tasks; task 1 is a refuse-vs-encrypt decision. |
 | [db-optional-presence-DEFECT/](db-optional-presence-DEFECT/README.md) | **Defect, not started** (found 2026-10-05). An unset `optional` field is stored as `0`/`""` and a NULL column reads back *present* with its default — in the C++, Python and Java DAOs alike — so the DB loses "never set" vs "explicitly 0" (XML/YAML keep it). 4 tasks; decisions taken 2026-10-31 (embedded flat columns in scope). **Blocker for `mocap-contracts` v0.8.0.** |
-| [stable-hidden-names-DEFECT/](stable-hidden-names-DEFECT/README.md) | **Defect, not started — blocker for `mocap-contracts` v0.8.0** (reported 2026-10-31). Hidden fields are `ID_/STATUS_/ERROR_/ORIGINATOR_<root-file md5>`, so editing the root renames every primary key column and `migrate_<name>` can't open an existing database. Decided: fixed names `HARPIA_ID/STATUS/ERROR/ORIGINATOR` + migrations rename legacy columns. 3 tasks. |
 | [transitive-imports-DEFECT/](transitive-imports-DEFECT/README.md) | **Defect, not started** (reported 2026-10-31). Only modules the root imports directly are generated; a module imported by an included file is silently skipped. 1 task. |
 | [dao-key-access/](dao-key-access/README.md) | **Scoped, not started** (requested 2026-10-31 by `mocap-contracts`). Generated `read_by_<unique field>` DAOs, and an explicit `.harpia` opt-in for a database-assigned primary key (task 1 is the DSL decision). 2 epics, 7 tasks; after the two blocker DEFECTs. |
 | [go-target/](go-target/README.md) | **Scoped, not started.** Language #4 (resequenced behind python-target 2026-10-03), full compliance parity except DDS + ZMQ-CURVE/ZAP (pure-Go constraint). Depends on python-target's `lang-backend-seam` epic; its interop epic adds Go as the 4th peer to python-target's harness. No task files yet. |
@@ -87,6 +86,12 @@ YAML map keys (C++ + Python), Java XML byte parity — see `Database/CLAUDE.md`,
 `Crypto/CLAUDE.md`, `JavaDatabase/CLAUDE.md`, `ZmqAdapter/CLAUDE.md`,
 `YamlAdapter/CLAUDE.md`, `PySerialization/CLAUDE.md`,
 `JavaXmlAdapter/CLAUDE.md`. Each has its regression test.
+The **stable-hidden-names-DEFECT** (reported by `mocap-contracts`, fixed
+2026-11-01): hidden fields are the fixed `HARPIA_ID` / `HARPIA_STATUS` /
+`HARPIA_ERROR` / `HARPIA_ORIGINATOR` (no root-file hash), and the C++ and
+Python migrations rename legacy `ID_<md5>`-style columns in place — see
+`Message/CLAUDE.md`, `Database/CLAUDE.md`, `PyDatabase/CLAUDE.md`, `USAGE.md`
+§10/§16.
 Earlier removed-on-completion plans: Postgres backend
 (`Database/CLAUDE.md`), crash/interrupt recovery (`Util/CLAUDE.md`),
 message-versioning (`Message/CLAUDE.md`, `Capability/CLAUDE.md`),
