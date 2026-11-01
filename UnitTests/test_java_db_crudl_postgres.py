@@ -134,3 +134,39 @@ def test_java_pg_list_in_pk_order(tmp_path):
                          capture_output=True, text=True, timeout=60)
     assert run.returncode == 0 and "OK" in run.stdout, \
         "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)
+
+
+def test_java_pg_db_assigned_key(tmp_path):
+    """dao-key-access / db-assigned-key task 4 on PostgreSQL: identity key
+    returned; an explicit key is honoured and the identity advances past it."""
+    from UnitTests.test_java_db_crudl import _write_fixture
+    harpia_file, include_folder = _write_fixture(
+        tmp_path / "src", "autokey message ticket{\n    required string title;\n}ticket_table;\n")
+    out = generate(tmp_path / "out", lang="java", harpia_file=harpia_file,
+                   include_folder=include_folder, db_backend="postgresql")
+    classpath = build_and_classpath(os.path.join(out, "java"), {
+        "smoke/PgAutoKey.java":
+            "package smoke;\n"
+            "import com.harpia.generated.ticket;\n"
+            "import com.harpia.generated.db.ticket_dao;\n"
+            "import java.sql.*;\n"
+            "public class PgAutoKey {\n"
+            "    public static void main(String[] args) throws Exception {\n"
+            "        try (Connection conn = DriverManager.getConnection(args[0])) {\n"
+            "            ticket_dao dao = new ticket_dao(conn);\n"
+            "            dao.dropTable();\n"
+            "            if (!dao.createTable()) System.exit(1);\n"
+            "            int a = dao.createReturningKey(ticket.newBuilder().setTitle(\"first\").build());\n"
+            "            if (a == 0) System.exit(2);\n"
+            "            if (dao.createReturningKey(ticket.newBuilder().setHARPIAID(500).setTitle(\"x\").build()) != 500) System.exit(3);\n"
+            "            if (dao.createReturningKey(ticket.newBuilder().setTitle(\"y\").build()) <= 500) System.exit(4);\n"
+            "            dao.dropTable();\n"
+            "        }\n"
+            "        System.out.println(\"OK\");\n"
+            "    }\n"
+            "}\n",
+    })
+    run = subprocess.run(["java", "-cp", classpath, "smoke.PgAutoKey", _dsn_to_jdbc_url(PG_DSN)],
+                         capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0 and "OK" in run.stdout, \
+        "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)

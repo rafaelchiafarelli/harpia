@@ -40,7 +40,7 @@ def test_rest_api(tmp_path: Path) -> None:
                                        headers={{**CRED, "Accept": "application/xml"}})
         got = {name}()
         assert status == 200 and from_xml(body, got) and _view(got) == _view(first)
-        second = testing.sample({name}, "a", pk=2, id_base=2000)
+        second = testing.sample({name}, "a", pk=2, id_base=2000{distinct})
         assert testing.request(port, "POST", path, to_xml(second),
                                {{**CRED, "Content-Type": "application/xml"}})[0] == 201
         assert testing.request(port, "GET", path + "/2", headers=CRED)[0] == 200

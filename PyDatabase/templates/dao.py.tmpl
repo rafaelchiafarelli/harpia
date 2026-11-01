@@ -17,7 +17,7 @@ class {name}_dao({base}[{name}]):
 
     MESSAGE = {name}
     TABLE = {table_lit}
-    PK = {pk_lit}{phi_fields}
+    PK = {pk_lit}{autokey}{phi_fields}
     COLUMNS = ({columns}
     )
     CHILDREN = ({children}
@@ -31,4 +31,4 @@ class {name}_dao({base}[{name}]):
     UPDATE_SQL = {update_sql}
     DELETE_SQL = {delete_sql}
     LIST_SQL = {list_sql}
-    LIST_PAGE_SQL = {list_page_sql}{event_hook}
+    LIST_PAGE_SQL = {list_page_sql}{read_by}{event_hook}

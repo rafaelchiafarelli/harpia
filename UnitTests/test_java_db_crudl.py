@@ -481,3 +481,79 @@ def test_java_optional_presence(tmp_path):
                          capture_output=True, text=True, timeout=60)
     assert run.returncode == 0 and "OK" in run.stdout, \
         "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)
+
+
+@pytest.mark.skipif(not _HAS_JAVA_TOOLCHAIN, reason=SKIP_REASON)
+def test_java_read_by_unique(tmp_path):
+    """dao-key-access read-by-unique task 3 (mirrors the C++ test):
+    reception_desk_dao.readByVisitorName -- hit fills the builder, miss is
+    false."""
+    out = generate(tmp_path / "out", lang="java")
+    classpath = build_and_classpath(os.path.join(out, "java"), {
+        "smoke/ReadBy.java":
+            "package smoke;\n"
+            "import com.harpia.generated.reception_desk;\n"
+            "import com.harpia.generated.db.reception_desk_dao;\n"
+            "import java.sql.*;\n"
+            "public class ReadBy {\n"
+            "    public static void main(String[] args) throws Exception {\n"
+            "        Class.forName(\"org.sqlite.JDBC\");\n"
+            "        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n"
+            "            reception_desk_dao dao = new reception_desk_dao(conn);\n"
+            "            if (!dao.createTable()) System.exit(1);\n"
+            "            if (!dao.create(reception_desk.newBuilder().setHARPIAID(4).setVisitorName(\"ana\").build())) System.exit(2);\n"
+            "            if (!dao.create(reception_desk.newBuilder().setHARPIAID(9).setVisitorName(\"bo\").build())) System.exit(3);\n"
+            "            reception_desk.Builder got = reception_desk.newBuilder();\n"
+            "            if (!dao.readByVisitorName(\"bo\", got) || got.getHARPIAID() != 9) System.exit(4);\n"
+            "            if (dao.readByVisitorName(\"nobody\", reception_desk.newBuilder())) System.exit(5);\n"
+            "        }\n"
+            "        System.out.println(\"OK\");\n"
+            "    }\n"
+            "}\n",
+    })
+    run = subprocess.run(["java", "-cp", classpath, "smoke.ReadBy"],
+                         capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0 and "OK" in run.stdout, \
+        "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)
+
+
+@pytest.mark.skipif(not _HAS_JAVA_TOOLCHAIN, reason=SKIP_REASON)
+def test_java_db_assigned_key(tmp_path):
+    """dao-key-access / db-assigned-key task 4 (the C++ rule): an `autokey`
+    table's createReturningKey with key 0 returns the database's key; a set
+    key is inserted as given and later keys continue past it; create() stays
+    boolean. The whole generated Gradle project builds and its JUnit suite
+    runs (gradle build), so every generated caller of create() still works."""
+    harpia_file, include_folder = _write_fixture(
+        tmp_path / "src", "autokey message ticket{\n    required string title;\n}ticket_table;\n")
+    out = generate(tmp_path / "out", lang="java", harpia_file=harpia_file,
+                   include_folder=include_folder)
+    classpath = build_and_classpath(os.path.join(out, "java"), {
+        "smoke/AutoKey.java":
+            "package smoke;\n"
+            "import com.harpia.generated.ticket;\n"
+            "import com.harpia.generated.db.ticket_dao;\n"
+            "import java.sql.*;\n"
+            "public class AutoKey {\n"
+            "    public static void main(String[] args) throws Exception {\n"
+            "        Class.forName(\"org.sqlite.JDBC\");\n"
+            "        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n"
+            "            ticket_dao dao = new ticket_dao(conn);\n"
+            "            if (!dao.createTable()) System.exit(1);\n"
+            "            int a = dao.createReturningKey(ticket.newBuilder().setTitle(\"first\").build());\n"
+            "            int b = dao.createReturningKey(ticket.newBuilder().setTitle(\"second\").build());\n"
+            "            if (a == 0 || b == 0 || a == b) System.exit(2);\n"
+            "            ticket.Builder got = ticket.newBuilder();\n"
+            "            if (!dao.read(b, got) || !got.getTitle().equals(\"second\")) System.exit(3);\n"
+            "            if (dao.createReturningKey(ticket.newBuilder().setHARPIAID(99).setTitle(\"x\").build()) != 99) System.exit(4);\n"
+            "            if (dao.createReturningKey(ticket.newBuilder().setTitle(\"y\").build()) <= 99) System.exit(5);\n"
+            "            if (!dao.create(ticket.newBuilder().setTitle(\"z\").build())) System.exit(6);\n"
+            "        }\n"
+            "        System.out.println(\"OK\");\n"
+            "    }\n"
+            "}\n",
+    })
+    run = subprocess.run(["java", "-cp", classpath, "smoke.AutoKey"],
+                         capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0 and "OK" in run.stdout, \
+        "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)
