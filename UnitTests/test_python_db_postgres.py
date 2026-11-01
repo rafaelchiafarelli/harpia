@@ -272,3 +272,16 @@ def test_py_migrate_retypes_legacy_phi_column(msgs, conn, tmp_path):
     assert dao.create(new)
     got = msgs["patient_vitals"]()
     assert dao.read(2, got) and got.heart_rate == 70.25
+
+
+def test_read_by_unique_on_postgres(msgs, conn):
+    """dao-key-access read-by-unique task 2 on PostgreSQL."""
+    cls = msgs["reception_desk"]
+    dao = _dao("reception_desk")(conn)
+    dao.create_table()
+    a = cls(visitor_name="ana")
+    setattr(a, PK, 4)
+    assert dao.create(a)
+    got = cls()
+    assert dao.read_by_visitor_name("ana", got) and getattr(got, PK) == 4
+    assert not dao.read_by_visitor_name("nobody", cls())

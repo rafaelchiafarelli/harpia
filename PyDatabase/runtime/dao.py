@@ -207,6 +207,9 @@ class Dao(Generic[M]):
     DELETE_SQL: ClassVar[str]
     LIST_SQL: ClassVar[str]
     LIST_PAGE_SQL: ClassVar[str]
+    #: ``{field: SELECT .. WHERE field = ?}`` for each `unique` field's
+    #: generated ``read_by_<field>`` (dao-key-access)
+    READ_BY_SQL: ClassVar[dict[str, str]] = {}
 
     def __init__(self, conn: Connection) -> None:
         self.conn = conn
@@ -358,6 +361,18 @@ class Dao(Generic[M]):
         self._load_row(cur, row, out)
         self._audit("read")
         return True
+
+    def _read_by(self, field: str, value: Any, out: M) -> bool:
+        """``read`` keyed on the `unique` column ``field`` (the generated
+        ``read_by_<field>`` methods call this)."""
+        with self._tx() as cur:
+            cur.execute(self.READ_BY_SQL[field], [value])
+            row = cur.fetchone()
+            if row is None:
+                return False
+            self._load_row(cur, row, out)
+            self._audit("read")
+            return True
 
     def _update(self, cur: Any, msg: M) -> bool:
         for col in self.COLUMNS:
