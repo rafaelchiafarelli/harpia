@@ -2,7 +2,7 @@
 import os
 from LexicalAnalizer.LexicalAnalyzer import LexicalAnalyzer
 from Logger.logger import logger
-from LexicalAnalizer.pre_lex import pre_lex
+from LexicalAnalizer.pre_lex import pre_lex, resolve_imports
 
 from LexicalAnalizer.MessageCreator import MessageCreator,Message
 from ProtoFile.ProtoFileProcessor import ProtoFileProcessor
@@ -78,7 +78,15 @@ if __name__ == '__main__':
     if preProcessorResult is not None: ##no error detected
         log.print(preProcessorResult.__str__())
         exit(-1)
-    listOfIncludes = rootFile.getListOfHarpias()
+    # every module the root reaches, through nested imports too, each once
+    # (transitive-imports-DEFECT); a cycle is an IMPORT_CYCLE error.
+    listOfIncludes, importError = resolve_imports(
+        rootFile.getListOfHarpias(),
+        lambda inc: pre_lex(folders=[localFolder], file=inc, dest=testDestination,
+                            includeFolder=includeFolder, compliance=complianceContext))
+    if importError is not None:
+        log.print(importError.__str__())
+        exit(-1)
     log.print("{}".format(listOfIncludes))
     fileCounter = 0    
     lexicalAnalized = []
