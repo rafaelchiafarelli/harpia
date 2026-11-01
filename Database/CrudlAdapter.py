@@ -89,11 +89,22 @@ def _local_ctype(kind):
     return _CTYPE[kind]
 
 
-def _use_list(count, base, indent):
-    """`, use(<base>0), use(<base>1), ...` wrapped onto a continuation line."""
-    if count == 0:
+def _is_optional(col):
+    """An `optional` scalar/enum column: bound with a NULL indicator when the
+    field is unset, and left unset on read when the column is NULL
+    (db-optional-presence-DEFECT)."""
+    return getattr(col, "optional", False)
+
+
+def _use_list(cols, base, indent):
+    """`, use(<base>0), use(<base>1), ...` wrapped onto a continuation line;
+    an optional column binds with its indicator, `use(<base>i, <base>ii)`."""
+    if not cols:
         return ""
-    uses = ", ".join("::soci::use({}{})".format(base, i) for i in range(count))
+    uses = ", ".join(
+        "::soci::use({b}{i}, {b}i{i})".format(b=base, i=i) if _is_optional(c)
+        else "::soci::use({}{})".format(base, i)
+        for i, c in enumerate(cols))
     return ",\n{}{}".format(indent, uses)
 
 
@@ -216,11 +227,11 @@ class CrudlAdapter:
             select_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
             id_col=id_col.name if id_col else "rowid",
             create_locals=self._create_locals(scalar, fk_cols),
-            create_use=_use_list(len(insert_all), "c", " " * 16),
+            create_use=_use_list(insert_all, "c", " " * 16),
             update_locals=self._update_locals(non_id, fk_cols, id_col),
             update_set=", ".join('\\"{}\\" = :c{}'.format(c.name, i)
                                  for i, c in enumerate(update_all)),
-            update_use=self._update_use(len(update_all)),
+            update_use=self._update_use(update_all),
             extract_locals=self._extract_locals(scalar, fk_cols),
             extract_into=self._extract_into(len(insert_all)),
             extract_set=self._extract_set(scalar),
@@ -254,7 +265,21 @@ class CrudlAdapter:
     def _value_local(self, base, i, col, src="msg"):
         """A named local holding column ``col``'s value read from ``src`` (for
         use). ``src`` defaults to "msg"; a repeated-composed field's write
-        loop passes its per-element loop variable instead."""
+        loop passes its per-element loop variable instead. An optional
+        column also gets ``<base>i<i>``, its NULL indicator."""
+        local = self._plain_value_local(base, i, col, src)
+        if not _is_optional(col):
+            return local
+        has = col.has_expr(src)
+        if getattr(col, "is_phi", False):
+            # unset phi optional: NULL, nothing encrypted (decision 2026-10-31)
+            local = local.replace(" = ::harpia::crypto::encrypt_field(",
+                                  " = !{} ? std::string() : "
+                                  "::harpia::crypto::encrypt_field(".format(has), 1)
+        return "{} ::soci::indicator {b}i{i} = {h} ? ::soci::i_ok : ::soci::i_null;".format(
+            local, b=base, i=i, h=has)
+
+    def _plain_value_local(self, base, i, col, src):
         if getattr(col, "is_phi", False):
             # Track A: seal the value before it is bound. Numeric/enum fields
             # are stringified first, so the ciphertext is always a text blob
@@ -290,10 +315,10 @@ class CrudlAdapter:
         lines.append("            long long cid = msg.{}();".format(acc))
         return "".join(l + "\n" for l in lines)
 
-    def _update_use(self, n_update):
-        uses = ["::soci::use(c{})".format(i) for i in range(n_update)]
-        uses.append("::soci::use(cid)")
-        return ",\n{}{}".format(" " * 16, ", ".join(uses))
+    def _update_use(self, update_all):
+        uses = _use_list(update_all, "c", " " * 16)
+        return (uses + ", ::soci::use(cid)" if uses
+                else ",\n{}::soci::use(cid)".format(" " * 16))
 
     def _extract_locals(self, scalar, fk_cols):
         lines = []
@@ -347,7 +372,13 @@ class CrudlAdapter:
                        .format(et=c.enum_type, i=i))
             else:
                 val = "n{i} == ::soci::i_ok ? l{i} : 0".format(i=i)
-            lines.append("                {};".format(c.set_stmt(val)))
+            if _is_optional(c):
+                # NULL -> leave the field unset (absent); i_ok -> set, even to
+                # its default (present)
+                lines.append("                if (n{i} == ::soci::i_ok) {s};".format(
+                    i=i, s=c.set_stmt(val)))
+            else:
+                lines.append("                {};".format(c.set_stmt(val)))
         return "".join(l + "\n" for l in lines)
 
     # -- composed FK (message whose target owns a table) -------------------

@@ -368,7 +368,10 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `test_stage8_db.py` — SQL schema, CRUDL round-trip, FK, repeated-FK link table,
   map<K,V>, repeated scalar, migration (incl. the legacy `ID_<md5>`/… hidden
   columns renamed to `HARPIA_*`, stable-hidden-names-DEFECT task 2),
-  DB↔JSON/XML. (cc + g++, some protoc)
+  `optional` presence (unset → NULL → absent, set-to-default → present, top
+  level + embedded flat column, update clearing → NULL; an unset `phi
+  optional` → NULL with no ciphertext, on its own temp schema —
+  db-optional-presence-DEFECT task 1), DB↔JSON/XML. (cc + g++, some protoc)
 - `test_db_segregation.py` — the db-segregation epic / Session db-segregation task 1: the public/private DB
   registry (`Database/DbRegistryAdapter.py` → `generated/cpp/db/harpia_db_registry.h`).
   Structural (pure Python, always run): the one project-wide header is
