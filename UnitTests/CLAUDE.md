@@ -441,6 +441,9 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   a user field named `harpia_id`, `HARPIA_STATUS`, `harpiaerror`,
   `harpia_originator` or `Harpia_note` is `RESERVED_HIDDEN_FIELD_NAME`.
   Pure Python.
+- `test_transitive_imports.py` — transitive-imports-DEFECT: root → a → b
+  generates b; a diamond (root → a, c → b) generates b once; a cycle
+  (a → b → a) fails with `IMPORT_CYCLE` naming both files. Pure Python.
 - `test_fieldmap_frontend.py` — the same §3 reorder/delete properties but
   through the real front-end pipeline (`run_frontend.py`, fresh subprocess
   per generation), confirming `Message/Message.py`'s wiring actually calls
