@@ -382,10 +382,11 @@ class Side:
 
 
 def java_eligible(dao_cls):
-    """Java's documented subset: every column top-level and not an FK, no
-    child table, no phi column."""
+    """Java's documented subset: every column top-level and not an FK or an
+    embed's presence column, no child table, no phi column."""
     return (not getattr(dao_cls, "PHI_FIELDS", ()) and not dao_cls.CHILDREN
-            and all(len(c.path) == 1 and c.fk is None for c in dao_cls.COLUMNS))
+            and all(len(c.path) == 1 and c.fk is None and not c.presence
+                    for c in dao_cls.COLUMNS))
 
 
 def _fk_closure(side, name, seen=None):
@@ -519,7 +520,9 @@ def test_java_scope_is_asserted(sqlite_side):
             assert a.execute(info).fetchall() == b.execute(info).fetchall(), n
             continue
         reasons = []
-        nested = [c.name for c in dao_cls.COLUMNS if len(c.path) > 1 or c.fk]
+        # an embed's hidden presence column goes with the embed: not listed
+        nested = [c.name for c in dao_cls.COLUMNS
+                  if (len(c.path) > 1 or c.fk) and not c.presence]
         if nested:
             assert all(c in deferred for c in nested), (n, nested, deferred)
             reasons.append("embed/fk")
