@@ -260,4 +260,19 @@ class Message():
         return st
 
 
+def autokey_fk_error(messages):
+    """An `autokey` message can't be the target of a composed field: the
+    parent's create() hands its child over const, so the assigned key would
+    be lost and the parent's FK column left at 0. A generation error naming
+    both (decision 2026-11-01), or ``None``."""
+    autokey = {m.name for m in messages if getattr(m, "is_autokey", False)}
+    for m in messages:
+        if getattr(m, "isEnum", False):
+            continue
+        for v in (m.variables or []):
+            if v.type[0] == "ID" and v.type[1] in autokey:
+                return Error(errCl=Classes.MODIFIERS, errTp=Types.AUTOKEY_FK_TARGET,
+                             FileName="{}.{} -> {}".format(m.name, v.name, v.type[1]),
+                             FileLine="0", CharacterNumber="0")
+    return None
 

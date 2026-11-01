@@ -49,6 +49,7 @@ class Types(Enum):
     RESERVED_HIDDEN_FIELD_NAME = 42
     IMPORT_CYCLE = 43
     AUTOKEY_WITHOUT_TABLE = 44
+    AUTOKEY_FK_TARGET = 45
 
 class Classes(Enum):
     FOLDER_NOT_FOUND= 1

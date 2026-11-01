@@ -310,11 +310,10 @@ try:
     assert dao.create(a) and a.HARPIA_ID > 40, a
     got = ticket()
     assert dao.read(a.HARPIA_ID, got) and got.title == "new"
-    try:
-        dao.create(ticket(HARPIA_ID=7, title="x"))
-        raise SystemExit("a caller-set key was accepted")
-    except ValueError:
-        pass
+    preset = ticket(HARPIA_ID=500, title="x")
+    assert dao.create(preset) and preset.HARPIA_ID == 500
+    after = ticket(title="y")
+    assert dao.create(after) and after.HARPIA_ID > 500, after
     print("OK")
 finally:
     conn.rollback()

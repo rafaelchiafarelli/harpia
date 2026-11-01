@@ -564,7 +564,8 @@ def test_pg_read_by_unique(pg_generated, tmp_path):
 def test_pg_db_assigned_key(tmp_path):
     """dao-key-access / db-assigned-key task 2 on PostgreSQL: an identity
     key, written back; an existing caller-assigned table (rows up to key 40)
-    is migrated to an identity that continues past 40."""
+    is migrated to an identity that continues past 40; an explicit key is
+    honoured and the identity advances past it."""
     from UnitTests.test_stage8_db import _gen_autokey
     cpp_root, h = _gen_autokey(tmp_path, backend="postgresql")
     prog = tmp_path / "pg_autokey.cpp"
@@ -588,8 +589,10 @@ def test_pg_db_assigned_key(tmp_path):
         "    if (!dao.create(a) || a.harpia_id() <= 40) return 4;\n"
         "    ::ticket got;\n"
         '    if (!dao.read(a.harpia_id(), &got) || got.title() != "new") return 5;\n'
-        '    ::ticket preset; preset.set_harpia_id(7); preset.set_title("x");\n'
-        "    if (dao.create(preset)) return 6;\n"
+        '    ::ticket preset; preset.set_harpia_id(500); preset.set_title("x");\n'
+        "    if (!dao.create(preset) || preset.harpia_id() != 500) return 6;\n"
+        '    ::ticket after; after.set_title("y");\n'
+        "    if (!dao.create(after) || after.harpia_id() <= 500) return 7;\n"
         "    dao.drop_table();\n"
         "    return 0;\n"
         "}}\n".format(h=h))

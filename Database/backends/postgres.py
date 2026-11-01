@@ -131,6 +131,11 @@ class PostgresBackend(DbBackend):
     def drop_column_sql(self, table, name):
         return 'ALTER TABLE "{}" DROP COLUMN "{}";'.format(table, name)
 
+    def identity_advance_sql(self, table, column):
+        # an explicit key doesn't move the identity sequence
+        return ("SELECT setval(pg_get_serial_sequence('\"{t}\"', '{c}'), "
+                'GREATEST(MAX("{c}"), 1)) FROM "{t}";').format(t=table, c=column)
+
     def identity_migration(self, table, column):
         # an existing caller-assigned key becomes an identity, restarted past
         # the largest key already stored

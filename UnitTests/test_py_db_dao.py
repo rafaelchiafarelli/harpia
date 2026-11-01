@@ -429,23 +429,20 @@ assert dao.create(a) and dao.create(b)
 assert a.HARPIA_ID and b.HARPIA_ID and a.HARPIA_ID != b.HARPIA_ID, (a, b)
 got = ticket()
 assert dao.read(b.HARPIA_ID, got) and got.title == "second"
-try:
-    dao.create(ticket(HARPIA_ID=99, title="x"))
-    raise SystemExit("a caller-set key was accepted")
-except ValueError:
-    pass
+preset = ticket(HARPIA_ID=99, title="x")
+assert dao.create(preset) and preset.HARPIA_ID == 99
 assert migrate_ticket(conn) and migrate_ticket(conn)
 c = ticket(title="third")
-assert dao.create(c) and c.HARPIA_ID > b.HARPIA_ID
+assert dao.create(c) and c.HARPIA_ID > 99
 print("OK")
 '''
 
 
 def test_db_assigned_key(tmp_path):
     """dao-key-access / db-assigned-key task 3 (mirrors the C++ test): an
-    `autokey` table's create() leaves HARPIA_ID to the database and sets it
-    on the message, refuses a caller-set key (ValueError); own schema, run
-    in a subprocess so its harpia_generated doesn't clash with HarpiaTest's."""
+    `autokey` table's create() with key 0 leaves HARPIA_ID to the database
+    and sets it on the message; a set key is inserted as given; own schema,
+    run in a subprocess so its harpia_generated doesn't clash with HarpiaTest's."""
     import hashlib
     (tmp_path / "Include").mkdir()
     (tmp_path / "Include" / "ticket.harpia").write_text(
