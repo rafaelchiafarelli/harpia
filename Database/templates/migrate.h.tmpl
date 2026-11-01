@@ -95,8 +95,11 @@ inline bool migrate_{name}(::soci::session& db,
         }}
 
         // renames: old column name -> new, ahead of add/drop so they see the
-        // corrected column set. Idempotent: a no-op once the old name is gone
-        // (a second migrate_{name} call, or a table that never had it).
+        // corrected column set -- first a legacy hash-suffixed hidden column
+        // (ID_/STATUS_/ERROR_<md5>, ORIGINATOR[_<md5>]) to its HARPIA_* name,
+        // then each renamed_from[<old>] field. Idempotent: a no-op once the
+        // old name is gone (a second migrate_{name} call, or a table that
+        // never had it).
 {renames}
         // additive migration: add any column missing from an older table version
 {alters}

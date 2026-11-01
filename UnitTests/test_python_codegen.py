@@ -48,10 +48,10 @@ HAVE_CPP = (HAVE_PY_PROTOC and shutil.which("g++") is not None
 
 # shipment_Message (service proto, package frameworkProtos) -> shipment ->
 # repeated parcel: crosses three files' imports, strings, ints, repeats.
-TEXT = ('msg {{ ID_{h}: 7 tag: "box-1" '
-        'cargo {{ ID_{h}: 1 label: "a" weight: 3 }} '
-        'cargo {{ ID_{h}: 2 label: "b\\303\\251" weight: -4 ORIGINATOR: "o" }} '
-        'ORIGINATOR: "edge" }}').format(h=HASH)
+TEXT = ('msg {{ HARPIA_ID: 7 tag: "box-1" '
+        'cargo {{ HARPIA_ID: 1 label: "a" weight: 3 }} '
+        'cargo {{ HARPIA_ID: 2 label: "b\\303\\251" weight: -4 HARPIA_ORIGINATOR: "o" }} '
+        'HARPIA_ORIGINATOR: "edge" }}').format(h=HASH)
 
 
 @pytest.fixture(scope="module")

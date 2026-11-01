@@ -47,7 +47,7 @@ def test_junit_test_class_generated_for_users(tmp_path):
     for method in ("fieldsSurviveSetterGetter", "jsonRoundTrip",
                    "xmlRoundTrip", "dbCrudlRoundTrip"):
         assert method in text
-    assert 'PK_FIELD = "ID_{}"'.format(HASH) in text
+    assert 'PK_FIELD = "HARPIA_ID"' in text
 
 
 def test_junit_uses_reflection_not_typed_accessors(tmp_path):

@@ -95,9 +95,55 @@ inline bool migrate_alarm_event(::soci::session& db,
         }
 
         // renames: old column name -> new, ahead of add/drop so they see the
-        // corrected column set. Idempotent: a no-op once the old name is gone
-        // (a second migrate_alarm_event call, or a table that never had it).
-
+        // corrected column set -- first a legacy hash-suffixed hidden column
+        // (ID_/STATUS_/ERROR_<md5>, ORIGINATOR[_<md5>]) to its HARPIA_* name,
+        // then each renamed_from[<old>] field. Idempotent: a no-op once the
+        // old name is gone (a second migrate_alarm_event call, or a table that
+        // never had it).
+        auto _harpia_legacy = [](const std::string& n, const std::string& p,
+                                 bool bare_ok) {
+            if (bare_ok && n + "_" == p) return true;
+            if (n.size() != p.size() + 32 || n.compare(0, p.size(), p) != 0) return false;
+            for (std::size_t i = p.size(); i < n.size(); ++i)
+                if (!((n[i] >= '0' && n[i] <= '9') || (n[i] >= 'a' && n[i] <= 'f'))) return false;
+            return true;
+        };
+        if (!have.count("HARPIA_ID")) {
+            for (const auto& _lc : have) {
+                if (!_harpia_legacy(_lc, "ID_", false)) continue;
+                const std::string _lo = _lc;
+                db << "ALTER TABLE \"alarm_event_table\" RENAME COLUMN \"" + _lo + "\" TO \"HARPIA_ID\";";
+                have.erase(_lo); have.insert("HARPIA_ID");
+                break;
+            }
+        }
+        if (!have.count("HARPIA_STATUS")) {
+            for (const auto& _lc : have) {
+                if (!_harpia_legacy(_lc, "STATUS_", false)) continue;
+                const std::string _lo = _lc;
+                db << "ALTER TABLE \"alarm_event_table\" RENAME COLUMN \"" + _lo + "\" TO \"HARPIA_STATUS\";";
+                have.erase(_lo); have.insert("HARPIA_STATUS");
+                break;
+            }
+        }
+        if (!have.count("HARPIA_ERROR")) {
+            for (const auto& _lc : have) {
+                if (!_harpia_legacy(_lc, "ERROR_", false)) continue;
+                const std::string _lo = _lc;
+                db << "ALTER TABLE \"alarm_event_table\" RENAME COLUMN \"" + _lo + "\" TO \"HARPIA_ERROR\";";
+                have.erase(_lo); have.insert("HARPIA_ERROR");
+                break;
+            }
+        }
+        if (!have.count("HARPIA_ORIGINATOR")) {
+            for (const auto& _lc : have) {
+                if (!_harpia_legacy(_lc, "ORIGINATOR_", true)) continue;
+                const std::string _lo = _lc;
+                db << "ALTER TABLE \"alarm_event_table\" RENAME COLUMN \"" + _lo + "\" TO \"HARPIA_ORIGINATOR\";";
+                have.erase(_lo); have.insert("HARPIA_ORIGINATOR");
+                break;
+            }
+        }
         // additive migration: add any column missing from an older table version
         if (!have.count("patient_id")) {
             db << "ALTER TABLE \"alarm_event_table\" ADD COLUMN \"patient_id\" TEXT;";
@@ -108,14 +154,14 @@ inline bool migrate_alarm_event(::soci::session& db,
         if (!have.count("severity")) {
             db << "ALTER TABLE \"alarm_event_table\" ADD COLUMN \"severity\" INTEGER;";
         }
-        if (!have.count("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7")) {
-            db << "ALTER TABLE \"alarm_event_table\" ADD COLUMN \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT;";
+        if (!have.count("HARPIA_STATUS")) {
+            db << "ALTER TABLE \"alarm_event_table\" ADD COLUMN \"HARPIA_STATUS\" TEXT;";
         }
-        if (!have.count("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7")) {
-            db << "ALTER TABLE \"alarm_event_table\" ADD COLUMN \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT;";
+        if (!have.count("HARPIA_ERROR")) {
+            db << "ALTER TABLE \"alarm_event_table\" ADD COLUMN \"HARPIA_ERROR\" TEXT;";
         }
-        if (!have.count("ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7")) {
-            db << "ALTER TABLE \"alarm_event_table\" ADD COLUMN \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT;";
+        if (!have.count("HARPIA_ORIGINATOR")) {
+            db << "ALTER TABLE \"alarm_event_table\" ADD COLUMN \"HARPIA_ORIGINATOR\" TEXT;";
         }
         // caller-supplied cross-version data transform (see the header
         // comment above for why this runs here: after add, before drop).
@@ -124,7 +170,7 @@ inline bool migrate_alarm_event(::soci::session& db,
         // non-additive: drop any live column the current schema no longer
         // declares (see the header comment above for the implicit-diff caveat)
         {
-            static const std::set<std::string> _current = { "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "patient_id", "alarm_type", "severity", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7" };
+            static const std::set<std::string> _current = { "HARPIA_ID", "patient_id", "alarm_type", "severity", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" };
             for (auto _hit = have.begin(); _hit != have.end(); ) {
                 if (!_current.count(*_hit)) {
                     const std::string& _dc = *_hit;
@@ -153,16 +199,16 @@ inline bool migrate_alarm_event(::soci::session& db,
         // current schema to the current type (see the header comment above)
         {
         bool _needs_retype = false;
-            if (have_types.count("ID_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["ID_3ac5d8b36fc7dcfb70888145147ddfb7"] != "INTEGER") _needs_retype = true;
+            if (have_types.count("HARPIA_ID") && have_types["HARPIA_ID"] != "INTEGER") _needs_retype = true;
             if (have_types.count("patient_id") && have_types["patient_id"] != "TEXT") _needs_retype = true;
             if (have_types.count("alarm_type") && have_types["alarm_type"] != "TEXT") _needs_retype = true;
             if (have_types.count("severity") && have_types["severity"] != "INTEGER") _needs_retype = true;
-            if (have_types.count("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["STATUS_3ac5d8b36fc7dcfb70888145147ddfb7"] != "TEXT") _needs_retype = true;
-            if (have_types.count("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["ERROR_3ac5d8b36fc7dcfb70888145147ddfb7"] != "TEXT") _needs_retype = true;
-            if (have_types.count("ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7") && have_types["ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7"] != "TEXT") _needs_retype = true;
+            if (have_types.count("HARPIA_STATUS") && have_types["HARPIA_STATUS"] != "TEXT") _needs_retype = true;
+            if (have_types.count("HARPIA_ERROR") && have_types["HARPIA_ERROR"] != "TEXT") _needs_retype = true;
+            if (have_types.count("HARPIA_ORIGINATOR") && have_types["HARPIA_ORIGINATOR"] != "TEXT") _needs_retype = true;
         if (_needs_retype) {
-            db << "CREATE TABLE \"alarm_event_table__retype_tmp\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"patient_id\" TEXT, \"alarm_type\" TEXT, \"severity\" INTEGER, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT);";
-            db << "INSERT INTO \"alarm_event_table__retype_tmp\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"patient_id\", \"alarm_type\", \"severity\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\") SELECT CAST(\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" AS INTEGER), CAST(\"patient_id\" AS TEXT), CAST(\"alarm_type\" AS TEXT), CAST(\"severity\" AS INTEGER), CAST(\"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" AS TEXT), CAST(\"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" AS TEXT), CAST(\"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" AS TEXT) FROM \"alarm_event_table\";";
+            db << "CREATE TABLE \"alarm_event_table__retype_tmp\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"patient_id\" TEXT, \"alarm_type\" TEXT, \"severity\" INTEGER, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
+            db << "INSERT INTO \"alarm_event_table__retype_tmp\" (\"HARPIA_ID\", \"patient_id\", \"alarm_type\", \"severity\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") SELECT CAST(\"HARPIA_ID\" AS INTEGER), CAST(\"patient_id\" AS TEXT), CAST(\"alarm_type\" AS TEXT), CAST(\"severity\" AS INTEGER), CAST(\"HARPIA_STATUS\" AS TEXT), CAST(\"HARPIA_ERROR\" AS TEXT), CAST(\"HARPIA_ORIGINATOR\" AS TEXT) FROM \"alarm_event_table\";";
             db << "DROP TABLE \"alarm_event_table\";";
             db << "ALTER TABLE \"alarm_event_table__retype_tmp\" RENAME TO \"alarm_event_table\";";
         }

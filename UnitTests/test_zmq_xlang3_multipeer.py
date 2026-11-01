@@ -7,7 +7,7 @@ loadbalance.py`` (C++ + Java) with Python processes, same orchestration
 
 - PUB/SUB fan-out (``pump_tick``): the publisher rotates C++ / Python; one C++,
   one Java and one Python subscriber all receive 1..N in order and decode the
-  same stamped ``ORIGINATOR_<hash>`` (= ``ZmqAdapter._origin_id``);
+  same stamped ``HARPIA_ORIGINATOR`` (= ``ZmqAdapter._origin_id``);
 - PUSH/PULL load-balance (``courier``): a C++ pusher (seq 1..N) **and** a
   Python pusher (N+1..2N) at once, into a C++, a Java and a Python puller:
   every sequence delivered exactly once in total, every puller used;
@@ -107,7 +107,7 @@ int main(int argc, char** argv) {
         for (int i = 1; i <= n; ++i) {
             ::pump_tick in;
             if (!sub.receive(&in)) { std::printf("ERROR timeout %d\n", i); return 2; }
-            if (i == 1) std::printf("ORIGIN:%s\n", in.originator_@H@().c_str());
+            if (i == 1) std::printf("ORIGIN:%s\n", in.harpia_originator().c_str());
             if (in.sequence() != i || in.rate_mhz() != 1000 + i) { std::printf("ERROR seq\n"); return 3; }
         }
         std::printf("OK\n");
@@ -197,7 +197,7 @@ elif mode == "sub":
         if m is None:
             print("ERROR timeout", i); sys.exit(2)
         if i == 1:
-            print("ORIGIN:" + getattr(m, "ORIGINATOR_" + h))
+            print("ORIGIN:" + m.HARPIA_ORIGINATOR)
         if m.sequence != i or m.rate_mhz != 1000 + i:
             print("ERROR seq"); sys.exit(3)
     print("OK")

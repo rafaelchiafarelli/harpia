@@ -102,7 +102,7 @@ public:
     const std::string& origin() const { return origin_; }
     bool send(const ::courier& msg) {
         ::courier stamped = msg;
-        stamped.set_originator(origin_);
+        stamped.set_harpia_originator(origin_);
         std::string bytes;
         if (!stamped.SerializeToString(&bytes)) return false;
         ::zmq::message_t frame(bytes.size());

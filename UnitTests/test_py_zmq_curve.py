@@ -37,7 +37,7 @@ pytestmark = pytest.mark.skipif(not P.HAVE_PY or not P._importable("zmq"),
                                 reason=P.SKIP_PY + " + pyzmq")
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 
 
 @pytest.fixture(scope="module")
@@ -229,7 +229,7 @@ int main(int, char** argv) {
     std::printf("READY\n"); std::fflush(stdout);
     ::courier c;
     if (!r.recv(&c)) return 4;
-    return c.id_%(h)s() == 5 ? 0 : 5;
+    return c.harpia_id() == 5 ? 0 : 5;
 }
 '''
 

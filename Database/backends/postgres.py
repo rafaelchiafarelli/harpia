@@ -319,7 +319,7 @@ if __name__ == "__main__":
     b = PostgresBackend()
     print("# backend:", b, "soci_backend_symbol:", b.soci_backend_symbol)
     print(b.create_table("devices", [
-        ("ID_abc", b.column_def(b.sql_type("INT32"), pk=True)),
+        ("HARPIA_ID", b.column_def(b.sql_type("INT32"), pk=True)),
         ("devname", b.column_def(b.sql_type("STRING"), required=True)),
         ("weight", b.column_def(b.sql_type("FLOAT"))),
     ]))
@@ -330,7 +330,7 @@ if __name__ == "__main__":
     print(b.stamp_version("devices", "c96f8fd7"))
     print(b.list_column_types_sql("devices"))
     print(b.retype_column_dynamic("devices", [
-        ("ID_abc", b.int_type, b.column_def(b.int_type, pk=True)),
+        ("HARPIA_ID", b.int_type, b.column_def(b.int_type, pk=True)),
         ("weight", b.sql_type("FLOAT"), b.column_def(b.sql_type("FLOAT"))),
     ]))
     print(b.list_tables_sql("devices"))

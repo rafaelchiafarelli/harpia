@@ -91,7 +91,7 @@ def test_rest_http_crud(built):
             "    if (!na || na.status != 401) {{ app.stop(); fut.get(); return 10; }}\n"
             '    cli.set_default_headers({{{{"X-User", "users"}}, {{"X-Pswd", "{h}"}}}});\n'
             "    auto run = [&]() -> int {{\n"
-            "        ::users a; a.set_id_{h}(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
+            "        ::users a; a.set_harpia_id(1); a.set_name(\"neo\"); a.set_address(\"matrix\");\n"
             "        std::string body; ::harpia::json::to_json(a, &body);\n"
             '        auto post = cli.Post("/api/v1/users", body, "application/json");\n'
             "        if (!post || post.status != 201) return 3;\n"
@@ -158,7 +158,7 @@ def test_rest_list_pagination(built):
             '    cli.set_default_headers({{{{"X-User", "users"}}, {{"X-Pswd", "{h}"}}}});\n'
             "    auto run = [&]() -> int {{\n"
             "        for (int i = 1; i <= 5; ++i) {{\n"
-            "            ::users u; u.set_id_{h}(i); u.set_name(\"n\" + std::to_string(i));\n"
+            "            ::users u; u.set_harpia_id(i); u.set_name(\"n\" + std::to_string(i));\n"
             "            std::string body; ::harpia::json::to_json(u, &body);\n"
             '            auto post = cli.Post("/api/v1/users", body, "application/json");\n'
             "            if (!post || post.status != 201) return 3;\n"

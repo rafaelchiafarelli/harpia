@@ -142,6 +142,30 @@ def test_hidden_fields_survive_a_hash_change(tmp_path):
     assert reserved == set()
 
 
+def test_fixed_hidden_names_keep_legacy_sidecar_numbers(tmp_path):
+    """stable-hidden-names-DEFECT: a sidecar written before the fix names the
+    hidden fields ID_<md5>/STATUS_<md5>/ERROR_<md5>/ORIGINATOR; the next
+    generation's HARPIA_* fields inherit their numbers, nothing is retired."""
+    harpiaFile = str(tmp_path / "root.harpia")
+    gen1 = [_var("ID_aaa"), _var("a"), _var("STATUS_aaa"),
+            _var("ERROR_aaa"), _var("ORIGINATOR")]
+    assert freeze(gen1, harpiaFile, "msg") is None
+    nums1 = _numbers(gen1)
+
+    gen2 = [_var("HARPIA_ID"), _var("a"), _var("HARPIA_STATUS"),
+            _var("HARPIA_ERROR"), _var("HARPIA_ORIGINATOR")]
+    assert freeze(gen2, harpiaFile, "msg") is None
+    nums2 = _numbers(gen2)
+
+    assert nums2["HARPIA_ID"] == nums1["ID_aaa"]
+    assert nums2["a"] == nums1["a"]
+    assert nums2["HARPIA_STATUS"] == nums1["STATUS_aaa"]
+    assert nums2["HARPIA_ERROR"] == nums1["ERROR_aaa"]
+    assert nums2["HARPIA_ORIGINATOR"] == nums1["ORIGINATOR"]
+    _, reserved = _load(registry_path(harpiaFile, "msg"))
+    assert reserved == set()
+
+
 def test_reserved_number_reuse_is_a_hard_error(tmp_path):
     """A hand-tampered (or otherwise corrupted) sidecar that declares a name
     at a number also listed as reserved must hard-error, not silently let a

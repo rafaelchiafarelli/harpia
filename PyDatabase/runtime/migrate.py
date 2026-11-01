@@ -10,7 +10,9 @@ calls :func:`migrate`. The steps run in the C++ order:
 2. list the live ``<table>__*`` child tables and apply child-table renames
    (``renamed_from`` on a repeated/map field) before anything is created;
 3. ensure the table and its child tables exist;
-4. RENAME ``renamed_from`` columns, correcting the introspected column set;
+4. RENAME a legacy hash-suffixed hidden column (``ID_<md5>`` & co., from a
+   generation before stable-hidden-names-DEFECT) to its ``HARPIA_*`` name,
+   then the ``renamed_from`` columns, correcting the introspected column set;
 5. ADD missing non-key columns;
 6. call ``data_transform(conn)`` -- after ADD (new destination columns
    exist) and before DROP (retiring source columns are still readable),
@@ -52,6 +54,9 @@ class MigrationSpec:
     #: ``(old, new, sql)`` child-table renames
     child_renames: tuple[tuple[str, str, str], ...]
     list_columns_sql: str
+    #: ``(new, legacy prefix, bare_ok, sql)`` legacy hidden-column renames;
+    #: ``sql`` has ``<<NAME>>`` for the live legacy column
+    hidden_renames: tuple[tuple[str, str, bool, str], ...]
     #: ``(old, new, sql)`` column renames
     renames: tuple[tuple[str, str, str], ...]
     #: ``(column, sql)`` additive ALTERs (non-key columns)
@@ -72,6 +77,16 @@ class MigrationSpec:
 def _names(cur: Any, sql: str) -> set[str]:
     cur.execute(sql)
     return {row[0] for row in cur.fetchall() if row[0] is not None}
+
+
+def _is_legacy(name: str, prefix: str, bare_ok: bool) -> bool:
+    """``<prefix><32 lower-case hex digits>``, or the bare name when allowed
+    (the C++ migration's ``_harpia_legacy``)."""
+    if bare_ok and name + "_" == prefix:
+        return True
+    suffix = name[len(prefix):]
+    return (name.startswith(prefix) and len(suffix) == 32
+            and all(c in "0123456789abcdef" for c in suffix))
 
 
 def _types(cur: Any, sql: str) -> dict[str, str]:
@@ -127,6 +142,15 @@ def migrate(conn: Connection, spec: MigrationSpec, dao: type[Dao[Any]],
         for sql in dao.CREATE_TABLE_SQL:
             cur.execute(sql)
         have = _names(cur, spec.list_columns_sql)
+        for new, prefix, bare_ok, sql in spec.hidden_renames:
+            if new in have:
+                continue
+            legacy = next(
+                (c for c in sorted(have) if _is_legacy(c, prefix, bare_ok)), None)
+            if legacy is not None:
+                cur.execute(sql.replace(_NAME, legacy))
+                have.discard(legacy)
+                have.add(new)
         for old, new, sql in spec.renames:
             if old in have and new not in have:
                 cur.execute(sql)

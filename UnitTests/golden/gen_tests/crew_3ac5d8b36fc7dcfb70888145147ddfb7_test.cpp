@@ -37,16 +37,16 @@ namespace {
 
 int simple_access() {
     ::crew m;
-    m.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    m.set_harpia_id(1);
     m.set_name("name_a");
-    m.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    m.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    m.set_originator("originator_a");
-    if (m.id_3ac5d8b36fc7dcfb70888145147ddfb7() != 1) return 10;
+    m.set_harpia_status("harpia_status_a");
+    m.set_harpia_error("harpia_error_a");
+    m.set_harpia_originator("harpia_originator_a");
+    if (m.harpia_id() != 1) return 10;
     if (m.name() != "name_a") return 11;
-    if (m.status_3ac5d8b36fc7dcfb70888145147ddfb7() != "status_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 12;
-    if (m.error_3ac5d8b36fc7dcfb70888145147ddfb7() != "error_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 13;
-    if (m.originator() != "originator_a") return 14;
+    if (m.harpia_status() != "harpia_status_a") return 12;
+    if (m.harpia_error() != "harpia_error_a") return 13;
+    if (m.harpia_originator() != "harpia_originator_a") return 14;
     return 0;
 }
 
@@ -57,18 +57,18 @@ int database_roundtrip() {
 
     // create + read back row 1
     ::crew a;
-    a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    a.set_harpia_id(1);
     a.set_name("name_a");
-    a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_originator("originator_a");
+    a.set_harpia_status("harpia_status_a");
+    a.set_harpia_error("harpia_error_a");
+    a.set_harpia_originator("harpia_originator_a");
     if (!dao.create(a)) return 22;
     ::crew got;
     if (!dao.read(1, &got)) return 23;
     if (got.name() != "name_a") return 24;
-    if (got.status_3ac5d8b36fc7dcfb70888145147ddfb7() != "status_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 24;
-    if (got.error_3ac5d8b36fc7dcfb70888145147ddfb7() != "error_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 24;
-    if (got.originator() != "originator_a") return 24;
+    if (got.harpia_status() != "harpia_status_a") return 24;
+    if (got.harpia_error() != "harpia_error_a") return 24;
+    if (got.harpia_originator() != "harpia_originator_a") return 24;
 
     // update an existing row
     ::crew upd = a;
@@ -80,11 +80,11 @@ int database_roundtrip() {
 
     // a second row, then list + delete
     ::crew b;
-    b.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(2);
+    b.set_harpia_id(2);
     b.set_name("name_b");
-    b.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_b");
-    b.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_b");
-    b.set_originator("originator_b");
+    b.set_harpia_status("harpia_status_b");
+    b.set_harpia_error("harpia_error_b");
+    b.set_harpia_originator("harpia_originator_b");
     if (!dao.create(b)) return 28;
     std::vector<::crew> all;
     if (!dao.list(&all) || all.size() != 2) return 29;
@@ -115,39 +115,39 @@ int access_modifiers() {
     harpia::db::crew_dao dao(db);
     if (!dao.create_table()) return 41;
     ::crew a;
-    a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    a.set_harpia_id(1);
     a.set_name("name_a");
-    a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_originator("originator_a");
+    a.set_harpia_status("harpia_status_a");
+    a.set_harpia_error("harpia_error_a");
+    a.set_harpia_originator("harpia_originator_a");
     if (!dao.create(a)) return 42;
     // PRIMARY KEY is unique: a duplicate key must be rejected
     ::crew dup;
-    dup.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    dup.set_harpia_id(1);
     dup.set_name("name_b");
-    dup.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_b");
-    dup.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_b");
-    dup.set_originator("originator_b");
+    dup.set_harpia_status("harpia_status_b");
+    dup.set_harpia_error("harpia_error_b");
+    dup.set_harpia_originator("harpia_originator_b");
     if (dao.create(dup)) return 43;
     return 0;
 }
 
 int json_parser() {
     ::crew a;
-    a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    a.set_harpia_id(1);
     a.set_name("name_a");
-    a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_originator("originator_a");
+    a.set_harpia_status("harpia_status_a");
+    a.set_harpia_error("harpia_error_a");
+    a.set_harpia_originator("harpia_originator_a");
     std::string js;
     if (!harpia::json::to_json(a, &js)) return 60;
     ::crew b;
     if (!harpia::json::from_json(js, &b)) return 61;
-    if (b.id_3ac5d8b36fc7dcfb70888145147ddfb7() != 1) return 62;
+    if (b.harpia_id() != 1) return 62;
     if (b.name() != "name_a") return 62;
-    if (b.status_3ac5d8b36fc7dcfb70888145147ddfb7() != "status_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 62;
-    if (b.error_3ac5d8b36fc7dcfb70888145147ddfb7() != "error_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 62;
-    if (b.originator() != "originator_a") return 62;
+    if (b.harpia_status() != "harpia_status_a") return 62;
+    if (b.harpia_error() != "harpia_error_a") return 62;
+    if (b.harpia_originator() != "harpia_originator_a") return 62;
     if (!harpia::json::is_valid_json(js)) return 63;
     if (harpia::json::is_valid_json("this is not json")) return 64;
     return 0;
@@ -155,20 +155,20 @@ int json_parser() {
 
 int xml_parser() {
     ::crew a;
-    a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    a.set_harpia_id(1);
     a.set_name("name_a");
-    a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_originator("originator_a");
+    a.set_harpia_status("harpia_status_a");
+    a.set_harpia_error("harpia_error_a");
+    a.set_harpia_originator("harpia_originator_a");
     const std::string xs = ::harpia::xml::to_xml(a);
     if (xs.empty()) return 70;
     ::crew b;
     if (!::harpia::xml::from_xml(xs, &b)) return 71;
-    if (b.id_3ac5d8b36fc7dcfb70888145147ddfb7() != 1) return 72;
+    if (b.harpia_id() != 1) return 72;
     if (b.name() != "name_a") return 72;
-    if (b.status_3ac5d8b36fc7dcfb70888145147ddfb7() != "status_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 72;
-    if (b.error_3ac5d8b36fc7dcfb70888145147ddfb7() != "error_3ac5d8b36fc7dcfb70888145147ddfb7_a") return 72;
-    if (b.originator() != "originator_a") return 72;
+    if (b.harpia_status() != "harpia_status_a") return 72;
+    if (b.harpia_error() != "harpia_error_a") return 72;
+    if (b.harpia_originator() != "harpia_originator_a") return 72;
     ::crew c;
     if (::harpia::xml::from_xml("not xml at all", &c)) return 73;
     return 0;
