@@ -30,7 +30,7 @@ sys.path.insert(0, _REPO_ROOT)
 os.chdir(_REPO_ROOT)
 
 from LexicalAnalizer.LexicalAnalyzer import LexicalAnalyzer
-from LexicalAnalizer.pre_lex import pre_lex
+from LexicalAnalizer.pre_lex import pre_lex, resolve_imports
 from LexicalAnalizer.MessageCreator import MessageCreator
 from ProtoFile.FileCreator import FileCreator
 from JsonAdapter.JsonAdapter import JsonAdapter
@@ -100,7 +100,13 @@ def run(output_dir):
     if pre_result is not None:
         raise SystemExit("pre_lex error: {}".format(pre_result))
 
-    list_of_includes = root_file.getListOfHarpias()
+    # transitive closure of the imports, each once (as main.py)
+    list_of_includes, import_error = resolve_imports(
+        root_file.getListOfHarpias(),
+        lambda inc: pre_lex(folders=[local_folder], file=inc, dest=build_dir,
+                            includeFolder=include_folder, compliance=compliance))
+    if import_error is not None:
+        raise SystemExit("pre_lex error: {}".format(import_error))
 
     # 1. lexical analysis of the main file
     main_lex = _mark("LexicalAnalyzer(main)", LexicalAnalyzer(compliance=compliance))
