@@ -471,3 +471,51 @@ def test_pg_list_pages_are_stable(pg_generated, tmp_path):
     run = subprocess.run([binary], capture_output=True, text=True, timeout=60)
     assert run.returncode == 0, "PG list order failed at check #{}\n{}".format(
         run.returncode, run.stdout + run.stderr)
+
+
+def test_pg_optional_presence_round_trip(pg_generated, tmp_path):
+    """db-optional-presence-DEFECT task 1, PostgreSQL twin of
+    test_stage8_db.py::test_optional_presence_round_trip: unset optional ->
+    NULL -> absent; set to its default -> stored -> present; top level
+    (data.j) and embedded flat column (data.val.val)."""
+    cpp_root = pg_generated
+    prog = tmp_path / "pg_optional_presence.cpp"
+    prog.write_text(
+        '#include "db/data_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/postgresql/soci-postgresql.h>\n"
+        "#include <cstdlib>\n#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::postgresql, std::getenv("HARPIA_PG_DSN"));\n'
+        "    ::harpia::db::data_dao dd(db);\n"
+        "    dd.drop_table();\n"
+        "    if (!dd.create_table()) return 2;\n"
+        "    ::data d1; d1.set_harpia_id(1); d1.set_i(4); d1.mutable_val()->set_var(1);\n"
+        "    ::data d2; d2.set_harpia_id(2); d2.set_j(0); d2.mutable_val()->set_val(0);\n"
+        "    if (!dd.create(d1) || !dd.create(d2)) return 3;\n"
+        "    int n = -1; ::soci::indicator ni;\n"
+        '    db << "SELECT count(*) FROM \\"table_data\\" WHERE \\"j\\" IS NULL AND \\"val_val\\" IS NULL", ::soci::into(n, ni);\n'
+        "    if (n != 1) return 4;\n"
+        "    ::data g1, g2;\n"
+        "    if (!dd.read(1, &g1) || !dd.read(2, &g2)) return 5;\n"
+        "    if (g1.has_j() || g1.val().has_val()) return 6;\n"
+        "    if (!g2.has_j() || !g2.val().has_val()) return 7;\n"
+        "    dd.drop_table();\n"
+        "    return 0;\n"
+        "}}\n".format(h=HASH))
+
+    pg_inc = subprocess.run(["pg_config", "--includedir"],
+                            capture_output=True, text=True).stdout.strip()
+    objs = [os.path.join(cpp_root, "protofiles", "{}_{}.pb.cc".format(m, HASH))
+            for m in ("data", "prince", "grower")]
+    binary = str(tmp_path / "pg_optional_presence")
+    c = subprocess.run(
+        ["g++", "-std=c++17", "-I", cpp_root, "-I", pg_inc,
+         *_pkgconfig("--cflags"), str(prog), *objs, "-o", binary,
+         "-lsoci_core", "-lsoci_postgresql",
+         *_pkgconfig("--libs"), "-lpthread", "-ldl"],
+        capture_output=True, text=True, timeout=180)
+    assert c.returncode == 0, "PG presence program failed to build:\n" + c.stderr
+    run = subprocess.run([binary], capture_output=True, text=True, timeout=30)
+    assert run.returncode == 0, "PG presence round trip failed at check #{}\n{}".format(
+        run.returncode, run.stdout + run.stderr)

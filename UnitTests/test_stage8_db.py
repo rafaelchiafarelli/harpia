@@ -529,6 +529,113 @@ def _compile_run(tmp_path, cpp_root, name, source, pb_ccs):
         name, run.returncode)
 
 
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="presence round-trip needs protoc + protobuf")
+def test_optional_presence_round_trip(generated, sqlite_obj, tmp_path):
+    """db-optional-presence-DEFECT task 1: an unset `optional` field is
+    stored as NULL and reads back absent; one set to its default (0 / "")
+    is stored and reads back present. Top level (patient_vitals.device_note,
+    data.j) and embedded flat column (data.val.val -> "val_val"); update
+    clearing a field writes NULL."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    pb = [os.path.join(cpp_root, "protofiles", "{}_{}.pb.cc".format(n, HASH))
+          for n in ("patient_vitals", "data", "prince", "grower")]
+    _compile_run(tmp_path, cpp_root, "optional_presence", (
+        '#include "db/patient_vitals_{h}_crudl.h"\n'
+        '#include "db/data_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    auto is_null = [&db](const char* sql) {{\n"
+        "        std::string v; ::soci::indicator ind = ::soci::i_ok;\n"
+        "        db << sql, ::soci::into(v, ind);\n"
+        "        return ind == ::soci::i_null;\n"
+        "    }};\n"
+        "    ::harpia::db::patient_vitals_dao pv(db);\n"
+        "    if (!pv.create_table()) return 2;\n"
+        '    ::patient_vitals a; a.set_harpia_id(1); a.set_patient_id("p1");\n'
+        '    ::patient_vitals b; b.set_harpia_id(2); b.set_patient_id("p2"); b.set_device_note("");\n'
+        "    if (!pv.create(a) || !pv.create(b)) return 3;\n"
+        '    if (!is_null("SELECT \\"device_note\\" FROM \\"patient_vitals_table\\" WHERE \\"HARPIA_ID\\" = 1")) return 4;\n'
+        '    if (is_null("SELECT \\"device_note\\" FROM \\"patient_vitals_table\\" WHERE \\"HARPIA_ID\\" = 2")) return 5;\n'
+        "    ::patient_vitals ga, gb;\n"
+        "    if (!pv.read(1, &ga) || !pv.read(2, &gb)) return 6;\n"
+        "    if (ga.has_device_note()) return 7;\n"
+        '    if (!gb.has_device_note() || gb.device_note() != "") return 8;\n'
+        "    ::harpia::db::data_dao dd(db);\n"
+        "    if (!dd.create_table()) return 9;\n"
+        "    ::data d1; d1.set_harpia_id(1); d1.set_i(4); d1.mutable_val()->set_var(1);\n"
+        "    ::data d2; d2.set_harpia_id(2); d2.set_j(0); d2.mutable_val()->set_val(0);\n"
+        "    if (!dd.create(d1) || !dd.create(d2)) return 10;\n"
+        '    if (!is_null("SELECT \\"j\\" FROM \\"table_data\\" WHERE \\"HARPIA_ID\\" = 1")) return 11;\n'
+        '    if (!is_null("SELECT \\"val_val\\" FROM \\"table_data\\" WHERE \\"HARPIA_ID\\" = 1")) return 12;\n'
+        '    if (is_null("SELECT \\"j\\" FROM \\"table_data\\" WHERE \\"HARPIA_ID\\" = 2")) return 13;\n'
+        "    ::data g1, g2;\n"
+        "    if (!dd.read(1, &g1) || !dd.read(2, &g2)) return 14;\n"
+        "    if (g1.has_j() || g1.val().has_val()) return 15;\n"
+        "    if (g1.val().var() != 1) return 16;\n"
+        "    if (!g2.has_j() || g2.j() != 0 || !g2.val().has_val()) return 17;\n"
+        "    g2.clear_j();\n"
+        "    if (!dd.update(g2)) return 18;\n"
+        "    ::data g3;\n"
+        "    if (!dd.read(2, &g3) || g3.has_j()) return 19;\n"
+        '    if (!is_null("SELECT \\"j\\" FROM \\"table_data\\" WHERE \\"HARPIA_ID\\" = 2")) return 20;\n'
+        "    return 0;\n"
+        "}}\n").format(h=HASH), pb)
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="phi presence round-trip needs protoc + protobuf")
+def test_unset_phi_optional_is_null(tmp_path):
+    """db-optional-presence-DEFECT task 1 (decision 2026-10-31): an unset
+    `phi optional` field stores NULL -- no ciphertext -- and reads back
+    absent; a set one is encrypted and reads back present. Own tiny schema
+    (no fixture message has a phi optional)."""
+    import hashlib
+    root = tmp_path / "root.harpia"
+    (tmp_path / "Include").mkdir()
+    (tmp_path / "Include" / "chart.harpia").write_text(
+        "message chart {\n    required string mrn;\n    phi optional string remark;\n"
+        "} chart_table;\n")
+    root.write_text('import "chart.harpia";\n')
+    out = tmp_path / "gen"
+    env = dict(os.environ, HARPIA_OUTPUT_DIR=str(out), HARPIA_INPUT_FILE=str(root),
+               HARPIA_INCLUDE_FOLDER=str(tmp_path / "Include"))
+    env.pop("HARPIA_GEN_LANG", None)
+    r = subprocess.run([sys.executable, "main.py"], cwd=REPO_ROOT, env=env,
+                       capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
+    h = hashlib.md5(root.read_bytes()).hexdigest()
+    cpp_root = str(out / "generated" / "cpp")
+    _compile_run(tmp_path, cpp_root, "phi_optional", (
+        '#include "db/chart_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    ::harpia::db::chart_dao dao(db);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        '    ::chart a; a.set_harpia_id(1); a.set_mrn("m1");\n'
+        '    ::chart b; b.set_harpia_id(2); b.set_mrn("m2"); b.set_remark("secret");\n'
+        "    if (!dao.create(a) || !dao.create(b)) return 3;\n"
+        "    std::string v; ::soci::indicator ind = ::soci::i_ok;\n"
+        '    db << "SELECT \\"remark\\" FROM \\"chart_table\\" WHERE \\"HARPIA_ID\\" = 1", ::soci::into(v, ind);\n'
+        "    if (ind != ::soci::i_null) return 4;\n"
+        '    db << "SELECT \\"remark\\" FROM \\"chart_table\\" WHERE \\"HARPIA_ID\\" = 2", ::soci::into(v, ind);\n'
+        '    if (ind != ::soci::i_ok || v.rfind("enc:v1:", 0) != 0) return 5;\n'
+        "    ::chart ga, gb;\n"
+        "    if (!dao.read(1, &ga) || ga.has_remark()) return 6;\n"
+        '    if (!dao.read(2, &gb) || !gb.has_remark() || gb.remark() != "secret") return 7;\n'
+        "    return 0;\n"
+        "}}\n").format(h=h),
+        [os.path.join(cpp_root, "protofiles", "chart_{}.pb.cc".format(h))])
+
+
 def _telemetry_pb(cpp_root):
     # telemetry's DAO pulls in trace_row (the table-less target of its
     # repeated-composed `traces` field), so both .pb.cc must be linked.
