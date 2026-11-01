@@ -20,7 +20,8 @@ class journey_dao(Dao[journey]):
     PK = 'HARPIA_ID'
     COLUMNS = (
         Column('HARPIA_ID', ('HARPIA_ID',)),
-        Column('HARPIA_HAS_path_start', ('path', 'start')),
+        Column('HARPIA_HAS_path', ('path',), presence=True),
+        Column('HARPIA_HAS_path_start', ('path', 'start'), presence=True),
         Column('path_start_city', ('path', 'start', 'city')),
         Column('path_start_elevation', ('path', 'start', 'elevation')),
         Column('path_label', ('path', 'label')),
@@ -37,9 +38,9 @@ class journey_dao(Dao[journey]):
     DROP_TABLE_SQL = (
         'DROP TABLE IF EXISTS "journey_table";',
     )
-    INSERT_SQL = 'INSERT INTO "journey_table" ("HARPIA_ID", "HARPIA_HAS_path_start", "path_start_city", "path_start_elevation", "path_label", "vessel", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    SELECT_SQL = 'SELECT "HARPIA_ID", "HARPIA_HAS_path_start", "path_start_city", "path_start_elevation", "path_label", "vessel", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "journey_table" WHERE "HARPIA_ID" = ?'
-    UPDATE_SQL = 'UPDATE "journey_table" SET "HARPIA_HAS_path_start" = ?, "path_start_city" = ?, "path_start_elevation" = ?, "path_label" = ?, "vessel" = ?, "HARPIA_STATUS" = ?, "HARPIA_ERROR" = ?, "HARPIA_ORIGINATOR" = ? WHERE "HARPIA_ID" = ?'
+    INSERT_SQL = 'INSERT INTO "journey_table" ("HARPIA_ID", "HARPIA_HAS_path", "HARPIA_HAS_path_start", "path_start_city", "path_start_elevation", "path_label", "vessel", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    SELECT_SQL = 'SELECT "HARPIA_ID", "HARPIA_HAS_path", "HARPIA_HAS_path_start", "path_start_city", "path_start_elevation", "path_label", "vessel", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "journey_table" WHERE "HARPIA_ID" = ?'
+    UPDATE_SQL = 'UPDATE "journey_table" SET "HARPIA_HAS_path" = ?, "HARPIA_HAS_path_start" = ?, "path_start_city" = ?, "path_start_elevation" = ?, "path_label" = ?, "vessel" = ?, "HARPIA_STATUS" = ?, "HARPIA_ERROR" = ?, "HARPIA_ORIGINATOR" = ? WHERE "HARPIA_ID" = ?'
     DELETE_SQL = 'DELETE FROM "journey_table" WHERE "HARPIA_ID" = ?'
-    LIST_SQL = 'SELECT "HARPIA_ID", "HARPIA_HAS_path_start", "path_start_city", "path_start_elevation", "path_label", "vessel", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "journey_table" ORDER BY "HARPIA_ID"'
-    LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "HARPIA_HAS_path_start", "path_start_city", "path_start_elevation", "path_label", "vessel", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "journey_table" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'
+    LIST_SQL = 'SELECT "HARPIA_ID", "HARPIA_HAS_path", "HARPIA_HAS_path_start", "path_start_city", "path_start_elevation", "path_label", "vessel", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "journey_table" ORDER BY "HARPIA_ID"'
+    LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "HARPIA_HAS_path", "HARPIA_HAS_path_start", "path_start_city", "path_start_elevation", "path_label", "vessel", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "journey_table" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'
