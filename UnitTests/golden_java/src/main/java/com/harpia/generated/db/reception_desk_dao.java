@@ -64,6 +64,23 @@ public final class reception_desk_dao {
         }
     }
 
+    public boolean readByVisitorName(String value, reception_desk.Builder builder) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT \"HARPIA_ID\", \"visitor_name\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"reception_desk_table\" WHERE \"visitor_name\" = ?")) {
+            ps.setString(1, value);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return false;
+                }
+        JdbcBind.extract(rs, "HARPIA_ID", builder, "HARPIA_ID");
+        JdbcBind.extract(rs, "visitor_name", builder, "visitor_name");
+        JdbcBind.extract(rs, "HARPIA_STATUS", builder, "HARPIA_STATUS");
+        JdbcBind.extract(rs, "HARPIA_ERROR", builder, "HARPIA_ERROR");
+        JdbcBind.extract(rs, "HARPIA_ORIGINATOR", builder, "HARPIA_ORIGINATOR");
+                return true;
+            }
+        }
+    }
+
     public boolean update(reception_desk msg) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("UPDATE \"reception_desk_table\" SET \"visitor_name\" = ?, \"HARPIA_STATUS\" = ?, \"HARPIA_ERROR\" = ?, \"HARPIA_ORIGINATOR\" = ? WHERE \"HARPIA_ID\" = ?")) {
         JdbcBind.bind(ps, 1, msg, "visitor_name");
