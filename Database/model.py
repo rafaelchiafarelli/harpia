@@ -273,6 +273,15 @@ LEGACY_HIDDEN = {
 }
 
 
+def autokey_needs_live_db(msg, backend):
+    """The generated test suites run on in-memory SQLite whatever the DB
+    backend. An `autokey` table's identity DDL / key-advance SQL on another
+    dialect isn't valid there, so its database checks can't run in them."""
+    if backend is None or not getattr(msg, "is_autokey", False):
+        return False
+    return backend.identity_advance_sql(msg.tableName, "HARPIA_ID") is not None
+
+
 def _is_hidden(name):
     return name.startswith(_HIDDEN_PREFIXES)
 

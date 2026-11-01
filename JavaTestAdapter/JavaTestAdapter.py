@@ -28,9 +28,14 @@ import os
 from Logger.logger import logger
 from Errors.Error import Error, Types, Classes
 from Util.util import write_if_different, loadTemplate
-from Database.model import type_registry, analyze
+from Database.model import type_registry, analyze, autokey_needs_live_db
 
 _TEMPLATE = loadTemplate(__file__, "test.java.tmpl")
+
+# this test runs on in-memory SQLite, whose syntax an `autokey` table's DDL on
+# another dialect isn't (Database.model.autokey_needs_live_db)
+_DB_DISABLED = ('@org.junit.jupiter.api.Disabled("this autokey table needs the live '
+                'database of this backend, not SQLite")\n    ')
 
 
 def _java_literal(col, variant):
@@ -67,7 +72,8 @@ def _set_and_assert_lines(usable):
 
 
 class JavaTestAdapter:
-    def __init__(self, messages, dest, compliance=None) -> None:
+    def __init__(self, messages, dest, compliance=None, backend=None) -> None:
+        self.backend = backend
         self.compliance = compliance
         self.messages = messages
         self.dest = dest
@@ -95,6 +101,8 @@ class JavaTestAdapter:
             source = _TEMPLATE.format(
                 name=msg.name, pk_field=pk.name,
                 set_lines=set_lines, assert_lines=assert_lines,
+                db_disabled=(_DB_DISABLED if autokey_needs_live_db(msg, self.backend)
+                             else ""),
             )
             fileName = "{}_Test.java".format(msg.name)
             write_if_different(os.path.join(self.outDir, fileName), source)

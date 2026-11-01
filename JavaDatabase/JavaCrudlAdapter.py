@@ -43,6 +43,43 @@ _KIND_TO_JDBC_SETTER = {"int": "Int", "int64": "Long", "double": "Double", "text
 
 _TEMPLATE = loadTemplate(__file__, "dao.java.tmpl")
 
+_CREATE = """    public boolean create({name} msg) throws SQLException {{
+        try (PreparedStatement ps = conn.prepareStatement("{insert_sql}")) {{
+{bind_lines}
+            return ps.executeUpdate() > 0;
+        }}
+    }}"""
+
+# `autokey` (dao-key-access / db-assigned-key): key 0 -> the database assigns it
+# and it is returned (a built message is immutable, so it can't be written
+# back); non-zero -> inserted as given. create() stays boolean for its callers.
+_CREATE_AUTOKEY = """    public boolean create({name} msg) throws SQLException {{
+        return createReturningKey(msg) != 0;
+    }}
+
+    public {pk_type} createReturningKey({name} msg) throws SQLException {{
+        {pk_type} key = ({boxed}) msg.getField(msg.getDescriptorForType().findFieldByName("{pk_field}"));
+        if (key == 0) {{
+            try (PreparedStatement ps = conn.prepareStatement("{auto_sql}")) {{
+{auto_bind_lines}
+                try (ResultSet rs = ps.executeQuery()) {{
+                    rs.next();
+                    return rs.get{getter}(1);
+                }}
+            }}
+        }}
+        try (PreparedStatement ps = conn.prepareStatement("{insert_sql}")) {{
+{bind_lines}
+            ps.executeUpdate();
+        }}
+{advance}        return key;
+    }}"""
+
+_ADVANCE = """        try (PreparedStatement ps = conn.prepareStatement("{sql}")) {{
+            ps.execute();
+        }}
+"""
+
 
 def _escape_java(s):
     return s.replace("\\", "\\\\").replace('"', '\\"')
@@ -157,6 +194,21 @@ class JavaCrudlAdapter:
                 extract=extract_lines)
             for c in non_pk if c.unique and not getattr(c, "is_phi", False))
 
+        create_method = _CREATE.format(name=msg.name, insert_sql=_escape_java(insert_sql),
+                                       bind_lines=bind_lines)
+        if getattr(msg, "is_autokey", False):
+            advance = self.backend.identity_advance_sql(table, pk.name)
+            create_method = _CREATE_AUTOKEY.format(
+                name=msg.name, pk_type=pk_java_type, pk_field=pk.name,
+                boxed={"int": "Integer", "long": "Long"}[pk_java_type],
+                getter=pk_setter,
+                auto_sql=_escape_java('INSERT INTO "{}" ({}) VALUES ({}) RETURNING "{}"'.format(
+                    table, ", ".join('"{}"'.format(c.name) for c in non_pk),
+                    ", ".join("?" for _ in non_pk), pk.name)),
+                insert_sql=_escape_java(insert_sql),
+                bind_lines=bind_lines, auto_bind_lines=update_bind_lines,
+                advance=(_ADVANCE.format(sql=_escape_java(advance)) if advance else ""))
+
         deferred_note = ("none" if not deferred else ", ".join(
             "{} (embed/FK)".format(c.name) for c in deferred))
 
@@ -168,7 +220,7 @@ class JavaCrudlAdapter:
             pk_field=pk.name,
             pk_java_type=pk_java_type,
             pk_setter=pk_setter,
-            insert_sql=_escape_java(insert_sql),
+            create_method=create_method,
             select_by_pk_sql=_escape_java(select_by_pk_sql),
             select_list_sql=_escape_java(select_list_sql),
             update_sql=_escape_java(update_sql),

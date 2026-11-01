@@ -41,6 +41,7 @@ Invoked from `main.py` and `UnitTests/run_pipeline.py` after all other adapters.
   "c" for its `unique` columns — before, any schema with a `unique` field
   generated a test that hit its own UNIQUE constraint (found by dao-key-access
   read-by-unique task 1).
+- **Tests run on in-memory SQLite whatever the DB backend.** An `autokey` table on another dialect has DDL that isn't valid there (`Database.model.autokey_needs_live_db`, `backend=` from `LangBackend/cpp.py`), so its database checks render as `_LIVE_DB_SKIP` (reason in the source, returns 0); `JavaTestAdapter` marks its `dbCrudlRoundTrip` `@Disabled` likewise. The Python target's generated tests already can't run against a PostgreSQL-backend project (`%s` placeholders on `sqlite3`), autokey or not — a pre-existing gap.
 - Uses `Database.model.analyze/type_registry/map_fields/repeated_fields` to derive
   columns (bindable / pk / embed / map / repeated). Repeated-FK (1-to-many) scalars
   are skipped in the generated `_db_body` — they're covered by the host test instead.
