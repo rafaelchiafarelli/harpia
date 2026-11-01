@@ -70,7 +70,7 @@ static ::grpc::Status push(Stub& s, const std::string& tok, int id, float v) {{
     ::grpc::ClientContext c; deadline(c);
     c.AddMetadata("authorization", "Bearer " + tok);
     frameworkProtos::reading_Message m;
-    m.mutable_msg()->set_id_{h}(id);
+    m.mutable_msg()->set_harpia_id(id);
     m.mutable_msg()->set_device_id("smoke");
     m.mutable_msg()->set_value(v);
     m.mutable_msg()->set_unit("C");

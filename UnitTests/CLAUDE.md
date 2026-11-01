@@ -104,7 +104,7 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   hard `CONFLICTING_HARDENING_MODIFIERS` error, not a flag. Integration: the
   emitted `.proto` for a `protected`/`open` message contains no trace of the
   modifier and is line-for-line identical to the same message without it, and
-  neither modifier flips `isOneToMany` (no `ORIGINATOR_<hash>` field) — flag
+  the `.proto` is identical to a plain and a `pull` message's (every message has the same `HARPIA_ORIGINATOR` field) — flag
   only, the REST/SOAP/gRPC auth-gate wiring is epic task 3. Pure Python.
 - `test_message_hardening_gate.py` — message-level-hardening initiative,
   protected-open-modifiers epic task 3: per-message REST/SOAP/gRPC gating.
@@ -312,7 +312,7 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `test_py_db_dao.py` — python-target / py-database tasks 2a-2c: the generated Python DAOs on an SQLite file. 2a: `users`/`beacon_log`/`crew`/`patient_vitals` create/read/update/list/remove + pagination bounds, missing-row update/remove → False, duplicate key raises and rolls back; every Python-created table has the columns of the C++ `database/<name>_<hash>_table.sql`; a row written by the C++ `users_dao` (g++ + SOCI) reads back identically in Python. 2b: `journey` (multi-level embed), `top_users` (FK), `outpost` (FK inside an embed) round-trip every persisted column (`persisted_view`), an unset FK stays absent with no child row; C++ ↔ Python cross-read both ways through `_py_cpp_parity.dao_probe` (a C++ write/read CLI over chosen SOCI DAOs). 2c: no generated DAO declares anything deferred; `data` (maps, repeated, embed-nested), `telemetry` (repeated composed), `shipment` (repeated composed), `top_users` (repeated FK) round-trip their child tables, update replaces them, remove deletes them; the C++ ↔ Python cross-read compares whole messages for journey/top_users/outpost/data/telemetry/shipment. Nested `ID_`s are made unique (`_unique_ids`). Image-gated.
 - `test_python_db_postgres.py` — python-target / py-database task 3: **opt-in** (`HARPIA_PG_DSN` + psycopg), `Docker/run_pg_tests.sh UnitTests/test_python_db_postgres.py`. Generates with `HARPIA_DB_BACKEND=postgresql` (DAOs carry `%s` + PG DDL) and runs the 2a-2c round trips (scalar, embed/FK, every child-table shape, pagination) in a throwaway schema.
 - `test_py_db_registry.py` — python-target / py-database task 4: generated `harpia_generated/db/registry.py` (loaded by path). Entries + the `user_table` conflict note equal the C++ header's; every decision branch + the one-argument form; `PROJECT_NAME` follows `project.harpia.yaml`; a "billing" project asks a "clinic" project's registry (PUBLIC allowed, PRIVATE refused) [pure Python]; decisions equal C++ `db_access_check` for every table × two projects [g++].
-- `test_py_db_migrate.py` — python-target / py-database task 5a: the generated `migrate_beacon_log` from hand-built older SQLite states: rename keeps data, stray dropped, columns added, TEXT→INTEGER retype CASTs rows, version stamped, idempotent; `data_transform` sees the added column and the retiring one (split-column order); a failing transform rolls everything back; and (g++ + SOCI) the C++ and Python migrations end in the same schema/rows/version row from the same start. Image-gated. (PG variant: `test_python_db_postgres.py::test_migrate_on_postgres`, a throwaway database.)
+- `test_py_db_migrate.py` — python-target / py-database task 5a: the generated `migrate_beacon_log` from hand-built older SQLite states: rename keeps data, stray dropped, columns added, TEXT→INTEGER retype CASTs rows, version stamped, idempotent; a pre-stable-hidden-names table (`ID_<md5>`/`STATUS_<md5>`/`ERROR_<md5>`/`ORIGINATOR`) is renamed to `HARPIA_*` with its row and key (the `harpia-handoff.md` case, also in the C++ end-state parity cases); `data_transform` sees the added column and the retiring one (split-column order); a failing transform rolls everything back; and (g++ + SOCI) the C++ and Python migrations end in the same schema/rows/version row from the same start. Image-gated. (PG variant: `test_python_db_postgres.py::test_migrate_on_postgres`, a throwaway database.)
 - `test_py_db_migrate_children.py` — python-target / py-database task 5b: the generated `migrate_telemetry` child-table steps from hand-built older SQLite states: missing child tables created; `<table>__old_*` repeated/map/composed tables renamed with their rows (read back through the Python DAO, negative map keys included); an orphan `<table>__*` reaped, also by `migrate_beacon_log` (no child tables, `child_current == ()`); repeated-scalar `value`, map `key`/`value` retype and repeated-composed add/drop/retype with rows CAST; every case idempotent; and (g++ + SOCI) the C++ and Python migrations end in the same tables/columns/rows from each start. Image-gated. (PG variant: `test_python_db_postgres.py::test_migrate_child_tables_on_postgres`.)
 - `test_py_db_dbio.py` — python-target / py-database task 6: generated `harpia_generated/dbio/<name>_<hash>_dbio.py`. Export → import into an empty database round-trips users/journey/top_users/outpost/data/telemetry/shipment in JSON and XML (count returned, re-export identical); empty table / blank NDJSON lines; malformed JSON/XML raises `ValueError` and writes nothing; a duplicate key rolls the whole import back. g++ + SOCI + tinyxml2 (one C++ CLI over the generated `dbio/*_dbio.h`): XML exports byte-identical, NDJSON lines parse equal, C++ export → Python import and Python export → C++ import read back equal. Creates only the tables a DAO reaches (users/top_users share `user_table`). Image-gated.
 - `_py_runtime_load.py` — shared harness (not a test module): `load_runtime(dest, [(module, src)], wanted)` copies hand-written Python runtimes into `<dest>/python/` with `copy_runtime_module` and imports `wanted` with every `harpia_runtime*` entry of `sys.modules` set aside (then restored), so a runtime unit test is isolated from whichever generated tree another module imported `harpia_runtime` from.
@@ -366,7 +366,9 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `test_java_json_pass_through.py` — session J.4: `JavaJsonAdapter` ships a single hand-written `com.harpia.runtime.json.HarpiaJson` runtime class (NOT per-message generation — see its `CLAUDE.md` for why that's correct, not a shortcut). Structural (pure Python): the runtime class is wired into `<dest>/java/src/main/java/com/harpia/runtime/json/`; `build.gradle` depends on `protobuf-java-util`. Integration (gradle+JDK-gated): a real JSON round trip through `patient_vitals`'s generated builder, confirming protobuf's canonical camelCase field mapping (`patient_id` -> `"patientId"`, never `"patient_id"`) — the literal J.4 test bar.
 - `test_stage7.py` — protoc emits/compiles `.pb.{h,cc}`. (protoc, g++)
 - `test_stage8_db.py` — SQL schema, CRUDL round-trip, FK, repeated-FK link table,
-  map<K,V>, repeated scalar, migration, DB↔JSON/XML. (cc + g++, some protoc)
+  map<K,V>, repeated scalar, migration (incl. the legacy `ID_<md5>`/… hidden
+  columns renamed to `HARPIA_*`, stable-hidden-names-DEFECT task 2),
+  DB↔JSON/XML. (cc + g++, some protoc)
 - `test_db_segregation.py` — the db-segregation epic / Session db-segregation task 1: the public/private DB
   registry (`Database/DbRegistryAdapter.py` → `generated/cpp/db/harpia_db_registry.h`).
   Structural (pure Python, always run): the one project-wide header is
@@ -425,8 +427,16 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   driven directly (no lexer) — first-generation freeze, reorder/insert
   stability, delete-retires-number, rename-keeps-number, unresolvable-rename
   falls back (mirrors `Database/MigrationAdapter`'s conditional RENAME),
-  hidden-field (`ID_`/`STATUS_`/`ERROR_`/`ORIGINATOR`) stability across an
-  md5 hash change, reserved-number-reuse hard error, sidecar path shape.
+  hidden-field stability across an md5 hash change (legacy `ID_<md5>`
+  names) and across the switch to the fixed `HARPIA_*` names (a legacy
+  sidecar's numbers are inherited), reserved-number-reuse hard error, sidecar path shape.
+  Pure Python.
+- `test_hidden_names.py` — stable-hidden-names-DEFECT task 1: one Include
+  module generated under two roots that differ by an extra `import` has
+  identical `.proto` field and SQL column names (`HARPIA_ID` /
+  `HARPIA_STATUS` / `HARPIA_ERROR` / `HARPIA_ORIGINATOR`, no hash suffix);
+  a user field named `harpia_id`, `HARPIA_STATUS`, `harpiaerror`,
+  `harpia_originator` or `Harpia_note` is `RESERVED_HIDDEN_FIELD_NAME`.
   Pure Python.
 - `test_fieldmap_frontend.py` — the same §3 reorder/delete properties but
   through the real front-end pipeline (`run_frontend.py`, fresh subprocess

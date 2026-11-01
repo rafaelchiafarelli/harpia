@@ -29,7 +29,7 @@ public:
 
     bool create_table() {
         try {
-            db_ << "CREATE TABLE IF NOT EXISTS \"outpost_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"commander\" TEXT, \"berth_label\" TEXT, \"berth_skipper\" INTEGER, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR\" TEXT);";
+            db_ << "CREATE TABLE IF NOT EXISTS \"outpost_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"commander\" TEXT, \"berth_label\" TEXT, \"berth_skipper\" INTEGER, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -43,14 +43,14 @@ public:
     bool create(const ::outpost& msg) {
         try {
             if (msg.berth().has_skipper()) { ::harpia::db::crew_dao _c(db_); if (!_c.create(msg.berth().skipper())) return false; }
-            int c0 = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+            int c0 = msg.harpia_id();
             std::string c1 = msg.commander();
             std::string c2 = msg.berth().label();
-            std::string c3 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c4 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c5 = msg.originator();
-            long long c6 = msg.berth().skipper().id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "INSERT INTO \"outpost_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"commander\", \"berth_label\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\", \"berth_skipper\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6)",
+            std::string c3 = msg.harpia_status();
+            std::string c4 = msg.harpia_error();
+            std::string c5 = msg.harpia_originator();
+            long long c6 = msg.berth().skipper().harpia_id();
+            db_ << "INSERT INTO \"outpost_table\" (\"HARPIA_ID\", \"commander\", \"berth_label\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\", \"berth_skipper\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6)",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6);
             return true;
         } catch (const std::exception&) { return false; }
@@ -65,15 +65,15 @@ public:
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
             long long l6 = 0; ::soci::indicator n6;
-            db_ << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"commander\", \"berth_label\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\", \"berth_skipper\" FROM \"outpost_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id),
+            db_ << "SELECT \"HARPIA_ID\", \"commander\", \"berth_label\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\", \"berth_skipper\" FROM \"outpost_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6);
             if (!db_.got_data()) return false;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_commander(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->mutable_berth()->set_label(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_originator(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_status(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_error(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_originator(n5 == ::soci::i_ok ? l5 : std::string());
                 if (n6 == ::soci::i_ok && l6) { ::harpia::db::crew_dao _c(db_); _c.read(l6, msg->mutable_berth()->mutable_skipper()); }
             return true;
         } catch (const std::exception&) { return false; }
@@ -84,12 +84,12 @@ public:
             if (msg.berth().has_skipper()) { ::harpia::db::crew_dao _c(db_); _c.update(msg.berth().skipper()); }
             std::string c0 = msg.commander();
             std::string c1 = msg.berth().label();
-            std::string c2 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c3 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c4 = msg.originator();
-            long long c5 = msg.berth().skipper().id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            long long cid = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "UPDATE \"outpost_table\" SET \"commander\" = :c0, \"berth_label\" = :c1, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c2, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c3, \"ORIGINATOR\" = :c4, \"berth_skipper\" = :c5 WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :cid",
+            std::string c2 = msg.harpia_status();
+            std::string c3 = msg.harpia_error();
+            std::string c4 = msg.harpia_originator();
+            long long c5 = msg.berth().skipper().harpia_id();
+            long long cid = msg.harpia_id();
+            db_ << "UPDATE \"outpost_table\" SET \"commander\" = :c0, \"berth_label\" = :c1, \"HARPIA_STATUS\" = :c2, \"HARPIA_ERROR\" = :c3, \"HARPIA_ORIGINATOR\" = :c4, \"berth_skipper\" = :c5 WHERE \"HARPIA_ID\" = :cid",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(cid);
             return true;
         } catch (const std::exception&) { return false; }
@@ -97,7 +97,7 @@ public:
 
     bool remove(std::int64_t id) {
         try {
-            db_ << "DELETE FROM \"outpost_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id);
+            db_ << "DELETE FROM \"outpost_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id);
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -111,18 +111,18 @@ public:
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
             long long l6 = 0; ::soci::indicator n6;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"commander\", \"berth_label\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\", \"berth_skipper\" FROM \"outpost_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"",
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"commander\", \"berth_label\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\", \"berth_skipper\" FROM \"outpost_table\" ORDER BY \"HARPIA_ID\"",
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6));
             st.execute();
             while (st.fetch()) {
                 ::outpost row;
                 ::outpost* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_commander(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->mutable_berth()->set_label(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_originator(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_status(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_error(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_originator(n5 == ::soci::i_ok ? l5 : std::string());
                 if (n6 == ::soci::i_ok && l6) { ::harpia::db::crew_dao _c(db_); _c.read(l6, msg->mutable_berth()->mutable_skipper()); }
                 out->push_back(row);
             }
@@ -143,18 +143,18 @@ public:
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
             long long l6 = 0; ::soci::indicator n6;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"commander\", \"berth_label\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\", \"berth_skipper\" FROM \"outpost_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"commander\", \"berth_label\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\", \"berth_skipper\" FROM \"outpost_table\" ORDER BY \"HARPIA_ID\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6));
             st.execute();
             while (st.fetch()) {
                 ::outpost row;
                 ::outpost* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_commander(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->mutable_berth()->set_label(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_originator(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_status(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_error(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_originator(n5 == ::soci::i_ok ? l5 : std::string());
                 if (n6 == ::soci::i_ok && l6) { ::harpia::db::crew_dao _c(db_); _c.read(l6, msg->mutable_berth()->mutable_skipper()); }
                 out->push_back(row);
             }

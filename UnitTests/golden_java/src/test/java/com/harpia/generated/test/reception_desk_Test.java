@@ -32,16 +32,16 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class reception_desk_Test {
-    private static final String PK_FIELD = "ID_3ac5d8b36fc7dcfb70888145147ddfb7";
+    private static final String PK_FIELD = "HARPIA_ID";
 
     private static reception_desk sample() {
         reception_desk.Builder b = reception_desk.newBuilder();
         Descriptor d = b.getDescriptorForType();
-        b.setField(d.findFieldByName("ID_3ac5d8b36fc7dcfb70888145147ddfb7"), 1);
+        b.setField(d.findFieldByName("HARPIA_ID"), 1);
         b.setField(d.findFieldByName("visitor_name"), "visitor_name_a");
-        b.setField(d.findFieldByName("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7"), "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-        b.setField(d.findFieldByName("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7"), "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-        b.setField(d.findFieldByName("ORIGINATOR"), "ORIGINATOR_a");
+        b.setField(d.findFieldByName("HARPIA_STATUS"), "HARPIA_STATUS_a");
+        b.setField(d.findFieldByName("HARPIA_ERROR"), "HARPIA_ERROR_a");
+        b.setField(d.findFieldByName("HARPIA_ORIGINATOR"), "HARPIA_ORIGINATOR_a");
         return b.build();
     }
 
@@ -49,11 +49,11 @@ class reception_desk_Test {
     void fieldsSurviveSetterGetter() {
         reception_desk m = sample();
         Descriptor d = m.getDescriptorForType();
-        assertEquals(1, m.getField(d.findFieldByName("ID_3ac5d8b36fc7dcfb70888145147ddfb7")));
+        assertEquals(1, m.getField(d.findFieldByName("HARPIA_ID")));
         assertEquals("visitor_name_a", m.getField(d.findFieldByName("visitor_name")));
-        assertEquals("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7_a", m.getField(d.findFieldByName("STATUS_3ac5d8b36fc7dcfb70888145147ddfb7")));
-        assertEquals("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7_a", m.getField(d.findFieldByName("ERROR_3ac5d8b36fc7dcfb70888145147ddfb7")));
-        assertEquals("ORIGINATOR_a", m.getField(d.findFieldByName("ORIGINATOR")));
+        assertEquals("HARPIA_STATUS_a", m.getField(d.findFieldByName("HARPIA_STATUS")));
+        assertEquals("HARPIA_ERROR_a", m.getField(d.findFieldByName("HARPIA_ERROR")));
+        assertEquals("HARPIA_ORIGINATOR_a", m.getField(d.findFieldByName("HARPIA_ORIGINATOR")));
     }
 
     @Test

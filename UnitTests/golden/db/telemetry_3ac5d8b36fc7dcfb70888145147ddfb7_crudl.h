@@ -28,7 +28,7 @@ public:
 
     bool create_table() {
         try {
-            db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"label\" TEXT, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR\" TEXT);";
+            db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"label\" TEXT, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
             db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table__gauges\" (\"owner\" INTEGER, \"key\" TEXT, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"key\"));";
             db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table__flags\" (\"owner\" INTEGER, \"key\" INTEGER, \"value\" TEXT, PRIMARY KEY(\"owner\", \"key\"));";
             db_ << "CREATE TABLE IF NOT EXISTS \"telemetry_table__samples\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));";
@@ -51,15 +51,15 @@ public:
 
     bool create(const ::telemetry& msg) {
         try {
-            int c0 = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+            int c0 = msg.harpia_id();
             std::string c1 = msg.label();
-            std::string c2 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c3 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c4 = msg.originator();
-            db_ << "INSERT INTO \"telemetry_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"label\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4)",
+            std::string c2 = msg.harpia_status();
+            std::string c3 = msg.harpia_error();
+            std::string c4 = msg.harpia_originator();
+            db_ << "INSERT INTO \"telemetry_table\" (\"HARPIA_ID\", \"label\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4)",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4);
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 for (const auto& kv : msg.gauges()) {
                     std::string _k = kv.first;
                     int _v = kv.second;
@@ -67,7 +67,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 for (const auto& kv : msg.flags()) {
                     int _k = kv.first;
                     std::string _v = kv.second;
@@ -75,7 +75,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 long long _ord = 0;
                 for (const auto& rv : msg.samples()) {
                     int _v = rv;
@@ -84,7 +84,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 long long _ord = 0;
                 for (const auto& rv : msg.notes()) {
                     std::string _v = rv;
@@ -93,7 +93,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 long long _ord = 0;
                 for (const auto& rv : msg.traces()) {
                     std::string c0 = rv.kind();
@@ -113,18 +113,18 @@ public:
             std::string l2; ::soci::indicator n2;
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
-            db_ << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"label\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"telemetry_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id),
+            db_ << "SELECT \"HARPIA_ID\", \"label\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"telemetry_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4);
             if (!db_.got_data()) return false;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_label(n1 == ::soci::i_ok ? l1 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_originator(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_status(n2 == ::soci::i_ok ? l2 : std::string());
+                msg->set_harpia_error(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_originator(n4 == ::soci::i_ok ? l4 : std::string());
                 {
                     std::string _k; int _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"telemetry_table__gauges\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -134,7 +134,7 @@ public:
                 {
                     int _k; std::string _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"telemetry_table__flags\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -143,7 +143,7 @@ public:
                 }
                 {
                     int _v = 0; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"telemetry_table__samples\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -152,7 +152,7 @@ public:
                 }
                 {
                     std::string _v; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"telemetry_table__notes\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -160,7 +160,7 @@ public:
                     }
                 }
                 {
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     std::string l0; ::soci::indicator n0;
                     int l1 = 0; ::soci::indicator n1;
                     ::soci::statement _rs = (db_.prepare << "SELECT \"kind\", \"weight\" FROM \"telemetry_table__traces\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(l0, n0), ::soci::into(l1, n1));
@@ -178,14 +178,14 @@ public:
     bool update(const ::telemetry& msg) {
         try {
             std::string c0 = msg.label();
-            std::string c1 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c2 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c3 = msg.originator();
-            long long cid = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "UPDATE \"telemetry_table\" SET \"label\" = :c0, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c1, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c2, \"ORIGINATOR\" = :c3 WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :cid",
+            std::string c1 = msg.harpia_status();
+            std::string c2 = msg.harpia_error();
+            std::string c3 = msg.harpia_originator();
+            long long cid = msg.harpia_id();
+            db_ << "UPDATE \"telemetry_table\" SET \"label\" = :c0, \"HARPIA_STATUS\" = :c1, \"HARPIA_ERROR\" = :c2, \"HARPIA_ORIGINATOR\" = :c3 WHERE \"HARPIA_ID\" = :cid",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(cid);
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 db_ << "DELETE FROM \"telemetry_table__gauges\" WHERE \"owner\" = :o", ::soci::use(_owner);
                 for (const auto& kv : msg.gauges()) {
                     std::string _k = kv.first;
@@ -194,7 +194,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 db_ << "DELETE FROM \"telemetry_table__flags\" WHERE \"owner\" = :o", ::soci::use(_owner);
                 for (const auto& kv : msg.flags()) {
                     int _k = kv.first;
@@ -203,7 +203,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 db_ << "DELETE FROM \"telemetry_table__samples\" WHERE \"owner\" = :o", ::soci::use(_owner);
                 long long _ord = 0;
                 for (const auto& rv : msg.samples()) {
@@ -213,7 +213,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 db_ << "DELETE FROM \"telemetry_table__notes\" WHERE \"owner\" = :o", ::soci::use(_owner);
                 long long _ord = 0;
                 for (const auto& rv : msg.notes()) {
@@ -223,7 +223,7 @@ public:
                 }
             }
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 db_ << "DELETE FROM \"telemetry_table__traces\" WHERE \"owner\" = :o", ::soci::use(_owner);
                 long long _ord = 0;
                 for (const auto& rv : msg.traces()) {
@@ -239,7 +239,7 @@ public:
 
     bool remove(std::int64_t id) {
         try {
-            db_ << "DELETE FROM \"telemetry_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id);
+            db_ << "DELETE FROM \"telemetry_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id);
             db_ << "DELETE FROM \"telemetry_table__gauges\" WHERE \"owner\" = :o", ::soci::use(id);
             db_ << "DELETE FROM \"telemetry_table__flags\" WHERE \"owner\" = :o", ::soci::use(id);
             db_ << "DELETE FROM \"telemetry_table__samples\" WHERE \"owner\" = :o", ::soci::use(id);
@@ -256,21 +256,21 @@ public:
             std::string l2; ::soci::indicator n2;
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"label\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"telemetry_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"",
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"label\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"telemetry_table\" ORDER BY \"HARPIA_ID\"",
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4));
             st.execute();
             while (st.fetch()) {
                 ::telemetry row;
                 ::telemetry* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_label(n1 == ::soci::i_ok ? l1 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_originator(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_status(n2 == ::soci::i_ok ? l2 : std::string());
+                msg->set_harpia_error(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_originator(n4 == ::soci::i_ok ? l4 : std::string());
                 {
                     std::string _k; int _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"telemetry_table__gauges\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -280,7 +280,7 @@ public:
                 {
                     int _k; std::string _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"telemetry_table__flags\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -289,7 +289,7 @@ public:
                 }
                 {
                     int _v = 0; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"telemetry_table__samples\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -298,7 +298,7 @@ public:
                 }
                 {
                     std::string _v; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"telemetry_table__notes\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -306,7 +306,7 @@ public:
                     }
                 }
                 {
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     std::string l0; ::soci::indicator n0;
                     int l1 = 0; ::soci::indicator n1;
                     ::soci::statement _rs = (db_.prepare << "SELECT \"kind\", \"weight\" FROM \"telemetry_table__traces\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(l0, n0), ::soci::into(l1, n1));
@@ -334,21 +334,21 @@ public:
             std::string l2; ::soci::indicator n2;
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"label\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR\" FROM \"telemetry_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"label\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"telemetry_table\" ORDER BY \"HARPIA_ID\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4));
             st.execute();
             while (st.fetch()) {
                 ::telemetry row;
                 ::telemetry* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_label(n1 == ::soci::i_ok ? l1 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_originator(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_status(n2 == ::soci::i_ok ? l2 : std::string());
+                msg->set_harpia_error(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_originator(n4 == ::soci::i_ok ? l4 : std::string());
                 {
                     std::string _k; int _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"telemetry_table__gauges\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -358,7 +358,7 @@ public:
                 {
                     int _k; std::string _v;
                     ::soci::indicator _ki, _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _ms = (db_.prepare << "SELECT \"key\", \"value\" FROM \"telemetry_table__flags\" WHERE \"owner\" = :o", ::soci::use(_owner), ::soci::into(_k, _ki), ::soci::into(_v, _vi));
                     _ms.execute();
                     while (_ms.fetch()) {
@@ -367,7 +367,7 @@ public:
                 }
                 {
                     int _v = 0; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"telemetry_table__samples\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -376,7 +376,7 @@ public:
                 }
                 {
                     std::string _v; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"telemetry_table__notes\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -384,7 +384,7 @@ public:
                     }
                 }
                 {
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     std::string l0; ::soci::indicator n0;
                     int l1 = 0; ::soci::indicator n1;
                     ::soci::statement _rs = (db_.prepare << "SELECT \"kind\", \"weight\" FROM \"telemetry_table__traces\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(l0, n0), ::soci::into(l1, n1));

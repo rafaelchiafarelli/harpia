@@ -22,7 +22,7 @@ An enum column's test value is derived from its own `FieldDescriptor` too (`fd.g
 ## Key facts / gotchas
 - `analyze()` is called with no `backend` (defaults to SQLite internally) since this module never touches `Column.sql_def()` — the generated test's OWN `dbCrudlRoundTrip` always runs against `jdbc:sqlite::memory:` regardless of `HARPIA_DB_BACKEND`, which is correct: it's testing the DAO/runtime wiring, not dialect-specific behavior (that's `JavaDatabase`'s own Postgres test, `UnitTests/test_java_db_crudl_postgres.py`).
 - `testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'` + a `test { useJUnitPlatform() }` block were added to `GradleAdapter/templates/project.gradle.tmpl` as part of THIS session (enabling JUnit 5 is this deliverable's own concern, not a pre-existing `J.22` packaging line item).
-- A message whose *every* user-declared field is embed/FK/map/repeated still gets a real, non-degenerate test class: `usable` always includes at least the front-end-injected `ID_<hash>`/`STATUS_<hash>`/`ERROR_<hash>`/`ORIGINATOR[_<hash>]` columns (plain top-level strings — see `JavaDatabase/CLAUDE.md`).
+- A message whose *every* user-declared field is embed/FK/map/repeated still gets a real, non-degenerate test class: `usable` always includes at least the front-end-injected `HARPIA_ID`/`HARPIA_STATUS`/`HARPIA_ERROR`/`HARPIA_ORIGINATOR` columns (plain top-level strings — see `JavaDatabase/CLAUDE.md`).
 
 ## Touchpoints
 - Called by: `LangBackend/java.py` (`JavaBackend.run_java`, selected by `HARPIA_GEN_LANG=java`), right after `JavaZmqAdapter` in the same stage list.

@@ -131,8 +131,8 @@ def test_to_yaml_writes_fields_and_structure(built):
     assert 'name: "neo"' in out, out
     assert 'address: "matrix"' in out, out
     # structure/keys always present -- even the ones left at their default
-    assert "ID_{}: 0".format(HASH) in out, out
-    assert "STATUS_{}:".format(HASH) in out, out
+    assert "HARPIA_ID: 0" in out, out
+    assert "HARPIA_STATUS:" in out, out
     # top-level block mapping: first line is `key: ...` at column 0, no wrapper
     assert not out.startswith(" "), out
     assert out.splitlines()[0].endswith(('"', "0")) and ":" in out.splitlines()[0]
@@ -144,12 +144,12 @@ def test_yaml_roundtrip_flat(built):
         "    ::users a;\n"
         '    a.set_name("neo");\n'
         '    a.set_address("matrix");\n'
-        "    a.set_id_{h}(42);\n"
+        "    a.set_harpia_id(42);\n"
         "    const std::string y = harpia::yaml::to_yaml(a);\n"
         "    ::users b;\n"
         "    if (!harpia::yaml::from_yaml(y, &b)) return 1;\n"
         '    if (b.name() != "neo" || b.address() != "matrix") return 2;\n'
-        "    if (b.id_{h}() != 42) return 3;\n"
+        "    if (b.harpia_id() != 42) return 3;\n"
         "    if (a.SerializeAsString() != b.SerializeAsString()) return 4;\n"
         "    ::users c;\n"
         '    if (harpia::yaml::from_yaml("not yaml at all", &c)) return 5;\n'

@@ -539,7 +539,7 @@ int main() {{
         }});
 
     ::alarm_event a;
-    a.set_id_{h}(1);
+    a.set_harpia_id(1);
     a.set_patient_id("PT-42");
     a.set_alarm_type("bradycardia");
     a.set_severity(3);

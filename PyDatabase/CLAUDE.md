@@ -76,7 +76,10 @@ whose every statement comes from the `DbBackend` — including the new
 SQL the C++ `*_dynamic` methods embed, returned as data (those C++ methods
 now build their SQL through the same private helpers; C++ output proven
 byte-identical). `runtime/migrate.py` (`harpia_runtime.db.migrate`) runs the
-C++ step order: version table → child renames → ensure tables → column
+C++ step order: version table → child renames → ensure tables → legacy
+hidden-column renames (`hidden_renames`: a live `ID_`/`STATUS_`/`ERROR_<32
+hex>` or `ORIGINATOR[_<32 hex>]` column → its `HARPIA_*` name, when absent;
+stable-hidden-names-DEFECT, `Database.model.LEGACY_HIDDEN`) → column
 renames → ADD → `data_transform` → DROP → RETYPE → child reap + evolve →
 stamp. One transaction (explicit `BEGIN` on `sqlite3`, whose DDL is otherwise
 outside its implicit transactions); errors raise. Task 5b fills the child
@@ -185,7 +188,7 @@ UnitTests/test_python_db_postgres.py`.
   `sqlite3`, `%s` for `psycopg`. Additive on the shared backend; C++ (SOCI
   `:name`) and Java (JDBC `?`) never call it, so their goldens are unchanged.
 - A `composed` (repeated table-less message) element stores only its
-  flattened scalar/enum columns: the element's hidden `ID_`/`STATUS_`/...
+  flattened scalar/enum columns: the element's hidden `HARPIA_*`
   fields don't round-trip (same as C++).
 - The HarpiaTest fixture has no `bool`/`int64` fields (the DSL has no
   `bool`), so the bind test also compiles a small probe `.proto` with every

@@ -79,7 +79,7 @@ class JavaCrudlAdapter:
 
             pk = next((c for c in usable if c.pk), None)
             if pk is None:
-                # every harpia message gets a front-end-injected ID_<hash>
+                # every harpia message gets a front-end-injected HARPIA_ID
                 # PK; a table-bearing message missing one from `usable`
                 # would mean the PK itself got deferred, which analyze()
                 # never does (PK is always a plain top-level int column) --

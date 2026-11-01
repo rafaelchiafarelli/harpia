@@ -30,7 +30,7 @@ from UnitTests.test_py_xml import _variants  # noqa: E402
 pytestmark = pytest.mark.skipif(not P.HAVE_PY, reason=P.SKIP_PY)
 
 SECRET = "SECRET-7731"
-_HIDDEN = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
+_HIDDEN = ("HARPIA_",)
 
 
 @pytest.fixture(scope="module")

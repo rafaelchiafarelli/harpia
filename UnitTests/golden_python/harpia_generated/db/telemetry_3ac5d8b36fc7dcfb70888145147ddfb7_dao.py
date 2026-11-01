@@ -17,13 +17,13 @@ class telemetry_dao(Dao[telemetry]):
 
     MESSAGE = telemetry
     TABLE = 'telemetry_table'
-    PK = 'ID_3ac5d8b36fc7dcfb70888145147ddfb7'
+    PK = 'HARPIA_ID'
     COLUMNS = (
-        Column('ID_3ac5d8b36fc7dcfb70888145147ddfb7', ('ID_3ac5d8b36fc7dcfb70888145147ddfb7',)),
+        Column('HARPIA_ID', ('HARPIA_ID',)),
         Column('label', ('label',)),
-        Column('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7', ('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ORIGINATOR', ('ORIGINATOR',)),
+        Column('HARPIA_STATUS', ('HARPIA_STATUS',)),
+        Column('HARPIA_ERROR', ('HARPIA_ERROR',)),
+        Column('HARPIA_ORIGINATOR', ('HARPIA_ORIGINATOR',)),
     )
     CHILDREN = (
         ChildTable(
@@ -53,7 +53,7 @@ class telemetry_dao(Dao[telemetry]):
             'DELETE FROM "telemetry_table__traces" WHERE "owner" = ?', columns=(Column('kind', ('kind',)), Column('weight', ('weight',)),)),
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "telemetry_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "label" TEXT, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "telemetry_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "label" TEXT, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
         'CREATE TABLE IF NOT EXISTS "telemetry_table__gauges" ("owner" INTEGER, "key" TEXT, "value" INTEGER, PRIMARY KEY("owner", "key"));',
         'CREATE TABLE IF NOT EXISTS "telemetry_table__flags" ("owner" INTEGER, "key" INTEGER, "value" TEXT, PRIMARY KEY("owner", "key"));',
         'CREATE TABLE IF NOT EXISTS "telemetry_table__samples" ("owner" INTEGER, "ordinal" INTEGER, "value" INTEGER, PRIMARY KEY("owner", "ordinal"));',
@@ -68,9 +68,9 @@ class telemetry_dao(Dao[telemetry]):
         'DROP TABLE IF EXISTS "telemetry_table__traces";',
         'DROP TABLE IF EXISTS "telemetry_table";',
     )
-    INSERT_SQL = 'INSERT INTO "telemetry_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7", "label", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR") VALUES (?, ?, ?, ?, ?)'
-    SELECT_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "label", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR" FROM "telemetry_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    UPDATE_SQL = 'UPDATE "telemetry_table" SET "label" = ?, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ORIGINATOR" = ? WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    DELETE_SQL = 'DELETE FROM "telemetry_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    LIST_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "label", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR" FROM "telemetry_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7"'
-    LIST_PAGE_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "label", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR" FROM "telemetry_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7" LIMIT ? OFFSET ?'
+    INSERT_SQL = 'INSERT INTO "telemetry_table" ("HARPIA_ID", "label", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR") VALUES (?, ?, ?, ?, ?)'
+    SELECT_SQL = 'SELECT "HARPIA_ID", "label", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "telemetry_table" WHERE "HARPIA_ID" = ?'
+    UPDATE_SQL = 'UPDATE "telemetry_table" SET "label" = ?, "HARPIA_STATUS" = ?, "HARPIA_ERROR" = ?, "HARPIA_ORIGINATOR" = ? WHERE "HARPIA_ID" = ?'
+    DELETE_SQL = 'DELETE FROM "telemetry_table" WHERE "HARPIA_ID" = ?'
+    LIST_SQL = 'SELECT "HARPIA_ID", "label", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "telemetry_table" ORDER BY "HARPIA_ID"'
+    LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "label", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR" FROM "telemetry_table" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'

@@ -167,7 +167,7 @@ def test_grpc_service_impl_wires_crudl(built):
             "    if (!dao.create_table()) return 2;\n"
             "    harpia::grpc_svc::users_service svc(db);\n"
             "    ::frameworkProtos::users_Message req;\n"
-            "    req.mutable_msg()->set_id_{h}(1);\n"
+            "    req.mutable_msg()->set_harpia_id(1);\n"
             '    req.mutable_msg()->set_name("neo");\n'
             "    ::frameworkProtos::errorCode ec;\n"
             "    if (!svc.push(nullptr, &req, &ec).ok() || ec.code() != 0) return 3;\n"
@@ -231,7 +231,7 @@ def test_grpc_metadata_auth(built):
             "    auto stub = ::frameworkProtos::users_Service::NewStub(chan);\n"
             "    auto run = [&]() -> int {{\n"
             "        ::frameworkProtos::users_Message req;\n"
-            "        req.mutable_msg()->set_id_{h}(1);\n"
+            "        req.mutable_msg()->set_harpia_id(1);\n"
             '        req.mutable_msg()->set_name("neo");\n'
             "        ::grpc::ClientContext c1;\n"
             '        c1.AddMetadata("x-user", "users");\n'
@@ -314,7 +314,7 @@ def test_grpc_streamsrc_pagination(built):
             "    auto run = [&]() -> int {{\n"
             "        for (int i = 1; i <= 5; ++i) {{\n"
             "            ::frameworkProtos::users_Message req;\n"
-            "            req.mutable_msg()->set_id_{h}(i);\n"
+            "            req.mutable_msg()->set_harpia_id(i);\n"
             '            req.mutable_msg()->set_name("n" + std::to_string(i));\n'
             "            ::grpc::ClientContext c;\n"
             '            c.AddMetadata("x-user", "users");\n'
