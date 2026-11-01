@@ -28,7 +28,7 @@ public:
 
     bool create_table() {
         try {
-            db_ << "CREATE TABLE IF NOT EXISTS \"reception_desk_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"visitor_name\" TEXT, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
+            db_ << "CREATE TABLE IF NOT EXISTS \"reception_desk_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"visitor_name\" TEXT UNIQUE, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -60,6 +60,26 @@ public:
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
             db_ << "SELECT \"HARPIA_ID\", \"visitor_name\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"reception_desk_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id),
+                ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4);
+            if (!db_.got_data()) return false;
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_visitor_name(n1 == ::soci::i_ok ? l1 : std::string());
+                msg->set_harpia_status(n2 == ::soci::i_ok ? l2 : std::string());
+                msg->set_harpia_error(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_originator(n4 == ::soci::i_ok ? l4 : std::string());
+            return true;
+        } catch (const std::exception&) { return false; }
+    }
+
+    bool read_by_visitor_name(const std::string& value, ::reception_desk* msg) {
+        try {
+            int l0 = 0; ::soci::indicator n0;
+            std::string l1; ::soci::indicator n1;
+            std::string l2; ::soci::indicator n2;
+            std::string l3; ::soci::indicator n3;
+            std::string l4; ::soci::indicator n4;
+            const auto _key = value;
+            db_ << "SELECT \"HARPIA_ID\", \"visitor_name\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"reception_desk_table\" WHERE \"visitor_name\" = :v", ::soci::use(_key),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4);
             if (!db_.got_data()) return false;
                 msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);

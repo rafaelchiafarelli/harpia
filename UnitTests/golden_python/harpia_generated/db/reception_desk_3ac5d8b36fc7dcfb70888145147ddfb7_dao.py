@@ -28,7 +28,7 @@ class reception_desk_dao(Dao[reception_desk]):
     CHILDREN = (
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "reception_desk_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "visitor_name" TEXT, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "reception_desk_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "visitor_name" TEXT UNIQUE, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
     )
     DROP_TABLE_SQL = (
         'DROP TABLE IF EXISTS "reception_desk_table";',

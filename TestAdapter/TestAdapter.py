@@ -54,16 +54,23 @@ def _value(col, variant):
 
     ``int`` covers both INT32 and BOOL in the shared column model, so it stays at
     1 in both rows -- a truthy value that round-trips whether the field is an int
-    or a bool. Row uniqueness is carried by the primary key, set separately."""
+    or a bool. Row uniqueness is carried by the primary key, set separately --
+    except for a `unique` column, whose "b" / "c" values differ from "a" (a
+    second row with the same value would violate its UNIQUE constraint).
+    Variant "c" is a third value, for a copy of row "a" stored next to it."""
+    unique = getattr(col, "unique", False)
     if col.kind == "text":
         return '"{}_{}"'.format(col.accessor, variant)
     if col.kind == "enum":
-        # value 1 is a valid enumerator for the test schema's enums
-        return "static_cast<::{}>(1)".format(col.enum_type)
+        # value 1 is a valid enumerator for the test schema's enums; 0 always is
+        return "static_cast<::{}>({})".format(
+            col.enum_type, 0 if unique and variant != "a" else 1)
     if col.kind == "double":
-        return "2.5" if variant == "a" else "3.5"
+        return {"a": "2.5", "b": "3.5"}.get(variant, "4.5")
     if col.kind == "int64":
-        return "7" if variant == "a" else "8"
+        return {"a": "7", "b": "8"}.get(variant, "9")
+    if unique:
+        return {"a": "1", "b": "2"}.get(variant, "3")
     return "1"
 
 
@@ -522,6 +529,11 @@ class TestAdapter:
         L += [
             "        ::" + cls + " ax = a;",
             "        ax.set_" + pk.accessor + "(2);",
+        ]
+        # a `unique` column can't repeat row "a"'s value in the second row
+        L += ["        ax.set_" + c.accessor + "(" + _value(c, "c") + ");"
+              for c in non_pk if getattr(c, "unique", False)]
+        L += [
             "        const std::string axml = ::harpia::xml::to_xml(ax);",
             '        auto xpost = cli.Post("/api/v1/' + cls + '", axml, "application/xml", cred);',
             "        if (!xpost || xpost.status != 201) { code = 97; break; }",
@@ -529,7 +541,8 @@ class TestAdapter:
             "        if (!gx2 || gx2.status != 200) { code = 98; break; }",
         ]
         if probe is not None:
-            L.append('        if (gx2.body.find("' + probe.accessor + '_a") == '
+            L.append('        if (gx2.body.find("' + probe.accessor
+                     + ('_c' if getattr(probe, "unique", False) else '_a') + '") == '
                      "std::string::npos) { code = 99; break; }")
         if probe is not None:
             L += [
