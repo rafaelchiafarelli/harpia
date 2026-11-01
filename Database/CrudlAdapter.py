@@ -108,6 +108,13 @@ def _use_list(cols, base, indent):
     return ",\n{}{}".format(indent, uses)
 
 
+# `autokey` create(): one source of truth for the key -- a caller-set one is
+# refused; the database's is written back into the caller's message.
+_AUTOKEY_GUARD = ("        // autokey: the database assigns the key; a caller-set one is refused\n"
+                  "        if (msg.{pk}() != 0) return false;\n")
+_AUTOKEY_SET_KEY = "            msg.set_{pk}(static_cast<decltype(msg.{pk}())>(_key));\n"
+
+
 class CrudlAdapter:
     def __init__(self, messages, dest, backend=None, compliance=None) -> None:
         self.compliance = compliance
@@ -171,6 +178,9 @@ class CrudlAdapter:
 
         # column order for INSERT/SELECT: scalar/enum/embed first, then FK.
         insert_all = scalar + fk_cols
+        # an `autokey` table: the INSERT leaves the key out, RETURNING it
+        autokey = bool(getattr(msg, "is_autokey", False)) and id_col is not None
+        insert_new = [c for c in insert_all if not (autokey and c.pk)]
         update_all = non_id + fk_cols
 
         maps = map_fields(msg, self.types, self.backend)
@@ -222,12 +232,20 @@ class CrudlAdapter:
             table=msg.tableName,
             create_table_sql=create_table_sql(
                 msg, types=self.types, backend=self.backend).replace('"', '\\"'),
-            insert_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
-            insert_ph=", ".join(":c{}".format(i) for i in range(len(insert_all))),
+            insert_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_new),
+            insert_ph=", ".join(":c{}".format(i) for i in range(len(insert_new))),
+            create_param=("::{}&".format(msg.name) if autokey
+                          else "const ::{}&".format(msg.name)),
+            create_guard=(_AUTOKEY_GUARD.format(pk=id_col.accessor) if autokey else ""),
+            insert_returning=(' RETURNING \\"{}\\"'.format(id_col.name) if autokey else ""),
+            create_set_key=(_AUTOKEY_SET_KEY.format(pk=id_col.accessor) if autokey else ""),
             select_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
             id_col=id_col.name if id_col else "rowid",
-            create_locals=self._create_locals(scalar, fk_cols),
-            create_use=_use_list(insert_all, "c", " " * 16),
+            create_locals=self._create_locals(
+                [c for c in scalar if not (autokey and c.pk)], fk_cols)
+                + ("            long long _key = 0;\n" if autokey else ""),
+            create_use=(_use_list(insert_new, "c", " " * 16)
+                        + (", ::soci::into(_key)" if autokey else "")),
             update_locals=self._update_locals(non_id, fk_cols, id_col),
             update_set=", ".join('\\"{}\\" = :c{}'.format(c.name, i)
                                  for i, c in enumerate(update_all)),

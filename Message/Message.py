@@ -42,6 +42,7 @@ class Message():
     # either yet, same rationale as is_critical / is_dds.
     is_protected = False
     is_open = False
+    is_autokey = False
     # events-callbacks epic, task 1: cache mode of the `event` message-type
     # modifier. None ⇔ no `event` modifier; "cached" for bare `event` or
     # `event[cached]` (cached is the standard when unspecified); "not-cached"
@@ -61,6 +62,7 @@ class Message():
         self.is_dds = False
         self.is_protected = False
         self.is_open = False
+        self.is_autokey = False
         self.event_cache_mode = None
         self.log = logger(outFile=None, moduleName="Message")
         self.tableName = ""
@@ -130,6 +132,12 @@ class Message():
                     for access in self.access_modifiers:
                         if access[0] == 'OPEN':
                             self.is_open = True
+                            break
+                    ##dao-key-access / db-assigned-key: the database assigns
+                    ##HARPIA_ID (checked below: needs a table)
+                    for access in self.access_modifiers:
+                        if access[0] == 'AUTOKEY':
+                            self.is_autokey = True
                             break
                     ##Both on the same message is a hard generation-time
                     ##error -- never a silent precedence rule (same "never
@@ -230,6 +238,14 @@ class Message():
                         FileName=self.file,
                         FileLine='1',
                         CharacterNumber='1')
+
+        ##an autokey message without a table has no key to assign
+        if self.is_autokey and not self.tableName:
+            return Error(errCl=Classes.MODIFIERS,
+                        errTp=Types.AUTOKEY_WITHOUT_TABLE,
+                        FileName=self.file,
+                        FileLine='0',
+                        CharacterNumber='0')
 
         return None
 
