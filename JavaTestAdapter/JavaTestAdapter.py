@@ -92,7 +92,8 @@ class JavaTestAdapter:
                 continue
 
             columns, _notes = analyze(msg, types)
-            usable = [c for c in columns if not c.embed and not c.fk_table]
+            usable = [c for c in columns
+                      if not c.embed and not c.fk_table and not c.presence_of]
             pk = next((c for c in usable if c.pk), None)
             if pk is None:
                 continue

@@ -987,6 +987,11 @@ Docker/run.sh python3 main.py    # the pipeline with in-repo defaults
   sub-field of an embedded message too (C++ / Python; Java doesn't persist
   embedded fields). Rows written before this change hold `0` / `""` and keep
   reading as set.
+- An embedded (table-less) message field keeps its own presence too: unset
+  reads back unset, set but empty reads back set (C++ / Python). Each embed gets
+  a hidden `HARPIA_HAS_<path>` column, added by `migrate_<name>`, so
+  `WHERE "HARPIA_HAS_val" = 1` also works in your own SQL. Rows written before
+  this change read as set.
 - Every message carries four hidden fields the generator adds: `HARPIA_ID`,
   `HARPIA_STATUS`, `HARPIA_ERROR`, `HARPIA_ORIGINATOR` (fixed names; before
   stable-hidden-names-DEFECT they were `ID_<hash>`, `STATUS_<hash>`,

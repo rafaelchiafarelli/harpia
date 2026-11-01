@@ -106,6 +106,8 @@ class JavaCrudlAdapter:
                 continue
 
             columns, _notes = analyze(msg, types, self.backend)
+            # embed presence columns go with the embeds this DAO defers
+            columns = [c for c in columns if not c.presence_of]
             usable = [c for c in columns if not c.embed and not c.fk_table]
             deferred = [c for c in columns if c.embed or c.fk_table]
             for c in deferred:
