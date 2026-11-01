@@ -173,6 +173,7 @@ class PyDatabaseAdapter:
                         if phi else ""),
             event_import=self._event_import(msg),
             event_hook=self._event_hook(msg, phi),
+            read_by=self._read_by(msg, scalar, sel, table, ph),
             create_sql="".join("\n        {!r},".format(s) for s in create),
             drop_sql="".join("\n        {!r},".format(s) for s in drop),
             **{k: repr(v) for k, v in sql.items()})
@@ -305,6 +306,30 @@ class PyDatabaseAdapter:
             return ""
         return ("from harpia_generated.events.{0}_{1}_events import (\n"
                 "    {0}_channel,\n)\n").format(msg.name, msg.md5Hash)
+
+    @staticmethod
+    def _read_by(msg, scalar, sel, table, ph):
+        """dao-key-access read-by-unique task 2 (the C++ ``read_by_<field>``):
+        ``READ_BY_SQL`` + a typed ``read_by_<field>(value, out)`` for every
+        top-level, non-phi `unique` scalar column."""
+        cols = [c for c in scalar if c.unique and not c.pk and not c.embed
+                and not getattr(c, "is_phi", False)]
+        if not cols:
+            return ""
+        sqls = {c.name: 'SELECT {} FROM {} WHERE "{}" = {}'.format(sel, table, c.name, ph)
+                for c in cols}
+        out = "\n    READ_BY_SQL = {!r}".format(sqls)
+        for c in cols:
+            ptype = {"text": "str", "double": "float"}.get(c.kind, "int")
+            out += ('\n\n    def read_by_{f}(self, value: {t}, out: {name}) -> bool:\n'
+                    '        """Load the row whose ``{f}`` (a ``unique`` field) is\n'
+                    '        ``value`` into ``out``.\n\n'
+                    '        Returns:\n'
+                    '            ``False`` when no such row exists (``out`` is untouched).\n'
+                    '        """\n'
+                    '        return self._read_by({f!r}, value, out)').format(
+                        f=c.name, t=ptype, name=msg.name)
+        return out
 
     @staticmethod
     def _event_hook(msg, phi):
