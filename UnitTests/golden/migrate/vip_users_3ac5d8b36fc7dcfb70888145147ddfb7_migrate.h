@@ -95,9 +95,55 @@ inline bool migrate_vip_users(::soci::session& db,
         }
 
         // renames: old column name -> new, ahead of add/drop so they see the
-        // corrected column set. Idempotent: a no-op once the old name is gone
-        // (a second migrate_vip_users call, or a table that never had it).
-
+        // corrected column set -- first a legacy hash-suffixed hidden column
+        // (ID_/STATUS_/ERROR_<md5>, ORIGINATOR[_<md5>]) to its HARPIA_* name,
+        // then each renamed_from[<old>] field. Idempotent: a no-op once the
+        // old name is gone (a second migrate_vip_users call, or a table that
+        // never had it).
+        auto _harpia_legacy = [](const std::string& n, const std::string& p,
+                                 bool bare_ok) {
+            if (bare_ok && n + "_" == p) return true;
+            if (n.size() != p.size() + 32 || n.compare(0, p.size(), p) != 0) return false;
+            for (std::size_t i = p.size(); i < n.size(); ++i)
+                if (!((n[i] >= '0' && n[i] <= '9') || (n[i] >= 'a' && n[i] <= 'f'))) return false;
+            return true;
+        };
+        if (!have.count("HARPIA_ID")) {
+            for (const auto& _lc : have) {
+                if (!_harpia_legacy(_lc, "ID_", false)) continue;
+                const std::string _lo = _lc;
+                db << "ALTER TABLE \"table_vip_users\" RENAME COLUMN \"" + _lo + "\" TO \"HARPIA_ID\";";
+                have.erase(_lo); have.insert("HARPIA_ID");
+                break;
+            }
+        }
+        if (!have.count("HARPIA_STATUS")) {
+            for (const auto& _lc : have) {
+                if (!_harpia_legacy(_lc, "STATUS_", false)) continue;
+                const std::string _lo = _lc;
+                db << "ALTER TABLE \"table_vip_users\" RENAME COLUMN \"" + _lo + "\" TO \"HARPIA_STATUS\";";
+                have.erase(_lo); have.insert("HARPIA_STATUS");
+                break;
+            }
+        }
+        if (!have.count("HARPIA_ERROR")) {
+            for (const auto& _lc : have) {
+                if (!_harpia_legacy(_lc, "ERROR_", false)) continue;
+                const std::string _lo = _lc;
+                db << "ALTER TABLE \"table_vip_users\" RENAME COLUMN \"" + _lo + "\" TO \"HARPIA_ERROR\";";
+                have.erase(_lo); have.insert("HARPIA_ERROR");
+                break;
+            }
+        }
+        if (!have.count("HARPIA_ORIGINATOR")) {
+            for (const auto& _lc : have) {
+                if (!_harpia_legacy(_lc, "ORIGINATOR_", true)) continue;
+                const std::string _lo = _lc;
+                db << "ALTER TABLE \"table_vip_users\" RENAME COLUMN \"" + _lo + "\" TO \"HARPIA_ORIGINATOR\";";
+                have.erase(_lo); have.insert("HARPIA_ORIGINATOR");
+                break;
+            }
+        }
         // additive migration: add any column missing from an older table version
         if (!have.count("name")) {
             db << "ALTER TABLE \"table_vip_users\" ADD COLUMN \"name\" TEXT;";

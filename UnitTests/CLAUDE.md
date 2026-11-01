@@ -366,7 +366,9 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
 - `test_java_json_pass_through.py` — session J.4: `JavaJsonAdapter` ships a single hand-written `com.harpia.runtime.json.HarpiaJson` runtime class (NOT per-message generation — see its `CLAUDE.md` for why that's correct, not a shortcut). Structural (pure Python): the runtime class is wired into `<dest>/java/src/main/java/com/harpia/runtime/json/`; `build.gradle` depends on `protobuf-java-util`. Integration (gradle+JDK-gated): a real JSON round trip through `patient_vitals`'s generated builder, confirming protobuf's canonical camelCase field mapping (`patient_id` -> `"patientId"`, never `"patient_id"`) — the literal J.4 test bar.
 - `test_stage7.py` — protoc emits/compiles `.pb.{h,cc}`. (protoc, g++)
 - `test_stage8_db.py` — SQL schema, CRUDL round-trip, FK, repeated-FK link table,
-  map<K,V>, repeated scalar, migration, DB↔JSON/XML. (cc + g++, some protoc)
+  map<K,V>, repeated scalar, migration (incl. the legacy `ID_<md5>`/… hidden
+  columns renamed to `HARPIA_*`, stable-hidden-names-DEFECT task 2),
+  DB↔JSON/XML. (cc + g++, some protoc)
 - `test_db_segregation.py` — the db-segregation epic / Session db-segregation task 1: the public/private DB
   registry (`Database/DbRegistryAdapter.py` → `generated/cpp/db/harpia_db_registry.h`).
   Structural (pure Python, always run): the one project-wide header is
