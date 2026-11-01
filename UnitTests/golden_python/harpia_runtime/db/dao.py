@@ -207,6 +207,9 @@ class Dao(Generic[M]):
     DELETE_SQL: ClassVar[str]
     LIST_SQL: ClassVar[str]
     LIST_PAGE_SQL: ClassVar[str]
+    #: an `autokey` table: the database assigns ``PK`` -- ``INSERT_SQL``
+    #: leaves it out and returns it (dao-key-access / db-assigned-key)
+    AUTOKEY: ClassVar[bool] = False
     #: ``{field: SELECT .. WHERE field = ?}`` for each `unique` field's
     #: generated ``read_by_<field>`` (dao-key-access)
     READ_BY_SQL: ClassVar[dict[str, str]] = {}
@@ -345,7 +348,15 @@ class Dao(Generic[M]):
         for col in self.COLUMNS:
             if col.fk is not None and _has_child(msg, col):
                 dao_class(col.fk)(self.conn)._create(cur, _child(msg, col))
-        cur.execute(self.INSERT_SQL, [self._bind(msg, c) for c in self.COLUMNS])
+        if self.AUTOKEY:
+            if self._pk_value(msg):
+                raise ValueError(f"{self.TABLE}: {self.PK} is assigned by the "
+                                 "database (autokey); leave it unset")
+            cur.execute(self.INSERT_SQL, [self._bind(msg, c) for c in self.COLUMNS
+                                          if c.name != self.PK])
+            setattr(msg, self.PK, cur.fetchone()[0])
+        else:
+            cur.execute(self.INSERT_SQL, [self._bind(msg, c) for c in self.COLUMNS])
         if self.CHILDREN:
             owner = self._pk_value(msg)
             for child in self.CHILDREN:
@@ -405,10 +416,12 @@ class Dao(Generic[M]):
 
     # -- CRUDL ----------------------------------------------------------------
     def create(self, msg: M) -> bool:
-        """Insert ``msg`` as a new row (its ``HARPIA_ID`` is the key).
+        """Insert ``msg`` as a new row (its ``HARPIA_ID`` is the key; for
+        an `autokey` table the database assigns it and it is set on ``msg``).
 
         Returns:
-            ``True``. A database error (for example a duplicate key) raises.
+            ``True``. A database error (for example a duplicate key) raises;
+            so does a caller-set key on an `autokey` table (``ValueError``).
         """
         with self._tx() as cur:
             self._create(cur, msg)

@@ -32,6 +32,7 @@ SPEC = MigrationSpec(
     child_current=('shipment_table__cargo',),
     drop_table_sql='DROP TABLE "<<NAME>>";',
     child_plans=({'types_sql': 'SELECT "name", "type" FROM pragma_table_info(\'shipment_table__cargo\');', 'adds': [('label', 'ALTER TABLE "shipment_table__cargo" ADD COLUMN "label" TEXT;'), ('weight', 'ALTER TABLE "shipment_table__cargo" ADD COLUMN "weight" INTEGER;')], 'keep': ['owner', 'ordinal', 'label', 'weight'], 'strays': 'rebuild', 'steps': [([('label', 'TEXT'), ('weight', 'INTEGER')], ['CREATE TABLE "shipment_table__cargo__evolve_tmp" ("owner" INTEGER, "ordinal" INTEGER, "label" TEXT, "weight" INTEGER, PRIMARY KEY("owner", "ordinal"));', 'INSERT INTO "shipment_table__cargo__evolve_tmp" ("owner", "ordinal", "label", "weight") SELECT "owner", "ordinal", CAST("label" AS TEXT), CAST("weight" AS INTEGER) FROM "shipment_table__cargo";', 'DROP TABLE "shipment_table__cargo";', 'ALTER TABLE "shipment_table__cargo__evolve_tmp" RENAME TO "shipment_table__cargo";'])]},),
+    identity=None,
     stamp_sql='INSERT OR REPLACE INTO "_harpia_schema_version" ("name", "version") VALUES (\'shipment_table\', \'3ac5d8b36fc7dcfb70888145147ddfb7\');',
 )
 

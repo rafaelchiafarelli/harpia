@@ -62,7 +62,13 @@ exact `.proto` names (resolved from the schema; `Database.model.Column.embed`
 holds C++'s lowercased accessors). The module
 docstring lists anything the C++ DAO persists that this DAO does not
 (`Deferred: ...`) — `none` for every fixture message since task 2c, asserted
-by `test_nothing_deferred`. **`read_by_<field>` (dao-key-access read-by-unique
+by `test_nothing_deferred`. **`autokey` (dao-key-access db-assigned-key task 3):** the DAO
+declares `AUTOKEY = True` and its `INSERT_SQL` leaves the key out and `RETURNING`s
+it; `Dao._create` raises `ValueError` on a caller-set key and sets the assigned
+one on `msg` (so, unlike C++, an autokey message can be a composed FK target:
+the child's key is on the shared object before the parent binds it).
+`MigrationSpec.identity` carries `DbBackend.identity_migration` (PG only).
+**`read_by_<field>` (dao-key-access read-by-unique
 task 2, the C++ rule):** every top-level, non-phi `unique` scalar field gets
 `READ_BY_SQL[field]` and a typed `read_by_<field>(value, out) -> bool`, which
 calls `Dao._read_by` (read()'s row load + audit, keyed on that column).

@@ -71,6 +71,9 @@ class MigrationSpec:
     #: ``DROP TABLE`` with ``<<NAME>>`` for the table
     drop_table_sql: str
     child_plans: tuple[Plan, ...]
+    #: an `autokey` table: ``DbBackend.identity_migration`` (PostgreSQL makes
+    #: an existing key column an identity); ``None`` otherwise
+    identity: Plan | None
     stamp_sql: str
 
 
@@ -159,6 +162,12 @@ def migrate(conn: Connection, spec: MigrationSpec, dao: type[Dao[Any]],
         for column, sql in spec.adds:
             if column not in have:
                 cur.execute(sql)
+        if spec.identity is not None:
+            cur.execute(spec.identity["check_sql"])
+            row = cur.fetchone()
+            if row is not None and row[0] == "NO":
+                for sql in spec.identity["statements"]:
+                    cur.execute(sql)
         if data_transform is not None:
             data_transform(conn)
         current = set(spec.current_columns)

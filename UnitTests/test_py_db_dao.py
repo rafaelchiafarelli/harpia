@@ -415,3 +415,52 @@ def test_child_tables_round_trip(name, gen, msgs, tmp_path):
     assert len(dao.list()) == 1
     assert dao.remove(31)
     assert all(n == 0 for n in _child_rows(conn, dao_cls).values())
+
+
+_AUTOKEY_CHECK = r'''
+import sqlite3, sys
+from harpia_generated.db.ticket_{h}_dao import ticket, ticket_dao
+from harpia_generated.migrate.ticket_{h}_migrate import migrate_ticket
+conn = sqlite3.connect(sys.argv[1])
+dao = ticket_dao(conn)
+dao.create_table()
+a, b = ticket(title="first"), ticket(title="second")
+assert dao.create(a) and dao.create(b)
+assert a.HARPIA_ID and b.HARPIA_ID and a.HARPIA_ID != b.HARPIA_ID, (a, b)
+got = ticket()
+assert dao.read(b.HARPIA_ID, got) and got.title == "second"
+try:
+    dao.create(ticket(HARPIA_ID=99, title="x"))
+    raise SystemExit("a caller-set key was accepted")
+except ValueError:
+    pass
+assert migrate_ticket(conn) and migrate_ticket(conn)
+c = ticket(title="third")
+assert dao.create(c) and c.HARPIA_ID > b.HARPIA_ID
+print("OK")
+'''
+
+
+def test_db_assigned_key(tmp_path):
+    """dao-key-access / db-assigned-key task 3 (mirrors the C++ test): an
+    `autokey` table's create() leaves HARPIA_ID to the database and sets it
+    on the message, refuses a caller-set key (ValueError); own schema, run
+    in a subprocess so its harpia_generated doesn't clash with HarpiaTest's."""
+    import hashlib
+    (tmp_path / "Include").mkdir()
+    (tmp_path / "Include" / "ticket.harpia").write_text(
+        "autokey message ticket {\n    required string title;\n} ticket_table;\n")
+    root = tmp_path / "root.harpia"
+    root.write_text('import "ticket.harpia";\n')
+    out = tmp_path / "gen"
+    env = dict(os.environ, HARPIA_OUTPUT_DIR=str(out), HARPIA_INPUT_FILE=str(root),
+               HARPIA_INCLUDE_FOLDER=str(tmp_path / "Include"), HARPIA_GEN_LANG="python")
+    r = subprocess.run([sys.executable, "main.py"], cwd=REPO_ROOT, env=env,
+                       capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
+    h = hashlib.md5(root.read_bytes()).hexdigest()
+    run = subprocess.run([sys.executable, "-c", _AUTOKEY_CHECK.format(h=h),
+                          str(tmp_path / "t.sqlite")],
+                         env=dict(os.environ, PYTHONPATH=str(out / "python")),
+                         capture_output=True, text=True, timeout=120)
+    assert run.returncode == 0 and "OK" in run.stdout, run.stdout + run.stderr
