@@ -181,3 +181,48 @@ class pre_lex:
         if self.listOfHarpiaImports != None:
             st+= " {}".format(self.listOfHarpiaImports)
         return st
+
+
+def resolve_imports(root_imports, make_prelex):
+    """The transitive closure of the root's imports, in generation order.
+
+    ``root_imports`` is the root's own ``getListOfHarpias()``;
+    ``make_prelex(path)`` builds a ``pre_lex`` for an included file. Each
+    file is pre-lexed (checked) once, its own imports followed depth-first
+    in import order, and a file comes after everything it imports
+    (dependencies first; a root importing only leaf files keeps its import
+    order). A file reached twice (diamond) is processed once, by resolved
+    path. An import cycle is ``Error(IMPORT_CYCLE)`` naming the files.
+
+    Returns ``(paths, None)`` or ``(None, Error)``."""
+    order, done = [], set()
+
+    def visit(path, stack):
+        real = os.path.realpath(path)
+        if real in done:
+            return None
+        if real in stack:
+            cycle = stack[stack.index(real):] + [real]
+            return Error(errCl=Classes.FILE_HAS_ERROR, errTp=Types.IMPORT_CYCLE,
+                         FileName=" -> ".join(os.path.basename(p) for p in cycle),
+                         FileLine="", CharacterNumber=0)
+        prelex = make_prelex(path)
+        err = prelex.process()
+        if err is not None:
+            return err
+        stack.append(real)
+        for child in prelex.getListOfHarpias():
+            err = visit(child, stack)
+            if err is not None:
+                return err
+        stack.pop()
+        done.add(real)
+        order.append(path)
+        return None
+
+    for path in root_imports:
+        err = visit(path, [])
+        if err is not None:
+            return None, err
+    return order, None
+

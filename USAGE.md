@@ -41,6 +41,12 @@ HarpiaTest/
 └── schema_registry/     # WRITTEN BY HARPIA on the first run -- commit it (§5.4)
 ```
 
+Imports are followed **transitively**: a module may import others, and every
+module the root reaches is generated, each once (a module imported from two
+places is not duplicated). An import cycle (`a` → `b` → `a`) is a generation
+error (`IMPORT_CYCLE`) naming the files. This lets you keep a stable root that
+imports one aggregator module.
+
 ---
 
 ## 3. The `.harpia` language
