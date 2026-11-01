@@ -11,7 +11,9 @@ Conventions, matching the C++ DAO (``Database/CrudlAdapter.py``):
 
 - The primary key is caller-assigned: the message's ``HARPIA_ID`` field is
   bound explicitly on insert.
-- A SQL ``NULL`` reads back as the field's default.
+- A SQL ``NULL`` reads back as the field's default; an unset ``optional``
+  field is stored as ``NULL`` and a ``NULL`` leaves it unset (presence
+  survives, as C++).
 - ``read`` sets the stored fields on the message it is given (it does not
   clear the rest first).
 - Map / repeated fields live in child tables keyed by the parent's primary
@@ -41,7 +43,13 @@ from typing import Any, ClassVar, Generic, Protocol, TypeVar, cast
 
 from google.protobuf.message import Message
 
-from harpia_runtime.db.bind import bind_value, extract_value, from_db, to_db
+from harpia_runtime.db.bind import (
+    bind_value,
+    extract_value,
+    from_db,
+    has_presence,
+    to_db,
+)
 
 
 class Cursor(Protocol):
@@ -165,7 +173,13 @@ def column_value(msg: Message, col: Column) -> Any:
 
 
 def set_column(msg: Message, col: Column, value: Any) -> None:
-    """Store a fetched value for ``col`` into ``msg``."""
+    """Store a fetched value for ``col`` into ``msg``. A NULL ``optional``
+    is skipped before the owner chain is materialized (as C++, whose guarded
+    set never reaches its ``mutable_*()`` chain)."""
+    if value is None:
+        owner = _owner(msg, col.path, False)
+        if has_presence(owner.DESCRIPTOR.fields_by_name[col.path[-1]]):
+            return
     extract_value(value, _owner(msg, col.path, True), col.path[-1])
 
 
