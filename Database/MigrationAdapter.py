@@ -83,6 +83,15 @@ _LEGACY_RENAME = (
     '        }}')
 
 
+_IDENTITY = ('        {{\n'
+             '            std::string _ident; ::soci::indicator _ii = ::soci::i_null;\n'
+             '            db << "{check}", ::soci::into(_ident, _ii);\n'
+             '            if (_ii == ::soci::i_ok && _ident == "NO") {{\n'
+             '{stmts}'
+             '            }}\n'
+             '        }}')
+
+
 def _esc(sql):
     """Escape a SQL string for embedding in a C++ string literal."""
     return sql.replace('"', '\\"')
@@ -134,6 +143,15 @@ class MigrationAdapter:
                           alter_sql=_esc(b.add_column(msg.tableName, c.name,
                                                       c.sql_type)))
             for c in columns if not c.pk)
+        # an `autokey` table: make an existing caller-assigned key column
+        # database-assigned (PostgreSQL identity; nothing to do on SQLite)
+        ident = next((b.identity_migration(msg.tableName, c.name)
+                      for c in columns if c.pk and getattr(c, "identity", False)), None)
+        if ident:
+            alters += "\n" + _IDENTITY.format(
+                check=_esc(ident["check_sql"]),
+                stmts="".join('                db << "{}";\n'.format(_esc(s))
+                              for s in ident["statements"]))
         # non-additive: drop any live column the current schema no longer
         # declares (an inverse diff -- `have` minus the current column names).
         # drop_column_dynamic returns a full C++ expression (quotes and all,

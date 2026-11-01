@@ -108,6 +108,14 @@ def _use_list(cols, base, indent):
     return ",\n{}{}".format(indent, uses)
 
 
+# `autokey` create(): key 0 -> the database assigns it and it is written back;
+# non-zero -> inserted as given. A const caller (gRPC push) goes through a copy.
+_AUTOKEY_OVERLOAD = ("    bool create(const ::{cls}& msg) {{\n"
+                     "        ::{cls} _copy(msg);\n"
+                     "        return create(_copy);\n"
+                     "    }}\n\n")
+
+
 class CrudlAdapter:
     def __init__(self, messages, dest, backend=None, compliance=None) -> None:
         self.compliance = compliance
@@ -171,6 +179,7 @@ class CrudlAdapter:
 
         # column order for INSERT/SELECT: scalar/enum/embed first, then FK.
         insert_all = scalar + fk_cols
+        autokey = bool(getattr(msg, "is_autokey", False)) and id_col is not None
         update_all = non_id + fk_cols
 
         maps = map_fields(msg, self.types, self.backend)
@@ -222,12 +231,13 @@ class CrudlAdapter:
             table=msg.tableName,
             create_table_sql=create_table_sql(
                 msg, types=self.types, backend=self.backend).replace('"', '\\"'),
-            insert_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
-            insert_ph=", ".join(":c{}".format(i) for i in range(len(insert_all))),
+            create_param=("::{}&".format(msg.name) if autokey
+                          else "const ::{}&".format(msg.name)),
+            create_overload=(_AUTOKEY_OVERLOAD.format(cls=msg.name) if autokey else ""),
+            create_insert=self._create_insert(msg, insert_all, id_col, autokey),
             select_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
             id_col=id_col.name if id_col else "rowid",
             create_locals=self._create_locals(scalar, fk_cols),
-            create_use=_use_list(insert_all, "c", " " * 16),
             update_locals=self._update_locals(non_id, fk_cols, id_col),
             update_set=", ".join('\\"{}\\" = :c{}'.format(c.name, i)
                                  for i, c in enumerate(update_all)),
@@ -245,8 +255,82 @@ class CrudlAdapter:
             map_update=(self._map_write(maps, id_col, "update")
                         + self._rep_write(reps, id_col, "update")),
             map_read=self._map_read(maps, id_col) + self._rep_read(reps, id_col),
+            read_by=self._read_by(msg, scalar, fk_cols, insert_all,
+                                  self._map_read(maps, id_col) + self._rep_read(reps, id_col),
+                                  _audit("read")),
             map_remove=self._child_remove(maps + reps),
         )
+
+    def _create_insert(self, msg, insert_all, id_col, autokey):
+        """create()'s INSERT. An `autokey` table has two: key 0 leaves the key
+        out, RETURNING it into the message; a set key is inserted as given
+        (then the dialect advances its identity, if it needs that)."""
+        def insert(indexed, indent, extra=""):
+            cols = ", ".join('\\"{}\\"'.format(c.name) for _, c in indexed)
+            ph = ", ".join(":c{}".format(i) for i, _ in indexed)
+            uses = ", ".join(
+                "::soci::use(c{i}, ci{i})".format(i=i) if _is_optional(c)
+                else "::soci::use(c{})".format(i)
+                for i, c in indexed)
+            ret = ' RETURNING \\"{}\\"'.format(id_col.name) if extra else ""
+            return ('{ind}db_ << "INSERT INTO \\"{t}\\" ({cols}) VALUES ({ph}){ret}"{sep}'
+                    "{uses}{extra};").format(
+                        ind=indent, t=msg.tableName, cols=cols, ph=ph, ret=ret, uses=uses,
+                        extra=extra, sep=",\n{}".format(" " * 16) if uses else "")
+        everything = list(enumerate(insert_all))
+        if not autokey:
+            return insert(everything, " " * 12)
+        keyless = [(i, c) for i, c in everything if not c.pk]
+        advance = self.backend.identity_advance_sql(msg.tableName, id_col.name)
+        return ("            if (msg.{pk}() == 0) {{\n"
+                "                long long _key = 0;\n"
+                "{auto}\n"
+                "                msg.set_{pk}(static_cast<decltype(msg.{pk}())>(_key));\n"
+                "            }} else {{\n"
+                "{explicit}\n"
+                "{adv}"
+                "            }}").format(
+                    pk=id_col.accessor,
+                    auto=insert(keyless, " " * 16, ", ::soci::into(_key)"),
+                    explicit=insert(everything, " " * 16),
+                    adv=('                db_ << "{}";\n'.format(advance.replace('"', '\\"'))
+                         if advance else ""))
+
+    # -- read_by_<field> for `unique` fields (dao-key-access) ---------------
+    def _read_by(self, msg, scalar, fk_cols, insert_all, child_read, audit_read):
+        """``bool read_by_<field>(value, msg*)`` for every top-level, non-phi
+        `unique` scalar column (a phi value is sealed with a random nonce, so
+        SQL can't match it): read()'s SELECT keyed on that column; the same
+        hydration, child tables and audit as read()."""
+        out = []
+        for c in scalar:
+            if not c.unique or c.pk or c.embed or getattr(c, "is_phi", False):
+                continue
+            ptype = ("const std::string&" if c.kind == "text"
+                     else "::{}".format(c.enum_type) if c.kind == "enum"
+                     else _local_ctype(c.kind))
+            bound = ("static_cast<int>(value)" if c.kind == "enum" else "value")
+            out.append(
+                "\n    bool read_by_{acc}({pt} value, ::{cls}* msg) {{\n"
+                "        try {{\n"
+                "{locals}"
+                "            const auto _key = {bound};\n"
+                '            db_ << "SELECT {cols} FROM \\"{table}\\" WHERE \\"{col}\\" = :v", '
+                "::soci::use(_key){into};\n"
+                "            if (!db_.got_data()) return false;\n"
+                "{extract}{fk}{child}{audit}"
+                "            return true;\n"
+                "        }} catch (const std::exception&) {{ return false; }}\n"
+                "    }}\n".format(
+                    acc=c.accessor, pt=ptype, cls=msg.name, bound=bound,
+                    locals=self._extract_locals(scalar, fk_cols),
+                    cols=", ".join('\\"{}\\"'.format(x.name) for x in insert_all),
+                    table=msg.tableName, col=c.name,
+                    into=self._extract_into(len(insert_all)),
+                    extract=self._extract_set(scalar),
+                    fk=self._fk_extract(scalar, fk_cols),
+                    child=child_read, audit=audit_read))
+        return "".join(out)
 
     # -- INSERT locals / SELECT locals -------------------------------------
     def _create_locals(self, scalar, fk_cols):

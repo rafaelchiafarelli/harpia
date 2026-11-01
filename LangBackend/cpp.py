@@ -142,7 +142,8 @@ class CppBackend(LangBackend):
                                          compliance=compliance).Process())
 
         #14. unit tests for the generated code (opt-in CTest target)
-        ctx.report(TestAdapter(messages=messages, dest=dest, compliance=compliance).Process())
+        ctx.report(TestAdapter(messages=messages, dest=dest, compliance=compliance,
+                               backend=ctx.db_backend).Process())
 
         #15. compliance report -- CycloneDX SBOM for the generated project
         # python-target / py-artifacts: a python run (PythonBackend extends this

@@ -32,6 +32,7 @@ SPEC = MigrationSpec(
     child_current=(),
     drop_table_sql='DROP TABLE "<<NAME>>";',
     child_plans=(),
+    identity=None,
     stamp_sql='INSERT OR REPLACE INTO "_harpia_schema_version" ("name", "version") VALUES (\'journey_table\', \'3ac5d8b36fc7dcfb70888145147ddfb7\');',
 )
 
