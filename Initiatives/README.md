@@ -58,9 +58,6 @@ Open DEFECT initiatives: see the `*-DEFECT` rows of the index below.
 | [doxygen-generation.md](doxygen-generation/doxygen-generation.md) | Foundation F6 + Ground Rule 6 plumbing **shipped** 2026-08-23. The `doc-comment-coverage` epic (real per-template doc-comments) — **not started**, after `multi-system-reference`. |
 | [ci-pipeline/](ci-pipeline/README.md) | **Scoped, not started.** GitHub Actions running the existing `Docker/run.sh pytest UnitTests/` suite on push/PR, plus image-layer caching. 2 tasks, both written. Highest leverage-per-effort of the open initiatives — no CI today means nothing independently re-verifies any "N passed" claim. |
 | [cpp-phi-unencrypted-field-shapes-DEFECT/](cpp-phi-unencrypted-field-shapes-DEFECT/README.md) | **Defect, not started** (found 2026-10-05 while fixing the numeric-phi defect). `phi` on an enum field, an embedded sub-field, a repeated or a map field is stored in plaintext by the C++ and Python DAOs, with no audit. 3 tasks; task 1 is a refuse-vs-encrypt decision. |
-| [transitive-imports-DEFECT/](transitive-imports-DEFECT/README.md) | **Defect, not started** (reported 2026-10-31). Only modules the root imports directly are generated; a module imported by an included file is silently skipped. 1 task. |
-| [dao-key-access/](dao-key-access/README.md) | **Scoped, not started** (requested 2026-10-31 by `mocap-contracts`). Generated `read_by_<unique field>` DAOs, and an explicit `.harpia` opt-in for a database-assigned primary key (decided 2026-11-01: `autokey` modifier, key 0 assigned and written back, a set key honoured). 2 epics, 7 tasks (1 done). |
-| [embed-presence-DEFECT/](embed-presence-DEFECT/README.md) | **Defect, not started** (found 2026-11-01 closing the mocap handoff). An unset embedded (table-less) message field reads back present: no column records the embed's own presence. Decided: hidden `HARPIA_HAS_<path>` column per embed (option B). 3 tasks. |
 | [go-target/](go-target/README.md) | **Scoped, not started.** Language #4 (resequenced behind python-target 2026-10-03), full compliance parity except DDS + ZMQ-CURVE/ZAP (pure-Go constraint). Depends on python-target's `lang-backend-seam` epic; its interop epic adds Go as the 4th peer to python-target's harness. No task files yet. |
 
 Finished plans are removed from this index once done — the shipped behavior is
@@ -99,6 +96,14 @@ reading present — see `Database/CLAUDE.md`, `PyDatabase/CLAUDE.md`,
 `JavaDatabase/CLAUDE.md`, `USAGE.md` §16. The **python-target** initiative
 (language #3, shipped in V3) — its folder and the `NEXT_SESSION.md` decision
 log (items 1-48) were removed 2026-11-01; the log is in git history.
+The rest of the **`mocap-contracts` handoff** (fixed 2026-11-01):
+**transitive-imports-DEFECT** (imports are followed transitively, each module
+once, a cycle is `IMPORT_CYCLE` — `LexicalAnalizer/CLAUDE.md`, `USAGE.md` §2);
+**dao-key-access** (`read_by_<unique field>` and the `autokey` modifier, C++ /
+Python / Java — `Database/CLAUDE.md`, `PyDatabase/CLAUDE.md`,
+`JavaDatabase/CLAUDE.md`, `USAGE.md` §3 / §7.1);
+**embed-presence-DEFECT** (hidden `HARPIA_HAS_<path>` column, an unset embedded
+message reads back unset — `Database/CLAUDE.md`, `USAGE.md` §16).
 Earlier removed-on-completion plans: Postgres backend
 (`Database/CLAUDE.md`), crash/interrupt recovery (`Util/CLAUDE.md`),
 message-versioning (`Message/CLAUDE.md`, `Capability/CLAUDE.md`),
