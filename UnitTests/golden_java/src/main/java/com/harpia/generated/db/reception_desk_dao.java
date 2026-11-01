@@ -19,7 +19,7 @@ public final class reception_desk_dao {
         this.conn = conn;
     }
 
-    public static final String CREATE_TABLE_SQL = "CREATE TABLE IF NOT EXISTS \"reception_desk_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"visitor_name\" TEXT, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
+    public static final String CREATE_TABLE_SQL = "CREATE TABLE IF NOT EXISTS \"reception_desk_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"visitor_name\" TEXT UNIQUE, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
     public static final String DROP_TABLE_SQL = "DROP TABLE IF EXISTS \"reception_desk_table\";";
 
     public boolean createTable() throws SQLException {
@@ -50,6 +50,23 @@ public final class reception_desk_dao {
     public boolean read(int id, reception_desk.Builder builder) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement("SELECT \"HARPIA_ID\", \"visitor_name\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"reception_desk_table\" WHERE \"HARPIA_ID\" = ?")) {
             ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return false;
+                }
+        JdbcBind.extract(rs, "HARPIA_ID", builder, "HARPIA_ID");
+        JdbcBind.extract(rs, "visitor_name", builder, "visitor_name");
+        JdbcBind.extract(rs, "HARPIA_STATUS", builder, "HARPIA_STATUS");
+        JdbcBind.extract(rs, "HARPIA_ERROR", builder, "HARPIA_ERROR");
+        JdbcBind.extract(rs, "HARPIA_ORIGINATOR", builder, "HARPIA_ORIGINATOR");
+                return true;
+            }
+        }
+    }
+
+    public boolean readByVisitorName(String value, reception_desk.Builder builder) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT \"HARPIA_ID\", \"visitor_name\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"reception_desk_table\" WHERE \"visitor_name\" = ?")) {
+            ps.setString(1, value);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     return false;

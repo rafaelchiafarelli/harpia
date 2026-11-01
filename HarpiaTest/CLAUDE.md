@@ -14,5 +14,5 @@
 - `schema_registry/` is also **git-ignored** (`.gitignore`: `schema_registry/`) and **never hand-edited** — a generation run writes it, but project policy is to regenerate it locally rather than commit it. It does NOT survive `git clean -x`; the next pipeline run re-freezes it. If you ever change a field's order or remove one in `test.harpia`, regenerate and eyeball the resulting `.fieldmap` the way you'd read a `.proto` field-number diff.
 - Input md5 (current golden input, for detecting drift):
   - `test.harpia` = `3ac5d8b36fc7dcfb70888145147ddfb7`
-  - `Include/file3.harpia` = `dd0dba0057756c9845a26eb8ac486b13` (bumped 2026-09-15, message-level-hardening's protected-open-modifiers epic task 4, when `reception_desk`/`vault` were added — an Include-file md5, so the root `test.harpia` hash and every pinned `HASH` are untouched)
+  - `Include/file3.harpia` = `b39de08c6802b57620054810725ace06` (bumped 2026-11-01, dao-key-access read-by-unique task 1: `reception_desk.visitor_name` became `unique` — the fixture's only `unique` field; an Include-file md5, so the root `test.harpia` hash and every pinned `HASH` are untouched)
 - Imports are resolved by filename against `includeFolder`; the root file references them bare (`file1.harpia`), not by relative path.

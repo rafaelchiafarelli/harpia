@@ -36,6 +36,11 @@ Invoked from `main.py` and `UnitTests/run_pipeline.py` after all other adapters.
 ## Key facts / gotchas
 - Body builders return C++ source as strings; `_value`/`_map_key`/`_map_val`
   produce deterministic literals (variant "a"/"b" distinguish the two CRUDL rows).
+  A `unique` column gets distinct "a"/"b"/"c" values for every kind (ints
+  included), and the REST body's second row (`ax`, a copy of "a") takes variant
+  "c" for its `unique` columns — before, any schema with a `unique` field
+  generated a test that hit its own UNIQUE constraint (found by dao-key-access
+  read-by-unique task 1).
 - Uses `Database.model.analyze/type_registry/map_fields/repeated_fields` to derive
   columns (bindable / pk / embed / map / repeated). Repeated-FK (1-to-many) scalars
   are skipped in the generated `_db_body` — they're covered by the host test instead.

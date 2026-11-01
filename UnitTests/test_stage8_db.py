@@ -2045,3 +2045,36 @@ def test_sqlite_list_pages_are_stable(generated, tmp_path):
         "}}\n".format(h=HASH))
     _compile_run(tmp_path, cpp_root, "sqlite_list_order", src,
                  [os.path.join(cpp_root, "protofiles", "users_{}.pb.cc".format(HASH))])
+
+
+@pytest.mark.skipif(shutil.which("protoc") is None or shutil.which("pkg-config") is None,
+                    reason="read_by needs protoc + protobuf")
+def test_read_by_unique(generated, sqlite_obj, tmp_path):
+    """dao-key-access / read-by-unique task 1: a `unique` top-level non-phi
+    field gets read_by_<field>(value, out) -- hit fills the row, miss
+    returns false (reception_desk.visitor_name)."""
+    from ProtoFile.ProtoCompiler import ProtoCompiler
+    assert ProtoCompiler(dest=generated).Process() is None, "Stage 7 failed"
+    cpp_root = os.path.join(generated, "generated", "cpp")
+    _compile_run(tmp_path, cpp_root, "read_by_unique", (
+        '#include "db/reception_desk_{h}_crudl.h"\n'
+        "#include <soci/soci.h>\n"
+        "#include <soci/sqlite3/soci-sqlite3.h>\n"
+        "#include <string>\n"
+        "int main() {{\n"
+        '    ::soci::session db(::soci::sqlite3, ":memory:");\n'
+        "    ::harpia::db::reception_desk_dao dao(db);\n"
+        "    if (!dao.create_table()) return 2;\n"
+        '    ::reception_desk a; a.set_harpia_id(4); a.set_visitor_name("ana");\n'
+        '    ::reception_desk b; b.set_harpia_id(9); b.set_visitor_name("bo");\n'
+        "    if (!dao.create(a) || !dao.create(b)) return 3;\n"
+        "    ::reception_desk got;\n"
+        '    if (!dao.read_by_visitor_name("bo", &got)) return 4;\n'
+        '    if (got.harpia_id() != 9 || got.visitor_name() != "bo") return 5;\n'
+        "    ::reception_desk none;\n"
+        '    if (dao.read_by_visitor_name("nobody", &none)) return 6;\n'
+        "    ::reception_desk dup; dup.set_harpia_id(10); dup.set_visitor_name(\"ana\");\n"
+        "    if (dao.create(dup)) return 7;   // UNIQUE enforced\n"
+        "    return 0;\n"
+        "}}\n").format(h=HASH),
+        [os.path.join(cpp_root, "protofiles", "reception_desk_{}.pb.cc".format(HASH))])

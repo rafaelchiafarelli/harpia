@@ -134,6 +134,29 @@ class JavaCrudlAdapter:
             '        JdbcBind.bind(ps, {}, msg, "{}");'.format(i + 1, c.name)
             for i, c in enumerate(non_pk))
 
+        # dao-key-access read-by-unique task 3 (the C++ read_by_<field>):
+        # readBy<Field>(value, builder) per top-level, non-phi unique column
+        read_by = "".join(
+            "\n    public boolean readBy{camel}({jt} value, {name}.Builder builder)"
+            " throws SQLException {{\n"
+            '        try (PreparedStatement ps = conn.prepareStatement("{sql}")) {{\n'
+            "            ps.set{setter}(1, value);\n"
+            "            try (ResultSet rs = ps.executeQuery()) {{\n"
+            "                if (!rs.next()) {{\n"
+            "                    return false;\n"
+            "                }}\n"
+            "{extract}\n"
+            "                return true;\n"
+            "            }}\n"
+            "        }}\n"
+            "    }}\n".format(
+                camel="".join(p[:1].upper() + p[1:] for p in c.name.split("_") if p),
+                jt=_KIND_TO_JAVA.get(c.kind, "int"), name=msg.name,
+                sql=_escape_java('{} WHERE "{}" = ?'.format(select_all_sql, c.name)),
+                setter=_KIND_TO_JDBC_SETTER.get(c.kind, "Int"),
+                extract=extract_lines)
+            for c in non_pk if c.unique and not getattr(c, "is_phi", False))
+
         deferred_note = ("none" if not deferred else ", ".join(
             "{} (embed/FK)".format(c.name) for c in deferred))
 
@@ -156,4 +179,5 @@ class JavaCrudlAdapter:
             extract_lines=extract_lines,
             update_bind_lines=update_bind_lines,
             update_pk_index=len(non_pk) + 1,
+            read_by=read_by,
         )

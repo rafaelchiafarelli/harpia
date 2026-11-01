@@ -316,6 +316,28 @@ def test_optional_presence_round_trip(gen, msgs, tmp_path):
     assert gb.HasField("device_note") and gb.device_note == ""
 
 
+def test_read_by_unique(gen, msgs, tmp_path):
+    """dao-key-access read-by-unique task 2 (mirrors the C++ test):
+    reception_desk_dao.read_by_visitor_name -- hit fills the row, miss is
+    False, the UNIQUE constraint holds; no read_by for non-unique fields."""
+    cls, dao_cls = msgs["reception_desk"], dao_class("reception_desk")
+    conn = sqlite3.connect(str(tmp_path / "db.sqlite"))
+    dao = dao_cls(conn)
+    dao.create_table()
+    a, b = cls(visitor_name="ana"), cls(visitor_name="bo")
+    setattr(a, PK, 4)
+    setattr(b, PK, 9)
+    assert dao.create(a) and dao.create(b)
+    got = cls()
+    assert dao.read_by_visitor_name("bo", got) and got == b
+    assert not dao.read_by_visitor_name("nobody", cls())
+    dup = cls(visitor_name="ana")
+    setattr(dup, PK, 10)
+    with pytest.raises(sqlite3.IntegrityError):
+        dao.create(dup)
+    assert not hasattr(dao_class("users"), "read_by_name")
+
+
 CHILD_TABLES = ("data", "telemetry", "shipment", "top_users")
 CROSS = ("journey", "top_users", "outpost", "data", "telemetry", "shipment")
 
