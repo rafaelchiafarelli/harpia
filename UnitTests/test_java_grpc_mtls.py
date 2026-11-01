@@ -127,7 +127,7 @@ public class TlsProbe {
         ManagedChannel ch = Grpc.newChannelBuilderForAddress(host, port, creds).build();
         try {
             users.Builder u = users.newBuilder();
-            FieldDescriptor id = users.getDescriptor().findFieldByName("ID_{h}");
+            FieldDescriptor id = users.getDescriptor().findFieldByName("HARPIA_ID");
             long idValue = Long.parseLong(a[6]);
             u.setField(id, id.getJavaType() == FieldDescriptor.JavaType.LONG
                            ? (Object) idValue : (Object) (int) idValue);

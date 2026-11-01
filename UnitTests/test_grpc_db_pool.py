@@ -428,7 +428,7 @@ static void auth(::grpc::ClientContext& c) {{
 static ::grpc::Status push(Stub& s, int id, const std::string& name) {{
     ::grpc::ClientContext c; auth(c);
     ::frameworkProtos::users_Message req;
-    req.mutable_msg()->set_id_{h}(id);
+    req.mutable_msg()->set_harpia_id(id);
     req.mutable_msg()->set_name(name);
     ::frameworkProtos::errorCode ec;
     ::grpc::Status st = s.push(&c, req, &ec);
@@ -464,7 +464,7 @@ int main(int, char** argv) {{
         harpia::db::users_dao dao(pool.at(0));
         if (!dao.create_table()) return 1;
         for (int id = 1; id <= 20; ++id) {{
-            ::users u; u.set_id_{h}(id); u.set_name("seed" + std::to_string(id));
+            ::users u; u.set_harpia_id(id); u.set_name("seed" + std::to_string(id));
             if (!dao.create(u)) return 2;
         }}
     }}
@@ -607,7 +607,7 @@ int main() {{
         if (!dao.list(&rows)) return 4;
         if ((int)rows.size() != kClients * kOps) return 5;          // nothing lost
         for (const auto& r : rows) {{                                // nothing corrupted
-            const int id = r.id_{h}() - 1;
+            const int id = r.harpia_id() - 1;
             const std::string want = "c" + std::to_string(id / 1000) + "-" + std::to_string(id % 1000);
             if (r.name() != want) return 6;
         }}

@@ -156,6 +156,15 @@ class DbBackend(ABC):
         ``renamed_from[<old>]`` field modifier), unlike
         :meth:`drop_column_dynamic` below."""
 
+    def rename_column_dynamic(self, table: str, old_expr: str, new: str) -> str:
+        """:meth:`rename_column` from a RUNTIME-known old name: a C++
+        expression concatenating ``old_expr`` (a ``std::string``
+        expression), like :meth:`drop_column_dynamic`. Used to rename the
+        legacy hash-suffixed hidden columns (stable-hidden-names-DEFECT)."""
+        before, after = self.rename_column(table, "\0", new).split("\0")
+        esc = lambda s: s.replace("\\", "\\\\").replace('"', '\\"')
+        return '"{}" + {} + "{}"'.format(esc(before), old_expr, esc(after))
+
     @abstractmethod
     def drop_column_dynamic(self, table: str, name_expr: str) -> str:
         """Non-additive migration: a C++ EXPRESSION (not a complete SQL

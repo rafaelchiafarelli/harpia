@@ -154,9 +154,9 @@ def test_dds_message_carries_optional_and_repeteable_fields(tmp_path):
 
 # -- integration: Stages 0-6 produce a clean, unaffected .proto -----------
 
-# md5 suffix on hidden field names (ID_/STATUS_/ERROR_/ORIGINATOR_) is taken
-# over the whole source text (Message/CLAUDE.md), which the `dds ` prefix
-# changes -- normalise it away so two protos can be compared directly.
+# Hidden field names are fixed (HARPIA_*, stable-hidden-names-DEFECT); the
+# normalisation stays as a guard against any hash-suffixed name reappearing
+# in a way that would differ between two sources.
 _HASH_SUFFIX = re.compile(r"_[0-9a-fA-F]{16,}")
 
 
@@ -189,15 +189,14 @@ def test_dds_and_plain_message_emit_identical_proto(tmp_path):
 
 
 def test_dds_does_not_imply_one_to_many_originator(tmp_path):
-    # pull/event/stream set isOneToMany -> the ORIGINATOR hidden field gets an
-    # md5-suffixed name (ORIGINATOR_<hash>) instead of the bare `ORIGINATOR`.
-    # `dds` must NOT, on its own, flip isOneToMany: a bare `dds` message keeps
-    # the plain shape, and only pull/event/stream introduce the suffixed form.
+    # Every message carries the same HARPIA_ORIGINATOR hidden field (before
+    # stable-hidden-names-DEFECT pull/event/stream got ORIGINATOR_<hash>);
+    # `dds` changes nothing in the .proto, and neither does a one-to-many kind.
     plain = _run(tmp_path, "message m {\nint a;\n};\n")
     tagged = _run(tmp_path, "dds message m {\nint a;\n};\n")
     one_to_many = _run(tmp_path, "pull message m {\nint a;\n};\n")
     assert plain["error"] is None and tagged["error"] is None
     assert one_to_many["error"] is None
     assert _normalised(tagged["proto"]) == _normalised(plain["proto"])
-    assert re.search(r"ORIGINATOR_[0-9a-fA-F]{16,}", one_to_many["proto"])
-    assert not re.search(r"ORIGINATOR_[0-9a-fA-F]{16,}", tagged["proto"])
+    assert tagged["proto"] == plain["proto"] == one_to_many["proto"]
+    assert "string HARPIA_ORIGINATOR = " in tagged["proto"]

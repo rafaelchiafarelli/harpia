@@ -10,7 +10,7 @@ import json as _json
 from Errors.Error import Error, Types, Classes
 import hashlib
 
-_HIDDEN_PREFIXES = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
+_HIDDEN_PREFIXES = ("HARPIA_",)
 _DEMO_SCALARS = {"STRING", "INT32", "INT64", "FLOAT"}
 
 # Harpia's generated-file naming convention: "<message name>_<root md5 hash>...".

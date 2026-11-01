@@ -146,11 +146,11 @@ public class HardenedLinksAndroidTest {
         }
     }
 
-    // ID_<hash>: the hidden primary-key field, hash-suffixed per project.
+    // HARPIA_ID: the hidden (front-end-injected) primary-key field.
     private static String idFieldName() {
         for (FieldDescriptor fd : users.getDescriptor().getFields()) {
-            if (fd.getName().startsWith("ID_")) return fd.getName();
+            if (fd.getName().equals("HARPIA_ID")) return fd.getName();
         }
-        throw new IllegalStateException("users has no ID_ field");
+        throw new IllegalStateException("users has no HARPIA_ID field");
     }
 }

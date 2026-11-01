@@ -147,9 +147,9 @@ def test_zmq_pushpull_roundtrip_runs(built):
             "    if (!rcv.recv(&in)) return 2;\n"
             '    if (in.name() != "neo" || in.address() != "matrix") return 3;\n'
             "    // originator stamped by the sender (process.md 1.3.1.1)\n"
-            "    if (in.originator_{h}() !=\n"
+            "    if (in.harpia_originator() !=\n"
             "        harpia::zmq_transport::users_sender::origin_id()) return 4;\n"
-            "    if (in.originator_{h}().empty()) return 5;\n"
+            "    if (in.harpia_originator().empty()) return 5;\n"
             "    return 0;\n"
             "}}\n".format(adapter=adapter, h=HASH)
         )
@@ -505,7 +505,7 @@ def test_all_zmq_headers_in_one_tu(built):
             "    ::courier c; if (!cs.send(c)) return 2;\n"
             '    ::users u2; if (!ur.recv(&u2) || u2.name() != "neo") return 3;\n'
             "    ::courier c2; if (!cr.recv(&c2)) return 4;\n"
-            "    if (c2.originator().empty()) return 5;  // stamped with runtime_origin_id()\n"
+            "    if (c2.harpia_originator().empty()) return 5;  // stamped with runtime_origin_id()\n"
             "    return 0;\n"
             "}}\n".format(h=HASH))
     pb_ccs = sorted(glob.glob(os.path.join(built["proto_dir"], "*.pb.cc")))

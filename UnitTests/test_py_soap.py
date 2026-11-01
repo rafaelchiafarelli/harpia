@@ -42,7 +42,7 @@ from UnitTests.test_py_rest import generate_low_risk, plain_http  # noqa: E402
 pytestmark = pytest.mark.skipif(not P.HAVE_PY, reason=P.SKIP_PY)
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 ENV = '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">'
 HDR = ("<soap:Header><credentials><user>users</user><pswd>%s</pswd></credentials>"
        "</soap:Header>" % HASH)

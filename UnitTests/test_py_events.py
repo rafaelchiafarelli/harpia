@@ -30,7 +30,7 @@ if REPO_ROOT not in sys.path:
 from UnitTests import _py_cpp_parity as P  # noqa: E402
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 
 
 @pytest.fixture(scope="module")

@@ -34,7 +34,7 @@ pytestmark = pytest.mark.skipif(not P.HAVE_PY or not P._importable("zmq"),
                                 reason=P.SKIP_PY + " + pyzmq")
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 
 
 @pytest.fixture(scope="module")
@@ -97,7 +97,7 @@ def test_push_pull_round_trip_and_runtime_origin(transport, gen, ctx):
     assert a.send(msg)
     got = rx.recv()
     assert got is not None and getattr(got, PK) == 9
-    field = next(f.name for f in got.DESCRIPTOR.fields if f.name.startswith("ORIGINATOR"))
+    field = next(f.name for f in got.DESCRIPTOR.fields if f.name == "HARPIA_ORIGINATOR")
     assert getattr(got, field) == a.origin and getattr(msg, field) == ""  # caller's copy untouched
     for s in (a, b, rx):
         s.close()
@@ -119,7 +119,7 @@ def test_pub_sub_round_trip_one_to_many_origin(transport, gen, ctx):
         if got is not None:
             break
     assert got is not None and got.name == "neo"
-    field = next(f.name for f in got.DESCRIPTOR.fields if f.name.startswith("ORIGINATOR"))
+    field = next(f.name for f in got.DESCRIPTOR.fields if f.name == "HARPIA_ORIGINATOR")
     assert getattr(got, field) == z.ORIGIN_ID
     pub.close()
     sub.close()
@@ -199,7 +199,7 @@ int main(int, char** argv) {
     ::zmq::context_t ctx;
     harpia::zmq_transport::courier_sender s(ctx, argv[1], "cpp-origin");
     s.socket().set(::zmq::sockopt::linger, 2000);
-    ::courier c; c.set_id_%(h)s(77);
+    ::courier c; c.set_harpia_id(77);
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     return s.send(c) ? 0 : 3;
 }
@@ -226,6 +226,6 @@ def test_cpp_sender_python_receiver(gen, ctx, tmp_path):
     assert run.returncode == 0, run.stderr
     got = rx.recv()
     assert got is not None and getattr(got, PK) == 77
-    field = next(f.name for f in got.DESCRIPTOR.fields if f.name.startswith("ORIGINATOR"))
+    field = next(f.name for f in got.DESCRIPTOR.fields if f.name == "HARPIA_ORIGINATOR")
     assert getattr(got, field) == "cpp-origin"
     rx.close()

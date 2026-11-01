@@ -51,7 +51,7 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
   DEMO_SAMPLE_JSON}` or `None` if none qualify. `main.py` and `run_pipeline.py`
   pass the result into `copyServerClientTemplates`.
 - `_sampleJson(msg)` (private) — minimal valid JSON payload: first plain scalar
-  user field (skips hidden `ID_/STATUS_/ERROR_/ORIGINATOR` prefixes, maps, and
+  user field (skips hidden `HARPIA_*` fields, maps, and
   composed/message refs) set to a demo value ("harpia-demo" or 7); else `"{}"`.
 - `copyCMakeFiles(src, dest)` — copies the four `CMakeLists.txt` (root, `proto/`,
   `server_template`→`server/`, `client_template`→`client/`) from `src` into the
@@ -102,7 +102,7 @@ loadTemplate, chooseDemo, copyCMakeFiles, ...`.
   `ComplianceReport/`'s `bom.json`.
 
 ## Key facts / gotchas
-- Hidden-field prefixes: `_HIDDEN_PREFIXES = ("ID_","STATUS_","ERROR_","ORIGINATOR")`.
+- Hidden-field prefix: `_HIDDEN_PREFIXES = ("HARPIA_",)` (fixed names since stable-hidden-names-DEFECT).
 - Demo scalar types: `_DEMO_SCALARS = {"STRING","INT32","INT64","FLOAT"}`.
 - Many copy helpers `os.remove` an existing destination before copying — path
   layout (server/client/proto subdirs of `dest`) is assumed throughout.
