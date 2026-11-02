@@ -14,13 +14,13 @@
            fields are serialized at runtime via the XML reflection runtime) -->
       <xsd:complexType name="patient_vitals">
         <xsd:sequence>
-          <xsd:element name="ID_3ac5d8b36fc7dcfb70888145147ddfb7" type="xsd:int"/>
+          <xsd:element name="HARPIA_ID" type="xsd:int"/>
           <xsd:element name="patient_id" type="xsd:string"/>
           <xsd:element name="heart_rate" type="xsd:double"/>
           <xsd:element name="device_note" type="xsd:string"/>
-          <xsd:element name="STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" type="xsd:string"/>
-          <xsd:element name="ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" type="xsd:string"/>
-          <xsd:element name="ORIGINATOR" type="xsd:string"/>
+          <xsd:element name="HARPIA_STATUS" type="xsd:string"/>
+          <xsd:element name="HARPIA_ERROR" type="xsd:string"/>
+          <xsd:element name="HARPIA_ORIGINATOR" type="xsd:string"/>
         </xsd:sequence>
       </xsd:complexType>
       <!-- operation wrappers matching the SOAP handler's envelope Body -->

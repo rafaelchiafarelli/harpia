@@ -121,7 +121,7 @@ public:
     // when the enqueue displaced the oldest still-unsent envelope).
     ::std::optional<::harpia::delivery::PushOutcome> publish(const ::alarm_event& msg) {
         ::alarm_event stamped = msg;
-        stamped.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(origin_);
+        stamped.set_harpia_originator(origin_);
         std::string bytes;
         if (!stamped.SerializeToString(&bytes)) return ::std::nullopt;
         return queue_.push(::harpia::delivery::Envelope::stamp(

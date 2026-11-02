@@ -57,9 +57,8 @@ Open DEFECT initiatives: see the `*-DEFECT` rows of the index below.
 | [feature-examples/](feature-examples/README.md) | **Partly shipped.** Fixture cleanup shipped 2026-08-24. The `worked-examples` epic (one small runnable example per generated feature + an index) — not started. |
 | [doxygen-generation.md](doxygen-generation/doxygen-generation.md) | Foundation F6 + Ground Rule 6 plumbing **shipped** 2026-08-23. The `doc-comment-coverage` epic (real per-template doc-comments) — **not started**, after `multi-system-reference`. |
 | [ci-pipeline/](ci-pipeline/README.md) | **Scoped, not started.** GitHub Actions running the existing `Docker/run.sh pytest UnitTests/` suite on push/PR, plus image-layer caching. 2 tasks, both written. Highest leverage-per-effort of the open initiatives — no CI today means nothing independently re-verifies any "N passed" claim. |
-| [python-target/](python-target/README.md) | **Shipped in V3 (2026-10-05)**: all 14 epics / 54 tasks, full Docker suite green. Language #3: full C++ compliance parity (DDS + CURVE/ZAP included), generation-time codegen under `<dest>/python/`, C++/Java/Python interop tests (`test_*_xlang3.py`, `test_dds_xlang.py`). Decisions + findings for review: [NEXT_SESSION.md](python-target/NEXT_SESSION.md) (items 1-48), pending Rafael's review — the folder stays only for that log. Its nine C++/Java findings were fixed in V3 (see below). |
 | [cpp-phi-unencrypted-field-shapes-DEFECT/](cpp-phi-unencrypted-field-shapes-DEFECT/README.md) | **Defect, not started** (found 2026-10-05 while fixing the numeric-phi defect). `phi` on an enum field, an embedded sub-field, a repeated or a map field is stored in plaintext by the C++ and Python DAOs, with no audit. 3 tasks; task 1 is a refuse-vs-encrypt decision. |
-| [db-optional-presence-DEFECT/](db-optional-presence-DEFECT/README.md) | **Defect, not started** (found 2026-10-05). An unset `optional` field is stored as `0`/`""` and a NULL column reads back *present* with its default — in the C++, Python and Java DAOs alike — so the DB loses "never set" vs "explicitly 0" (XML/YAML keep it). 4 tasks + planning decisions. |
+| [yaml-map-roundtrip-flake-DEFECT/](yaml-map-roundtrip-flake-DEFECT/README.md) | **Fixed 2026-11-01; a test bug.** `test_yaml_map_negative_int_keys` compared serialized bytes of two equal messages, and protobuf map order differs per map. `from_yaml` was correct. The test now compares messages. 1 task, done. |
 | [go-target/](go-target/README.md) | **Scoped, not started.** Language #4 (resequenced behind python-target 2026-10-03), full compliance parity except DDS + ZMQ-CURVE/ZAP (pure-Go constraint). Depends on python-target's `lang-backend-seam` epic; its interop epic adds Go as the 4th peer to python-target's harness. No task files yet. |
 
 Finished plans are removed from this index once done — the shipped behavior is
@@ -84,6 +83,28 @@ YAML map keys (C++ + Python), Java XML byte parity — see `Database/CLAUDE.md`,
 `Crypto/CLAUDE.md`, `JavaDatabase/CLAUDE.md`, `ZmqAdapter/CLAUDE.md`,
 `YamlAdapter/CLAUDE.md`, `PySerialization/CLAUDE.md`,
 `JavaXmlAdapter/CLAUDE.md`. Each has its regression test.
+The **stable-hidden-names-DEFECT** (reported by `mocap-contracts`, fixed
+2026-11-01): hidden fields are the fixed `HARPIA_ID` / `HARPIA_STATUS` /
+`HARPIA_ERROR` / `HARPIA_ORIGINATOR` (no root-file hash), and the C++ and
+Python migrations rename legacy `ID_<md5>`-style columns in place — see
+`Message/CLAUDE.md`, `Database/CLAUDE.md`, `PyDatabase/CLAUDE.md`, `USAGE.md`
+§10/§16.
+The **db-optional-presence-DEFECT** (fixed 2026-11-01, also reported by
+`mocap-contracts`): an unset `optional` field — top level or an embedded flat
+column — is stored as NULL and reads back unset in the C++, Python and Java
+DAOs; an unset `phi optional` stores NULL unencrypted; pre-fix rows keep
+reading present — see `Database/CLAUDE.md`, `PyDatabase/CLAUDE.md`,
+`JavaDatabase/CLAUDE.md`, `USAGE.md` §16. The **python-target** initiative
+(language #3, shipped in V3) — its folder and the `NEXT_SESSION.md` decision
+log (items 1-48) were removed 2026-11-01; the log is in git history.
+The rest of the **`mocap-contracts` handoff** (fixed 2026-11-01):
+**transitive-imports-DEFECT** (imports are followed transitively, each module
+once, a cycle is `IMPORT_CYCLE` — `LexicalAnalizer/CLAUDE.md`, `USAGE.md` §2);
+**dao-key-access** (`read_by_<unique field>` and the `autokey` modifier, C++ /
+Python / Java — `Database/CLAUDE.md`, `PyDatabase/CLAUDE.md`,
+`JavaDatabase/CLAUDE.md`, `USAGE.md` §3 / §7.1);
+**embed-presence-DEFECT** (hidden `HARPIA_HAS_<path>` column, an unset embedded
+message reads back unset — `Database/CLAUDE.md`, `USAGE.md` §16).
 Earlier removed-on-completion plans: Postgres backend
 (`Database/CLAUDE.md`), crash/interrupt recovery (`Util/CLAUDE.md`),
 message-versioning (`Message/CLAUDE.md`, `Capability/CLAUDE.md`),
@@ -91,6 +112,6 @@ multi-language Java target (`GradleAdapter/CLAUDE.md` et al.).
 
 ## Backlog
 
-- ~~**Python as language #3**~~ — now [python-target/](python-target/README.md),
-  language #3 again since 2026-10-03 (it was briefly #4 behind Go). The
-  cross-language `LangBackend` seam lives in its epic 0.
+- ~~**Python as language #3**~~ — shipped as python-target (V3); its plan
+  folder was removed 2026-11-01 (git history, e.g. `git show
+  bb7a6be:Initiatives/python-target/README.md`).

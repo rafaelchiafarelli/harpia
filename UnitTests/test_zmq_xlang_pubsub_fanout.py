@@ -8,10 +8,9 @@ input, actually interoperate as ZMQ peers of each other over a real
 `tcp://` socket, not just each against itself (`test_stage13_zmq.py` /
 `test_java_zmq.py` are both 1:1, same-language only).
 
-`pump_tick` (`event[not-cached]`, one-to-* / unique publisher -- so its
-hidden field is `ORIGINATOR_<hash>`, not bare `ORIGINATOR`) is the same
+`pump_tick` (`event[not-cached]`, one-to-* / unique publisher) is the same
 fixture task 1 used. This also makes real the "watch for" item in
-epics/README.md: both runtimes find the ORIGINATOR field by NAME PREFIX
+epics/README.md: both runtimes find the HARPIA_ORIGINATOR field by NAME
 (C++ at codegen time, Java at runtime via reflection on the SENDER side
 only -- see `JavaZmqAdapter/CLAUDE.md`), so this asserts every subscriber,
 in both languages, decodes the exact same stamped value a C++ publisher
@@ -79,10 +78,9 @@ def _pkgconfig(*args):
 def _java_camel_case(name, cap_first=True):
     """protoc's own UnderscoresToCamelCase (java/helpers.cc): a digit always
     forces the next letter to capitalize, same as an underscore -- so
-    "ORIGINATOR_3ac5d8b36..." becomes "ORIGINATOR3Ac5D8B36..." (every letter
-    right after a digit run capitalizes), not the naive "strip underscore,
-    keep case" guess. Derived here instead of hardcoded so a future HASH
-    bump doesn't silently leave a stale getter name behind."""
+    "ORIGINATOR_3ac5d8b36..." would become "ORIGINATOR3Ac5D8B36..." (every
+    letter right after a digit run capitalizes), not the naive "strip
+    underscore, keep case" guess. Derived here instead of hardcoded."""
     result = []
     cap_next = cap_first
     for c in name:
@@ -100,7 +98,7 @@ def _java_camel_case(name, cap_first=True):
     return "".join(result)
 
 
-_ORIGINATOR_FIELD = "ORIGINATOR_{}".format(HASH)
+_ORIGINATOR_FIELD = "HARPIA_ORIGINATOR"
 _ORIGINATOR_GETTER = "get" + _java_camel_case(_ORIGINATOR_FIELD)
 
 
@@ -177,7 +175,7 @@ int main(int argc, char** argv) {{
     for (int i = 1; i <= n; ++i) {{
         ::pump_tick in;
         if (!sub.receive(&in)) {{ std::printf("ERROR timeout at %d\\n", i); return 2; }}
-        if (i == 1) {{ std::printf("ORIGIN:%s\\n", in.originator_{h}().c_str()); }}
+        if (i == 1) {{ std::printf("ORIGIN:%s\\n", in.harpia_originator().c_str()); }}
         if (in.sequence() != i) {{ std::printf("ERROR seq %d want %d\\n", in.sequence(), i); return 3; }}
         if (in.rate_mhz() != 1000 + i) {{ std::printf("ERROR rate\\n"); return 4; }}
     }}

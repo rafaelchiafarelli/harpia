@@ -89,12 +89,39 @@ def _local_ctype(kind):
     return _CTYPE[kind]
 
 
-def _use_list(count, base, indent):
-    """`, use(<base>0), use(<base>1), ...` wrapped onto a continuation line."""
-    if count == 0:
+def _is_presence(col):
+    """A hidden HARPIA_HAS_<prefix> column (embed-presence-DEFECT)."""
+    return bool(getattr(col, "presence_of", None))
+
+
+def _is_optional(col):
+    """A column bound with a NULL indicator: an `optional` scalar/enum, when
+    the field is unset, and left unset on read when the column is NULL
+    (db-optional-presence-DEFECT); any embedded scalar/enum, when its embedded
+    message is unset (embed-presence-DEFECT)."""
+    if _is_presence(col) or getattr(col, "fk_table", False):
+        return False
+    return bool(getattr(col, "optional", False) or col.embed)
+
+
+def _use_list(cols, base, indent):
+    """`, use(<base>0), use(<base>1), ...` wrapped onto a continuation line;
+    an optional column binds with its indicator, `use(<base>i, <base>ii)`."""
+    if not cols:
         return ""
-    uses = ", ".join("::soci::use({}{})".format(base, i) for i in range(count))
+    uses = ", ".join(
+        "::soci::use({b}{i}, {b}i{i})".format(b=base, i=i) if _is_optional(c)
+        else "::soci::use({}{})".format(base, i)
+        for i, c in enumerate(cols))
     return ",\n{}{}".format(indent, uses)
+
+
+# `autokey` create(): key 0 -> the database assigns it and it is written back;
+# non-zero -> inserted as given. A const caller (gRPC push) goes through a copy.
+_AUTOKEY_OVERLOAD = ("    bool create(const ::{cls}& msg) {{\n"
+                     "        ::{cls} _copy(msg);\n"
+                     "        return create(_copy);\n"
+                     "    }}\n\n")
 
 
 class CrudlAdapter:
@@ -153,13 +180,15 @@ class CrudlAdapter:
 
     def _render(self, msg):
         columns, _ = analyze(msg, self.types, self.backend)
-        scalar = [c for c in columns if (c.bindable or c.embed) and not c.fk_table]
+        scalar = [c for c in columns
+                  if (c.bindable or c.embed or c.presence_of) and not c.fk_table]
         fk_cols = [c for c in columns if c.fk_table]
         id_col = next((c for c in scalar if c.pk), None)
         non_id = [c for c in scalar if not c.pk]
 
         # column order for INSERT/SELECT: scalar/enum/embed first, then FK.
         insert_all = scalar + fk_cols
+        autokey = bool(getattr(msg, "is_autokey", False)) and id_col is not None
         update_all = non_id + fk_cols
 
         maps = map_fields(msg, self.types, self.backend)
@@ -211,16 +240,17 @@ class CrudlAdapter:
             table=msg.tableName,
             create_table_sql=create_table_sql(
                 msg, types=self.types, backend=self.backend).replace('"', '\\"'),
-            insert_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
-            insert_ph=", ".join(":c{}".format(i) for i in range(len(insert_all))),
+            create_param=("::{}&".format(msg.name) if autokey
+                          else "const ::{}&".format(msg.name)),
+            create_overload=(_AUTOKEY_OVERLOAD.format(cls=msg.name) if autokey else ""),
+            create_insert=self._create_insert(msg, insert_all, id_col, autokey),
             select_cols=", ".join('\\"{}\\"'.format(c.name) for c in insert_all),
             id_col=id_col.name if id_col else "rowid",
             create_locals=self._create_locals(scalar, fk_cols),
-            create_use=_use_list(len(insert_all), "c", " " * 16),
             update_locals=self._update_locals(non_id, fk_cols, id_col),
             update_set=", ".join('\\"{}\\" = :c{}'.format(c.name, i)
                                  for i, c in enumerate(update_all)),
-            update_use=self._update_use(len(update_all)),
+            update_use=self._update_use(update_all),
             extract_locals=self._extract_locals(scalar, fk_cols),
             extract_into=self._extract_into(len(insert_all)),
             extract_set=self._extract_set(scalar),
@@ -234,8 +264,82 @@ class CrudlAdapter:
             map_update=(self._map_write(maps, id_col, "update")
                         + self._rep_write(reps, id_col, "update")),
             map_read=self._map_read(maps, id_col) + self._rep_read(reps, id_col),
+            read_by=self._read_by(msg, scalar, fk_cols, insert_all,
+                                  self._map_read(maps, id_col) + self._rep_read(reps, id_col),
+                                  _audit("read")),
             map_remove=self._child_remove(maps + reps),
         )
+
+    def _create_insert(self, msg, insert_all, id_col, autokey):
+        """create()'s INSERT. An `autokey` table has two: key 0 leaves the key
+        out, RETURNING it into the message; a set key is inserted as given
+        (then the dialect advances its identity, if it needs that)."""
+        def insert(indexed, indent, extra=""):
+            cols = ", ".join('\\"{}\\"'.format(c.name) for _, c in indexed)
+            ph = ", ".join(":c{}".format(i) for i, _ in indexed)
+            uses = ", ".join(
+                "::soci::use(c{i}, ci{i})".format(i=i) if _is_optional(c)
+                else "::soci::use(c{})".format(i)
+                for i, c in indexed)
+            ret = ' RETURNING \\"{}\\"'.format(id_col.name) if extra else ""
+            return ('{ind}db_ << "INSERT INTO \\"{t}\\" ({cols}) VALUES ({ph}){ret}"{sep}'
+                    "{uses}{extra};").format(
+                        ind=indent, t=msg.tableName, cols=cols, ph=ph, ret=ret, uses=uses,
+                        extra=extra, sep=",\n{}".format(" " * 16) if uses else "")
+        everything = list(enumerate(insert_all))
+        if not autokey:
+            return insert(everything, " " * 12)
+        keyless = [(i, c) for i, c in everything if not c.pk]
+        advance = self.backend.identity_advance_sql(msg.tableName, id_col.name)
+        return ("            if (msg.{pk}() == 0) {{\n"
+                "                long long _key = 0;\n"
+                "{auto}\n"
+                "                msg.set_{pk}(static_cast<decltype(msg.{pk}())>(_key));\n"
+                "            }} else {{\n"
+                "{explicit}\n"
+                "{adv}"
+                "            }}").format(
+                    pk=id_col.accessor,
+                    auto=insert(keyless, " " * 16, ", ::soci::into(_key)"),
+                    explicit=insert(everything, " " * 16),
+                    adv=('                db_ << "{}";\n'.format(advance.replace('"', '\\"'))
+                         if advance else ""))
+
+    # -- read_by_<field> for `unique` fields (dao-key-access) ---------------
+    def _read_by(self, msg, scalar, fk_cols, insert_all, child_read, audit_read):
+        """``bool read_by_<field>(value, msg*)`` for every top-level, non-phi
+        `unique` scalar column (a phi value is sealed with a random nonce, so
+        SQL can't match it): read()'s SELECT keyed on that column; the same
+        hydration, child tables and audit as read()."""
+        out = []
+        for c in scalar:
+            if not c.unique or c.pk or c.embed or getattr(c, "is_phi", False):
+                continue
+            ptype = ("const std::string&" if c.kind == "text"
+                     else "::{}".format(c.enum_type) if c.kind == "enum"
+                     else _local_ctype(c.kind))
+            bound = ("static_cast<int>(value)" if c.kind == "enum" else "value")
+            out.append(
+                "\n    bool read_by_{acc}({pt} value, ::{cls}* msg) {{\n"
+                "        try {{\n"
+                "{locals}"
+                "            const auto _key = {bound};\n"
+                '            db_ << "SELECT {cols} FROM \\"{table}\\" WHERE \\"{col}\\" = :v", '
+                "::soci::use(_key){into};\n"
+                "            if (!db_.got_data()) return false;\n"
+                "{extract}{fk}{child}{audit}"
+                "            return true;\n"
+                "        }} catch (const std::exception&) {{ return false; }}\n"
+                "    }}\n".format(
+                    acc=c.accessor, pt=ptype, cls=msg.name, bound=bound,
+                    locals=self._extract_locals(scalar, fk_cols),
+                    cols=", ".join('\\"{}\\"'.format(x.name) for x in insert_all),
+                    table=msg.tableName, col=c.name,
+                    into=self._extract_into(len(insert_all)),
+                    extract=self._extract_set(scalar),
+                    fk=self._fk_extract(scalar, fk_cols),
+                    child=child_read, audit=audit_read))
+        return "".join(out)
 
     # -- INSERT locals / SELECT locals -------------------------------------
     def _create_locals(self, scalar, fk_cols):
@@ -254,7 +358,23 @@ class CrudlAdapter:
     def _value_local(self, base, i, col, src="msg"):
         """A named local holding column ``col``'s value read from ``src`` (for
         use). ``src`` defaults to "msg"; a repeated-composed field's write
-        loop passes its per-element loop variable instead."""
+        loop passes its per-element loop variable instead. An optional
+        column also gets ``<base>i<i>``, its NULL indicator."""
+        if _is_presence(col):
+            return "int {b}{i} = {h} ? 1 : 0;".format(b=base, i=i, h=col.has_expr(src))
+        local = self._plain_value_local(base, i, col, src)
+        if not _is_optional(col):
+            return local
+        has = col.has_expr(src) if col.optional else col.present_expr(src)
+        if getattr(col, "is_phi", False):
+            # unset phi optional: NULL, nothing encrypted (decision 2026-10-31)
+            local = local.replace(" = ::harpia::crypto::encrypt_field(",
+                                  " = !{} ? std::string() : "
+                                  "::harpia::crypto::encrypt_field(".format(has), 1)
+        return "{} ::soci::indicator {b}i{i} = {h} ? ::soci::i_ok : ::soci::i_null;".format(
+            local, b=base, i=i, h=has)
+
+    def _plain_value_local(self, base, i, col, src):
         if getattr(col, "is_phi", False):
             # Track A: seal the value before it is bound. Numeric/enum fields
             # are stringified first, so the ciphertext is always a text blob
@@ -290,10 +410,10 @@ class CrudlAdapter:
         lines.append("            long long cid = msg.{}();".format(acc))
         return "".join(l + "\n" for l in lines)
 
-    def _update_use(self, n_update):
-        uses = ["::soci::use(c{})".format(i) for i in range(n_update)]
-        uses.append("::soci::use(cid)")
-        return ",\n{}{}".format(" " * 16, ", ".join(uses))
+    def _update_use(self, update_all):
+        uses = _use_list(update_all, "c", " " * 16)
+        return (uses + ", ::soci::use(cid)" if uses
+                else ",\n{}::soci::use(cid)".format(" " * 16))
 
     def _extract_locals(self, scalar, fk_cols):
         lines = []
@@ -324,7 +444,21 @@ class CrudlAdapter:
         # scalar/enum/embed columns are set directly from the into-locals
         # (indicator-guarded); FK columns are handled by _fk_extract.
         lines = []
+        # local index of each embed level's presence column: NULL (a pre-change
+        # row) or non-zero is present; 0 leaves that embed and all under it unset
+        presence = {tuple(c.presence_of): i for i, c in enumerate(scalar) if _is_presence(c)}
+
+        def present(path):
+            return " && ".join(
+                "(n{i} != ::soci::i_ok || l{i} != 0)".format(i=presence[tuple(path[:d + 1])])
+                for d in range(len(path)) if tuple(path[:d + 1]) in presence)
+
         for i, c in enumerate(scalar):
+            if _is_presence(c):
+                lines.append("                if ({}) {};".format(
+                    present(c.presence_of), c.mutable_ptr()))
+                continue
+            guard = present(c.embed) if c.embed else ""
             if getattr(c, "is_phi", False):
                 raw = "n{i} == ::soci::i_ok ? l{i} : std::string()".format(i=i)
                 if c.kind == "text":
@@ -347,7 +481,14 @@ class CrudlAdapter:
                        .format(et=c.enum_type, i=i))
             else:
                 val = "n{i} == ::soci::i_ok ? l{i} : 0".format(i=i)
-            lines.append("                {};".format(c.set_stmt(val)))
+            if getattr(c, "optional", False):
+                # NULL -> leave the field unset (absent); i_ok -> set, even to
+                # its default (present)
+                guard = " && ".join(filter(None, [guard, "n{} == ::soci::i_ok".format(i)]))
+            if guard:
+                lines.append("                if ({}) {};".format(guard, c.set_stmt(val)))
+            else:
+                lines.append("                {};".format(c.set_stmt(val)))
         return "".join(l + "\n" for l in lines)
 
     # -- composed FK (message whose target owns a table) -------------------

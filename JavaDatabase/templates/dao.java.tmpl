@@ -36,12 +36,7 @@ public final class {name}_dao {{
         return true;
     }}
 
-    public boolean create({name} msg) throws SQLException {{
-        try (PreparedStatement ps = conn.prepareStatement("{insert_sql}")) {{
-{bind_lines}
-            return ps.executeUpdate() > 0;
-        }}
-    }}
+{create_method}
 
     public boolean read({pk_java_type} id, {name}.Builder builder) throws SQLException {{
         try (PreparedStatement ps = conn.prepareStatement("{select_by_pk_sql}")) {{
@@ -55,7 +50,7 @@ public final class {name}_dao {{
             }}
         }}
     }}
-
+{read_by}
     public boolean update({name} msg) throws SQLException {{
         try (PreparedStatement ps = conn.prepareStatement("{update_sql}")) {{
 {update_bind_lines}

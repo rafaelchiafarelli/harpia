@@ -34,12 +34,12 @@ int all_good() {
     harpia::db::users_dao dao(db);
     if (!dao.create_table()) return 111;
     ::users a;
-    a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    a.set_harpia_id(1);
     a.set_address("address_a");
     a.set_name("name_a");
-    a.set_status_3ac5d8b36fc7dcfb70888145147ddfb7("status_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_error_3ac5d8b36fc7dcfb70888145147ddfb7("error_3ac5d8b36fc7dcfb70888145147ddfb7_a");
-    a.set_originator_3ac5d8b36fc7dcfb70888145147ddfb7("originator_3ac5d8b36fc7dcfb70888145147ddfb7_a");
+    a.set_harpia_status("harpia_status_a");
+    a.set_harpia_error("harpia_error_a");
+    a.set_harpia_originator("harpia_originator_a");
     if (!dao.create(a)) return 113;
     std::string body;
     if (!::harpia::json::to_json(a, &body)) return 114;
@@ -70,7 +70,7 @@ int crash() {
     ::soci::session db(::soci::sqlite3, ":memory:");
     harpia::db::users_dao dao(db);
     ::users a;
-    a.set_id_3ac5d8b36fc7dcfb70888145147ddfb7(1);
+    a.set_harpia_id(1);
     a.set_address("address_a");
     if (dao.create(a)) return 121;
     ::users got;

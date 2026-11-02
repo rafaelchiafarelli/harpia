@@ -29,7 +29,7 @@ public:
 
     bool create_table() {
         try {
-            db_ << "CREATE TABLE IF NOT EXISTS \"table_vip_users\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"name\" TEXT, \"family\" TEXT, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT);";
+            db_ << "CREATE TABLE IF NOT EXISTS \"table_vip_users\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"name\" TEXT, \"family\" TEXT, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -42,14 +42,14 @@ public:
 
     bool create(const ::vip_users& msg) {
         try {
-            int c0 = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c1 = msg.name();
+            int c0 = msg.harpia_id();
+            std::string c1 = msg.name(); ::soci::indicator ci1 = msg.has_name() ? ::soci::i_ok : ::soci::i_null;
             std::string c2 = msg.family();
-            std::string c3 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c4 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c5 = msg.originator_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "INSERT INTO \"table_vip_users\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"name\", \"family\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5)",
-                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5);
+            std::string c3 = msg.harpia_status();
+            std::string c4 = msg.harpia_error();
+            std::string c5 = msg.harpia_originator();
+            db_ << "INSERT INTO \"table_vip_users\" (\"HARPIA_ID\", \"name\", \"family\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5)",
+                ::soci::use(c0), ::soci::use(c1, ci1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5);
             ::harpia::events::vip_users_channel().publish(msg);
             return true;
         } catch (const std::exception&) { return false; }
@@ -63,29 +63,29 @@ public:
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
-            db_ << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"name\", \"family\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"table_vip_users\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id),
+            db_ << "SELECT \"HARPIA_ID\", \"name\", \"family\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"table_vip_users\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5);
             if (!db_.got_data()) return false;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
-                msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
+                if (n1 == ::soci::i_ok) msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->set_family(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_status(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_error(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_originator(n5 == ::soci::i_ok ? l5 : std::string());
             return true;
         } catch (const std::exception&) { return false; }
     }
 
     bool update(const ::vip_users& msg) {
         try {
-            std::string c0 = msg.name();
+            std::string c0 = msg.name(); ::soci::indicator ci0 = msg.has_name() ? ::soci::i_ok : ::soci::i_null;
             std::string c1 = msg.family();
-            std::string c2 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c3 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c4 = msg.originator_3ac5d8b36fc7dcfb70888145147ddfb7();
-            long long cid = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "UPDATE \"table_vip_users\" SET \"name\" = :c0, \"family\" = :c1, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c2, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c3, \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c4 WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :cid",
-                ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(cid);
+            std::string c2 = msg.harpia_status();
+            std::string c3 = msg.harpia_error();
+            std::string c4 = msg.harpia_originator();
+            long long cid = msg.harpia_id();
+            db_ << "UPDATE \"table_vip_users\" SET \"name\" = :c0, \"family\" = :c1, \"HARPIA_STATUS\" = :c2, \"HARPIA_ERROR\" = :c3, \"HARPIA_ORIGINATOR\" = :c4 WHERE \"HARPIA_ID\" = :cid",
+                ::soci::use(c0, ci0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(cid);
             ::harpia::events::vip_users_channel().publish(msg);
             return true;
         } catch (const std::exception&) { return false; }
@@ -93,7 +93,7 @@ public:
 
     bool remove(std::int64_t id) {
         try {
-            db_ << "DELETE FROM \"table_vip_users\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id);
+            db_ << "DELETE FROM \"table_vip_users\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id);
             return true;
         } catch (const std::exception&) { return false; }
     }
@@ -106,18 +106,18 @@ public:
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"name\", \"family\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"table_vip_users\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"",
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"name\", \"family\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"table_vip_users\" ORDER BY \"HARPIA_ID\"",
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5));
             st.execute();
             while (st.fetch()) {
                 ::vip_users row;
                 ::vip_users* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
-                msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
+                if (n1 == ::soci::i_ok) msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->set_family(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_status(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_error(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_originator(n5 == ::soci::i_ok ? l5 : std::string());
                 out->push_back(row);
             }
             return true;
@@ -136,18 +136,18 @@ public:
             std::string l3; ::soci::indicator n3;
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"name\", \"family\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" FROM \"table_vip_users\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"name\", \"family\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\" FROM \"table_vip_users\" ORDER BY \"HARPIA_ID\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5));
             st.execute();
             while (st.fetch()) {
                 ::vip_users row;
                 ::vip_users* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
-                msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
+                if (n1 == ::soci::i_ok) msg->set_name(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->set_family(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_status(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_error(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_originator(n5 == ::soci::i_ok ? l5 : std::string());
                 out->push_back(row);
             }
             return true;

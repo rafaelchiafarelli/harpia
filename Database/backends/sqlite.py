@@ -58,10 +58,13 @@ class SqliteBackend(DbBackend):
         return "?"  # sqlite3 (DB-API paramstyle qmark)
 
     # -- columns & tables -----------------------------------------------------
-    def column_def(self, sql_type, *, pk=False, required=False, unique=False):
+    def column_def(self, sql_type, *, pk=False, required=False, unique=False,
+                   identity=False):
         # Caller-assigned PK -- a plain rowid alias, NOT AUTOINCREMENT. The id
-        # (ID_<hash> field) is set by the caller and bound on INSERT, so no
+        # (HARPIA_ID field) is set by the caller and bound on INSERT, so no
         # auto-generation is introduced (that would ignore the caller's id).
+        # An `autokey` table's PK is the same rowid alias: SQLite assigns it
+        # when the INSERT leaves it out (identity needs no extra DDL).
         if pk:
             return "{} PRIMARY KEY".format(sql_type)
         parts = [sql_type]
@@ -381,7 +384,7 @@ if __name__ == "__main__":
     b = SqliteBackend()
     print("# backend:", b, "soci_backend_symbol:", b.soci_backend_symbol)
     print(b.create_table("devices", [
-        ("ID_abc", b.column_def(b.sql_type("INT32"), pk=True)),
+        ("HARPIA_ID", b.column_def(b.sql_type("INT32"), pk=True)),
         ("devname", b.column_def(b.sql_type("STRING"), required=True)),
         ("serial", b.column_def(b.sql_type("STRING"), unique=True)),
         ("weight", b.column_def(b.sql_type("FLOAT"))),
@@ -398,7 +401,7 @@ if __name__ == "__main__":
     print(b.stamp_version("devices", "c96f8fd7"))
     print(b.list_column_types_sql("devices"))
     print(b.retype_column_dynamic("devices", [
-        ("ID_abc", b.int_type, b.column_def(b.int_type, pk=True)),
+        ("HARPIA_ID", b.int_type, b.column_def(b.int_type, pk=True)),
         ("weight", b.sql_type("FLOAT"), b.column_def(b.sql_type("FLOAT"))),
     ]))
     print(b.list_tables_sql("devices"))

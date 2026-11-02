@@ -30,7 +30,7 @@ public:
 
     bool create_table() {
         try {
-            db_ << "CREATE TABLE IF NOT EXISTS \"user_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" INTEGER PRIMARY KEY, \"sponsor\" TEXT, \"name\" TEXT NOT NULL, \"myUsers\" INTEGER, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT, \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" TEXT);";
+            db_ << "CREATE TABLE IF NOT EXISTS \"user_table\" (\"HARPIA_ID\" INTEGER PRIMARY KEY, \"sponsor\" TEXT, \"name\" TEXT NOT NULL, \"myUsers\" INTEGER, \"HARPIA_STATUS\" TEXT, \"HARPIA_ERROR\" TEXT, \"HARPIA_ORIGINATOR\" TEXT);";
             db_ << "CREATE TABLE IF NOT EXISTS \"user_table__members\" (\"owner\" INTEGER, \"ordinal\" INTEGER, \"value\" INTEGER, PRIMARY KEY(\"owner\", \"ordinal\"));";
             return true;
         } catch (const std::exception&) { return false; }
@@ -46,22 +46,22 @@ public:
     bool create(const ::top_users& msg) {
         try {
             if (msg.has_myusers()) { ::harpia::db::vip_users_dao _c(db_); if (!_c.create(msg.myusers())) return false; }
-            int c0 = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+            int c0 = msg.harpia_id();
             std::string c1 = msg.sponsor();
             std::string c2 = msg.name();
-            std::string c3 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c4 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c5 = msg.originator_3ac5d8b36fc7dcfb70888145147ddfb7();
-            long long c6 = msg.myusers().id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "INSERT INTO \"user_table\" (\"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"sponsor\", \"name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"myUsers\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6)",
+            std::string c3 = msg.harpia_status();
+            std::string c4 = msg.harpia_error();
+            std::string c5 = msg.harpia_originator();
+            long long c6 = msg.myusers().harpia_id();
+            db_ << "INSERT INTO \"user_table\" (\"HARPIA_ID\", \"sponsor\", \"name\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\", \"myUsers\") VALUES (:c0, :c1, :c2, :c3, :c4, :c5, :c6)",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(c6);
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 long long _ord = 0;
                 for (const auto& rv : msg.members()) {
                     ::harpia::db::vip_users_dao _c(db_);
                     if (!_c.create(rv)) return false;
-                    long long _v = rv.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    long long _v = rv.harpia_id();
                     db_ << "INSERT INTO \"user_table__members\" (\"owner\", \"ordinal\", \"value\") VALUES (:o, :n, :v)", ::soci::use(_owner), ::soci::use(_ord), ::soci::use(_v);
                     ++_ord;
                 }
@@ -80,19 +80,19 @@ public:
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
             long long l6 = 0; ::soci::indicator n6;
-            db_ << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"sponsor\", \"name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"myUsers\" FROM \"user_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id),
+            db_ << "SELECT \"HARPIA_ID\", \"sponsor\", \"name\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\", \"myUsers\" FROM \"user_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6);
             if (!db_.got_data()) return false;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_sponsor(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->set_name(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_status(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_error(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_originator(n5 == ::soci::i_ok ? l5 : std::string());
                 if (n6 == ::soci::i_ok && l6) { ::harpia::db::vip_users_dao _c(db_); _c.read(l6, msg->mutable_myusers()); }
                 {
                     long long _v = 0; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"user_table__members\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -109,21 +109,21 @@ public:
             if (msg.has_myusers()) { ::harpia::db::vip_users_dao _c(db_); _c.update(msg.myusers()); }
             std::string c0 = msg.sponsor();
             std::string c1 = msg.name();
-            std::string c2 = msg.status_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c3 = msg.error_3ac5d8b36fc7dcfb70888145147ddfb7();
-            std::string c4 = msg.originator_3ac5d8b36fc7dcfb70888145147ddfb7();
-            long long c5 = msg.myusers().id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            long long cid = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
-            db_ << "UPDATE \"user_table\" SET \"sponsor\" = :c0, \"name\" = :c1, \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c2, \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c3, \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\" = :c4, \"myUsers\" = :c5 WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :cid",
+            std::string c2 = msg.harpia_status();
+            std::string c3 = msg.harpia_error();
+            std::string c4 = msg.harpia_originator();
+            long long c5 = msg.myusers().harpia_id();
+            long long cid = msg.harpia_id();
+            db_ << "UPDATE \"user_table\" SET \"sponsor\" = :c0, \"name\" = :c1, \"HARPIA_STATUS\" = :c2, \"HARPIA_ERROR\" = :c3, \"HARPIA_ORIGINATOR\" = :c4, \"myUsers\" = :c5 WHERE \"HARPIA_ID\" = :cid",
                 ::soci::use(c0), ::soci::use(c1), ::soci::use(c2), ::soci::use(c3), ::soci::use(c4), ::soci::use(c5), ::soci::use(cid);
             {
-                int _owner = msg.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                int _owner = msg.harpia_id();
                 db_ << "DELETE FROM \"user_table__members\" WHERE \"owner\" = :o", ::soci::use(_owner);
                 long long _ord = 0;
                 for (const auto& rv : msg.members()) {
                     ::harpia::db::vip_users_dao _c(db_);
                     _c.update(rv);
-                    long long _v = rv.id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    long long _v = rv.harpia_id();
                     db_ << "INSERT INTO \"user_table__members\" (\"owner\", \"ordinal\", \"value\") VALUES (:o, :n, :v)", ::soci::use(_owner), ::soci::use(_ord), ::soci::use(_v);
                     ++_ord;
                 }
@@ -135,7 +135,7 @@ public:
 
     bool remove(std::int64_t id) {
         try {
-            db_ << "DELETE FROM \"user_table\" WHERE \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" = :id", ::soci::use(id);
+            db_ << "DELETE FROM \"user_table\" WHERE \"HARPIA_ID\" = :id", ::soci::use(id);
             db_ << "DELETE FROM \"user_table__members\" WHERE \"owner\" = :o", ::soci::use(id);
             return true;
         } catch (const std::exception&) { return false; }
@@ -150,22 +150,22 @@ public:
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
             long long l6 = 0; ::soci::indicator n6;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"sponsor\", \"name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"myUsers\" FROM \"user_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\"",
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"sponsor\", \"name\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\", \"myUsers\" FROM \"user_table\" ORDER BY \"HARPIA_ID\"",
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6));
             st.execute();
             while (st.fetch()) {
                 ::top_users row;
                 ::top_users* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_sponsor(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->set_name(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_status(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_error(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_originator(n5 == ::soci::i_ok ? l5 : std::string());
                 if (n6 == ::soci::i_ok && l6) { ::harpia::db::vip_users_dao _c(db_); _c.read(l6, msg->mutable_myusers()); }
                 {
                     long long _v = 0; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"user_table__members\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {
@@ -192,22 +192,22 @@ public:
             std::string l4; ::soci::indicator n4;
             std::string l5; ::soci::indicator n5;
             long long l6 = 0; ::soci::indicator n6;
-            ::soci::statement st = (db_.prepare << "SELECT \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\", \"sponsor\", \"name\", \"STATUS_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ERROR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"ORIGINATOR_3ac5d8b36fc7dcfb70888145147ddfb7\", \"myUsers\" FROM \"user_table\" ORDER BY \"ID_3ac5d8b36fc7dcfb70888145147ddfb7\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
+            ::soci::statement st = (db_.prepare << "SELECT \"HARPIA_ID\", \"sponsor\", \"name\", \"HARPIA_STATUS\", \"HARPIA_ERROR\", \"HARPIA_ORIGINATOR\", \"myUsers\" FROM \"user_table\" ORDER BY \"HARPIA_ID\" LIMIT :lim OFFSET :off", ::soci::use(limit), ::soci::use(offset),
                 ::soci::into(l0, n0), ::soci::into(l1, n1), ::soci::into(l2, n2), ::soci::into(l3, n3), ::soci::into(l4, n4), ::soci::into(l5, n5), ::soci::into(l6, n6));
             st.execute();
             while (st.fetch()) {
                 ::top_users row;
                 ::top_users* msg = &row;
-                msg->set_id_3ac5d8b36fc7dcfb70888145147ddfb7(n0 == ::soci::i_ok ? l0 : 0);
+                msg->set_harpia_id(n0 == ::soci::i_ok ? l0 : 0);
                 msg->set_sponsor(n1 == ::soci::i_ok ? l1 : std::string());
                 msg->set_name(n2 == ::soci::i_ok ? l2 : std::string());
-                msg->set_status_3ac5d8b36fc7dcfb70888145147ddfb7(n3 == ::soci::i_ok ? l3 : std::string());
-                msg->set_error_3ac5d8b36fc7dcfb70888145147ddfb7(n4 == ::soci::i_ok ? l4 : std::string());
-                msg->set_originator_3ac5d8b36fc7dcfb70888145147ddfb7(n5 == ::soci::i_ok ? l5 : std::string());
+                msg->set_harpia_status(n3 == ::soci::i_ok ? l3 : std::string());
+                msg->set_harpia_error(n4 == ::soci::i_ok ? l4 : std::string());
+                msg->set_harpia_originator(n5 == ::soci::i_ok ? l5 : std::string());
                 if (n6 == ::soci::i_ok && l6) { ::harpia::db::vip_users_dao _c(db_); _c.read(l6, msg->mutable_myusers()); }
                 {
                     long long _v = 0; ::soci::indicator _vi;
-                    int _owner = msg->id_3ac5d8b36fc7dcfb70888145147ddfb7();
+                    int _owner = msg->harpia_id();
                     ::soci::statement _rs = (db_.prepare << "SELECT \"value\" FROM \"user_table__members\" WHERE \"owner\" = :o ORDER BY \"ordinal\"", ::soci::use(_owner), ::soci::into(_v, _vi));
                     _rs.execute();
                     while (_rs.fetch()) {

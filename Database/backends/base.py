@@ -96,10 +96,25 @@ class DbBackend(ABC):
     # -- DDL: columns & tables ------------------------------------------------
     @abstractmethod
     def column_def(self, sql_type: str, *, pk: bool = False,
-                   required: bool = False, unique: bool = False) -> str:
+                   required: bool = False, unique: bool = False,
+                   identity: bool = False) -> str:
         """One column's type + constraints (replaces the old
         ``Column.sql_def()``). ``sql_type`` is already resolved (via
-        :meth:`sql_type` / :attr:`int_type`)."""
+        :meth:`sql_type` / :attr:`int_type`). ``identity`` (an `autokey`
+        message's primary key): the database assigns the value."""
+
+    def identity_advance_sql(self, table: str, column: str):
+        """For an `autokey` table, SQL run after inserting an explicit key so
+        later assigned keys don't collide with it; ``None`` when the database
+        does that itself (SQLite's rowid)."""
+        return None
+
+    def identity_migration(self, table: str, column: str):
+        """For an `autokey` table, how a migration makes an existing
+        caller-assigned key column database-assigned: ``None`` when nothing
+        is needed, else ``{"check_sql": <SELECT returning 'NO' when not yet
+        an identity>, "statements": [...]}``."""
+        return None
 
     @abstractmethod
     def create_table(self, table: str, columns, if_not_exists: bool = True) -> str:
@@ -155,6 +170,15 @@ class DbBackend(ABC):
         names are known at generation time (from the DSL's
         ``renamed_from[<old>]`` field modifier), unlike
         :meth:`drop_column_dynamic` below."""
+
+    def rename_column_dynamic(self, table: str, old_expr: str, new: str) -> str:
+        """:meth:`rename_column` from a RUNTIME-known old name: a C++
+        expression concatenating ``old_expr`` (a ``std::string``
+        expression), like :meth:`drop_column_dynamic`. Used to rename the
+        legacy hash-suffixed hidden columns (stable-hidden-names-DEFECT)."""
+        before, after = self.rename_column(table, "\0", new).split("\0")
+        esc = lambda s: s.replace("\\", "\\\\").replace('"', '\\"')
+        return '"{}" + {} + "{}"'.format(esc(before), old_expr, esc(after))
 
     @abstractmethod
     def drop_column_dynamic(self, table: str, name_expr: str) -> str:

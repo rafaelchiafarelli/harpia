@@ -35,7 +35,7 @@ from Util.util import loadTemplate, write_if_different
 from Database.backends import get_backend
 from Database.model import (analyze, type_registry, repeated_fields, map_fields,
                             child_table_names, RepeatedField,
-                            RepeatedComposedField)
+                            RepeatedComposedField, LEGACY_HIDDEN)
 
 MIGRATE_EXT = "_migrate.h"
 
@@ -55,6 +55,41 @@ _CHILD_RENAME = (
     '            db << "{rename_sql}";\n'
     '            _child_have.erase("{old}"); _child_have.insert("{new}");\n'
     '        }}')
+
+
+# stable-hidden-names-DEFECT: a live column named <prefix><32 hex> (or the
+# bare name, for ORIGINATOR) is a hidden column written by an older
+# generation; renamed to its HARPIA_* name when that one is absent. Runs
+# before the renamed_from renames, so add/drop never see the legacy name.
+_LEGACY_MATCHER = (
+    '        auto _harpia_legacy = [](const std::string& n, const std::string& p,\n'
+    '                                 bool bare_ok) {\n'
+    '            if (bare_ok && n + "_" == p) return true;\n'
+    '            if (n.size() != p.size() + 32 || n.compare(0, p.size(), p) != 0) return false;\n'
+    '            for (std::size_t i = p.size(); i < n.size(); ++i)\n'
+    '                if (!((n[i] >= \'0\' && n[i] <= \'9\') || (n[i] >= \'a\' && n[i] <= \'f\'))) return false;\n'
+    '            return true;\n'
+    '        };')
+
+_LEGACY_RENAME = (
+    '        if (!have.count("{new}")) {{\n'
+    '            for (const auto& _lc : have) {{\n'
+    '                if (!_harpia_legacy(_lc, "{prefix}", {bare})) continue;\n'
+    '                const std::string _lo = _lc;\n'
+    '                db << {rename_expr};\n'
+    '                have.erase(_lo); have.insert("{new}");\n'
+    '                break;\n'
+    '            }}\n'
+    '        }}')
+
+
+_IDENTITY = ('        {{\n'
+             '            std::string _ident; ::soci::indicator _ii = ::soci::i_null;\n'
+             '            db << "{check}", ::soci::into(_ident, _ii);\n'
+             '            if (_ii == ::soci::i_ok && _ident == "NO") {{\n'
+             '{stmts}'
+             '            }}\n'
+             '        }}')
 
 
 def _esc(sql):
@@ -90,11 +125,17 @@ class MigrationAdapter:
         b = self.backend
         # renames run first, against the OLD name, and correct `have` in place
         # so the additive/drop steps below see the post-rename column set.
+        legacy = [_LEGACY_RENAME.format(
+                      new=c.name, prefix=LEGACY_HIDDEN[c.name][0],
+                      bare="true" if LEGACY_HIDDEN[c.name][1] else "false",
+                      rename_expr=b.rename_column_dynamic(msg.tableName, "_lo", c.name))
+                  for c in columns if c.name in LEGACY_HIDDEN]
         renames = "\n".join(
-            _RENAME.format(old=c.renamed_from, new=c.name,
-                          rename_sql=_esc(b.rename_column(
-                              msg.tableName, c.renamed_from, c.name)))
-            for c in columns if getattr(c, "renamed_from", None))
+            ([_LEGACY_MATCHER] + legacy if legacy else [])
+            + [_RENAME.format(old=c.renamed_from, new=c.name,
+                              rename_sql=_esc(b.rename_column(
+                                  msg.tableName, c.renamed_from, c.name)))
+               for c in columns if getattr(c, "renamed_from", None)])
         # additive migration only ALTERs in non-PK columns (the PK always exists
         # from the first version; ALTER cannot add a PRIMARY KEY / NOT NULL column)
         alters = "\n".join(
@@ -102,6 +143,15 @@ class MigrationAdapter:
                           alter_sql=_esc(b.add_column(msg.tableName, c.name,
                                                       c.sql_type)))
             for c in columns if not c.pk)
+        # an `autokey` table: make an existing caller-assigned key column
+        # database-assigned (PostgreSQL identity; nothing to do on SQLite)
+        ident = next((b.identity_migration(msg.tableName, c.name)
+                      for c in columns if c.pk and getattr(c, "identity", False)), None)
+        if ident:
+            alters += "\n" + _IDENTITY.format(
+                check=_esc(ident["check_sql"]),
+                stmts="".join('                db << "{}";\n'.format(_esc(s))
+                              for s in ident["statements"]))
         # non-additive: drop any live column the current schema no longer
         # declares (an inverse diff -- `have` minus the current column names).
         # drop_column_dynamic returns a full C++ expression (quotes and all,

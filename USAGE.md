@@ -41,6 +41,12 @@ HarpiaTest/
 └── schema_registry/     # WRITTEN BY HARPIA on the first run -- commit it (§5.4)
 ```
 
+Imports are followed **transitively**: a module may import others, and every
+module the root reaches is generated, each once (a module imported from two
+places is not duplicated). An import cycle (`a` → `b` → `a`) is a generation
+error (`IMPORT_CYCLE`) naming the files. This lets you keep a stable root that
+imports one aggregator module.
+
 ---
 
 ## 3. The `.harpia` language
@@ -91,7 +97,8 @@ stream pull push event message top_users {
 | `dds` | message | publish/subscribe onto an ASTM F2761 / OpenICE-class DDS bus (§14) |
 | `critical` | message | delivery guarantees — bounded rotating send queue + flush (§12), DDS RELIABLE/KEEP_ALL |
 | `optional` / `required` | field | presence (`has_<field>()`) / NOT NULL; mutually exclusive |
-| `unique` | field | UNIQUE column |
+| `autokey` | message | the database assigns `HARPIA_ID` (SQLite rowid, PostgreSQL identity) when `create(msg)` gets key 0, and writes it back (C++ `create(T&)`, Python sets it, Java `createReturningKey`); a non-zero key is inserted as given; needs a table; can't be the target of a composed field (generation error) |
+| `unique` | field | UNIQUE column; the DAO gains `read_by_<field>(value, out)` (top-level, non-phi) |
 | `repeteable` | field | repeated field (ordinal child table, or `vector`/`list` if unbounded and table-less) |
 | `pagination[N]` | field | bounded-size hint; on a table message its `N` is the default GET-list page size |
 | `renamed_from[old]` | field | this field replaces `old` — `migrate_<name>` renames the live column instead of drop+add |
@@ -301,9 +308,10 @@ message `*.pb.cc` you use, adds header-only `third_party/crow` + `third_party/as
 builds `third_party/tinyxml2`, and links `soci_core` + a backend, protobuf,
 pthreads (and gRPC / libzmq / OpenSSL / cyclonedds as needed).
 
-Generated identifiers are **md5-hash-qualified** — `users_<hash>_crudl.h`,
-accessor `id_<hash>()` — the hash comes from your `.harpia` input and changes
-when your definitions do. Substitute your real hash for `<hash>` below.
+Generated **file names** are md5-hash-qualified — `users_<hash>_crudl.h` —
+the hash comes from your root `.harpia` file's text and changes when it does.
+Substitute your real hash for `<hash>` below. Field accessors are not: the
+hidden key is always `harpia_id()` / `set_harpia_id()`.
 
 ### 7.1 Database — CRUDL, FK, maps, repeated, pagination
 
@@ -317,13 +325,15 @@ harpia::db::users_dao dao(db);
 dao.create_table();                          // + child tables for maps / repeated / FK
 
 ::users u;
-u.set_id_<hash>(1);                          // ID is caller-assigned, set before create()
+u.set_harpia_id(1);                          // the key is caller-assigned, set before create()
 u.set_name("alice"); u.set_address("1 River Rd");
 dao.create(u);
 
 ::users got;
 dao.read(1, &got);                           // false if not found
 got.set_address("2 River Rd"); dao.update(got);
+// a `unique` field `x` also gets read_by_x(value, &out) -- false if not found
+// (top-level, non-phi fields; C++ read_by_x, Python read_by_x, Java readByX)
 
 std::vector<::users> all;
 dao.list(&all);                              // unbounded
@@ -486,9 +496,9 @@ language, so C++, Java and Python peers mix freely on one endpoint. Which
 factories a message gets follows its modifiers: `push`/`pull` → sender
 (PUSH, connects) + receiver (PULL, binds); `event`/`stream` → publisher
 (PUB, binds) + subscriber (SUB, connects). Every sender stamps an origin
-id into the message: a compile-time `ORIGIN_ID` in `ORIGINATOR_<hash>` for a
-one-to-* type (it also has `pull`/`event`/`stream`), a per-sender runtime id
-in `ORIGINATOR` for a push-only (many-to-*) type.
+id into the message's `HARPIA_ORIGINATOR` field: a compile-time `ORIGIN_ID`
+for a one-to-* type (it also has `pull`/`event`/`stream`), a per-sender
+runtime id for a push-only (many-to-*) type.
 
 **Java** (`java/`, JeroMQ — `com.harpia.generated.zmq.<name>_zmq`, runtime
 `com.harpia.runtime.zmq.HarpiaZmq`):
@@ -813,6 +823,14 @@ harpia::db::migrate_users(db, [](::soci::session& db) {
 
 Make it idempotent (guard with `WHERE`) — it may run on every startup.
 
+**Editing the root `.harpia` file** (adding an `import`, a comment, …) changes
+its md5, which renames every generated *file* but no column: the hidden fields
+are always `HARPIA_ID` / `HARPIA_STATUS` / `HARPIA_ERROR` / `HARPIA_ORIGINATOR`,
+so an existing database keeps opening. A database made by a generation before
+that (columns `ID_<md5>`, `STATUS_<md5>`, `ERROR_<md5>`, `ORIGINATOR` or
+`ORIGINATOR_<md5>`) is renamed in place by the next `migrate_<name>`, rows and
+key values intact.
+
 ---
 
 ## 11. ZeroMQ CURVE encryption
@@ -961,8 +979,25 @@ Docker/run.sh python3 main.py    # the pipeline with in-repo defaults
   renamed/removed message has its old files pruned. **Never hand-edit generated
   files.**
 - Exactly one root `.harpia` per input folder (imports under `Include/`).
-- Message ids (`ID_*` primary key) are **caller-assigned** — set them before
-  `create()`.
+- Message ids (the `HARPIA_ID` primary key; C++ `set_harpia_id()`) are
+  **caller-assigned** — set them before `create()`.
+- An `optional` field keeps its presence through the database in every
+  language: unset is stored as `NULL` and reads back unset (`has_x()` false);
+  set to `0` / `""` is stored and reads back set. This holds for an `optional`
+  sub-field of an embedded message too (C++ / Python; Java doesn't persist
+  embedded fields). Rows written before this change hold `0` / `""` and keep
+  reading as set.
+- An embedded (table-less) message field keeps its own presence too: unset
+  reads back unset, set but empty reads back set (C++ / Python). Each embed gets
+  a hidden `HARPIA_HAS_<path>` column, added by `migrate_<name>`, so
+  `WHERE "HARPIA_HAS_val" = 1` also works in your own SQL. Rows written before
+  this change read as set.
+- Every message carries four hidden fields the generator adds: `HARPIA_ID`,
+  `HARPIA_STATUS`, `HARPIA_ERROR`, `HARPIA_ORIGINATOR` (fixed names; before
+  stable-hidden-names-DEFECT they were `ID_<hash>`, `STATUS_<hash>`,
+  `ERROR_<hash>`, `ORIGINATOR[_<hash>]`). A field of your own may not use
+  the `HARPIA_` prefix or a name protoc would treat as the same
+  (`harpia_id`, `harpiaid`, …) — that is a generation error.
 - The generator (`main.py`) runs only on Linux/Docker. The **generated C++
   project** builds natively on Windows (MSVC 2022 + vcpkg) — verified for the
   ZMQ demo (incl. `-DUSE_ZMQ_CURVE=ON`), the REST/JSON consumer

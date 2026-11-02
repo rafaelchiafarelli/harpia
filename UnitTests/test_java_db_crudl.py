@@ -89,11 +89,11 @@ def test_crudl_dao_generated_for_all_scalar_table(tmp_path):
     assert "CREATE_TABLE_SQL" in text
     assert "JdbcBind.bind" in text
     assert "JdbcBind.extract" in text
-    # "address"/"name" are real columns; STATUS_/ERROR_/ORIGINATOR (front-end-
+    # "address"/"name" are real columns; HARPIA_STATUS/ERROR/ORIGINATOR (front-end-
     # injected, plain string columns, same as the C++ schema) ride along too.
     assert '"address"' in text
     assert '"name"' in text
-    assert "STATUS_{}".format(HASH) in text
+    assert "HARPIA_STATUS" in text
 
 
 def test_crudl_dao_notes_deferred_columns(tmp_path):
@@ -204,7 +204,7 @@ _USERS_CRUDL_HELPER = (
     "import com.google.protobuf.Descriptors.FieldDescriptor;\n"
     "import java.sql.*;\n"
     "public class UsersCrudlHelper {{\n"
-    "    static final String PK_FIELD = \"ID_{h}\";\n"
+    "    static final String PK_FIELD = \"HARPIA_ID\";\n"
     "    static users withId(users.Builder b, int id) {{\n"
     "        FieldDescriptor fd = b.getDescriptorForType().findFieldByName(PK_FIELD);\n"
     "        b.setField(fd, id);\n"
@@ -412,7 +412,7 @@ def test_java_reads_null_columns(tmp_path):
             "        Class.forName(\"org.sqlite.JDBC\");\n"
             "        String pk = null;\n"
             "        for (FieldDescriptor fd : nullable_row.getDescriptor().getFields())\n"
-            "            if (fd.getName().startsWith(\"ID_\")) pk = fd.getName();\n"
+            "            if (fd.getName().equals(\"HARPIA_ID\")) pk = fd.getName();\n"
             "        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n"
             "            nullable_row_dao dao = new nullable_row_dao(conn);\n"
             "            if (!dao.createTable()) System.exit(1);\n"
@@ -433,6 +433,127 @@ def test_java_reads_null_columns(tmp_path):
             "}\n",
     })
     run = subprocess.run(["java", "-cp", classpath, "smoke.NullRead"],
+                         capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0 and "OK" in run.stdout, \
+        "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)
+
+
+@pytest.mark.skipif(not _HAS_JAVA_TOOLCHAIN, reason=SKIP_REASON)
+def test_java_optional_presence(tmp_path):
+    """db-optional-presence-DEFECT task 3 (the C++ rule): the nullable_row
+    fixture's `optional` fields -- unset -> NULL stored, read back
+    !hasField; set to 0 / "" -> stored, read back present."""
+    harpia_file, include_folder = _write_fixture(tmp_path / "src", _NULLABLE_HARPIA)
+    out = generate(tmp_path / "out", lang="java", harpia_file=harpia_file,
+                   include_folder=include_folder)
+    classpath = build_and_classpath(os.path.join(out, "java"), {
+        "smoke/Presence.java":
+            "package smoke;\n"
+            "import com.harpia.generated.nullable_row;\n"
+            "import com.harpia.generated.db.nullable_row_dao;\n"
+            "import java.sql.*;\n"
+            "public class Presence {\n"
+            "    public static void main(String[] args) throws Exception {\n"
+            "        Class.forName(\"org.sqlite.JDBC\");\n"
+            "        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n"
+            "            nullable_row_dao dao = new nullable_row_dao(conn);\n"
+            "            if (!dao.createTable()) System.exit(1);\n"
+            "            nullable_row unset = nullable_row.newBuilder().setHARPIAID(1).setS(\"a\").build();\n"
+            "            nullable_row zero = nullable_row.newBuilder().setHARPIAID(2).setOs(\"\").setOi(0).build();\n"
+            "            if (!dao.create(unset) || !dao.create(zero)) System.exit(2);\n"
+            "            try (Statement st = conn.createStatement();\n"
+            "                 ResultSet rs = st.executeQuery(\"SELECT count(*) FROM \\\"nullable_row_table\\\" \"\n"
+            "                     + \"WHERE \\\"os\\\" IS NULL AND \\\"oi\\\" IS NULL\")) {\n"
+            "                if (!rs.next() || rs.getInt(1) != 1) System.exit(3);\n"
+            "            }\n"
+            "            nullable_row.Builder b1 = nullable_row.newBuilder();\n"
+            "            if (!dao.read(1, b1)) System.exit(4);\n"
+            "            if (b1.hasOs() || b1.hasOi()) System.exit(5);\n"
+            "            nullable_row.Builder b2 = nullable_row.newBuilder();\n"
+            "            if (!dao.read(2, b2)) System.exit(6);\n"
+            "            if (!b2.hasOs() || !b2.hasOi() || b2.getOi() != 0) System.exit(7);\n"
+            "        }\n"
+            "        System.out.println(\"OK\");\n"
+            "    }\n"
+            "}\n",
+    })
+    run = subprocess.run(["java", "-cp", classpath, "smoke.Presence"],
+                         capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0 and "OK" in run.stdout, \
+        "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)
+
+
+@pytest.mark.skipif(not _HAS_JAVA_TOOLCHAIN, reason=SKIP_REASON)
+def test_java_read_by_unique(tmp_path):
+    """dao-key-access read-by-unique task 3 (mirrors the C++ test):
+    reception_desk_dao.readByVisitorName -- hit fills the builder, miss is
+    false."""
+    out = generate(tmp_path / "out", lang="java")
+    classpath = build_and_classpath(os.path.join(out, "java"), {
+        "smoke/ReadBy.java":
+            "package smoke;\n"
+            "import com.harpia.generated.reception_desk;\n"
+            "import com.harpia.generated.db.reception_desk_dao;\n"
+            "import java.sql.*;\n"
+            "public class ReadBy {\n"
+            "    public static void main(String[] args) throws Exception {\n"
+            "        Class.forName(\"org.sqlite.JDBC\");\n"
+            "        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n"
+            "            reception_desk_dao dao = new reception_desk_dao(conn);\n"
+            "            if (!dao.createTable()) System.exit(1);\n"
+            "            if (!dao.create(reception_desk.newBuilder().setHARPIAID(4).setVisitorName(\"ana\").build())) System.exit(2);\n"
+            "            if (!dao.create(reception_desk.newBuilder().setHARPIAID(9).setVisitorName(\"bo\").build())) System.exit(3);\n"
+            "            reception_desk.Builder got = reception_desk.newBuilder();\n"
+            "            if (!dao.readByVisitorName(\"bo\", got) || got.getHARPIAID() != 9) System.exit(4);\n"
+            "            if (dao.readByVisitorName(\"nobody\", reception_desk.newBuilder())) System.exit(5);\n"
+            "        }\n"
+            "        System.out.println(\"OK\");\n"
+            "    }\n"
+            "}\n",
+    })
+    run = subprocess.run(["java", "-cp", classpath, "smoke.ReadBy"],
+                         capture_output=True, text=True, timeout=60)
+    assert run.returncode == 0 and "OK" in run.stdout, \
+        "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)
+
+
+@pytest.mark.skipif(not _HAS_JAVA_TOOLCHAIN, reason=SKIP_REASON)
+def test_java_db_assigned_key(tmp_path):
+    """dao-key-access / db-assigned-key task 4 (the C++ rule): an `autokey`
+    table's createReturningKey with key 0 returns the database's key; a set
+    key is inserted as given and later keys continue past it; create() stays
+    boolean. The whole generated Gradle project builds and its JUnit suite
+    runs (gradle build), so every generated caller of create() still works."""
+    harpia_file, include_folder = _write_fixture(
+        tmp_path / "src", "autokey message ticket{\n    required string title;\n}ticket_table;\n")
+    out = generate(tmp_path / "out", lang="java", harpia_file=harpia_file,
+                   include_folder=include_folder)
+    classpath = build_and_classpath(os.path.join(out, "java"), {
+        "smoke/AutoKey.java":
+            "package smoke;\n"
+            "import com.harpia.generated.ticket;\n"
+            "import com.harpia.generated.db.ticket_dao;\n"
+            "import java.sql.*;\n"
+            "public class AutoKey {\n"
+            "    public static void main(String[] args) throws Exception {\n"
+            "        Class.forName(\"org.sqlite.JDBC\");\n"
+            "        try (Connection conn = DriverManager.getConnection(\"jdbc:sqlite::memory:\")) {\n"
+            "            ticket_dao dao = new ticket_dao(conn);\n"
+            "            if (!dao.createTable()) System.exit(1);\n"
+            "            int a = dao.createReturningKey(ticket.newBuilder().setTitle(\"first\").build());\n"
+            "            int b = dao.createReturningKey(ticket.newBuilder().setTitle(\"second\").build());\n"
+            "            if (a == 0 || b == 0 || a == b) System.exit(2);\n"
+            "            ticket.Builder got = ticket.newBuilder();\n"
+            "            if (!dao.read(b, got) || !got.getTitle().equals(\"second\")) System.exit(3);\n"
+            "            if (dao.createReturningKey(ticket.newBuilder().setHARPIAID(99).setTitle(\"x\").build()) != 99) System.exit(4);\n"
+            "            if (dao.createReturningKey(ticket.newBuilder().setTitle(\"y\").build()) <= 99) System.exit(5);\n"
+            "            if (!dao.create(ticket.newBuilder().setTitle(\"z\").build())) System.exit(6);\n"
+            "        }\n"
+            "        System.out.println(\"OK\");\n"
+            "    }\n"
+            "}\n",
+    })
+    run = subprocess.run(["java", "-cp", classpath, "smoke.AutoKey"],
                          capture_output=True, text=True, timeout=60)
     assert run.returncode == 0 and "OK" in run.stdout, \
         "exit {}\n{}".format(run.returncode, run.stdout + run.stderr)

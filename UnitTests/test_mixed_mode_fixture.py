@@ -214,11 +214,11 @@ int main(int, char** argv) {{
     harpia::db::users_dao udao(db);
     if (!rdao.create_table() || !vdao.create_table() || !udao.create_table())
         return 2;
-    ::reception_desk r1; r1.set_id_{h}(1); r1.set_visitor_name("ada");
+    ::reception_desk r1; r1.set_harpia_id(1); r1.set_visitor_name("ada");
     if (!rdao.create(r1)) return 3;
-    ::vault v1; v1.set_id_{h}(1); v1.set_secret_code("hunter2");
+    ::vault v1; v1.set_harpia_id(1); v1.set_secret_code("hunter2");
     if (!vdao.create(v1)) return 4;
-    ::users u1; u1.set_id_{h}(1); u1.set_name("neo");
+    ::users u1; u1.set_harpia_id(1); u1.set_name("neo");
     if (!udao.create(u1)) return 5;
     harpia::http_transport::HttpServer server(db, "/v1", "/soap", mtls);
     server.app().bindaddr("127.0.0.1").port(port).multithreaded();
@@ -415,7 +415,7 @@ static ::grpc::StatusCode push_reception_desk(
         ::frameworkProtos::reception_desk_Service::Stub* stub,
         bool with_flat_credential) {{
     ::frameworkProtos::reception_desk_Message req;
-    req.mutable_msg()->set_id_{h}(2);
+    req.mutable_msg()->set_harpia_id(2);
     req.mutable_msg()->set_visitor_name("grace");
     ::grpc::ClientContext c;
     if (with_flat_credential) {{
@@ -429,7 +429,7 @@ static ::grpc::StatusCode push_reception_desk(
 static ::grpc::StatusCode push_vault(
         ::frameworkProtos::vault_Service::Stub* stub) {{
     ::frameworkProtos::vault_Message req;
-    req.mutable_msg()->set_id_{h}(2);
+    req.mutable_msg()->set_harpia_id(2);
     req.mutable_msg()->set_secret_code("swordfish");
     ::grpc::ClientContext c;
     c.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(8));
@@ -440,7 +440,7 @@ static ::grpc::StatusCode push_users(
         ::frameworkProtos::users_Service::Stub* stub,
         bool with_flat_credential) {{
     ::frameworkProtos::users_Message req;
-    req.mutable_msg()->set_id_{h}(2);
+    req.mutable_msg()->set_harpia_id(2);
     req.mutable_msg()->set_name("trin");
     ::grpc::ClientContext c;
     if (with_flat_credential) {{

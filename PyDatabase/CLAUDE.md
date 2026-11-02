@@ -17,6 +17,13 @@ a stage of `LangBackend/python.py`'s `run_python`.
   accessor derivation). Integers, `bool` and enums bind as `int`, floats as
   `float`, strings as `str`; `NULL` reads back as the field default (like
   the C++ indicator check). Message/repeated fields raise `TypeError`.
+  **`optional` presence (db-optional-presence-DEFECT task 2, the C++ rule):**
+  a field with `has_presence` (read via `bind.has_presence` — the pinned
+  `types-protobuf` stubs lack the attribute) binds `None` when unset, and a
+  `NULL` leaves it unset (`dao.set_column` skips it before materializing an
+  embed owner, like C++'s guarded set); `PhiDao` binds an unset phi optional
+  as `NULL` without encrypting. Repeated-composed elements (`to_db`/`from_db`)
+  are out of scope, as in C++.
 
 - `runtime/dao.py` → `harpia_runtime.db.dao` (task 2a): the CRUDL engine.
   `Dao[M]` implements `create_table` / `drop_table` / `create(msg) -> bool` /
@@ -44,6 +51,13 @@ a stage of `LangBackend/python.py`'s `run_python`.
   `remove`, dropped before the main table. `bind.to_db` / `from_db` convert
   one element / map key / map value by descriptor.
 
+**Embed presence (embed-presence-DEFECT task 2, the C++ rule):** a
+`Column(..., presence=True)` is a hidden `HARPIA_HAS_<prefix>` column whose path
+ends at the embedded message field. `column_value` binds it `1`/`0` and a
+sub-field of an absent embed as `None`; `_load_row` skips everything under a
+`0`, and `1`/`NULL` (a pre-change row) marks the embed present.
+`_read_child` returns early on zero rows so it can't materialize an embed.
+
 ## Generated DAOs (`templates/dao.py.tmpl`)
 `harpia_generated/db/<name>_<hash>_dao.py` per table-bearing message: class
 `<name>_dao(Dao[<name>])` holding the table spec and the exact SQL. The DDL
@@ -55,7 +69,15 @@ exact `.proto` names (resolved from the schema; `Database.model.Column.embed`
 holds C++'s lowercased accessors). The module
 docstring lists anything the C++ DAO persists that this DAO does not
 (`Deferred: ...`) — `none` for every fixture message since task 2c, asserted
-by `test_nothing_deferred`.
+by `test_nothing_deferred`. **`autokey` (dao-key-access db-assigned-key task 3):** the DAO
+declares `INSERT_AUTO_SQL` (no key, `RETURNING` it) and, on PostgreSQL,
+`IDENTITY_ADVANCE_SQL`; `Dao._create` with key 0 uses the first and sets the
+key on `msg`, with a set key inserts as given and runs the second.
+`MigrationSpec.identity` carries `DbBackend.identity_migration` (PG only).
+**`read_by_<field>` (dao-key-access read-by-unique
+task 2, the C++ rule):** every top-level, non-phi `unique` scalar field gets
+`READ_BY_SQL[field]` and a typed `read_by_<field>(value, out) -> bool`, which
+calls `Dao._read_by` (read()'s row load + audit, keyed on that column).
 
 ## Registry (task 4, `templates/registry.py.tmpl`)
 `harpia_generated/db/registry.py`: the port of `DbRegistryAdapter`'s
@@ -76,7 +98,10 @@ whose every statement comes from the `DbBackend` — including the new
 SQL the C++ `*_dynamic` methods embed, returned as data (those C++ methods
 now build their SQL through the same private helpers; C++ output proven
 byte-identical). `runtime/migrate.py` (`harpia_runtime.db.migrate`) runs the
-C++ step order: version table → child renames → ensure tables → column
+C++ step order: version table → child renames → ensure tables → legacy
+hidden-column renames (`hidden_renames`: a live `ID_`/`STATUS_`/`ERROR_<32
+hex>` or `ORIGINATOR[_<32 hex>]` column → its `HARPIA_*` name, when absent;
+stable-hidden-names-DEFECT, `Database.model.LEGACY_HIDDEN`) → column
 renames → ADD → `data_transform` → DROP → RETYPE → child reap + evolve →
 stamp. One transaction (explicit `BEGIN` on `sqlite3`, whose DDL is otherwise
 outside its implicit transactions); errors raise. Task 5b fills the child
@@ -185,7 +210,7 @@ UnitTests/test_python_db_postgres.py`.
   `sqlite3`, `%s` for `psycopg`. Additive on the shared backend; C++ (SOCI
   `:name`) and Java (JDBC `?`) never call it, so their goldens are unchanged.
 - A `composed` (repeated table-less message) element stores only its
-  flattened scalar/enum columns: the element's hidden `ID_`/`STATUS_`/...
+  flattened scalar/enum columns: the element's hidden `HARPIA_*`
   fields don't round-trip (same as C++).
 - The HarpiaTest fixture has no `bool`/`int64` fields (the DSL has no
   `bool`), so the bind test also compiles a small probe `.proto` with every

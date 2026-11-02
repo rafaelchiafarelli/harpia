@@ -38,7 +38,8 @@ class Column:
     def __init__(self, name, sql_type, pk=False, required=False, unique=False,
                  bindable=False, kind=None, fk_target=None, enum_type=None,
                  fk_table=False, embed=None, child_accessor=None,
-                 renamed_from=None, is_phi=False, backend=None) -> None:
+                 renamed_from=None, is_phi=False, optional=False,
+                 identity=False, presence_of=None, backend=None) -> None:
         self.name = name
         self.sql_type = sql_type
         self.pk = pk
@@ -63,6 +64,19 @@ class Column:
         self.is_phi = is_phi          # Foundation F2 field.is_phi -- Track A
                                       # encrypts this column's value on write
                                       # (envelope-sealed via a KeyProvider)
+        self.optional = optional      # an `optional` scalar/enum (explicit
+                                      # presence): unset <-> SQL NULL <->
+                                      # absent after read (db-optional-
+                                      # presence-DEFECT); top-level and
+                                      # embedded flat columns only
+        self.presence_of = list(presence_of) if presence_of else None
+                                      # hidden HARPIA_HAS_<prefix> column: the
+                                      # accessor chain of the embedded message
+                                      # field whose presence it records
+                                      # (1/0; NULL = a pre-change row, reads
+                                      # present) -- embed-presence-DEFECT
+        self.identity = identity      # an `autokey` message's primary key:
+                                      # the database assigns it
         self._backend = backend or get_backend()  # dialect for sql_def()
 
     @property
@@ -97,6 +111,15 @@ class Column:
             chain = "{}->mutable_{}()".format(chain, step)
         return "{}->mutable_{}()".format(chain, self.child_accessor or self.accessor)
 
+    def present_expr(self, src):
+        """C++ test: every embedded message level of this column is set on
+        ``src`` (the column's value is meaningful, else it is stored NULL)."""
+        tests, chain = [], src
+        for step in (self.embed or []):
+            tests.append("{}.has_{}()".format(chain, step))
+            chain = "{}.{}()".format(chain, step)
+        return " && ".join(tests)
+
     def has_expr(self, src):
         """C++ has_*() check for this composed field on ``src`` (chains
         through any embed levels; reading through an unset intermediate
@@ -107,6 +130,9 @@ class Column:
         return "{}.has_{}()".format(chain, self.child_accessor or self.accessor)
 
     def sql_def(self):
+        if self.identity:
+            return self._backend.column_def(self.sql_type, pk=self.pk, required=self.required,
+                                            unique=self.unique, identity=True)
         return self._backend.column_def(
             self.sql_type, pk=self.pk, required=self.required, unique=self.unique)
 
@@ -247,7 +273,28 @@ class RepeatedComposedField:
 
 # field names the front-end injects into every message; meaningless when a
 # message is embedded inside another, so flattening skips them.
-_HIDDEN_PREFIXES = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
+_HIDDEN_PREFIXES = ("HARPIA_",)
+
+
+# Legacy spellings of the hidden columns, written by generations before
+# stable-hidden-names-DEFECT: <prefix><32 hex digits of the root md5>, and
+# a bare ORIGINATOR for a non one-to-many message. The migrations rename a
+# live legacy column to its HARPIA_* name: {new: (legacy prefix, bare_ok)}.
+LEGACY_HIDDEN = {
+    "HARPIA_ID": ("ID_", False),
+    "HARPIA_STATUS": ("STATUS_", False),
+    "HARPIA_ERROR": ("ERROR_", False),
+    "HARPIA_ORIGINATOR": ("ORIGINATOR_", True),
+}
+
+
+def autokey_needs_live_db(msg, backend):
+    """The generated test suites run on in-memory SQLite whatever the DB
+    backend. An `autokey` table's identity DDL / key-advance SQL on another
+    dialect isn't valid there, so its database checks can't run in them."""
+    if backend is None or not getattr(msg, "is_autokey", False):
+        return False
+    return backend.identity_advance_sql(msg.tableName, "HARPIA_ID") is not None
 
 
 def _is_hidden(name):
@@ -313,6 +360,13 @@ def _flatten(name_prefix, child_msg, types, backend, embed_path=None, prefix=Tru
     if child_msg is None:
         return columns, notes
     embed_path = list(embed_path or [])
+    if prefix and embed_path:
+        # no column records the embed itself otherwise: its presence would be
+        # lost through the flat columns (embed-presence-DEFECT, option B)
+        columns.append(Column("HARPIA_HAS_{}".format(name_prefix), backend.int_type,
+                              kind="int", embed=embed_path[:-1] or None,
+                              child_accessor=embed_path[-1], presence_of=embed_path,
+                              backend=backend))
     for v in (child_msg.variables or []):
         if _is_hidden(v.name):
             continue
@@ -337,6 +391,7 @@ def _flatten(name_prefix, child_msg, types, backend, embed_path=None, prefix=Tru
                                       kind="enum", enum_type=v.type[1],
                                       embed=(embed_path if prefix else None),
                                       child_accessor=v.name.lower(),
+                                      optional=prefix and "OPTIONAL" in mods,
                                       backend=backend))
                 continue
             if kind == "message":
@@ -372,6 +427,7 @@ def _flatten(name_prefix, child_msg, types, backend, embed_path=None, prefix=Tru
         columns.append(Column(col_name, sql_type, bindable=False, kind=kind,
                               embed=(embed_path if prefix else None),
                               child_accessor=v.name.lower(),
+                              optional=prefix and "OPTIONAL" in mods,
                               backend=backend))
     return columns, notes
 
@@ -424,6 +480,7 @@ def analyze(msg, types=None, backend=None):
             if kind == "enum":
                 columns.append(Column(v.name, backend.int_type, bindable=True,
                                       kind="enum", enum_type=target,
+                                      optional="OPTIONAL" in mods,
                                       backend=backend))
                 continue
             if kind == "table":
@@ -458,12 +515,15 @@ def analyze(msg, types=None, backend=None):
             # column type rejects it on PostgreSQL. The bind kind stays the
             # field's own; the DAOs bind phi as text already.
             sql_type = backend.sql_type("STRING")
-        columns.append(Column(v.name, sql_type, pk=v.name.startswith("ID_"),
+        columns.append(Column(v.name, sql_type, pk=v.name == "HARPIA_ID",
                               required="REQUIRED" in mods,
                               unique="UNIQUE" in mods,
                               bindable=True, kind=kind,
                               renamed_from=getattr(v, "renamedFrom", None),
                               is_phi=getattr(v, "is_phi", False),
+                              optional="OPTIONAL" in mods,
+                              identity=(v.name == "HARPIA_ID"
+                                        and getattr(msg, "is_autokey", False)),
                               backend=backend))
     return columns, notes
 

@@ -119,10 +119,7 @@ def test_phi_field_emits_clean_proto(tmp_path):
 def test_phi_and_non_phi_fields_emit_identical_proto_shape(tmp_path):
     # F2's guarantee: fields without phi behave exactly as before. A phi
     # field and a plain field of the same type must produce the same
-    # "<type> <name> = <index>;" shape. (The two fixtures' hidden ID_/
-    # STATUS_/ERROR_ fields are hash-suffixed off the differing source text
-    # itself -- see Message/CLAUDE.md -- so only the "a" field's own line is
-    # a fair comparison, not the whole proto.)
+    # "<type> <name> = <index>;" shape.
     plain = _run(tmp_path, "message m {\nint a;\n};\n")
     tagged = _run(tmp_path, "message m {\nphi int a;\n};\n")
     assert plain["error"] is None and tagged["error"] is None

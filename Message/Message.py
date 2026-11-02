@@ -42,6 +42,7 @@ class Message():
     # either yet, same rationale as is_critical / is_dds.
     is_protected = False
     is_open = False
+    is_autokey = False
     # events-callbacks epic, task 1: cache mode of the `event` message-type
     # modifier. None ⇔ no `event` modifier; "cached" for bare `event` or
     # `event[cached]` (cached is the standard when unspecified); "not-cached"
@@ -61,6 +62,7 @@ class Message():
         self.is_dds = False
         self.is_protected = False
         self.is_open = False
+        self.is_autokey = False
         self.event_cache_mode = None
         self.log = logger(outFile=None, moduleName="Message")
         self.tableName = ""
@@ -130,6 +132,12 @@ class Message():
                     for access in self.access_modifiers:
                         if access[0] == 'OPEN':
                             self.is_open = True
+                            break
+                    ##dao-key-access / db-assigned-key: the database assigns
+                    ##HARPIA_ID (checked below: needs a table)
+                    for access in self.access_modifiers:
+                        if access[0] == 'AUTOKEY':
+                            self.is_autokey = True
                             break
                     ##Both on the same message is a hard generation-time
                     ##error -- never a silent precedence rule (same "never
@@ -231,6 +239,14 @@ class Message():
                         FileLine='1',
                         CharacterNumber='1')
 
+        ##an autokey message without a table has no key to assign
+        if self.is_autokey and not self.tableName:
+            return Error(errCl=Classes.MODIFIERS,
+                        errTp=Types.AUTOKEY_WITHOUT_TABLE,
+                        FileName=self.file,
+                        FileLine='0',
+                        CharacterNumber='0')
+
         return None
 
     def __str__(self) -> str:
@@ -244,4 +260,19 @@ class Message():
         return st
 
 
+def autokey_fk_error(messages):
+    """An `autokey` message can't be the target of a composed field: the
+    parent's create() hands its child over const, so the assigned key would
+    be lost and the parent's FK column left at 0. A generation error naming
+    both (decision 2026-11-01), or ``None``."""
+    autokey = {m.name for m in messages if getattr(m, "is_autokey", False)}
+    for m in messages:
+        if getattr(m, "isEnum", False):
+            continue
+        for v in (m.variables or []):
+            if v.type[0] == "ID" and v.type[1] in autokey:
+                return Error(errCl=Classes.MODIFIERS, errTp=Types.AUTOKEY_FK_TARGET,
+                             FileName="{}.{} -> {}".format(m.name, v.name, v.type[1]),
+                             FileLine="0", CharacterNumber="0")
+    return None
 

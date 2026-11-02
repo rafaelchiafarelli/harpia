@@ -17,27 +17,28 @@ class outpost_dao(Dao[outpost]):
 
     MESSAGE = outpost
     TABLE = 'outpost_table'
-    PK = 'ID_3ac5d8b36fc7dcfb70888145147ddfb7'
+    PK = 'HARPIA_ID'
     COLUMNS = (
-        Column('ID_3ac5d8b36fc7dcfb70888145147ddfb7', ('ID_3ac5d8b36fc7dcfb70888145147ddfb7',)),
+        Column('HARPIA_ID', ('HARPIA_ID',)),
         Column('commander', ('commander',)),
+        Column('HARPIA_HAS_berth', ('berth',), presence=True),
         Column('berth_label', ('berth', 'label')),
-        Column('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7', ('STATUS_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7', ('ERROR_3ac5d8b36fc7dcfb70888145147ddfb7',)),
-        Column('ORIGINATOR', ('ORIGINATOR',)),
+        Column('HARPIA_STATUS', ('HARPIA_STATUS',)),
+        Column('HARPIA_ERROR', ('HARPIA_ERROR',)),
+        Column('HARPIA_ORIGINATOR', ('HARPIA_ORIGINATOR',)),
         Column('berth_skipper', ('berth', 'skipper'), fk='harpia_generated.db.crew_3ac5d8b36fc7dcfb70888145147ddfb7_dao:crew_dao'),
     )
     CHILDREN = (
     )
     CREATE_TABLE_SQL = (
-        'CREATE TABLE IF NOT EXISTS "outpost_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7" INTEGER PRIMARY KEY, "commander" TEXT, "berth_label" TEXT, "berth_skipper" INTEGER, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" TEXT, "ORIGINATOR" TEXT);',
+        'CREATE TABLE IF NOT EXISTS "outpost_table" ("HARPIA_ID" INTEGER PRIMARY KEY, "commander" TEXT, "HARPIA_HAS_berth" INTEGER, "berth_label" TEXT, "berth_skipper" INTEGER, "HARPIA_STATUS" TEXT, "HARPIA_ERROR" TEXT, "HARPIA_ORIGINATOR" TEXT);',
     )
     DROP_TABLE_SQL = (
         'DROP TABLE IF EXISTS "outpost_table";',
     )
-    INSERT_SQL = 'INSERT INTO "outpost_table" ("ID_3ac5d8b36fc7dcfb70888145147ddfb7", "commander", "berth_label", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR", "berth_skipper") VALUES (?, ?, ?, ?, ?, ?, ?)'
-    SELECT_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "commander", "berth_label", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR", "berth_skipper" FROM "outpost_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    UPDATE_SQL = 'UPDATE "outpost_table" SET "commander" = ?, "berth_label" = ?, "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7" = ?, "ORIGINATOR" = ?, "berth_skipper" = ? WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    DELETE_SQL = 'DELETE FROM "outpost_table" WHERE "ID_3ac5d8b36fc7dcfb70888145147ddfb7" = ?'
-    LIST_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "commander", "berth_label", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR", "berth_skipper" FROM "outpost_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7"'
-    LIST_PAGE_SQL = 'SELECT "ID_3ac5d8b36fc7dcfb70888145147ddfb7", "commander", "berth_label", "STATUS_3ac5d8b36fc7dcfb70888145147ddfb7", "ERROR_3ac5d8b36fc7dcfb70888145147ddfb7", "ORIGINATOR", "berth_skipper" FROM "outpost_table" ORDER BY "ID_3ac5d8b36fc7dcfb70888145147ddfb7" LIMIT ? OFFSET ?'
+    INSERT_SQL = 'INSERT INTO "outpost_table" ("HARPIA_ID", "commander", "HARPIA_HAS_berth", "berth_label", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR", "berth_skipper") VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    SELECT_SQL = 'SELECT "HARPIA_ID", "commander", "HARPIA_HAS_berth", "berth_label", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR", "berth_skipper" FROM "outpost_table" WHERE "HARPIA_ID" = ?'
+    UPDATE_SQL = 'UPDATE "outpost_table" SET "commander" = ?, "HARPIA_HAS_berth" = ?, "berth_label" = ?, "HARPIA_STATUS" = ?, "HARPIA_ERROR" = ?, "HARPIA_ORIGINATOR" = ?, "berth_skipper" = ? WHERE "HARPIA_ID" = ?'
+    DELETE_SQL = 'DELETE FROM "outpost_table" WHERE "HARPIA_ID" = ?'
+    LIST_SQL = 'SELECT "HARPIA_ID", "commander", "HARPIA_HAS_berth", "berth_label", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR", "berth_skipper" FROM "outpost_table" ORDER BY "HARPIA_ID"'
+    LIST_PAGE_SQL = 'SELECT "HARPIA_ID", "commander", "HARPIA_HAS_berth", "berth_label", "HARPIA_STATUS", "HARPIA_ERROR", "HARPIA_ORIGINATOR", "berth_skipper" FROM "outpost_table" ORDER BY "HARPIA_ID" LIMIT ? OFFSET ?'

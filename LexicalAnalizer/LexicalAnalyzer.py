@@ -69,6 +69,11 @@ class LexicalAnalyzer:
             # transport kind and with `critical`/`dds`, order-independent.
             ('PROTECTED', r'protected '),
             ('OPEN', r'open '),
+            # dao-key-access / db-assigned-key: the database assigns the
+            # table's HARPIA_ID (an identity / rowid key) instead of the
+            # caller. Message-level, same slot and trailing-space rule as
+            # protected/open; Message.is_autokey. Never inferred.
+            ('AUTOKEY', r'autokey '),
             # message-type criticality modifier (sensitive-data design rules
             # §0, the *criticality* axis -- independent of PHI's confidentiality
             # axis). A keyword-only modifier that sits in the same slot as the

@@ -40,7 +40,7 @@ from UnitTests import _py_cpp_parity as P  # noqa: E402
 pytestmark = pytest.mark.skipif(not P.HAVE_PY, reason=P.SKIP_PY)
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 ALL_SCALAR = ("users", "beacon_log", "crew", "patient_vitals")
 
 
@@ -143,8 +143,8 @@ def test_cpp_written_row_reads_in_python(gen, msgs, tmp_path):
         "    ::soci::session db(::soci::sqlite3, argv[1]);\n"
         "    harpia::db::users_dao dao(db);\n"
         "    if (!dao.create_table()) return 2;\n"
-        "    ::users a; a.set_id_{h}(7); a.set_name(\"n\\xc3\\xa9o 'q'\");\n"
-        "    a.set_address(\"matrix\"); a.set_status_{h}(\"ok\");\n"
+        "    ::users a; a.set_harpia_id(7); a.set_name(\"n\\xc3\\xa9o 'q'\");\n"
+        "    a.set_address(\"matrix\"); a.set_harpia_status(\"ok\");\n"
         "    return dao.create(a) ? 0 : 3;\n"
         "}}\n".format(h=HASH))
     flags = subprocess.run(["pkg-config", "--cflags", "--libs", "protobuf"],
@@ -162,7 +162,7 @@ def test_cpp_written_row_reads_in_python(gen, msgs, tmp_path):
     assert dao_class("users")(sqlite3.connect(str(db_file))).read(7, got)
     want = msgs["users"](name="néo 'q'", address="matrix")
     setattr(want, PK, 7)
-    setattr(want, "STATUS_" + HASH, "ok")
+    setattr(want, "HARPIA_STATUS", "ok")
     assert got == want
 
 
@@ -201,7 +201,7 @@ def persisted_view(dao_cls, msg):
 
 
 def _unique_ids(msg, counter):
-    """Give every nested message's ID_<hash> a distinct value (populate()
+    """Give every nested message's HARPIA_ID a distinct value (populate()
     repeats the same one, which collides once children are rows)."""
     for f in msg.DESCRIPTOR.fields:
         if f.name == PK:
@@ -276,6 +276,110 @@ def test_unset_fk_stays_absent(name, gen, msgs, tmp_path):
             assert not rt._has_child(got, col), col.name
 
 
+def test_optional_presence_round_trip(gen, msgs, tmp_path):
+    """db-optional-presence-DEFECT task 2 (mirrors the C++ test): unset
+    `optional` -> NULL -> absent, set to its default -> present; top level
+    (data.j, patient_vitals.device_note) and embedded flat (data.val.val);
+    an update clearing a field writes NULL; an all-NULL embed stays unset."""
+    conn = _fresh_db(gen, tmp_path / "db.sqlite")
+    data, pv = msgs["data"], msgs["patient_vitals"]
+    dd, pd = dao_class("data")(conn), dao_class("patient_vitals")(conn)
+    d1 = data(i=4)
+    d1.val.var = 1
+    setattr(d1, PK, 1)
+    d2 = data(j=0)
+    d2.val.val = 0
+    setattr(d2, PK, 2)
+    assert dd.create(d1) and dd.create(d2)
+    row = conn.execute('SELECT "j", "val_val" FROM "table_data" WHERE "{}" = 1'
+                       .format(PK)).fetchone()
+    assert row == (None, None)
+    g1, g2 = data(), data()
+    assert dd.read(1, g1) and dd.read(2, g2)
+    assert not g1.HasField("j") and not g1.val.HasField("val") and g1.val.var == 1
+    assert g2.HasField("j") and g2.j == 0 and g2.val.HasField("val")
+    g2.ClearField("j")
+    assert dd.update(g2)
+    g3 = data()
+    assert dd.read(2, g3) and not g3.HasField("j")
+
+    a = pv(patient_id="p1")
+    setattr(a, PK, 1)
+    b = pv(patient_id="p2", device_note="")
+    setattr(b, PK, 2)
+    assert pd.create(a) and pd.create(b)
+    assert conn.execute('SELECT "device_note" FROM "patient_vitals_table" ORDER BY 1'
+                        ).fetchall() == [(None,), ("",)]
+    ga, gb = pv(), pv()
+    assert pd.read(1, ga) and pd.read(2, gb)
+    assert not ga.HasField("device_note")
+    assert gb.HasField("device_note") and gb.device_note == ""
+
+
+def test_read_by_unique(gen, msgs, tmp_path):
+    """dao-key-access read-by-unique task 2 (mirrors the C++ test):
+    reception_desk_dao.read_by_visitor_name -- hit fills the row, miss is
+    False, the UNIQUE constraint holds; no read_by for non-unique fields."""
+    cls, dao_cls = msgs["reception_desk"], dao_class("reception_desk")
+    conn = sqlite3.connect(str(tmp_path / "db.sqlite"))
+    dao = dao_cls(conn)
+    dao.create_table()
+    a, b = cls(visitor_name="ana"), cls(visitor_name="bo")
+    setattr(a, PK, 4)
+    setattr(b, PK, 9)
+    assert dao.create(a) and dao.create(b)
+    got = cls()
+    assert dao.read_by_visitor_name("bo", got) and got == b
+    assert not dao.read_by_visitor_name("nobody", cls())
+    dup = cls(visitor_name="ana")
+    setattr(dup, PK, 10)
+    with pytest.raises(sqlite3.IntegrityError):
+        dao.create(dup)
+    assert not hasattr(dao_class("users"), "read_by_name")
+
+
+def test_embed_presence_round_trip(gen, msgs, tmp_path):
+    """embed-presence-DEFECT task 2 (mirrors the C++ test): an unset embedded
+    message field reads back unset (HARPIA_HAS_<path> = 0, sub-columns NULL);
+    set, even all default, reads back set; levels are independent; a NULL
+    presence column (a pre-change row) reads present."""
+    conn = _fresh_db(gen, tmp_path / "db.sqlite")
+    data, journey = msgs["data"], msgs["journey"]
+    dd, jd = dao_class("data")(conn), dao_class("journey")(conn)
+    unset, empty = data(), data()
+    setattr(unset, PK, 1)
+    setattr(empty, PK, 2)
+    empty.val.SetInParent()
+    assert dd.create(unset) and dd.create(empty)
+    row = conn.execute('SELECT "HARPIA_HAS_val", "val_var" FROM "table_data" WHERE "{}" = 1'
+                       .format(PK)).fetchone()
+    assert row == (0, None)
+    g1, g2 = data(), data()
+    assert dd.read(1, g1) and not g1.HasField("val")
+    assert dd.read(2, g2) and g2.HasField("val")
+    conn.execute('UPDATE "table_data" SET "HARPIA_HAS_val" = NULL WHERE "{}" = 2'.format(PK))
+    conn.commit()
+    g3 = data()
+    assert dd.read(2, g3) and g3.HasField("val")  # a pre-change row
+    g2.ClearField("val")
+    assert dd.update(g2)
+    g4 = data()
+    assert dd.read(2, g4) and not g4.HasField("val")
+
+    none, outer, both = journey(), journey(), journey()
+    setattr(none, PK, 1)
+    setattr(outer, PK, 2)
+    outer.path.SetInParent()
+    setattr(both, PK, 3)
+    both.path.start.SetInParent()
+    assert jd.create(none) and jd.create(outer) and jd.create(both)
+    j1, j2, j3 = journey(), journey(), journey()
+    assert jd.read(1, j1) and not j1.HasField("path")
+    assert jd.read(2, j2) and j2.HasField("path") and not j2.path.HasField("start")
+    assert jd.read(3, j3) and j3.HasField("path") and j3.path.HasField("start")
+    assert [m == o for m, o in ((j1, none), (j2, outer), (j3, both))] == [True] * 3
+
+
 CHILD_TABLES = ("data", "telemetry", "shipment", "top_users")
 CROSS = ("journey", "top_users", "outpost", "data", "telemetry", "shipment")
 
@@ -340,7 +444,7 @@ def test_child_tables_round_trip(name, gen, msgs, tmp_path):
             assert dict(a) == dict(b), child.path
         elif child.kind == "composed":
             # only the element's flattened columns are stored (hidden
-            # ID_/STATUS_/... fields are not, same as C++)
+            # HARPIA_* hidden fields are not, same as C++)
             view = [[rt.column_value(e, c) for c in child.columns] for e in a]
             assert view == [[rt.column_value(e, c) for c in child.columns] for e in b]
         else:
@@ -353,3 +457,49 @@ def test_child_tables_round_trip(name, gen, msgs, tmp_path):
     assert len(dao.list()) == 1
     assert dao.remove(31)
     assert all(n == 0 for n in _child_rows(conn, dao_cls).values())
+
+
+_AUTOKEY_CHECK = r'''
+import sqlite3, sys
+from harpia_generated.db.ticket_{h}_dao import ticket, ticket_dao
+from harpia_generated.migrate.ticket_{h}_migrate import migrate_ticket
+conn = sqlite3.connect(sys.argv[1])
+dao = ticket_dao(conn)
+dao.create_table()
+a, b = ticket(title="first"), ticket(title="second")
+assert dao.create(a) and dao.create(b)
+assert a.HARPIA_ID and b.HARPIA_ID and a.HARPIA_ID != b.HARPIA_ID, (a, b)
+got = ticket()
+assert dao.read(b.HARPIA_ID, got) and got.title == "second"
+preset = ticket(HARPIA_ID=99, title="x")
+assert dao.create(preset) and preset.HARPIA_ID == 99
+assert migrate_ticket(conn) and migrate_ticket(conn)
+c = ticket(title="third")
+assert dao.create(c) and c.HARPIA_ID > 99
+print("OK")
+'''
+
+
+def test_db_assigned_key(tmp_path):
+    """dao-key-access / db-assigned-key task 3 (mirrors the C++ test): an
+    `autokey` table's create() with key 0 leaves HARPIA_ID to the database
+    and sets it on the message; a set key is inserted as given; own schema,
+    run in a subprocess so its harpia_generated doesn't clash with HarpiaTest's."""
+    import hashlib
+    (tmp_path / "Include").mkdir()
+    (tmp_path / "Include" / "ticket.harpia").write_text(
+        "autokey message ticket {\n    required string title;\n} ticket_table;\n")
+    root = tmp_path / "root.harpia"
+    root.write_text('import "ticket.harpia";\n')
+    out = tmp_path / "gen"
+    env = dict(os.environ, HARPIA_OUTPUT_DIR=str(out), HARPIA_INPUT_FILE=str(root),
+               HARPIA_INCLUDE_FOLDER=str(tmp_path / "Include"), HARPIA_GEN_LANG="python")
+    r = subprocess.run([sys.executable, "main.py"], cwd=REPO_ROOT, env=env,
+                       capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
+    h = hashlib.md5(root.read_bytes()).hexdigest()
+    run = subprocess.run([sys.executable, "-c", _AUTOKEY_CHECK.format(h=h),
+                          str(tmp_path / "t.sqlite")],
+                         env=dict(os.environ, PYTHONPATH=str(out / "python")),
+                         capture_output=True, text=True, timeout=120)
+    assert run.returncode == 0 and "OK" in run.stdout, run.stdout + run.stderr

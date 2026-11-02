@@ -10,7 +10,7 @@
 **Outputs** (under `<dest>/python/`):
 - `harpia_runtime/zmq.py` (from `runtime/zmq.py`): `Sender[M]` (PUSH
   connect / PUB bind with `pub=True`; `send`/`publish` copies the message,
-  stamps its `ORIGINATOR*` field — found by name prefix — and sends
+  stamps its `HARPIA_ORIGINATOR` field and sends
   `SerializeToString()` as ONE frame), `Receiver[M]` (PULL bind / SUB
   connect + subscribe-all with `sub=True`; `recv`/`receive` → message or
   `None` on a receive timeout / unparsable frame), `runtime_origin_id()`

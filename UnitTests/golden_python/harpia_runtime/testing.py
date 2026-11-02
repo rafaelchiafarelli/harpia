@@ -11,7 +11,7 @@ by ``PyTestAdapter`` (python-target / py-tests). The generated
   ``"b"``. Composed fields are filled recursively (embedded, foreign-key and
   repeated children alike), repeated fields and maps get two entries (map
   keys / values per ``TestAdapter._map_key`` / ``_map_val``), and every
-  nested ``ID_<hash>`` gets a distinct value so FK children are distinct
+  nested ``HARPIA_ID`` gets a distinct value so FK children are distinct
   rows;
 - :func:`check_field_access` proves every field survives set → get;
 - :func:`create_tables` creates a DAO's table and the tables it reaches;
@@ -38,8 +38,8 @@ from harpia_runtime.http.router import Request, Router, Server
 
 M = TypeVar("M", bound=Message)
 
-_ID_PREFIX = "ID_"
-_HIDDEN = ("ID_", "STATUS_", "ERROR_", "ORIGINATOR")
+_ID_FIELD = "HARPIA_ID"
+_HIDDEN = ("HARPIA_",)
 _INT32 = FieldDescriptor.CPPTYPE_INT32
 _FLOATS = (FieldDescriptor.CPPTYPE_DOUBLE, FieldDescriptor.CPPTYPE_FLOAT)
 _INT64S = (FieldDescriptor.CPPTYPE_INT64, FieldDescriptor.CPPTYPE_UINT64)
@@ -85,7 +85,7 @@ def _fill(msg: Message, variant: str, ids: list[int], seen: tuple[Descriptor, ..
         return
     seen = (*seen, d)
     for f in d.fields:
-        if f.name.startswith(_ID_PREFIX) and f.cpp_type == _INT32:
+        if f.name == _ID_FIELD and f.cpp_type == _INT32:
             if not top:
                 ids[0] += 1
                 setattr(msg, f.name, ids[0])
@@ -114,15 +114,35 @@ def _fill(msg: Message, variant: str, ids: list[int], seen: tuple[Descriptor, ..
             setattr(msg, f.name, _scalar(f, variant))
 
 
+def _distinct(f: FieldDescriptor) -> Any:
+    """A third value for a `unique` top-level field (the C++ ``_value``
+    variant "c"): differs from both the "a" and the "b" sample."""
+    t = f.cpp_type
+    if t == FieldDescriptor.CPPTYPE_STRING:
+        text = f"{f.name.lower()}_c"
+        return text.encode() if f.type == FieldDescriptor.TYPE_BYTES else text
+    if t == FieldDescriptor.CPPTYPE_ENUM:
+        return 0
+    if t in _FLOATS:
+        return 4.5
+    if t in _INT64S:
+        return 9
+    return 3
+
+
 def sample(cls: type[M], variant: str = "a", pk: int = 1,
-           id_base: int = 1000) -> M:
+           id_base: int = 1000, distinct: tuple[str, ...] = ()) -> M:
     """A ``cls`` with every field set (see the module docstring); its own
-    ``ID_<hash>`` is ``pk``, nested ones count up from ``id_base``."""
+    ``HARPIA_ID`` is ``pk``, nested ones count up from ``id_base``. The
+    top-level fields named in ``distinct`` (the message's `unique` fields)
+    get a third value, so this row can sit next to the "a" and "b" ones."""
     msg = cls()
     _fill(msg, variant, [id_base], (), True)
     for f in msg.DESCRIPTOR.fields:
-        if f.name.startswith(_ID_PREFIX) and f.cpp_type == _INT32:
+        if f.name == _ID_FIELD and f.cpp_type == _INT32:
             setattr(msg, f.name, pk)
+        elif f.name in distinct:
+            setattr(msg, f.name, _distinct(f))
     return msg
 
 

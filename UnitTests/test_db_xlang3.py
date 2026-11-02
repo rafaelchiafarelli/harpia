@@ -62,7 +62,7 @@ from UnitTests.test_py_db_dao import _populated, persisted_view  # noqa: E402
 from UnitTests.test_py_db_migrate import STARTS  # noqa: E402
 
 HASH = "3ac5d8b36fc7dcfb70888145147ddfb7"
-PK = "ID_" + HASH
+PK = "HARPIA_ID"
 LANGS = ("cpp", "python", "java")
 # the messages Java's DAOs fully persist (no embed/FK, no child table, no phi)
 JAVA_SCOPE = {"beacon_log", "crew", "reception_desk", "users", "vault", "vip_users"}
@@ -382,10 +382,11 @@ class Side:
 
 
 def java_eligible(dao_cls):
-    """Java's documented subset: every column top-level and not an FK, no
-    child table, no phi column."""
+    """Java's documented subset: every column top-level and not an FK or an
+    embed's presence column, no child table, no phi column."""
     return (not getattr(dao_cls, "PHI_FIELDS", ()) and not dao_cls.CHILDREN
-            and all(len(c.path) == 1 and c.fk is None for c in dao_cls.COLUMNS))
+            and all(len(c.path) == 1 and c.fk is None and not c.presence
+                    for c in dao_cls.COLUMNS))
 
 
 def _fk_closure(side, name, seen=None):
@@ -519,7 +520,9 @@ def test_java_scope_is_asserted(sqlite_side):
             assert a.execute(info).fetchall() == b.execute(info).fetchall(), n
             continue
         reasons = []
-        nested = [c.name for c in dao_cls.COLUMNS if len(c.path) > 1 or c.fk]
+        # an embed's hidden presence column goes with the embed: not listed
+        nested = [c.name for c in dao_cls.COLUMNS
+                  if (len(c.path) > 1 or c.fk) and not c.presence]
         if nested:
             assert all(c in deferred for c in nested), (n, nested, deferred)
             reasons.append("embed/fk")
@@ -586,7 +589,7 @@ def _migration(side, case, migrator, slot, store, old_row_readers=("cpp", "pytho
     for pk, lang in ((2, "cpp"), (3, "python"), (4, "java")):
         m = cls(label="{}-row".format(lang), strength=pk * 10)
         setattr(m, PK, pk)
-        setattr(m, "STATUS_" + HASH, "ok")
+        setattr(m, "HARPIA_STATUS", "ok")
         rows[pk] = m
         _ok(side.batch(lang, [("write", "beacon_log", slot, m.SerializeToString().hex())],
                        store), lang + " write after migration")
@@ -595,6 +598,95 @@ def _migration(side, case, migrator, slot, store, old_row_readers=("cpp", "pytho
 
 
 # -- PostgreSQL (opt-in) ---------------------------------------------------
+
+
+# -- optional presence (db-optional-presence-DEFECT task 4) -----------------
+
+# (message, optional field): vip_users is in Java's scope, patient_vitals
+# (phi) is C++ / Python only.
+_PRESENCE = (("vip_users", "name"), ("patient_vitals", "device_note"))
+
+
+def _presence(side, writer, new_slot, store):
+    """Rows written by ``writer`` with the optional field unset (key 1, NULL
+    stored) and set to "" (key 2): every reader sees it absent / present."""
+    side.activate()
+    for name, field in _PRESENCE:
+        if writer == "java" and name not in side.java_scope:
+            continue
+        slot = new_slot(name)
+        creator = "cpp" if writer == "java" else writer
+        _ok(side.batch(creator, [("create", t, slot, "") for t in _fk_closure(side, name)],
+                       store), creator + " create_table")
+        cls = side.msgs[name]
+        unset, empty = cls(), cls()
+        setattr(unset, PK, 1)
+        setattr(empty, PK, 2)
+        setattr(empty, field, "")
+        _ok(side.batch(writer, [("write", name, slot, m.SerializeToString().hex())
+                                for m in (unset, empty)], store), writer + " write")
+        conn = side.connect(slot)
+        stored = conn.execute('SELECT "{}" FROM "{}" ORDER BY "{}"'.format(
+            field, side.dao(name).TABLE, PK)).fetchall()
+        conn.close()
+        assert [r[0] for r in stored] == [None, ""], (name, writer, stored)
+        for reader in LANGS:
+            if reader == "java" and name not in side.java_scope:
+                continue
+            res = side.batch(reader, [("read", name, slot, k) for k in ("1", "2")], store)
+            _ok(res, "{} reads {}'s rows".format(reader, writer))
+            got = [cls.FromString(bytes.fromhex(p)) for _, p in res]
+            assert not got[0].HasField(field), (name, writer, reader)
+            assert got[1].HasField(field) and getattr(got[1], field) == "", \
+                (name, writer, reader)
+
+
+def _embed_presence(side, writer, new_slot, store):
+    """embed-presence-DEFECT task 3: rows written by C++ or Python with an
+    embed unset / set but empty, nested levels independent (journey.path.start,
+    data.val): the other language reads the same presence. Java persists no
+    embedded field."""
+    side.activate()
+    other = "python" if writer == "cpp" else "cpp"
+    for name, build, check in (
+        ("journey",
+         lambda m, k: (m.path.SetInParent() if k >= 2 else None,
+                       m.path.start.SetInParent() if k == 3 else None),
+         lambda m: (m.HasField("path"), m.path.HasField("start"))),
+        ("data",
+         lambda m, k: m.val.SetInParent() if k >= 2 else None,
+         lambda m: (m.HasField("val"),)),
+    ):
+        slot = new_slot(name)
+        _ok(side.batch(writer, [("create", t, slot, "") for t in _fk_closure(side, name)],
+                       store), writer + " create_table")
+        cls = side.msgs[name]
+        rows = {}
+        for k in (1, 2, 3):
+            rows[k] = cls()
+            setattr(rows[k], PK, k)
+            build(rows[k], k)
+        _ok(side.batch(writer, [("write", name, slot, m.SerializeToString().hex())
+                                for m in rows.values()], store), writer + " write")
+        for reader in (writer, other):
+            res = side.batch(reader, [("read", name, slot, str(k)) for k in rows], store)
+            _ok(res, "{} reads {}'s rows".format(reader, writer))
+            got = [cls.FromString(bytes.fromhex(p)) for _, p in res]
+            assert [check(m) for m in got] == [check(rows[k]) for k in rows], \
+                (name, writer, reader)
+
+
+@pytest.mark.parametrize("writer", ("cpp", "python"))
+def test_sqlite_embed_presence(writer, sqlite_side, tmp_path):
+    _embed_presence(sqlite_side, writer, _slot_factory(sqlite_side, tmp_path, None),
+                    str(tmp_path / "keks"))
+
+
+@pytest.mark.parametrize("writer", LANGS)
+def test_sqlite_optional_presence(writer, sqlite_side, tmp_path):
+    _presence(sqlite_side, writer, _slot_factory(sqlite_side, tmp_path, None),
+              str(tmp_path / "keks"))
+
 
 # patient_vitals' phi heart_rate (a float) is TEXT in the DDL, holding enc:v1:
 # text: its own regression test (cpp-phi-numeric-column-type-DEFECT).
@@ -628,3 +720,17 @@ def test_pg_migration_then_cross_read(case, migrator, pg_side, pg_databases, tmp
 def test_pg_java_reads_pre_migration_row(migrator, pg_side, pg_databases, tmp_path):
     _migration(pg_side, "rename_drop_add", migrator, pg_databases(), str(tmp_path / "keks"),
                old_row_readers=LANGS)
+
+
+@pg_only
+@pytest.mark.parametrize("writer", LANGS)
+def test_pg_optional_presence(writer, pg_side, pg_databases, tmp_path):
+    _presence(pg_side, writer, _slot_factory(pg_side, tmp_path, pg_databases),
+              str(tmp_path / "keks"))
+
+
+@pg_only
+@pytest.mark.parametrize("writer", ("cpp", "python"))
+def test_pg_embed_presence(writer, pg_side, pg_databases, tmp_path):
+    _embed_presence(pg_side, writer, _slot_factory(pg_side, tmp_path, pg_databases),
+                    str(tmp_path / "keks"))
