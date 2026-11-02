@@ -256,7 +256,12 @@ def test_yaml_map_negative_int_keys(built):
     """cpp-yaml-negative-map-keys-DEFECT: a map<int, ...> entry with a
     negative key is written as "-5: ..." and must read back as a map entry,
     not as a sequence item -- top level (queen.c) and nested inside an
-    embedded message (data.val.c)."""
+    embedded message (data.val.c).
+
+    yaml-map-roundtrip-flake-DEFECT: the nested half compares messages, not
+    SerializeAsString() bytes -- every protobuf map has its own hash seed, so
+    two equal maps with 2+ entries serialize in different orders on about half
+    the runs. #3/#4 prove the comparison still sees a lost / changed entry."""
     run = _build_run(built, "queen",
         "#include <climits>\n"
         "#include <iostream>\n"
@@ -281,7 +286,9 @@ def test_yaml_map_negative_int_keys(built):
     assert run.returncode == 0, "negative map keys (top level) failed at #{}\n{}".format(
         run.returncode, run.stderr)
     run = _build_run(built, "data",
+        "#include <google/protobuf/util/message_differencer.h>\n"
         "#include <iostream>\n"
+        "using ::google::protobuf::util::MessageDifferencer;\n"
         "int main() {\n"
         "    ::data a; a.set_i(4);\n"
         '    (*a.mutable_val()->mutable_c())[-1] = "neg";\n'
@@ -291,7 +298,12 @@ def test_yaml_map_negative_int_keys(built):
         "    std::cerr << y;\n"
         "    ::data b;\n"
         "    if (!harpia::yaml::from_yaml(y, &b)) return 1;\n"
-        "    if (a.SerializeAsString() != b.SerializeAsString()) return 2;\n"
+        "    if (!MessageDifferencer::Equals(a, b)) return 2;\n"
+        "    ::data lost = b; lost.mutable_val()->mutable_c()->erase(-1);\n"
+        "    if (MessageDifferencer::Equals(a, lost)) return 3;\n"
+        "    ::data changed = b;\n"
+        '    (*changed.mutable_val()->mutable_c())[2] = "changed";\n'
+        "    if (MessageDifferencer::Equals(a, changed)) return 4;\n"
         "    return 0;\n"
         "}\n", extra_pb=("prince", "grower"))
     assert run.returncode == 0, "negative map keys (nested) failed at #{}\n{}".format(
