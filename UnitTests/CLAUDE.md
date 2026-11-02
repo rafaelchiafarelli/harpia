@@ -408,7 +408,11 @@ C++ (skipped automatically when the C++ toolchain is absent; run fully in Docker
   (`queen`) round-trips through `to_yaml`/`from_yaml` with
   `SerializeAsString()` equality, plus `from_yaml("not yaml at all")` →
   `false`. serialization task 1 is output-parity only (redaction is serialization task 3, the unified path
-  is serialization task 2).
+  is serialization task 2). **Never compare `SerializeAsString()` bytes of a
+  message whose map holds 2+ entries:** every protobuf map has its own hash
+  seed, so equal maps serialize in different orders on about half the runs
+  (yaml-map-roundtrip-flake-DEFECT). `test_yaml_map_negative_int_keys` uses
+  `MessageDifferencer::Equals`, with a lost-entry and a changed-entry control.
 - `test_stage10_serialize.py` — the serialization epic / Sessions serialization task 2 **and serialization task 3**: the
   unified `toString` façade + `phi` redaction (`SerializeAdapter/`,
   `harpia_serialize.h` + `harpia_redaction.h` + generated
