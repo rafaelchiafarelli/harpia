@@ -58,7 +58,6 @@ Open DEFECT initiatives: see the `*-DEFECT` rows of the index below.
 | [doxygen-generation.md](doxygen-generation/doxygen-generation.md) | Foundation F6 + Ground Rule 6 plumbing **shipped** 2026-08-23. The `doc-comment-coverage` epic (real per-template doc-comments) — **not started**, after `multi-system-reference`. |
 | [ci-pipeline/](ci-pipeline/README.md) | **Scoped, not started.** GitHub Actions running the existing `Docker/run.sh pytest UnitTests/` suite on push/PR, plus image-layer caching. 2 tasks, both written. Highest leverage-per-effort of the open initiatives — no CI today means nothing independently re-verifies any "N passed" claim. |
 | [cpp-phi-unencrypted-field-shapes-DEFECT/](cpp-phi-unencrypted-field-shapes-DEFECT/README.md) | **Defect, not started** (found 2026-10-05 while fixing the numeric-phi defect). `phi` on an enum field, an embedded sub-field, a repeated or a map field is stored in plaintext by the C++ and Python DAOs, with no audit. 3 tasks; task 1 is a refuse-vs-encrypt decision. |
-| [yaml-map-roundtrip-flake-DEFECT/](yaml-map-roundtrip-flake-DEFECT/README.md) | **Fixed 2026-11-01; a test bug.** `test_yaml_map_negative_int_keys` compared serialized bytes of two equal messages, and protobuf map order differs per map. `from_yaml` was correct. The test now compares messages. 1 task, done. |
 | [go-target/](go-target/README.md) | **Scoped, not started.** Language #4 (resequenced behind python-target 2026-10-03), full compliance parity except DDS + ZMQ-CURVE/ZAP (pure-Go constraint). Depends on python-target's `lang-backend-seam` epic; its interop epic adds Go as the 4th peer to python-target's harness. No task files yet. |
 
 Finished plans are removed from this index once done — the shipped behavior is
@@ -105,6 +104,9 @@ Python / Java — `Database/CLAUDE.md`, `PyDatabase/CLAUDE.md`,
 `JavaDatabase/CLAUDE.md`, `USAGE.md` §3 / §7.1);
 **embed-presence-DEFECT** (hidden `HARPIA_HAS_<path>` column, an unset embedded
 message reads back unset — `Database/CLAUDE.md`, `USAGE.md` §16).
+The **yaml-map-roundtrip-flake-DEFECT** (fixed 2026-11-01, a test bug):
+`test_yaml_map_negative_int_keys` compared map bytes, whose order differs per
+map; it now compares messages — `UnitTests/CLAUDE.md`.
 Earlier removed-on-completion plans: Postgres backend
 (`Database/CLAUDE.md`), crash/interrupt recovery (`Util/CLAUDE.md`),
 message-versioning (`Message/CLAUDE.md`, `Capability/CLAUDE.md`),
