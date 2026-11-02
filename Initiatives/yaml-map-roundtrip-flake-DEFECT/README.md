@@ -1,6 +1,6 @@
 # `test_yaml_map_negative_int_keys` fails intermittently — DEFECT
 
-**Status: scoped, not started; cause not confirmed.** Found 2026-11-01.
+**Status: fixed; a test bug.** Found and fixed 2026-11-01.
 
 ## What was found
 
@@ -17,15 +17,24 @@ intermittent failure seen in the suite.
 - **Sample YAML at a failure:** the map came out as `2: "pos"` then `-1: "neg"`,
   though the test inserts `-1` first.
 
-## Unconfirmed hypothesis
+## Cause
 
-Protobuf doesn't guarantee a stable byte order for map fields, so the test may
-be comparing bytes of two equal messages whose maps hold their entries in a
-different order. That would make this a **test bug**. The other outcome is a
-**product bug**: `from_yaml` really loses or changes a value on some runs. The
-task below decides which; don't assume the first.
+The test compared bytes of two equal messages whose maps hold their entries in a
+different order. In protobuf 3.21.12 every map takes its own hash seed from its
+address and the CPU timestamp counter (`Seed()` in `map.h`), and
+`SerializeAsString()` writes map entries in iteration order. So `from_yaml` was
+right and the comparison was wrong.
+
+A copy of the nested half, run 500 times: `from_yaml` returned true and
+`MessageDifferencer::Equals` held on all 500. The bytes differed on 276, exactly
+the runs where the two maps iterated in different orders. With two entries the
+expected failure rate is about 1 in 2, not the 1 in 3 first estimated; the task's
+loop failed 13 of 20 before the fix.
+
+`to_yaml` writes map entries in the same order, so equal messages can produce
+different YAML text. Nothing here depends on that, so it was left as it is.
 
 ## Scope
 
 One epic, **`map-roundtrip`**, one task — see
-`epics/map-roundtrip/tasks/1-find-and-fix-the-flake.md`.
+`epics/map-roundtrip/tasks/1-find-and-fix-the-flake-done.md`.
